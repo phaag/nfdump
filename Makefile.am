@@ -2,9 +2,9 @@ ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = src/libnffile src/libnfdump src/output src/netflow src/collector src/maxmind src/tor
 SUBDIRS += src/nfdump src/nfcapd  
-SUBDIRS += src/nfanon src/nfexpire src/nfreplay . src src/test src/nfreader src/inline src/include
+## SUBDIRS += src/nfanon src/nfexpire src/nfreplay . src src/test src/nfreader src/inline src/include
 
-SUBDIRS += src/sflow
+# SUBDIRS += src/sflow
 
 if BUILD_FT2NFDUMP
 SUBDIRS += src/ft2nfdump

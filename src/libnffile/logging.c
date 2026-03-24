@@ -125,7 +125,7 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_
     }
 
     if (!facility || strlen(facility) > 32) {
-        fprintf(stderr, "Invalid syslog facility name '%s'!\n", facility);
+        fprintf(stdout, "Invalid syslog facility name '%s'!\n", facility);
         return 0;
     }
 
@@ -135,7 +135,7 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_
     }
 
     if (facilitynames[i].c_name == NULL) {
-        fprintf(stderr, "Invalid syslog facility name '%s'!\n", facility);
+        fprintf(stdout, "Invalid syslog facility name '%s'!\n", facility);
         return 0;
     }
 
@@ -159,7 +159,7 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_
 /*
  * some modules are needed for daemon code as well as normal stdio code
  * therefore a generic LogError is defined, which maps in this case
- * to stderr
+ * to stdout
  */
 void LogError(char *format, ...) {
     va_list var_args;
@@ -174,7 +174,7 @@ void LogError(char *format, ...) {
     } else {
         va_start(var_args, format);
         vsnprintf(string, 511, format, var_args);
-        fprintf(stderr, "%s\n", string);
+        fprintf(stdout, "%s\n", string);
         va_end(var_args);
     }
 
@@ -193,7 +193,7 @@ void LogInfo(char *format, ...) {
     } else if (verbose) {
         va_start(var_args, format);
         vsnprintf(string, 511, format, var_args);
-        fprintf(stderr, "%s\n", string);
+        fprintf(stdout, "%s\n", string);
         va_end(var_args);
     }
 
@@ -212,7 +212,7 @@ void LogVerbose(char *format, ...) {
         } else {
             va_start(var_args, format);
             vsnprintf(string, 511, format, var_args);
-            fprintf(stderr, "%s\n", string);
+            fprintf(stdout, "%s\n", string);
             va_end(var_args);
         }
     }

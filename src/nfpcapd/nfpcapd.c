@@ -559,7 +559,7 @@ int main(int argc, char *argv[]) {
         const nffile_backend_ctx_t nffile_backend_ctx = {
             .creator = CREATOR_NFPCAPD, .compress = compress, .encryption = NOT_ENCRYPTED, .subdir = subdir_index, .time_extension = time_extension};
 
-        if (!Init_nffile_backend(fs, &nffile_backend_ctx)) {
+        if (Init_nffile_backend(fs, &nffile_backend_ctx) != 0) {
             LogError("initialize nffile backend failed.");
             exit(EXIT_FAILURE);
         }

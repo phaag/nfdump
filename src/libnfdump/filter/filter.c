@@ -49,6 +49,7 @@
 #include "ja4/ja4.h"
 #include "logging.h"
 #include "maxmind/maxmind.h"
+#include "nfxV4.h"
 #include "sgregex.h"
 #include "tor/tor.h"
 #include "util.h"
@@ -145,7 +146,7 @@ static struct flow_procs_map_s {
 static struct preprocess_s {
     preprocess_proc_t function;
 } const preprocess_map[MAXLISTSIZE] = {
-    [EXasRoutingID] = {as_preproc}, [EXinPayloadHandle] = {inPayload_preproc}, [EXoutPayloadHandle] = {outPayload_preproc}};
+    [EXasInfoID] = {as_preproc}, [EXinPayloadHandle] = {inPayload_preproc}, [EXoutPayloadHandle] = {outPayload_preproc}};
 
 // static const int a[20] = {1, 2, 3, [8] = 10, 11, 12};
 
@@ -224,21 +225,21 @@ static uint64_t bpp_function(void *dataPtr, uint32_t length, data_t data, record
 }  // End of bpp_function
 
 static uint64_t mpls_label_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
+    EXmpls_t *mpls = (EXmpls_t *)handle->extensionList[EXmplsID];
     int64_t labelID = data.dataVal;
 
-    return mplsLabel->mplsLabel[labelID] >> 4;
+    return mpls->label[labelID] >> 4;
 
 }  // End of mpls_label_function
 
 static uint64_t mpls_eos_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
+    EXmpls_t *mpls = (EXmpls_t *)handle->extensionList[EXmplsID];
 
     // search for end of MPLS stack label
     for (int i = 0; i < 10; i++) {
-        if (mplsLabel->mplsLabel[i] & 1) {
+        if (mpls->label[i] & 1) {
             // End of stack found -> return label
-            return mplsLabel->mplsLabel[i] >> 4;
+            return mpls->label[i] >> 4;
         }
     }
 
@@ -248,22 +249,22 @@ static uint64_t mpls_eos_function(void *dataPtr, uint32_t length, data_t data, r
 }  // End of mpls_eos_function
 
 static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
+    EXmpls_t *mpls = (EXmpls_t *)handle->extensionList[EXmplsID];
 
     uint32_t offset = data.dataVal;
-    return (mplsLabel->mplsLabel[offset] >> 1) & 0x7;
+    return (mpls->label[offset] >> 1) & 0x7;
 
 }  // End of mpls_exp_function
 
 static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
+    EXmpls_t *mpls = (EXmpls_t *)handle->extensionList[EXmplsID];
     int64_t labelValue = data.dataVal;
 
     // search for end of MPLS stack label
     for (int i = 0; i < 10; i++) {
-        if ((mplsLabel->mplsLabel[i] >> 4) == labelValue) {
+        if ((mpls->label[i] >> 4) == labelValue) {
             // Found matching label
-            return mplsLabel->mplsLabel[i] >> 4;
+            return mpls->label[i] >> 4;
         }
     }
 
@@ -271,7 +272,7 @@ static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, r
     return 0xFF000000;
 
     uint32_t offset = data.dataVal;
-    return mplsLabel->mplsLabel[offset] >> 4;
+    return mpls->label[offset] >> 4;
 
 }  // End of mpls_any_function
 
@@ -326,35 +327,35 @@ static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, r
     return ipInfo->minTTL == ipInfo->maxTTL;
 }  // End of ttlEqual_function
 
-static void *dns_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
-    uint32_t payloadLength = ExtensionLength(payload);
+static void *dns_preproc(const EXPayload_t *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+    uint32_t payloadLength = payload->size;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
     if (!genericFlow) return NULL;
     if (genericFlow->srcPort != 53 && genericFlow->dstPort != 53) return NULL;
 
     void *dns = NULL;
     if (genericFlow->proto == IPPROTO_TCP)
-        dns = dnsPayloadDecode(payload + 2, payloadLength - 2);
+        dns = dnsPayloadDecode(payload->payload + 2, payloadLength - 2);
     else
-        dns = dnsPayloadDecode(payload, payloadLength);
+        dns = dnsPayloadDecode(payload->payload, payloadLength);
     payloadHandle->dns = dns;
     return dns;
 
 }  // End of dns_preproc
 
-static void *ssl_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
-    uint32_t payloadLength = ExtensionLength(payload);
+static void *ssl_preproc(const EXPayload_t *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+    uint32_t payloadLength = payload->size;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
     if (!genericFlow) return NULL;
 
     ssl_t *ssl = NULL;
-    if (genericFlow->proto == IPPROTO_TCP) ssl = sslProcess(payload, payloadLength);
+    if (genericFlow->proto == IPPROTO_TCP) ssl = sslProcess(payload->payload, payloadLength);
     payloadHandle->ssl = ssl;
     return ssl;
 
 }  // End of ssl_preproc
 
-static void *ja3_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+static void *ja3_preproc(const EXPayload_t *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
     ssl_t *ssl = (ssl_t *)payloadHandle->ssl;
     if (ssl == NULL) ssl = ssl_preproc(payload, payloadHandle, recordHandle);
     if (!ssl) return NULL;
@@ -365,7 +366,7 @@ static void *ja3_preproc(const void *payload, payloadHandle_t *payloadHandle, re
 
 }  // End of ja3_preproc
 
-static void *ja4_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+static void *ja4_preproc(const EXPayload_t *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
     ssl_t *ssl = (ssl_t *)payloadHandle->ssl;
     if (ssl == NULL) ssl = ssl_preproc(payload, payloadHandle, recordHandle);
     if (!ssl) return NULL;
@@ -386,7 +387,7 @@ static void *ja4_preproc(const void *payload, payloadHandle_t *payloadHandle, re
 }  // End of ja4_preproc
 
 static void *inPayload_preproc(uint32_t length, data_t data, recordHandle_t *recordHandle, filterOption_t option) {
-    const void *payload = (uint8_t *)(recordHandle->extensionList[EXinPayloadID]);
+    const EXPayload_t *payload = (EXPayload_t *)(recordHandle->extensionList[EXinPayloadID]);
     if (payload == NULL) return NULL;
 
     payloadHandle_t *payloadHandle = (void *)(recordHandle->extensionList[EXinPayloadHandle]);
@@ -428,7 +429,7 @@ static void *inPayload_preproc(uint32_t length, data_t data, recordHandle_t *rec
 }  // End of inPayload_preproc
 
 static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *recordHandle, filterOption_t option) {
-    const void *payload = (uint8_t *)(recordHandle->extensionList[EXoutPayloadID]);
+    const EXPayload_t *payload = (EXPayload_t *)(recordHandle->extensionList[EXoutPayloadID]);
     if (payload == NULL) return NULL;
 
     payloadHandle_t *payloadHandle = (void *)(recordHandle->extensionList[EXoutPayloadHandle]);
@@ -471,7 +472,7 @@ static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *re
 
 static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option) {
     // no AS field, map slack
-    handle->extensionList[EXasRoutingID] = handle->localStack;
+    handle->extensionList[EXasInfoID] = handle->localStack;
     return (void *)handle->localStack;
 }  // End of as_preproc
 
@@ -496,42 +497,45 @@ static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHa
                 LookupV6Country(ipv6Flow->dstAddr, geoChar);
             }
         } break;
-        case DIR_SRC_NAT: {
-            EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
-            EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
-            if (natXlateIPv4) {
-                LookupV4Country(natXlateIPv4->xlateSrcAddr, geoChar);
-            } else if (natXlateIPv6) {
-                LookupV6Country(natXlateIPv6->xlateSrcAddr, geoChar);
-            }
-        } break;
-        case DIR_DST_NAT: {
-            EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
-            EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
-            if (natXlateIPv4) {
-                LookupV4Country(natXlateIPv4->xlateDstAddr, geoChar);
-            } else if (natXlateIPv6) {
-                LookupV6Country(natXlateIPv6->xlateDstAddr, geoChar);
-            }
-        } break;
-        case DIR_SRC_TUN: {
-            EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
-            EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
-            if (tunIPv4) {
-                LookupV4Country(tunIPv4->tunSrcAddr, geoChar);
-            } else if (tunIPv6) {
-                LookupV6Country(tunIPv6->tunSrcAddr, geoChar);
-            }
-        } break;
-        case DIR_DST_TUN: {
-            EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
-            EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
-            if (tunIPv4) {
-                LookupV4Country(tunIPv4->tunDstAddr, geoChar);
-            } else if (tunIPv6) {
-                LookupV6Country(tunIPv6->tunDstAddr, geoChar);
-            }
-        } break;
+            /*
+            case DIR_SRC_NAT: {
+                EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+                EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
+                if (natXlateIPv4) {
+                    LookupV4Country(natXlateIPv4->xlateSrcAddr, geoChar);
+                } else if (natXlateIPv6) {
+                    LookupV6Country(natXlateIPv6->xlateSrcAddr, geoChar);
+                }
+            } break;
+                 XXX FIX!
+                 case DIR_DST_NAT: {
+                    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+                    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
+                    if (natXlateIPv4) {
+                        LookupV4Country(natXlateIPv4->xlateDstAddr, geoChar);
+                    } else if (natXlateIPv6) {
+                        LookupV6Country(natXlateIPv6->xlateDstAddr, geoChar);
+                    }
+                } break;
+                case DIR_SRC_TUN: {
+                    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
+                    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+                    if (tunIPv4) {
+                        LookupV4Country(tunIPv4->tunSrcAddr, geoChar);
+                    } else if (tunIPv6) {
+                        LookupV6Country(tunIPv6->tunSrcAddr, geoChar);
+                    }
+                } break;
+                case DIR_DST_TUN: {
+                    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
+                    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+                    if (tunIPv4) {
+                        LookupV4Country(tunIPv4->tunDstAddr, geoChar);
+                    } else if (tunIPv6) {
+                        LookupV6Country(tunIPv6->tunDstAddr, geoChar);
+                    }
+                } break;
+                */
     }
     return *((uint16_t *)(geoChar));
 
@@ -682,13 +686,13 @@ static void UpdateList(uint32_t a, uint32_t b) {
 
     /* connect list of node 'b' after list of node 'a' */
     uint32_t j = FilterTree[a].numblocks;
-    for (int i = 0; i < FilterTree[b].numblocks; i++) {
+    for (int i = 0; i < (int)FilterTree[b].numblocks; i++) {
         FilterTree[a].blocklist[j + i] = FilterTree[b].blocklist[i];
     }
     FilterTree[a].numblocks = s;
 
     /* set superblock info of all children to new superblock */
-    for (int i = 0; i < FilterTree[a].numblocks; i++) {
+    for (int i = 0; i < (int)FilterTree[a].numblocks; i++) {
         j = FilterTree[a].blocklist[i];
         FilterTree[j].superblock = a;
     }
@@ -905,15 +909,16 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                 evaluate = RB_FIND(U64tree, data.dataPtr, &find) != NULL;
             } break;
             case CMP_PAYLOAD: {
-                char *payload = (char *)(handle->extensionList[extID]);
+                EXPayload_t *payload = (EXPayload_t *)(handle->extensionList[extID]);
                 char *string = (char *)engine->filter[index].data.dataPtr;
-                uint32_t len = ExtensionLength(payload);
+                uint32_t len = payload->size;
+                char *p = (char *)payload->payload;
                 evaluate = 0;
                 if (string != NULL) {
                     // find any string str in payload data inPtr, even beyond '\0' bytes
                     int m = 0;
-                    for (int i = 0; i < len; i++) {
-                        if (payload[i] == string[m]) {
+                    for (int i = 0; i < (int)len; i++) {
+                        if (p[i] == string[m]) {
                             m++;
                             if (string[m] == '\0') {
                                 evaluate = 1;
@@ -927,10 +932,10 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
             } break;
             case CMP_REGEX: {
                 srx_Context *program = (srx_Context *)data.dataPtr;
-                char *payload = (char *)(handle->extensionList[extID]);
-                uint32_t len = ExtensionLength(payload);
+                EXPayload_t *payload = (EXPayload_t *)(handle->extensionList[extID]);
+                uint32_t len = payload->size;
 
-                evaluate = program != NULL && srx_MatchExt(program, payload, len, 0);
+                evaluate = program != NULL && srx_MatchExt(program, (const rxChar *)payload->payload, len, 0);
             } break;
             case CMP_GEO: {
                 char *geoChar = (char *)inPtr;
@@ -1029,7 +1034,7 @@ void DumpEngine(void *arg) {
     FilterEngine_t *engine = (FilterEngine_t *)arg;
 
     printf("StartNode: %i Engine: %s\n", engine->StartNode, engine->Extended ? "Extended" : "Fast");
-    for (int i = 1; i < NumBlocks; i++) {
+    for (int i = 1; i < (int)NumBlocks; i++) {
         if (engine->filter[i].invert)
             printf(
                 "Index: %u, ExtID: %u, Offset: %u, Length: %u, Value: %.16llx, Superblock: %u, Numblocks: %u, "
@@ -1062,7 +1067,7 @@ void DumpEngine(void *arg) {
                 printf("Data: %" PRIu64 " - %" PRIu64 "\n", engine->filter[i].data.dataVal, engine->filter[i].data.dataVal);
         }
         printf("\tBlocks: ");
-        for (int j = 0; j < engine->filter[i].numblocks; j++) printf("%i ", engine->filter[i].blocklist[j]);
+        for (int j = 0; j < (int)engine->filter[i].numblocks; j++) printf("%i ", engine->filter[i].blocklist[j]);
         printf("\n");
     }
     printf("NumBlocks: %i\n", NumBlocks - 1);

@@ -1046,35 +1046,68 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 
     dbg_printf("GuessSubDir() for file: %s in path: %s\n", filename, channeldir);
 
-    size_t len = strlen(filename);
-    if ((len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0)) {
-        char *p = &filename[7];
-        time_t t = ISO2UNIX(p);
-        localtime_r(&t, &t_tm);
-    } else
-        return NULL;
+    // filename may be a plain file name (nfcapd.YYYYMMDDhhmm[ss]) OR a relative path
+    // like 2026/01/13/nfcapd.YYYYMMDDhhmm. We only parse the basename, but we must
+    // preserve any relative prefix when probing for files.
+    char *slash = strrchr(filename, '/');
+    const char *base = slash ? slash + 1 : filename;
 
-    unsigned i = 0;
+    // prefix is the directory part inside 'filename' (relative path), without trailing '/'
+    size_t prefix_len = slash ? (size_t)(slash - filename) : 0;
+
+    size_t len = strlen(base);
+    if (!((len == 19 || len == 21) && (strncmp(base, "nfcapd.", 7) == 0))) {
+        return NULL;
+    }
+
+    const char *p = base + 7;
+    time_t t = ISO2UNIX(p);
+    if (t == (time_t)-1) return NULL;
+
+    localtime_r(&t, &t_tm);
+
     // if the file exists, it must be in any of the possible subdirs
     // so try one after the next - one will match
-    while (subdir_def[i]) {
+    for (unsigned i = 0; subdir_def[i]; i++) {
         char const *sub_fmt = subdir_def[i];
         char subpath[255];
         struct stat stat_buf;
-        strftime(subpath, 254, sub_fmt, &t_tm);
-        subpath[254] = '\0';
 
-        snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, filename);
-        if (stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
-            // found file in subdir
-            dbg_printf("GuessSubDir() found: %s\n", subpath);
-            return strdup(subpath);
+        strftime(subpath, sizeof(subpath), sub_fmt, &t_tm);
+        subpath[sizeof(subpath) - 1] = '\0';
+
+        if (prefix_len) {
+            int pre = prefix_len > INT_MAX ? INT_MAX : (int)prefix_len;
+
+            // Probe: <channeldir>/<subpath>/<prefix>/<base>
+            // Example: live/profileA/<guessed>/<2026/01/13>/<nfcapd...>
+            int n = snprintf(s, sizeof(s), "%s/%s/%.*s/%s", channeldir, subpath, pre, filename, base);
+            s[sizeof(s) - 1] = '\0';
+            if (n > 0 && (size_t)n < sizeof(s) && stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
+                dbg_printf("GuessSubDir() found: %s\n", subpath);
+                return strdup(subpath);
+            }
+
+            // Optional but recommended:
+            // Also probe without the prefix, in case the provided prefix is not part of the on-disk hierarchy
+            n = snprintf(s, sizeof(s), "%s/%s/%s", channeldir, subpath, base);
+            s[sizeof(s) - 1] = '\0';
+            if (n > 0 && (size_t)n < sizeof(s) && stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
+                dbg_printf("GuessSubDir() found: %s\n", subpath);
+                return strdup(subpath);
+            }
+        } else {
+            // Probe: <channeldir>/<subpath>/<base>
+            int n = snprintf(s, sizeof(s), "%s/%s/%s", channeldir, subpath, base);
+            s[sizeof(s) - 1] = '\0';
+            if (n > 0 && (size_t)n < sizeof(s) && stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
+                dbg_printf("GuessSubDir() found: %s\n", subpath);
+                return strdup(subpath);
+            }
         }
-        i++;
     }
 
     return NULL;
-
 }  // End of GuessSubDir
 
 // make sure, that path with subdir exists for timeslot now and stores it into path

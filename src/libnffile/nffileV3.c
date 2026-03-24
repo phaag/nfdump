@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,13 +28,15 @@
  *
  */
 
-#ifndef _OUTPUT_SHORT_H
-#define _OUTPUT_SHORT_H 1
+#include "nffileV3.h"
 
+#include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
 
+#include "id.h"
+#include "nfdump.h"
 #include "nfxV4.h"
-
-void flow_record_short(FILE *stream, recordHeaderV4_t *recordHeaderV4);
-
-#endif  // _OUTPUT_SHORT_H
+#include "util.h"

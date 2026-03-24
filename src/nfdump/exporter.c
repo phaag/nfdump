@@ -42,9 +42,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "nfdump.h"
 #include "nfxV3.h"
-#include "logging.h"
 #include "util.h"
 
 // exporter local variables
@@ -65,7 +65,7 @@ static struct exporter_array_s {
 static const struct versionString_s {
     uint16_t version;
     char *string;
-} versionString[] = {{5, "netflow v5"}, {9, "netflow v9"}, {10, "ipfix v10"}, {9999, "sflow"}, {0, NULL}};
+} versionString[] = {{1, "netflow v1"}, {5, "netflow v5"}, {9, "netflow v9"}, {10, "ipfix v10"}, {9999, "sflow"}, {0, NULL}};
 
 /* local prototypes */
 static char *getVersionString(uint16_t nfversion);
@@ -99,14 +99,16 @@ int InitExporterList(void) {
 
 }  // End of InitExporterList
 
-int AddExporterInfo(exporter_info_record_t *exporter_record) {
-    if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
+int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
+    if (exporter_record->header.size < sizeof(exporter_info_record_v4_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
     ip128_t ipAddr;
     memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
+    /*
+    XXX FIX! check if still needed
     if (exporter_record->fill != 0) {
         // old sa_familiy information and IP address in host byte order
         uint64_t *u = (uint64_t *)ipAddr.bytes;
@@ -120,6 +122,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         memcpy(exporter_record->ip, ipAddr.bytes, sizeof(ip128_t));
         exporter_record->fill = 0;
     }
+    */
 
     // check for exhausted hash
     if ((exporter_table.count * 4) >= (exporter_table.capacity * 3)) {
@@ -148,7 +151,12 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
             e->in_use = 1;
             exporter_table.count++;
 
-            e->info = *exporter_record;
+            e->info = malloc(exporter_record->header.size);
+            if (!e->info) {
+                LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                return 0;
+            }
+            memcpy(e->info, exporter_record, exporter_record->header.size);
 #ifdef DEVEL
             {
                 char ipstr[INET6_ADDRSTRLEN];
@@ -158,16 +166,16 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
                     uint32_t ipv4;
                     memcpy(&ipv4, ipAddr.bytes + 12, 4);
                     inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
-                    printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter_record->sysid, ipstr, exporter_record->version,
+                    printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter_record->sysID, ipstr, exporter_record->version,
                            exporter_record->id);
                 } else {
                     inet_ntop(AF_INET6, ipAddr.bytes, ipstr, sizeof(ipstr));
-                    printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter_record->sysid, ipstr, exporter_record->version,
+                    printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter_record->sysID, ipstr, exporter_record->version,
                            exporter_record->id);
                 }
             }
 #endif
-            uint32_t sysID = exporter_record->sysid;
+            uint32_t sysID = exporter_record->sysID;
             if (sysID >= exporter_array.capacity) {
                 uint32_t capacity;
                 for (capacity = exporter_array.capacity; sysID >= capacity; capacity += EXPORTER_BLOCK_SIZE) {
@@ -191,7 +199,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         // slot already occupied - same exporter
         if (EXPORTER_KEY_EQUAL(e->key, key)) {
             // same exporter - skip
-            dbg_printf("Insert same exporter with sysID %u skipped\n", exporter_record->sysid);
+            dbg_printf("Insert same exporter with sysID %u skipped\n", exporter_record->sysID);
             return 1;
         }
 
@@ -204,20 +212,20 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
 
 }  // End of AddExporterInfo
 
-sampler_record_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record) {
+sampler_record_V3_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record) {
     if (legacy_record->size != sizeof(samplerV0_record_t)) {
         LogError("Corrupt legacy sampler record detected in %s line %d", __FILE__, __LINE__);
         return NULL;
     }
 
-    sampler_record_t *sampler_record = calloc(1, sizeof(sampler_record_t));
+    sampler_record_V3_t *sampler_record = calloc(1, sizeof(sampler_record_V3_t));
     if (!sampler_record) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
     sampler_record->type = SamplerRecordType;
-    sampler_record->size = sizeof(sampler_record_t);
+    sampler_record->size = sizeof(sampler_record_V3_t);
     sampler_record->exporter_sysid = legacy_record->exporter_sysid;
     sampler_record->id = legacy_record->id;
     sampler_record->algorithm = legacy_record->algorithm;
@@ -227,15 +235,17 @@ sampler_record_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record) {
     return sampler_record;
 }  // End of ConvertLegacyRecord
 
-int AddSamplerRecord(sampler_record_t *sampler_record) {
+int AddSamplerRecord(sampler_record_V3_t *sampler_record) {
+    /*
+    XXX FIX! - handle old sampler record
     uint32_t sysID = sampler_record->exporter_sysid;
 
-    sampler_t **sampler = NULL;
+    sampler_chain_t **sampler = NULL;
     for (unsigned i = 0; i < exporter_table.capacity; i++) {
         // linear check for sysID exporter
         exporter_entry_t *e = &exporter_table.entries[i];
         if (!e->in_use) continue;
-        if (e->info.sysid == sysID) {
+        if (e->info->sysID == sysID) {
             sampler = &e->sampler;
         }
     }
@@ -247,7 +257,7 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
     }
 
     while (*sampler) {
-        if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_t)) == 0) {
+        if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_V3_t)) == 0) {
             // Found identical sampler already registered
             dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n",
                        sampler_record->exporter_sysid, sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
@@ -256,16 +266,17 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
         sampler = &((*sampler)->next);
     }
 
-    *sampler = (sampler_t *)malloc(sizeof(sampler_t));
+    *sampler = (sampler_chain_t *)malloc(sizeof(sampler_chain_t));
     if (!*sampler) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     (*sampler)->next = NULL;
 
-    memcpy((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_t));
+    memcpy((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_V3_t));
 
     dbg_printf("Insert sampler record for exporter: %u\n", sysID);
+    */
 
     return 1;
 }  // End of AddSamplerRecord
@@ -322,16 +333,9 @@ dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
         // linear check for sysID exporter
         exporter_entry_t *e = &exporter_table.entries[i];
         if (!e->in_use) continue;
-        exporter_info_record_t *exporter_info = &e->info;
-        dbg_printf("Dump exporter: %u\n", exporter_info->sysid);
+        exporter_info_record_v4_t *exporter_info = e->info;
+        dbg_printf("Dump exporter: %u\n", exporter_info->sysID);
         dataBlock = AppendToBuffer(nffile->processQueue, dataBlock, (void *)exporter_info, exporter_info->header.size);
-
-        sampler_t *sampler = e->sampler;
-        while (sampler) {
-            dbg_printf("  Dump sampler for exporter: %d\n", i);
-            dataBlock = AppendToBuffer(nffile->processQueue, dataBlock, (void *)&(sampler->record), sampler->record.size);
-            sampler = sampler->next;
-        }
     }
 
     return dataBlock;
@@ -373,7 +377,11 @@ void PrintExporters(void) {
                     LogError("Legacy record type: %i no longer supported\n", record->type);
                     break;
                 case ExporterInfoRecordType:
-                    if (!AddExporterInfo((exporter_info_record_t *)record)) {
+                    LogInfo("Skip legacy exporter");
+                    // XXX FIX! legacy record
+                    break;
+                case ExporterInfoRecordV4Type:
+                    if (!AddExporterInfo((exporter_info_record_v4_t *)record)) {
                         LogError("Failed to add exporter record\n");
                     }
                     break;
@@ -381,12 +389,12 @@ void PrintExporters(void) {
                     AddExporterStat((exporter_stats_record_t *)record);
                     break;
                 case SamplerRecordType:
-                    if (!AddSamplerRecord((sampler_record_t *)record)) {
+                    if (!AddSamplerRecord((sampler_record_V3_t *)record)) {
                         LogError("Failed to add sampler record\n");
                     }
                     break;
                 case SamplerLegacyRecordType: {
-                    sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record);
+                    sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record);
                     if (sampler_record != NULL) {
                         if (!AddSamplerRecord(sampler_record)) {
                             LogError("Failed to add sampler record\n");
@@ -414,50 +422,56 @@ void PrintExporters(void) {
 
         char ipstr[INET6_ADDRSTRLEN];
 
-        exporter_info_record_t *exporter = &e->info;
+        exporter_info_record_v4_t *exporter = e->info;
         static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-        if (memcmp(e->key.ip.bytes, prefix, 12) == 0) {
+        if (memcmp(exporter->ip, prefix, 12) == 0) {
             // ipv4
             uint32_t ipv4;
             memcpy(&ipv4, e->key.ip.bytes + 12, 4);
             inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
-            if (e->flows)
+            if (exporter->flows)
                 printf("SysID: %u, IP: %16s, version: %s, ID: %2u, Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n",
-                       exporter->sysid, ipstr, getVersionString(exporter->version), exporter->id, e->sequence_failure, e->packets, e->flows);
+                       exporter->sysID, ipstr, getVersionString(exporter->version), exporter->sysID, exporter->sequence_failure, exporter->packets,
+                       exporter->flows);
             else
-                printf("SysID: %u, IP: %16s, version: %s, ID: %2u - no flows sent\n", exporter->sysid, ipstr, getVersionString(exporter->version),
+                printf("SysID: %u, IP: %16s, version: %s, ID: %2u - no flows sent\n", exporter->sysID, ipstr, getVersionString(exporter->version),
                        exporter->id);
 
         } else {
             inet_ntop(AF_INET6, e->key.ip.bytes, ipstr, sizeof(ipstr));
             if (e->flows)
                 printf("SysID: %u, IP: %40s, version: %s, ID: %2u, Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n",
-                       exporter->sysid, ipstr, getVersionString(exporter->version), exporter->id, e->sequence_failure, e->packets, e->flows);
+                       exporter->sysID, ipstr, getVersionString(exporter->version), exporter->sysID, exporter->sequence_failure, exporter->packets,
+                       exporter->flows);
             else
-                printf("SysID: %u, IP: %40s, version: %s, ID: %2u - no flows sent\n", exporter->sysid, ipstr, getVersionString(exporter->version),
+                printf("SysID: %u, IP: %40s, version: %s, ID: %2u - no flows sent\n", exporter->sysID, ipstr, getVersionString(exporter->version),
                        exporter->id);
         }
 
-        sampler_t *sampler = e->sampler;
-        while (sampler) {
-            switch (sampler->record.id) {
-                case SAMPLER_OVERWRITE:
-                    printf("    Sampler: Static overwrite Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.algorithm,
-                           sampler->record.packetInterval, sampler->record.spaceInterval);
-                    break;
-                case SAMPLER_DEFAULT:
-                    printf("    Sampler: Static default Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.algorithm,
-                           sampler->record.packetInterval, sampler->record.spaceInterval);
-                    break;
-                case SAMPLER_GENERIC:
-                    printf("    Sampler: Generic Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.algorithm,
-                           sampler->record.packetInterval, sampler->record.spaceInterval);
-                    break;
-                default:
-                    printf("    Sampler: Assigned Sampler: id: %lld, algorithm: %u, packet interval: %u, packet space: %u\n",
-                           (long long)sampler->record.id, sampler->record.algorithm, sampler->record.packetInterval, sampler->record.spaceInterval);
+        if (exporter->sampler_count > 0) {
+            sampler_record_v4_t *sampler = exporter->samplers;
+            for (int i = 0; i < exporter->sampler_count; i++) {
+                switch (sampler->selectorID) {
+                    case SAMPLER_OVERWRITE:
+                        printf("    Sampler: static overwrite sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->algorithm,
+                               sampler->packetInterval, sampler->spaceInterval);
+                        break;
+                    case SAMPLER_DEFAULT:
+                        printf("    Sampler: static default sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->algorithm,
+                               sampler->packetInterval, sampler->spaceInterval);
+                        break;
+                    case SAMPLER_GENERIC:
+                        printf("    Sampler: generic sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->algorithm,
+                               sampler->packetInterval, sampler->spaceInterval);
+                        break;
+                    default:
+                        printf("    Sampler: assigned Sampler: id: %lld, algorithm: %u, packet interval: %u, packet space: %u\n",
+                               (long long)sampler->selectorID, sampler->algorithm, sampler->packetInterval, sampler->spaceInterval);
+                }
+                sampler++;
             }
-            sampler = sampler->next;
+        } else {
+            printf("    No Sampler information\n");
         }
     }
 
@@ -469,7 +483,7 @@ static void update_exporter_array(void) {
         exporter_entry_t *e = &exporter_table.entries[i];
         if (!e->in_use) continue;
 
-        uint32_t sysID = e->info.sysid;
+        uint32_t sysID = e->info->sysID;
         exporter_array.entries[sysID] = e;
     }
 }  // End of update_exporter_array

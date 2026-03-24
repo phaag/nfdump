@@ -55,10 +55,10 @@
 #include "flowsource.h"
 #include "ip128.h"
 #include "launch.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
-#include "logging.h"
 #include "util.h"
 
 typedef struct finaliseArgs_s {
@@ -76,7 +76,7 @@ static int parse_cidr(const char *cidr, ip128_t *ip, ip128_t *mask);
 
 static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList);
 
-static uint32_t AssignExporterID(void);
+uint32_t AssignExporterID(void);
 
 #include "nffile_inline.c"
 
@@ -318,7 +318,7 @@ static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList) {
 }  // End of ParseIPlist
 
 /* local functions */
-static uint32_t AssignExporterID(void) {
+uint32_t AssignExporterID(void) {
     if (exporter_sysid >= 0xFFFF) {
         LogError("Too many exporters (id > 65535). Flow records collected but without reference to exporter");
         return 0;
@@ -363,8 +363,8 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         dbg_printf("Periodic cycle for ident: %s\n", fs->Ident);
 
-        // Flush Exporter Stat to file
-        FlushExporterStats(fs);
+        // Flush Exporter to file
+        FlushExporter(fs);
 
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
@@ -402,15 +402,37 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         } else {
             // clear previous stat
             memset((void *)&fs->stat_record, 0, sizeof(stat_record_t));
-            FlushStdRecords(fs);
+            // XXX FIX! REMOVE FlushStdRecords(fs);
         }
     }
 
     return 1;
 }  // End of PeriodicCycle
 
-int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
-    exporter->sysid = AssignExporterID();
+void FlushExporter(FlowSource_t *fs) {
+    dbg_printf("Flush all exporters\n");
+    for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
+        exporter_info_record_v4_t *info_record = entry->info;
+        info_record->flows = entry->flows;
+        info_record->packets = entry->packets;
+        info_record->sequence_failure = entry->sequence_failure;
+        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)info_record, info_record->header.size);
+#ifdef DEVEL
+        printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", info_record->sysID,
+               info_record->version, info_record->id, info_record->packets, info_record->flows, info_record->sequence_failure);
+        sampler_record_v4_t *sampler = info_record->samplers;
+        for (int i = 0; i < info_record->sampler_count; i++) {
+            printf("[%d] Sampler - ID: %d, packetInterval: %u, spaceInterval: %u, algorithm: %u\n", i, sampler->selectorID, sampler->packetInterval,
+                   sampler->spaceInterval, sampler->algorithm);
+        }
+
+#endif
+    }
+
+}  // End of FlushExporter
+
+int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_v4_t *exporter) {
+    exporter->sysID = AssignExporterID();
     fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)exporter, exporter->header.size);
 
 #ifdef DEVEL
@@ -421,10 +443,10 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
         uint8_t *ip = (uint8_t *)&exporter->ip;
         if (memcmp(ip, prefix, 12) == 0) {
             inet_ntop(AF_INET, (void *)(exporter->ip + 12), ipstr, sizeof(ipstr));
-            printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter->sysid, ipstr, exporter->version, exporter->id);
+            printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter->sysID, ipstr, exporter->version, exporter->id);
         } else {
             inet_ntop(AF_INET6, (void *)exporter->ip, ipstr, sizeof(ipstr));
-            printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter->sysid, ipstr, exporter->version, exporter->id);
+            printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter->sysID, ipstr, exporter->version, exporter->id);
         }
     }
 #endif
@@ -435,12 +457,11 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
 
 void FlushStdRecords(FlowSource_t *fs) {
     for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
-        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)&(entry->info), entry->info.header.size);
-        sampler_t *sampler = entry->sampler;
-        while (sampler) {
-            fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)&(sampler->record), sampler->record.size);
-            sampler = sampler->next;
-        }
+        exporter_info_record_v4_t *info_record = entry->info;
+        info_record->flows = entry->flows;
+        info_record->packets = entry->packets;
+        info_record->sequence_failure = entry->sequence_failure;
+        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)info_record, info_record->header.size);
     }
 
 }  // End of FlushStdRecords
@@ -467,13 +488,13 @@ void FlushExporterStats(FlowSource_t *fs) {
 
     unsigned i = 0;
     for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
-        exporter_stats->stat[i].sysid = entry->info.sysid;
+        exporter_stats->stat[i].sysid = entry->info->sysID;
         exporter_stats->stat[i].sequence_failure = entry->sequence_failure;
         exporter_stats->stat[i].packets = entry->packets;
         exporter_stats->stat[i].flows = entry->flows;
 #ifdef DEVEL
-        printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", entry->info.sysid,
-               entry->info.version, entry->info.id, entry->packets, entry->flows, entry->sequence_failure);
+        printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", entry->info->sysID,
+               entry->info->version, entry->info->id, entry->packets, entry->flows, entry->sequence_failure);
 
 #endif
         // reset counters

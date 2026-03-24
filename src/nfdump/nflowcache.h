@@ -76,48 +76,50 @@
         (r)->out_bytes = _tmp_l;                 \
     }
 
-#define SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting) \
-    {                                                                              \
-        if (ipv4Flow) {                                                            \
-            uint32_t _tmp = ipv4Flow->srcAddr;                                     \
-            ipv4Flow->srcAddr = ipv4Flow->dstAddr;                                 \
-            ipv4Flow->dstAddr = _tmp;                                              \
-        } else if (ipv6Flow) {                                                     \
-            uint64_t _tmp_ip[2];                                                   \
-            _tmp_ip[0] = ipv6Flow->srcAddr[0];                                     \
-            _tmp_ip[1] = ipv6Flow->srcAddr[1];                                     \
-            ipv6Flow->srcAddr[0] = ipv6Flow->dstAddr[0];                           \
-            ipv6Flow->srcAddr[1] = ipv6Flow->dstAddr[1];                           \
-            ipv6Flow->dstAddr[0] = _tmp_ip[0];                                     \
-            ipv6Flow->dstAddr[1] = _tmp_ip[1];                                     \
-        }                                                                          \
-        if (genericFlow) {                                                         \
-            uint16_t _tmp = genericFlow->srcPort;                                  \
-            genericFlow->srcPort = genericFlow->dstPort;                           \
-            genericFlow->dstPort = _tmp;                                           \
-        }                                                                          \
-        if (asRouting) {                                                           \
-            uint32_t _tmp = asRouting->srcAS;                                      \
-            asRouting->srcAS = asRouting->dstAS;                                   \
-            asRouting->dstAS = _tmp;                                               \
-        }                                                                          \
-        if (flowMisc) {                                                            \
-            uint32_t _tmp = flowMisc->input;                                       \
-            flowMisc->input = flowMisc->output;                                    \
-            flowMisc->output = _tmp;                                               \
-            uint8_t mask = flowMisc->srcMask;                                      \
-            flowMisc->srcMask = flowMisc->dstMask;                                 \
-            flowMisc->dstMask = mask;                                              \
-        }                                                                          \
-        if (genericFlow && cntFlow) {                                              \
-            uint64_t _tmp = genericFlow->inPackets;                                \
-            genericFlow->inPackets = cntFlow->outPackets;                          \
-            cntFlow->outPackets = _tmp;                                            \
-            _tmp = genericFlow->inBytes;                                           \
-            genericFlow->inBytes = cntFlow->outBytes;                              \
-            cntFlow->outBytes = _tmp;                                              \
-        }                                                                          \
-    }
+#define SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asRouting) \
+    do {                                                                                      \
+        if (ipv4Flow) {                                                                       \
+            uint32_t _tmp = ipv4Flow->srcAddr;                                                \
+            ipv4Flow->srcAddr = ipv4Flow->dstAddr;                                            \
+            ipv4Flow->dstAddr = _tmp;                                                         \
+        } else if (ipv6Flow) {                                                                \
+            uint64_t _tmp_ip[2];                                                              \
+            _tmp_ip[0] = ipv6Flow->srcAddr[0];                                                \
+            _tmp_ip[1] = ipv6Flow->srcAddr[1];                                                \
+            ipv6Flow->srcAddr[0] = ipv6Flow->dstAddr[0];                                      \
+            ipv6Flow->srcAddr[1] = ipv6Flow->dstAddr[1];                                      \
+            ipv6Flow->dstAddr[0] = _tmp_ip[0];                                                \
+            ipv6Flow->dstAddr[1] = _tmp_ip[1];                                                \
+        }                                                                                     \
+        if (genericFlow) {                                                                    \
+            uint16_t _tmp = genericFlow->srcPort;                                             \
+            genericFlow->srcPort = genericFlow->dstPort;                                      \
+            genericFlow->dstPort = _tmp;                                                      \
+        }                                                                                     \
+        if (asRouting) {                                                                      \
+            uint32_t _tmp = asRouting->srcAS;                                                 \
+            asRouting->srcAS = asRouting->dstAS;                                              \
+            asRouting->dstAS = _tmp;                                                          \
+        }                                                                                     \
+        if (interface) {                                                                      \
+            uint32_t _tmp = interface->input;                                                 \
+            interface->input = interface->output;                                             \
+            interface->output = _tmp;                                                         \
+        }                                                                                     \
+        if (flowMisc) {                                                                       \
+            uint8_t mask = flowMisc->srcMask;                                                 \
+            flowMisc->srcMask = flowMisc->dstMask;                                            \
+            flowMisc->dstMask = mask;                                                         \
+        }                                                                                     \
+        if (genericFlow && cntFlow) {                                                         \
+            uint64_t _tmp = genericFlow->inPackets;                                           \
+            genericFlow->inPackets = cntFlow->outPackets;                                     \
+            cntFlow->outPackets = _tmp;                                                       \
+            _tmp = genericFlow->inBytes;                                                      \
+            genericFlow->inBytes = cntFlow->outBytes;                                         \
+            cntFlow->outBytes = _tmp;                                                         \
+        }                                                                                     \
+    } while (0)
 
 int Init_FlowCache(int hasGeoDB);
 

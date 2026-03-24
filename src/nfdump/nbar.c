@@ -44,8 +44,8 @@
 
 #include "config.h"
 #include "khash.h"
-#include "nfxV3.h"
 #include "logging.h"
+#include "nfxV3.h"
 #include "util.h"
 
 typedef struct AppInfoHash_s {
@@ -159,10 +159,10 @@ int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
 }  // End of AddNbarRecord
 
 char *GetNbarInfo(uint8_t *id, size_t size) {
+    // XXX FIX! remove static
     static char name[255];
 
-    AppInfoHash_t AppInfoHash;
-    memset((void *)&AppInfoHash, 0, sizeof(AppInfoHash_t));
+    AppInfoHash_t AppInfoHash = {0};
     AppInfoHash.app_id_length = size;
     AppInfoHash.data = id;
 

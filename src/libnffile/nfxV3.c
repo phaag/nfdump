@@ -39,10 +39,11 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "nfdump.h"
 #include "logging.h"
+#include "nfdump.h"
 #include "util.h"
 
+/*
 // sub template IDs
 #define subTemplateListType 292
 #define subTemplateMultiListType 293
@@ -492,6 +493,7 @@ void PrintSequencer(sequencer_t *sequencer) {
     }
     printf("\n");
 }
+*/
 
 int VerifyV3Record(recordHeaderV3_t *recordHeader) {
     if (recordHeader->type != V3Record) {

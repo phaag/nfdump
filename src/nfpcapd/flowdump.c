@@ -245,7 +245,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
 
         // Update stats
-        stat_record_t *stat_record = nffile_ctx->nffile->stat_record;
+        stat_record_t *stat_record = &fs->stat_record;
         switch (genericFlow->proto) {
             case IPPROTO_ICMP:
                 stat_record->numflows_icmp++;
@@ -355,6 +355,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
     }
+    fs->dataBlock = WriteBlock(nffile_ctx->nffile, fs->dataBlock);
     SetIdent(nffile_ctx->nffile, fs->Ident);
 
     // init flow source

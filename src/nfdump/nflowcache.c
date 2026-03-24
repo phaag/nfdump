@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,7 +55,7 @@
 #include "memhandle.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output.h"
 #include "util.h"
 
@@ -113,24 +113,24 @@ static struct aggregationElement_s {
                         {"srcnet", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0xFF, 0, NULL},
                         {"dstnet", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, NOPREPROCESS, 0xFF, 0, "%dn"},
                         {"dstnet", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, NOPREPROCESS, 0xFF, 0, NULL},
-                        {"xsrcip", {EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, 0, NOPREPROCESS, 0, 1, "%xsa"},
-                        {"xsrcip", {EXnatXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
-                        {"xdstip", {EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, 0, NOPREPROCESS, 0, 2, "%xda"},
-                        {"xdstip", {EXnatXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 2, NULL},
+                        {"xsrcip", {EXnatXlateV4ID, OFFxlateSrcAddrV4, SIZExlateSrcAddrV4, AF_INET}, 0, NOPREPROCESS, 0, 1, "%xsa"},
+                        {"xsrcip", {EXnatXlateV6ID, OFFxlateSrcAddrV6, SIZExlateSrcAddrV6, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"xdstip", {EXnatXlateV4ID, OFFxlateDstAddrV4, SIZExlateDstAddrV4, AF_INET}, 0, NOPREPROCESS, 0, 2, "%xda"},
+                        {"xdstip", {EXnatXlateV6ID, OFFxlateDstAddrV6, SIZExlateDstAddrV6, AF_INET6}, 0, NOPREPROCESS, 0, 2, NULL},
                         {"xsrcport", {EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, 0, NOPREPROCESS, 0, 0, "%xsp"},
                         {"xdstport", {EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, 0, NOPREPROCESS, 0, 0, "%xdp"},
-                        {"next", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, 0, NOPREPROCESS, 0, 1, "%nh"},
-                        {"next", {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
-                        {"bgpnext", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, 0, NOPREPROCESS, 0, 1, "%nhb"},
-                        {"bgpnext", {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"next", {EXasRoutingV4ID, OFFnextHopIPV4, SIZEnextHopIPV4, AF_INET}, 0, NOPREPROCESS, 0, 1, "%nh"},
+                        {"next", {EXasRoutingV6ID, OFFnextHopIPV6, SIZEnextHopIPV6, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"bgpnext", {EXasRoutingV4ID, OFFbgpNextHopV4, SIZEbgpNextHopV4, AF_INET}, 0, NOPREPROCESS, 0, 1, "%nhb"},
+                        {"bgpnext", {EXasRoutingV6ID, OFFbgpNextHopV6, SIZEbgpNextHopV6, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
                         {"router", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, 0, NOPREPROCESS, 0, 1, "%ra"},
                         {"router", {EXipReceivedV6ID, OFFReceived6IP, SIZEReceived6IP, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
-                        {"insrcmac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%ismc"},
-                        {"outdstmac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, 0, NOPREPROCESS, 0, 0, "%odmc"},
-                        {"indstmac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, 0, NOPREPROCESS, 0, 0, "%idmc"},
-                        {"outsrcmac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%osmc"},
-                        {"srcas", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, 0, SRC_AS, 0, 0, "%sas"},
-                        {"dstas", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, 0, DST_AS, 0, 0, "%das"},
+                        {"insrcmac", {EXinMacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%ismc"},
+                        {"outdstmac", {EXinMacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, 0, NOPREPROCESS, 0, 0, "%odmc"},
+                        {"indstmac", {EXoutMacAddrID, OFFinDstMac, SIZEinDstMac, 0}, 0, NOPREPROCESS, 0, 0, "%idmc"},
+                        {"outsrcmac", {EXoutMacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%osmc"},
+                        {"srcas", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, 0, SRC_AS, 0, 0, "%sas"},
+                        {"dstas", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, 0, DST_AS, 0, 0, "%das"},
                         {"nextas", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, 0, NOPREPROCESS, 0, 0, "%nas"},
                         {"prevas", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, 0, NOPREPROCESS, 0, 0, "%pas"},
                         {"inif", {EXflowMiscID, OFFinput, SIZEinput, 0}, 0, NOPREPROCESS, 0, 0, "%in"},
@@ -138,16 +138,16 @@ static struct aggregationElement_s {
                         {"srcmask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, 0, NOPREPROCESS, 0, 0, "%smk"},
                         {"dstmask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, 0, NOPREPROCESS, 0, 0, "%dmk"},
                         {"dsttos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, 0, NOPREPROCESS, 0, 0, "%dtos"},
-                        {"mpls1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, 0, NOPREPROCESS, 0, 0, "%mpls1"},
-                        {"mpls2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, 0, NOPREPROCESS, 0, 0, "%mpls2"},
-                        {"mpls3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, 0, NOPREPROCESS, 0, 0, "%mpls3"},
-                        {"mpls4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, 0, NOPREPROCESS, 0, 0, "%mpls4"},
-                        {"mpls5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, 0, NOPREPROCESS, 0, 0, "%mpls5"},
-                        {"mpls6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, 0, NOPREPROCESS, 0, 0, "%mpls6"},
-                        {"mpls7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, 0, NOPREPROCESS, 0, 0, "%mpls7"},
-                        {"mpls8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, 0, NOPREPROCESS, 0, 0, "%mpls8"},
-                        {"mpls9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, 0, NOPREPROCESS, 0, 0, "%mpls9"},
-                        {"mpls10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, 0, NOPREPROCESS, 0, 0, "%mpls10"},
+                        {"mpls1", {EXmplsID, OFFmplsLabel1, SIZEmplsLabel1, 0}, 0, NOPREPROCESS, 0, 0, "%mpls1"},
+                        {"mpls2", {EXmplsID, OFFmplsLabel2, SIZEmplsLabel2, 0}, 0, NOPREPROCESS, 0, 0, "%mpls2"},
+                        {"mpls3", {EXmplsID, OFFmplsLabel3, SIZEmplsLabel3, 0}, 0, NOPREPROCESS, 0, 0, "%mpls3"},
+                        {"mpls4", {EXmplsID, OFFmplsLabel4, SIZEmplsLabel4, 0}, 0, NOPREPROCESS, 0, 0, "%mpls4"},
+                        {"mpls5", {EXmplsID, OFFmplsLabel5, SIZEmplsLabel5, 0}, 0, NOPREPROCESS, 0, 0, "%mpls5"},
+                        {"mpls6", {EXmplsID, OFFmplsLabel6, SIZEmplsLabel6, 0}, 0, NOPREPROCESS, 0, 0, "%mpls6"},
+                        {"mpls7", {EXmplsID, OFFmplsLabel7, SIZEmplsLabel7, 0}, 0, NOPREPROCESS, 0, 0, "%mpls7"},
+                        {"mpls8", {EXmplsID, OFFmplsLabel8, SIZEmplsLabel8, 0}, 0, NOPREPROCESS, 0, 0, "%mpls8"},
+                        {"mpls9", {EXmplsID, OFFmplsLabel9, SIZEmplsLabel9, 0}, 0, NOPREPROCESS, 0, 0, "%mpls9"},
+                        {"mpls10", {EXmplsID, OFFmplsLabel10, SIZEmplsLabel10, 0}, 0, NOPREPROCESS, 0, 0, "%mpls10"},
                         {"srcvlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, 0, NOPREPROCESS, 0, 0, "%svln"},
                         {"dstvlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, 0, NOPREPROCESS, 0, 0, "%dvln"},
                         {"odid", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, 0, NOPREPROCESS, 0, 0, "%odid"},
@@ -157,14 +157,14 @@ static struct aggregationElement_s {
                         {"ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, 0, NOPREPROCESS, 0, 0, "%eth"},
                         {"minttl", {EXipInfoID, OFFminTTL, SIZEminTTL, 0}, 0, NOPREPROCESS, 0, 0, "%minttl"},
                         {"maxttl", {EXipInfoID, OFFmaxTTL, SIZEmaxTTL, 0}, 0, NOPREPROCESS, 0, 0, "%maxttl"},
-                        {NULL, {0, 0, 0}, 0, NOPREPROCESS, 0, 0, NULL}};
+                        {NULL, {0, 0, 0, 0}, 0, NOPREPROCESS, 0, 0, NULL}};
 
 // FlowHash stat record, to aggregate flow counters in -A or -s stat/aggregate mode
 // original flow record attached for later printing the record
 // for -A -s hashkey points to the aggregation key in hash table
 // for -O <sort> next points to next record in list
 typedef struct FlowHashRecord {
-    recordHeaderV3_t *flowrecord;  // orig flow record for printing
+    recordHeaderV4_t *flowrecord;  // orig flow record for printing
     struct FlowHashRecord *next;   // record chain for flow list, unused otherwise
 
     uint8_t inFlags;   // tcp in flags
@@ -1335,11 +1335,11 @@ void InsertFlow(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
 
-    recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
+    recordHeaderV4_t *recordHeaderV4 = recordHandle->recordHeaderV4;
 
     FlowHashRecord_t *record = (FlowHashRecord_t *)nfmalloc(sizeof(FlowHashRecord_t));
-    record->flowrecord = (recordHeaderV3_t *)nfmalloc(recordHeaderV3->size);
-    memcpy((void *)record->flowrecord, (void *)recordHeaderV3, recordHeaderV3->size);
+    record->flowrecord = (recordHeaderV4_t *)nfmalloc(recordHeaderV4->size);
+    memcpy((void *)record->flowrecord, (void *)recordHeaderV4, recordHeaderV4->size);
 
     record->msecFirst = genericFlow->msecFirst;
     record->msecLast = genericFlow->msecLast;
@@ -1385,7 +1385,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
 
     void *keymem = NULL;
     static void *mem = NULL;
-    recordHeaderV3_t *record = recordHandle->recordHeaderV3;
+    recordHeaderV4_t *record = recordHandle->recordHeaderV4;
 
     hashValue_t hashValue = {0};
     int keyLen = 0;
@@ -1539,7 +1539,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
 
     void *keymem = NULL;
     static void *mem = NULL;
-    recordHeaderV3_t *record = recordHandle->recordHeaderV3;
+    recordHeaderV4_t *record = recordHandle->recordHeaderV4;
 
     hashValue_t hashValue = {0};
     int keyLen = 0;
@@ -1650,7 +1650,7 @@ static SortElement_t *GetSortList(uint64_t *size) {
         }
 
         FlowHashRecord_t *flowRecord = FlowList.head;
-        for (int i = 0; i < listSize; i++) {
+        for (int i = 0; i < (int)listSize; i++) {
             list[i].record = (void *)flowRecord;
             flowRecord = flowRecord->next;
         }
@@ -1676,14 +1676,14 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
         uint64_t j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
-        recordHeaderV3_t *v3record = (flowRecord->flowrecord);
+        recordHeaderV4_t *V4record = (flowRecord->flowrecord);
 
         recordHandle_t recordHandle = {0};
-        MapRecordHandle(&recordHandle, v3record, i + 1);
+        MapV4RecordHandle(&recordHandle, V4record, i + 1);
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
-        EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
+        EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle.extensionList[EXasInfoID];
         EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
 
         genericFlow->inPackets = flowRecord->inPackets;
@@ -1709,7 +1709,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
         if (unlikely(NeedSwapGeneric(GuessFlowDirection, genericFlow))) {
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
-            SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
+            EXinterface_t *interface = (EXinterface_t *)recordHandle.extensionList[EXinterfaceID];
+            SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asInfo);
         }
 
         if (outputParams->postFilter) {
@@ -1723,18 +1724,33 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
 // in case of custom aggregation, we need to rebuild the record
 // with only those elements aggregated
-static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3, uint64_t i) {
+static inline void RebuildRecord(void *buffPtr, recordHeaderV4_t *recordHeaderV4, uint64_t i) {
     if (aggregateInfo[0] >= 0) {
         // custom user aggregation - create new record
         void *newExtensionList[MAXLISTSIZE] = {0};
-        AddV3Header(buffPtr, newV3Record);
-        PushExtension(newV3Record, EXgenericFlow, newGenericFlow);
-        newV3Record->flags = recordHeaderV3->flags;
-        newV3Record->nfversion = recordHeaderV3->nfversion;
+        recordHeaderV4_t *newV4Record = AddV4Header(buffPtr);
+        newV4Record->flags = recordHeaderV4->flags;
+        newV4Record->nfVersion = recordHeaderV4->nfVersion;
+
+        // define bimap common for all v5 records
+        uint64_t bitMap = 0;
+
+        // XXX FIX!
+        // calculate extensions and set bitMap
+
+        // calculate offset table size and next offset after offset table
+        uint32_t offsetTableSize = ALIGN8(newV4Record->numExtensions * sizeof(uint16_t));
+        newV4Record->size += offsetTableSize;
+        uint32_t nextOffset = newV4Record->size;
+
+        EXgenericFlow_t *newGenericFlow = AddV4Extension(newV4Record, nextOffset, EXgenericFlow);
+        // XXX FIX!!!
+        newV4Record->extBitmap = bitMap;
+        newV4Record->numExtensions = __builtin_popcountll(bitMap);
 
         // orig record
         recordHandle_t recordHandle = {0};
-        MapRecordHandle(&recordHandle, recordHeaderV3, i);
+        MapV4RecordHandle(&recordHandle, recordHeaderV4, i);
 
         // process record
         // copy all custom aggregation elements
@@ -1746,7 +1762,10 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3
                 void *newRecord = NULL;
                 if (newExtensionList[extID] == NULL) {
                     // add this extension to the output record as well
-                    PushExtensionID(newV3Record, extID, extension);
+                    // PushExtensionID(newV4Record, extID, extension);
+                    // XXX FIX!
+                    // AddV4Extension(newV4Record, nextOffset, ext, extension);
+                    void *extension = NULL;
                     newExtensionList[extID] = extension;
                     newRecord = extension;
                 } else {
@@ -1769,7 +1788,7 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3
         }
     } else {
         // copy orig record
-        memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
+        memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
     }
 }  // End of RebuildRecord
 
@@ -1784,7 +1803,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         uint64_t j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
-        recordHeaderV3_t *recordHeaderV3 = (flowRecord->flowrecord);
+        recordHeaderV4_t *recordHeaderV4 = (flowRecord->flowrecord);
 
         // check, if we need cntFlow extension
         int exCntSize = 0;
@@ -1792,7 +1811,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
             exCntSize = EXcntFlowSize;
         }
 
-        if (!IsAvailable(dataBlock, recordHeaderV3->size + exCntSize)) {
+        if (!IsAvailable(dataBlock, recordHeaderV4->size + exCntSize)) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
         }
@@ -1801,22 +1820,23 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         void *buffPtr = GetCurrentCursor(dataBlock);
 
         // prepare record to export into new file
-        RebuildRecord(buffPtr, recordHeaderV3, i);
+        RebuildRecord(buffPtr, recordHeaderV4, i);
 
         // remap header to written memory
-        recordHeaderV3 = (recordHeaderV3_t *)buffPtr;
+        recordHeaderV4 = (recordHeaderV4_t *)buffPtr;
 
         recordHandle_t recordHandle = {0};
-        MapRecordHandle(&recordHandle, recordHeaderV3, i + 1);
+        MapV4RecordHandle(&recordHandle, recordHeaderV4, i + 1);
 
         // check if cntFlow already exists
         EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
 
         if (cntFlow == NULL && exCntSize) {
-            PushExtension(recordHeaderV3, EXcntFlow, extPtr);
+            // XXX FIX! PushExtension(recordHeaderV4, EXcntFlow, extPtr);
+            void *extPtr = NULL;
             cntFlow = extPtr;
         }
-        dataBlock->size += recordHeaderV3->size;
+        dataBlock->size += recordHeaderV4->size;
         dataBlock->NumRecords++;
 
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
@@ -1836,9 +1856,10 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         if (unlikely(NeedSwapGeneric(GuessFlowDirection, genericFlow))) {
             EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
             EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
+            EXinterface_t *interface = (EXinterface_t *)recordHandle.extensionList[EXflowMiscID];
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
-            EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
-            SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
+            EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle.extensionList[EXasInfoID];
+            SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asInfo);
         }
 
         // Update statistics
@@ -1878,7 +1899,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
     for (int order_index = 0; order_mode[order_index].string != NULL; order_index++) {
         unsigned int order_bit = 1 << order_index;
         if (FlowStat_order & order_bit) {
-            for (int i = 0; i < maxindex; i++) {
+            for (int i = 0; i < (int)maxindex; i++) {
                 FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
                 /* if we have some different sort orders, which are not directly available in the FlowHashRecord_t
                  * we need to calculate this value first - such as bpp, bps etc.
@@ -1915,7 +1936,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 
     if (PrintOrder) {
         // for any -O print mode
-        for (int i = 0; i < maxindex; i++) {
+        for (int i = 0; i < (int)maxindex; i++) {
             FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
             SortList[i].count = order_mode[PrintOrder].record_function(r);
         }
@@ -1941,7 +1962,7 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
 
     if (PrintOrder) {
         // for any -O print mode
-        for (int i = 0; i < maxindex; i++) {
+        for (int i = 0; i < (int)maxindex; i++) {
             FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
             SortList[i].count = order_mode[PrintOrder].record_function(r);
         }

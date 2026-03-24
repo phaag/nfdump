@@ -225,11 +225,11 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
         printf("%llu,%llu,%llu,%llu,%llu,%llu\n", (long long unsigned)stat_record->numflows, (long long unsigned)stat_record->numbytes,
                (long long unsigned)stat_record->numpackets, (long long unsigned)bps, (long long unsigned)pps, (long long unsigned)bpp);
     } else {
-        ScaleByteValue(byte_str, sizeof(byte_str), stat_record->numbytes, outputParams->printPlain, VAR_LENGTH);
-        ScaleCountValue(packet_str, sizeof(packet_str), stat_record->numpackets, outputParams->printPlain, VAR_LENGTH);
-        ScaleByteValue(bps_str, sizeof(bps_str), bps, outputParams->printPlain, VAR_LENGTH);
-        ScaleCountValue(pps_str, sizeof(pps_str), pps, outputParams->printPlain, VAR_LENGTH);
-        ScaleByteValue(bpp_str, sizeof(bpp_str), bpp, outputParams->printPlain, VAR_LENGTH);
+        ScaleByteValue(byte_str, sizeof(byte_str), stat_record->numbytes, outputParams->printPlain, WIDTH_VAR);
+        ScaleCountValue(packet_str, sizeof(packet_str), stat_record->numpackets, outputParams->printPlain, WIDTH_VAR);
+        ScaleByteValue(bps_str, sizeof(bps_str), bps, outputParams->printPlain, WIDTH_VAR);
+        ScaleCountValue(pps_str, sizeof(pps_str), pps, outputParams->printPlain, WIDTH_VAR);
+        ScaleByteValue(bpp_str, sizeof(bpp_str), bpp, outputParams->printPlain, WIDTH_VAR);
         printf(
             "Summary: total flows: %llu, total bytes: %s, total packets: %s, avg bps: %s, avg pps: "
             "%s, avg bpp: %s\n",
@@ -312,7 +312,10 @@ static int PreProcessBlock(dataBlock_t *dataBlock) {
         // work on our record
         switch (record_ptr->type) {
             case ExporterInfoRecordType:
-                if (AddExporterInfo((exporter_info_record_t *)record_ptr) == 0) {
+                // XXX FIX! handle old exporter
+                break;
+            case ExporterInfoRecordV4Type:
+                if (AddExporterInfo((exporter_info_record_v4_t *)record_ptr) == 0) {
                     LogError("Failed to add Exporter Record\n");
                 }
                 break;
@@ -320,7 +323,7 @@ static int PreProcessBlock(dataBlock_t *dataBlock) {
                 AddExporterStat((exporter_stats_record_t *)record_ptr);
                 break;
             case SamplerLegacyRecordType: {
-                sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
+                sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
                 if (sampler_record != NULL) {
                     if (AddSamplerRecord(sampler_record) == 0) {
                         LogError("Failed to add converted Sampler Record\n");
@@ -329,7 +332,7 @@ static int PreProcessBlock(dataBlock_t *dataBlock) {
                 }
             } break;
             case SamplerRecordType:
-                if (AddSamplerRecord((sampler_record_t *)record_ptr) == 0) {
+                if (AddSamplerRecord((sampler_record_V3_t *)record_ptr) == 0) {
                     LogError("Failed to add Sampler Record\n");
                 }
                 break;
@@ -517,10 +520,10 @@ static void *filterThread(void *arg) {
                 case CommonRecordType:
                     printf("Need to convert record type: %u\n", CommonRecordType);
                     break;
-                case V3Record: {
-                    recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record_ptr;
+                case V4Record: {
+                    recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
                     dataRecords++;
-                    int match = MapRecordHandle(recordHandle, recordHeaderV3, recordCounter);
+                    int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
                     // Time based filter
                     // if no time filter is given, the result is always true
                     if (timeWindow && match) {
@@ -537,11 +540,11 @@ static void *filterThread(void *arg) {
                         match = FilterRecord(engine, recordHandle);
                     }
                     if (match) {  // record passed all filters
-                        SetFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
+                        SetFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
                         passedRecords++;
                         matched++;
                     } else {
-                        ClearFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
+                        ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
                     }
                     FreeRecordHandle(recordHandle);
                 } break;
@@ -553,6 +556,7 @@ static void *filterThread(void *arg) {
                 case NbarRecordType:
                 case IfNameRecordType:
                 case VrfNameRecordType:
+                case SlackRecord:
                     // Silently skip exporter/sampler records
                     break;
 
@@ -671,15 +675,15 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             recordCounter++;
             // process records
             switch (record_ptr->type) {
-                case V3Record: {
-                    recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record_ptr;
+                case V4Record: {
+                    recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
                     // check if filter matched
-                    if (TestFlag(recordHeaderV3->flags, V3_FLAG_PASSED) == 0) goto NEXT;
+                    if (TestFlag(recordHeaderV4->flags, V4_FLAG_PASSED) == 0) goto NEXT;
 
                     // clear filter flag after use
-                    ClearFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
+                    ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
                     totalRecords++;
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, recordCounter);
+                    MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, recordCounter);
                     // check if we are done, if -c option was set
                     if (limitRecords) abortProcessing = totalRecords >= limitRecords;
 
@@ -722,7 +726,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     break;
                 case SamplerLegacyRecordType:
                     if (nffile_w) {
-                        sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
+                        sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
                         dbg_printf("Dump converted Sampler Record to file\n");
                         dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)sampler_record, sampler_record->size);
                         free(sampler_record);
@@ -1392,7 +1396,7 @@ int main(int argc, char **argv) {
                     }
                     uint64_t durationMsec = t_lastMsec - t_firstMsec;
                     printf("Time window: %s, Duration: %s\n", TimeString(t_firstMsec, t_lastMsec),
-                           ScaleDuration(string, sizeof(string), durationMsec, outputParams->printPlain, VAR_LENGTH));
+                           ScaleDuration(string, sizeof(string), durationMsec, outputParams->printPlain, WIDTH_VAR));
                 }
                 printf("Total records processed: %" PRIu64 ", passed: %" PRIu64 ", Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed,
                        skippedBlocks, (unsigned long long)total_bytes);

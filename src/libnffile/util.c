@@ -512,7 +512,7 @@ long getTick(void) {
 // convert duration in msec into literal string
 char *ScaleDuration(char *string, size_t len, uint64_t duration, int plain, int width) {
     if (duration == 0) {
-        strncpy(string, "    00:00:00.000", len);
+        snprintf(string, len, "%*s", width, "0.000");
     } else if (plain) {
         snprintf(string, len, "%*.3f", width, (double)duration / 1000.0);
     } else {

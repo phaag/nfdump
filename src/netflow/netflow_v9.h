@@ -266,6 +266,10 @@ typedef struct common_header_s {
 
 #define NF9_ETHERTYPE 256
 
+// sub template IDs
+#define IPFIX_subTemplateList 292
+#define IPFIX_subTemplateMultiList 293
+
 #define NF_F_EVENT_TIME_MSEC 323
 
 #define NF_F_XLATE_SRC_ADDR_IPV6 281
@@ -291,18 +295,11 @@ typedef struct common_header_s {
 #define NF_F_XLATE_DST_PORT_84 40004
 #define NF_F_FW_EVENT_84 40005
 
-// nprobe latency extensions
-#define NF_NPROBE_CLIENT_NW_DELAY_SEC 57554
-#define NF_NPROBE_CLIENT_NW_DELAY_USEC 57555
-#define NF_NPROBE_SERVER_NW_DELAY_SEC 57556
-#define NF_NPROBE_SERVER_NW_DELAY_USEC 57557
-#define NF_NPROBE_APPL_LATENCY_SEC 57558
-#define NF_NPROBE_APPL_LATENCY_USEC 57559
-
+// IANA 530-32767 unassigned
 // LOCAL types
-#define LOCAL_IPv4Received 32764
-#define LOCAL_IPv6Received 32765
-#define LOCAL_msecTimeReceived 32766
+#define LOCAL_msecTimeReceived 32768
+#define LOCAL_IPv4Received 32769
+#define LOCAL_IPv6Received 32770
 
 // v9 does not officially support IPFIX Enterprise IDs
 #define IPFIX_ReverseInformationElement 29305
@@ -310,6 +307,6 @@ typedef struct common_header_s {
 /* prototypes */
 int Init_v9(int verbose, int32_t sampling, char *extensionList);
 
-void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
+void Process_v9(uint8_t *in_buff, size_t in_buff_cnt, FlowSource_t *fs);
 
 #endif  //_NETFLOW_V9_H 1

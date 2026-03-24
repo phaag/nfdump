@@ -86,11 +86,15 @@ int AddFlowSourceConfig(collector_ctx_t *ctx);
 
 int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done);
 
+uint32_t AssignExporterID(void);
+
+void FlushExporter(FlowSource_t *fs);
+
 void FlushStdRecords(FlowSource_t *fs);
 
 void FlushExporterStats(FlowSource_t *fs);
 
-int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
+int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_v4_t *exporter);
 
 int ScanExtension(char *extensionList);
 

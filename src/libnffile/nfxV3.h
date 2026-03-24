@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -71,14 +71,6 @@ typedef struct recordHeaderV3_s {
 
     uint8_t nfversion;
 } recordHeaderV3_t;
-#define OFFtype offsetof(recordHeaderV3_t, type)
-#define SIZEtype MemberSize(recordHeaderV3_t, type)
-#define OFFengineType offsetof(recordHeaderV3_t, engineType)
-#define SIZEengineType MemberSize(recordHeaderV3_t, engineType)
-#define OFFengineID offsetof(recordHeaderV3_t, engineID)
-#define SIZEengineID MemberSize(recordHeaderV3_t, engineID)
-#define OFFexporterID offsetof(recordHeaderV3_t, exporterID)
-#define SIZEexporterID MemberSize(recordHeaderV3_t, exporterID)
 
 #define V3HeaderRecordSize sizeof(recordHeaderV3_t)
 #define AddV3Header(p, h)                        \
@@ -129,29 +121,15 @@ typedef struct elementHeader_s {
  * Extension elements
  */
 
-#define EXnull 0
-
-#define MemberSize(type, member) sizeof(((type *)0)->member)
-
 #define VARLENGTH 0xFFFF
 
-typedef struct EXgenericFlow_s {
-#define EXgenericFlowID 1
+typedef struct EX3genericFlow_s {
+#define EX3genericFlowID 1
     uint64_t msecFirst;
     uint64_t msecLast;
-#define OFFmsecFirst offsetof(EXgenericFlow_t, msecFirst)
-#define SIZEmsecFirst MemberSize(EXgenericFlow_t, msecFirst)
-#define OFFmsecLast offsetof(EXgenericFlow_t, msecLast)
-#define SIZEmsecLast MemberSize(EXgenericFlow_t, msecLast)
     uint64_t msecReceived;
-#define OFFmsecReceived offsetof(EXgenericFlow_t, msecReceived)
-#define SIZEmsecReceived MemberSize(EXgenericFlow_t, msecReceived)
     uint64_t inPackets;
     uint64_t inBytes;
-#define OFFinPackets offsetof(EXgenericFlow_t, inPackets)
-#define SIZEinPackets MemberSize(EXgenericFlow_t, inPackets)
-#define OFFinBytes offsetof(EXgenericFlow_t, inBytes)
-#define SIZEinBytes MemberSize(EXgenericFlow_t, inBytes)
     uint16_t srcPort;
 #ifdef GOLANG
     uint16_t dstPort;
@@ -169,441 +147,228 @@ typedef struct EXgenericFlow_s {
         };
     };
 #endif
-#define OFFsrcPort offsetof(EXgenericFlow_t, srcPort)
-#define SIZEsrcPort MemberSize(EXgenericFlow_t, srcPort)
-#define OFFdstPort offsetof(EXgenericFlow_t, dstPort)
-#define SIZEdstPort MemberSize(EXgenericFlow_t, dstPort)
-#define OFFicmpCode offsetof(EXgenericFlow_t, icmpCode)
-#define SIZEicmpCode MemberSize(EXgenericFlow_t, icmpCode)
-#define OFFicmpType offsetof(EXgenericFlow_t, icmpType)
-#define SIZEicmpType MemberSize(EXgenericFlow_t, icmpType)
     uint8_t proto;
-#define OFFproto offsetof(EXgenericFlow_t, proto)
-#define SIZEproto MemberSize(EXgenericFlow_t, proto)
     uint8_t tcpFlags;
-#define OFFtcpFlags offsetof(EXgenericFlow_t, tcpFlags)
-#define SIZEtcpFlags MemberSize(EXgenericFlow_t, tcpFlags)
     uint8_t fwdStatus;
-#define OFFfwdStatus offsetof(EXgenericFlow_t, fwdStatus)
-#define SIZEfwdStatus MemberSize(EXgenericFlow_t, fwdStatus)
     uint8_t srcTos;
-#define OFFsrcTos offsetof(EXgenericFlow_t, srcTos)
-#define SIZEsrcTos MemberSize(EXgenericFlow_t, srcTos)
-} EXgenericFlow_t;
-#define EXgenericFlowSize (sizeof(EXgenericFlow_t) + sizeof(elementHeader_t))
+} EX3genericFlow_t;
 
-typedef struct EXipv4Flow_s {
-#define EXipv4FlowID 2
+typedef struct EX3ipv4Flow_s {
+#define EX3ipv4FlowID 2
     uint32_t srcAddr;
     uint32_t dstAddr;
-#define OFFsrc4Addr offsetof(EXipv4Flow_t, srcAddr)
-#define SIZEsrc4Addr MemberSize(EXipv4Flow_t, srcAddr)
-#define OFFdst4Addr offsetof(EXipv4Flow_t, dstAddr)
-#define SIZEdst4Addr MemberSize(EXipv4Flow_t, dstAddr)
-} EXipv4Flow_t;
-#define EXipv4FlowSize (sizeof(EXipv4Flow_t) + sizeof(elementHeader_t))
+} EX3ipv4Flow_t;
 
-typedef struct EXipv6Flow_s {
-#define EXipv6FlowID 3
+typedef struct EX3ipv6Flow_s {
+#define EX3ipv6FlowID 3
     uint64_t srcAddr[2];
     uint64_t dstAddr[2];
-#define OFFsrc6Addr offsetof(EXipv6Flow_t, srcAddr)
-#define SIZEsrc6Addr MemberSize(EXipv6Flow_t, srcAddr)
-#define OFFdst6Addr offsetof(EXipv6Flow_t, dstAddr)
-#define SIZEdst6Addr MemberSize(EXipv6Flow_t, dstAddr)
-} EXipv6Flow_t;
-#define EXipv6FlowSize (sizeof(EXipv6Flow_t) + sizeof(elementHeader_t))
+} EX3ipv6Flow_t;
 
-typedef struct EXflowMisc_s {
-#define EXflowMiscID 4
+typedef struct EX3flowMisc_s {
+#define EX3flowMiscID 4
     uint32_t input;
     uint32_t output;
-#define OFFinput offsetof(EXflowMisc_t, input)
-#define SIZEinput MemberSize(EXflowMisc_t, input)
-#define OFFoutput offsetof(EXflowMisc_t, output)
-#define SIZEoutput MemberSize(EXflowMisc_t, output)
     uint8_t srcMask;
     uint8_t dstMask;
-#define OFFsrcMask offsetof(EXflowMisc_t, srcMask)
-#define SIZEsrcMask MemberSize(EXflowMisc_t, srcMask)
-#define OFFdstMask offsetof(EXflowMisc_t, dstMask)
-#define SIZEdstMask MemberSize(EXflowMisc_t, dstMask)
     uint8_t dir;
-#define OFFdir offsetof(EXflowMisc_t, dir)
-#define SIZEdir MemberSize(EXflowMisc_t, dir)
     uint8_t dstTos;
-#define OFFdstTos offsetof(EXflowMisc_t, dstTos)
-#define SIZEdstTos MemberSize(EXflowMisc_t, dstTos)
     uint8_t biFlowDir;
-#define OFFbiFlowDir offsetof(EXflowMisc_t, biFlowDir)
-#define SIZEbiFlowDir MemberSize(EXflowMisc_t, biFlowDir)
     uint8_t flowEndReason;
-#define OFFflowEndReason offsetof(EXflowMisc_t, flowEndReason)
-#define SIZEflowEndReason MemberSize(EXflowMisc_t, flowEndReason)
     uint16_t align;
-} EXflowMisc_t;
-#define EXflowMiscSize (sizeof(EXflowMisc_t) + sizeof(elementHeader_t))
+} EX3flowMisc_t;
 
-typedef struct EXcntFlow_s {
-#define EXcntFlowID 5
+typedef struct EX3cntFlow_s {
+#define EX3cntFlowID 5
     uint64_t flows;
-#define OFFflows offsetof(EXcntFlow_t, flows)
-#define SIZEflows MemberSize(EXcntFlow_t, flows)
     uint64_t outPackets;
     uint64_t outBytes;
-#define OFFoutPackets offsetof(EXcntFlow_t, outPackets)
-#define SIZEoutPackets MemberSize(EXcntFlow_t, outPackets)
-#define OFFoutBytes offsetof(EXcntFlow_t, outBytes)
-#define SIZEoutBytes MemberSize(EXcntFlow_t, outBytes)
-} EXcntFlow_t;
-#define EXcntFlowSize (sizeof(EXcntFlow_t) + sizeof(elementHeader_t))
+} EX3cntFlow_t;
 
-typedef struct EXvLan_s {
-#define EXvLanID 6
+typedef struct EX3vLan_s {
+#define EX3vLanID 6
     uint32_t srcVlan;
     uint32_t dstVlan;
-#define OFFsrcVlan offsetof(EXvLan_t, srcVlan)
-#define SIZEsrcVlan MemberSize(EXvLan_t, srcVlan)
-#define OFFdstVlan offsetof(EXvLan_t, dstVlan)
-#define SIZEdstVlan MemberSize(EXvLan_t, dstVlan)
-} EXvLan_t;
-#define EXvLanSize (sizeof(EXvLan_t) + sizeof(elementHeader_t))
+} EX3vLan_t;
 
-typedef struct EXasRouting_s {
-#define EXasRoutingID 7
+typedef struct EX3asRouting_s {
+#define EX3asRoutingID 7
     uint32_t srcAS;
     uint32_t dstAS;
-#define OFFsrcAS offsetof(EXasRouting_t, srcAS)
-#define SIZEsrcAS MemberSize(EXasRouting_t, srcAS)
-#define OFFdstAS offsetof(EXasRouting_t, dstAS)
-#define SIZEdstAS MemberSize(EXasRouting_t, dstAS)
-} EXasRouting_t;
-#define EXasRoutingSize (sizeof(EXasRouting_t) + sizeof(elementHeader_t))
+} EX3asRouting_t;
 
-typedef struct EXbgpNextHopV4_s {
-#define EXbgpNextHopV4ID 8
+typedef struct EX3bgpNextHopV4_s {
+#define EX3bgpNextHopV4ID 8
     uint32_t ip;
-#define OFFbgp4NextIP offsetof(EXbgpNextHopV4_t, ip)
-#define SIZEbgp4NextIP MemberSize(EXbgpNextHopV4_t, ip)
-} EXbgpNextHopV4_t;
-#define EXbgpNextHopV4Size (sizeof(EXbgpNextHopV4_t) + sizeof(elementHeader_t))
+} EX3bgpNextHopV4_t;
 
-typedef struct EXbgpNextHopV6_s {
-#define EXbgpNextHopV6ID 9
+typedef struct EX3bgpNextHopV6_s {
+#define EX3bgpNextHopV6ID 9
     uint64_t ip[2];
-#define OFFbgp6NextIP offsetof(EXbgpNextHopV6_t, ip)
-#define SIZEbgp6NextIP MemberSize(EXbgpNextHopV6_t, ip)
-} EXbgpNextHopV6_t;
-#define EXbgpNextHopV6Size (sizeof(EXbgpNextHopV6_t) + sizeof(elementHeader_t))
+} EX3bgpNextHopV6_t;
 
-typedef struct EXipNextHopV4_s {
-#define EXipNextHopV4ID 10
+typedef struct EX3ipNextHopV4_s {
+#define EX3ipNextHopV4ID 10
     uint32_t ip;
-#define OFFNextHopV4IP offsetof(EXipNextHopV4_t, ip)
-#define SIZENextHopV4IP MemberSize(EXipNextHopV4_t, ip)
-} EXipNextHopV4_t;
-#define EXipNextHopV4Size (sizeof(EXipNextHopV4_t) + sizeof(elementHeader_t))
+} EX3ipNextHopV4_t;
 
-typedef struct EXipNextHopV6_s {
-#define EXipNextHopV6ID 11
+typedef struct EX3ipNextHopV6_s {
+#define EX3ipNextHopV6ID 11
     uint64_t ip[2];
-#define OFFNextHopV6IP offsetof(EXipNextHopV6_t, ip)
-#define SIZENextHopV6IP MemberSize(EXipNextHopV6_t, ip)
-} EXipNextHopV6_t;
-#define EXipNextHopV6Size (sizeof(EXipNextHopV6_t) + sizeof(elementHeader_t))
+} EX3ipNextHopV6_t;
 
-typedef struct EXipReceivedV4_s {
-#define EXipReceivedV4ID 12
+typedef struct EX3ipReceivedV4_s {
+#define EX3ipReceivedV4ID 12
     uint32_t ip;
-#define OFFReceived4IP offsetof(EXipReceivedV4_t, ip)
-#define SIZEReceived4IP MemberSize(EXipReceivedV4_t, ip)
-} EXipReceivedV4_t;
-#define EXipReceivedV4Size (sizeof(EXipReceivedV4_t) + sizeof(elementHeader_t))
+} EX3ipReceivedV4_t;
 
-typedef struct EXipReceivedV6_s {
-#define EXipReceivedV6ID 13
+typedef struct EX3ipReceivedV6_s {
+#define EX3ipReceivedV6ID 13
     uint64_t ip[2];
-#define OFFReceived6IP offsetof(EXipReceivedV6_t, ip)
-#define SIZEReceived6IP MemberSize(EXipReceivedV6_t, ip)
-} EXipReceivedV6_t;
-#define EXipReceivedV6Size (sizeof(EXipReceivedV6_t) + sizeof(elementHeader_t))
+} EX3ipReceivedV6_t;
 
-typedef struct EXmplsLabel_s {
-#define EXmplsLabelID 14
+typedef struct EX3mplsLabel_s {
+#define EX3mplsLabelID 14
     uint32_t mplsLabel[10];
-#define OFFmplsLabel1 offsetof(EXmplsLabel_t, mplsLabel[0])
-#define SIZEmplsLabel1 MemberSize(EXmplsLabel_t, mplsLabel[0])
-#define OFFmplsLabel2 offsetof(EXmplsLabel_t, mplsLabel[1])
-#define SIZEmplsLabel2 MemberSize(EXmplsLabel_t, mplsLabel[1])
-#define OFFmplsLabel3 offsetof(EXmplsLabel_t, mplsLabel[2])
-#define SIZEmplsLabel3 MemberSize(EXmplsLabel_t, mplsLabel[2])
-#define OFFmplsLabel4 offsetof(EXmplsLabel_t, mplsLabel[3])
-#define SIZEmplsLabel4 MemberSize(EXmplsLabel_t, mplsLabel[3])
-#define OFFmplsLabel5 offsetof(EXmplsLabel_t, mplsLabel[4])
-#define SIZEmplsLabel5 MemberSize(EXmplsLabel_t, mplsLabel[4])
-#define OFFmplsLabel6 offsetof(EXmplsLabel_t, mplsLabel[5])
-#define SIZEmplsLabel6 MemberSize(EXmplsLabel_t, mplsLabel[5])
-#define OFFmplsLabel7 offsetof(EXmplsLabel_t, mplsLabel[6])
-#define SIZEmplsLabel7 MemberSize(EXmplsLabel_t, mplsLabel[6])
-#define OFFmplsLabel8 offsetof(EXmplsLabel_t, mplsLabel[7])
-#define SIZEmplsLabel8 MemberSize(EXmplsLabel_t, mplsLabel[7])
-#define OFFmplsLabel9 offsetof(EXmplsLabel_t, mplsLabel[8])
-#define SIZEmplsLabel9 MemberSize(EXmplsLabel_t, mplsLabel[8])
-#define OFFmplsLabel10 offsetof(EXmplsLabel_t, mplsLabel[9])
-#define SIZEmplsLabel10 MemberSize(EXmplsLabel_t, mplsLabel[9])
-} EXmplsLabel_t;
-#define EXmplsLabelSize (sizeof(EXmplsLabel_t) + sizeof(elementHeader_t))
+} EX3mplsLabel_t;
 
-typedef struct EXmacAddr_s {
-#define EXmacAddrID 15
+typedef struct EX3macAddr_s {
+#define EX3macAddrID 15
     uint64_t inSrcMac;
     uint64_t outDstMac;
     uint64_t inDstMac;
     uint64_t outSrcMac;
-#define OFFinSrcMac offsetof(EXmacAddr_t, inSrcMac)
-#define SIZEinSrcMac MemberSize(EXmacAddr_t, inSrcMac)
-#define OFFoutDstMac offsetof(EXmacAddr_t, outDstMac)
-#define SIZEoutDstMac MemberSize(EXmacAddr_t, outDstMac)
-#define OFFinDstMac offsetof(EXmacAddr_t, inDstMac)
-#define SIZEinDstMac MemberSize(EXmacAddr_t, inDstMac)
-#define OFFoutSrcMac offsetof(EXmacAddr_t, outSrcMac)
-#define SIZEoutSrcMac MemberSize(EXmacAddr_t, outSrcMac)
-} EXmacAddr_t;
-#define EXmacAddrSize (sizeof(EXmacAddr_t) + sizeof(elementHeader_t))
+} EX3macAddr_t;
 
-typedef struct EXasAdjacent_s {
-#define EXasAdjacentID 16
+typedef struct EX3asAdjacent_s {
+#define EX3asAdjacentID 16
     uint32_t nextAdjacentAS;  // NF_F_BGP_ADJ_NEXT_AS(128)
     uint32_t prevAdjacentAS;  // NF_F_BGP_ADJ_PREV_AS(129)
-#define OFFnextAdjacentAS offsetof(EXasAdjacent_t, nextAdjacentAS)
-#define SIZEnextAdjacentAS MemberSize(EXasAdjacent_t, nextAdjacentAS)
-#define OFFprevAdjacentAS offsetof(EXasAdjacent_t, prevAdjacentAS)
-#define SIZEprevAdjacentAS MemberSize(EXasAdjacent_t, prevAdjacentAS)
-} EXasAdjacent_t;
-#define EXasAdjacentSize (sizeof(EXasAdjacent_t) + sizeof(elementHeader_t))
+} EX3asAdjacent_t;
 
-typedef struct EXlatency_s {
-#define EXlatencyID 17
+typedef struct EX3latency_s {
+#define EX3latencyID 17
     uint64_t usecClientNwDelay;  // NF_NPROBE_CLIENT_NW_DELAY_SEC(57554) + NF_NPROBE_CLIENT_NW_DELAY_USEC(57555)
     uint64_t usecServerNwDelay;  // NF_NPROBE_SERVER_NW_DELAY_SEC(57556) + NF_NPROBE_SERVER_NW_DELAY_USEC(57557)
     uint64_t usecApplLatency;    // NF_NPROBE_APPL_LATENCY_SEC(57558) + NF_NPROBE_APPL_LATENCY_USEC(57559)
-#define OFFusecClientNwDelay offsetof(EXlatency_t, usecClientNwDelay)
-#define SIZEusecClientNwDelay MemberSize(EXlatency_t, usecClientNwDelay)
-#define OFFusecServerNwDelay offsetof(EXlatency_t, usecServerNwDelay)
-#define SIZEusecServerNwDelay MemberSize(EXlatency_t, usecServerNwDelay)
-#define OFFusecApplLatency offsetof(EXlatency_t, usecApplLatency)
-#define SIZEusecApplLatency MemberSize(EXlatency_t, usecApplLatency)
-} EXlatency_t;
-#define EXlatencySize (sizeof(EXlatency_t) + sizeof(elementHeader_t))
+} EX3latency_t;
 
-typedef struct EXsamplerInfo_s {
-#define EXsamplerInfoID 18
+typedef struct EX3samplerInfo_s {
+#define EX3samplerInfoID 18
     uint64_t selectorID;      // #302 id assigned by the exporting device
     uint16_t exporter_sysid;  // internal reference to exporter
     uint16_t align;
-#define OFFsampID offsetof(EXsamplerInfo_t, selectorID)
-#define SIZEsampID MemberSize(EXsamplerInfo_t, selectorID)
-#define OFFsampExporter offsetof(EXsamplerInfo_t, exporter_sysid)
-#define SIZEsampExporter MemberSize(EXsamplerInfo_t, exporter_sysid)
-} EXsamplerInfo_t;
-#define EXsamplerInfoSize (sizeof(EXsamplerInfo_t) + sizeof(elementHeader_t))
+} EX3samplerInfo_t;
 
-typedef struct EXnselCommon_s {
-#define EXnselCommonID 19
+typedef struct EX3nselCommon_s {
+#define EX3nselCommonID 19
     uint64_t msecEvent;  // NF_F_EVENT_TIME_MSEC(323)
     uint32_t connID;     // NF_F_CONN_ID(148)
     uint16_t fwXevent;   // NF_F_FW_EXT_EVENT(33002)
     uint8_t fwEvent;     // NF_F_FW_EVENT(233), NF_F_FW_EVENT_84(40005)
     uint8_t fill;
-#define OFFmsecEvent offsetof(EXnselCommon_t, msecEvent)
-#define SIZEmsecEvent MemberSize(EXnselCommon_t, msecEvent)
-#define OFFconnID offsetof(EXnselCommon_t, connID)
-#define SIZEconnID MemberSize(EXnselCommon_t, connID)
-#define OFFfwXevent offsetof(EXnselCommon_t, fwXevent)
-#define SIZEfwXevent MemberSize(EXnselCommon_t, fwXevent)
-#define OFFfwEvent offsetof(EXnselCommon_t, fwEvent)
-#define SIZEfwEvent MemberSize(EXnselCommon_t, fwEvent)
-} EXnselCommon_t;
-#define EXnselCommonSize (sizeof(EXnselCommon_t) + sizeof(elementHeader_t))
+} EX3nselCommon_t;
 
-typedef struct EXnatXlateIPv4_s {
-#define EXnatXlateIPv4ID 20
+typedef struct EX3natXlateIPv4_s {
+#define EX3natXlateIPv4ID 20
     uint32_t xlateSrcAddr;  // NF_F_XLATE_SRC_ADDR_IPV4(225), NF_F_XLATE_SRC_ADDR_84(40001)
     uint32_t xlateDstAddr;  // NF_F_XLATE_DST_ADDR_IPV4(226), NF_F_XLATE_DST_ADDR_84(40002)
-#define OFFxlateSrc4Addr offsetof(EXnatXlateIPv4_t, xlateSrcAddr)
-#define SIZExlateSrc4Addr MemberSize(EXnatXlateIPv4_t, xlateSrcAddr)
-#define OFFxlateDst4Addr offsetof(EXnatXlateIPv4_t, xlateDstAddr)
-#define SIZExlateDst4Addr MemberSize(EXnatXlateIPv4_t, xlateDstAddr)
-} EXnatXlateIPv4_t;
-#define EXnatXlateIPv4Size (sizeof(EXnatXlateIPv4_t) + sizeof(elementHeader_t))
+} EX3natXlateIPv4_t;
 
-typedef struct EXnatXlateIPv6_s {
-#define EXnatXlateIPv6ID 21
+typedef struct EX3natXlateIPv6_s {
+#define EX3natXlateIPv6ID 21
     uint64_t xlateSrcAddr[2];  // NF_F_XLATE_SRC_ADDR_IPV6(281),
     uint64_t xlateDstAddr[2];  // NF_F_XLATE_DST_ADDR_IPV6(282),
-#define OFFxlateSrc6Addr offsetof(EXnatXlateIPv6_t, xlateSrcAddr)
-#define SIZExlateSrc6Addr MemberSize(EXnatXlateIPv6_t, xlateSrcAddr)
-#define OFFxlateDst6Addr offsetof(EXnatXlateIPv6_t, xlateDstAddr)
-#define SIZExlateDst6Addr MemberSize(EXnatXlateIPv6_t, xlateDstAddr)
-} EXnatXlateIPv6_t;
-#define EXnatXlateIPv6Size (sizeof(EXnatXlateIPv6_t) + sizeof(elementHeader_t))
+} EX3natXlateIPv6_t;
 
-typedef struct EXnatXlatePort_s {
-#define EXnatXlatePortID 22
+typedef struct EX3natXlatePort_s {
+#define EX3natXlatePortID 22
     uint16_t xlateSrcPort;  // NF_F_XLATE_SRC_PORT(227), NF_F_XLATE_SRC_PORT_84(40003)
     uint16_t xlateDstPort;  //  NF_F_XLATE_DST_PORT(228), NF_F_XLATE_DST_PORT_84(40004)
-#define OFFxlateSrcPort offsetof(EXnatXlatePort_t, xlateSrcPort)
-#define SIZExlateSrcPort MemberSize(EXnatXlatePort_t, xlateSrcPort)
-#define OFFxlateDstPort offsetof(EXnatXlatePort_t, xlateDstPort)
-#define SIZExlateDstPort MemberSize(EXnatXlatePort_t, xlateDstPort)
-} EXnatXlatePort_t;
-#define EXnatXlatePortSize (sizeof(EXnatXlatePort_t) + sizeof(elementHeader_t))
+} EX3natXlatePort_t;
 
-typedef struct EXnselAcl_s {
-#define EXnselAclID 23
+typedef struct EX3nselAcl_s {
+#define EX3nselAclID 23
     uint32_t ingressAcl[3];  // NF_F_INGRESS_ACL_ID(33000)
     uint32_t egressAcl[3];   // NF_F_EGRESS_ACL_ID(33001)
-#define OFFingressAcl offsetof(EXnselAcl_t, ingressAcl)
-#define SIZEingressAcl MemberSize(EXnselAcl_t, ingressAcl)
-#define OFFegressAcl offsetof(EXnselAcl_t, egressAcl)
-#define SIZEegressAcl MemberSize(EXnselAcl_t, egressAcl)
-} EXnselAcl_t;
-#define EXnselAclSize (sizeof(EXnselAcl_t) + sizeof(elementHeader_t))
+} EX3nselAcl_t;
 
-typedef struct EXnselUser_s {
-#define EXnselUserID 24
+typedef struct EX3nselUser_s {
+#define EX3nselUserID 24
     char username[66];  // NF_F_USERNAME(40000),
     uint16_t fill2;
-#define OFFusername offsetof(EXnselUser_t, username)
-#define SIZEusername MemberSize(EXnselUser_t, username)
-} EXnselUser_t;
-#define EXnselUserSize (sizeof(EXnselUser_t) + sizeof(elementHeader_t))
+} EX3nselUser_t;
 
 // NAT event logging
-typedef struct EXnatCommon_s {
-#define EXnatCommonID 25
+typedef struct EX3natCommon_s {
+#define EX3natCommonID 25
     uint64_t msecEvent;  // NF_F_EVENT_TIME_MSEC(323)
     uint32_t natPoolID;  // NF_N_NATPOOL_ID(283)
     uint8_t natEvent;    // NAT_EVENT(230)
     uint8_t fill1;
     uint16_t fill2;
-#define OFFnelMsecEvent offsetof(EXnatCommon_t, msecEvent)
-#define SIZEnelMsecEvent MemberSize(EXnatCommon_t, msecEvent)
-#define OFFnatPoolID offsetof(EXnatCommon_t, natPoolID)
-#define SIZEnatPoolID MemberSize(EXnatCommon_t, natPoolID)
-#define OFFnatEvent offsetof(EXnatCommon_t, natEvent)
-#define SIZEnatEvent MemberSize(EXnatCommon_t, natEvent)
-} EXnatCommon_t;
-#define EXnatCommonSize (sizeof(EXnatCommon_t) + sizeof(elementHeader_t))
+} EX3natCommon_t;
 
-typedef struct EXnatPortBlock_s {
-#define EXnatPortBlockID 26
+typedef struct EX3natPortBlock_s {
+#define EX3natPortBlockID 26
     uint16_t blockStart;  // NF_F_XLATE_PORT_BLOCK_START(361)
     uint16_t blockEnd;    // NF_F_XLATE_PORT_BLOCK_END(362)
     uint16_t blockStep;   // NF_F_XLATE_PORT_BLOCK_STEP(363)
     uint16_t blockSize;   // NF_F_XLATE_PORT_BLOCK_SIZE(364)
-#define OFFnelblockStart offsetof(EXnatPortBlock_t, blockStart)
-#define SIZEnelblockStart MemberSize(EXnatPortBlock_t, blockStart)
-#define OFFnelblockEnd offsetof(EXnatPortBlock_t, blockEnd)
-#define SIZEnelblockEnd MemberSize(EXnatPortBlock_t, blockEnd)
-#define OFFnelblockStep offsetof(EXnatPortBlock_t, blockStep)
-#define SIZEnelblockStep MemberSize(EXnatPortBlock_t, blockStep)
-#define OFFnelblockSize offsetof(EXnatPortBlock_t, blockSize)
-#define SIZEnelblockSize MemberSize(EXnatPortBlock_t, blockSize)
-} EXnatPortBlock_t;
-#define EXnatPortBlockSize (sizeof(EXnatPortBlock_t) + sizeof(elementHeader_t))
+} EX3natPortBlock_t;
 
-typedef struct EXnbarApp_s {
-#define EXnbarAppID 27
+typedef struct EX3nbarApp_s {
+#define EX3nbarAppID 27
     uint8_t id[4];
-#define OFFnbarAppID offsetof(EXnbarApp_t, id)
-#define SIZEnbarAppID VARLENGTH
-} EXnbarApp_t;
-#define EXnbarAppSize (sizeof(EXnbarApp_t) - 4 + sizeof(elementHeader_t))
+} EX3nbarApp_t;
 
-#define EXlabelID_t elementHeader_t
-#define EXlabelID 28
-#define EXlabelSize sizeof(elementHeader_t)
+#define EX3inPayload_t void
+#define EX3inPayloadID 29
+#define EX3inPayloadSize sizeof(elementHeader_t)
 
-#define EXinPayload_t void
-#define EXinPayloadID 29
-#define EXinPayloadSize sizeof(elementHeader_t)
+#define EX3outPayload_t void
+#define EX3outPayloadID 30
+#define EX3outPayloadSize sizeof(elementHeader_t)
 
-#define EXoutPayload_t void
-#define EXoutPayloadID 30
-#define EXoutPayloadSize sizeof(elementHeader_t)
-
-typedef struct EXtunIPv4_s {
-#define EXtunIPv4ID 31
+typedef struct EX3tunIPv4_s {
+#define EX3tunIPv4ID 31
     uint32_t tunSrcAddr;
     uint32_t tunDstAddr;
     uint32_t tunProto;
-#define OFFtunSrc4Addr offsetof(EXtunIPv4_t, tunSrcAddr)
-#define SIZEtunSrc4Addr MemberSize(EXtunIPv4_t, tunSrcAddr)
-#define OFFtunDst4Addr offsetof(EXtunIPv4_t, tunDstAddr)
-#define SIZEtunDst4Addr MemberSize(EXtunIPv4_t, tunDstAddr)
-#define OFFtunProtoV4 offsetof(EXtunIPv4_t, tunProto)
-#define SIZEtunProtoV4 MemberSize(EXtunIPv4_t, tunProto)
-} EXtunIPv4_t;
-#define EXtunIPv4Size (sizeof(EXtunIPv4_t) + sizeof(elementHeader_t))
+} EX3tunIPv4_t;
 
-typedef struct EXtunIPv6_s {
-#define EXtunIPv6ID 32
+typedef struct EX3tunIPv6_s {
+#define EX3tunIPv6ID 32
     uint64_t tunSrcAddr[2];
     uint64_t tunDstAddr[2];
     uint32_t tunProto;
-#define OFFtunSrc6Addr offsetof(EXtunIPv6_t, tunSrcAddr)
-#define SIZEtunSrc6Addr MemberSize(EXtunIPv6_t, tunSrcAddr)
-#define OFFtunDst6Addr offsetof(EXtunIPv6_t, tunDstAddr)
-#define SIZEtunDst6Addr MemberSize(EXtunIPv6_t, tunDstAddr)
-#define OFFtunProtoV6 offsetof(EXtunIPv6_t, tunProto)
-#define SIZEtunProtoV6 MemberSize(EXtunIPv6_t, tunProto)
-} EXtunIPv6_t;
-#define EXtunIPv6Size (sizeof(EXtunIPv6_t) + sizeof(elementHeader_t))
+} EX3tunIPv6_t;
 
-typedef struct EXobservation_s {
-#define EXobservationID 33
+typedef struct EX3observation_s {
+#define EX3observationID 33
     uint64_t pointID;
     uint32_t domainID;
-#define OFFpointID offsetof(EXobservation_t, pointID)
-#define SIZEpointID MemberSize(EXobservation_t, pointID)
-#define OFFdomainID offsetof(EXobservation_t, domainID)
-#define SIZEdomainID MemberSize(EXobservation_t, domainID)
-} EXobservation_t;
-#define EXobservationSize (sizeof(EXobservation_t) + sizeof(elementHeader_t))
+} EX3observation_t;
 
-typedef struct EXinmonMeta_s {
-#define EXinmonMetaID 34
+typedef struct EX3inmonMeta_s {
+#define EX3inmonMetaID 34
     uint16_t frameSize;
     uint16_t linkType;
-} EXinmonMeta_t;
-#define OFFframeSize offsetof(EXinmonMeta_t, frameSize)
-#define SIZEframeSize MemberSize(EXinmonMeta_t, frameSize)
-#define OFFlinkType offsetof(EXinmonMeta_t, linkType)
-#define SIZElinkType MemberSize(EXinmonMeta_t, linkType)
-#define EXinmonMetaSize (sizeof(EXinmonMeta_t) + sizeof(elementHeader_t))
+} EX3inmonMeta_t;
 
-typedef struct EXinmonFrame_s {
-#define EXinmonFrameID 35
+typedef struct EX3inmonFrame_s {
+#define EX3inmonFrameID 35
     uint8_t packet[4];
-} EXinmonFrame_t;
-#define OFFpacket offsetof(EXinmonFrame_t, packet)
-#define SIZEpacket VARLENGTH
-#define EXinmonFrameSize (sizeof(EXinmonFrame_t) - 4 + sizeof(elementHeader_t))
+} EX3inmonFrame_t;
 
-typedef struct EXvrf_s {
-#define EXvrfID 36
+typedef struct EX3vrf_s {
+#define EX3vrfID 36
     uint32_t egressVrf;   // EGRESS_VRFID(235)
     uint32_t ingressVrf;  // INGRESS_VRFID(234)
-#define OFFegressVrf offsetof(EXvrf_t, egressVrf)
-#define SIZEegressVrf MemberSize(EXvrf_t, egressVrf)
-#define OFFingressVrf offsetof(EXvrf_t, ingressVrf)
-#define SIZEingressVrf MemberSize(EXvrf_t, ingressVrf)
-} EXvrf_t;
-#define EXvrfSize (sizeof(EXvrf_t) + sizeof(elementHeader_t))
+} EX3vrf_t;
 
-typedef struct EXpfinfo_s {
-#define EXpfinfoID 37
+typedef struct EX3pfinfo_s {
+#define EX3pfinfoID 37
     uint8_t action;
     uint8_t reason;
     uint8_t dir;
@@ -613,112 +378,50 @@ typedef struct EXpfinfo_s {
     uint32_t uid;
     uint32_t pid;
     char ifname[4];
-} EXpfinfo_t;
-#define OFFpfAction offsetof(EXpfinfo_t, action)
-#define SIZEpfAction MemberSize(EXpfinfo_t, action)
-#define OFFpfReason offsetof(EXpfinfo_t, reason)
-#define SIZEpfReason MemberSize(EXpfinfo_t, reason)
-#define OFFpfDir offsetof(EXpfinfo_t, dir)
-#define SIZEpfDir MemberSize(EXpfinfo_t, dir)
-#define OFFpfIfName offsetof(EXpfinfo_t, ifname)
-#define SIZEpfIfName MemberSize(EXpfinfo_t, ifname)
-#define OFFpfRuleNr offsetof(EXpfinfo_t, rulenr)
-#define SIZEpfRuleNr MemberSize(EXpfinfo_t, rulenr)
-#define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
+} EX3pfinfo_t;
 
-typedef struct EXlayer2_s {
-#define EXlayer2ID 38
+typedef struct EX3layer2_s {
+#define EX3layer2ID 38
     uint16_t vlanID;
     uint16_t customerVlanId;
     uint16_t postVlanID;
     uint16_t postCustomerVlanId;
-#define OFFvlanID offsetof(EXlayer2_t, vlanID)
-#define SIZEvlanID MemberSize(EXlayer2_t, vlanID)
-#define OFFpostVlanID offsetof(EXlayer2_t, postVlanID)
-#define SIZEpostVlanID MemberSize(EXlayer2_t, postVlanID)
-#define OFFcustomerVlanId offsetof(EXlayer2_t, customerVlanId)
-#define SIZEcustomerVlanId MemberSize(EXlayer2_t, customerVlanId)
-#define OFFpostCustomerVlanId offsetof(EXlayer2_t, postCustomerVlanId)
-#define SIZEpostCustomerVlanId MemberSize(EXlayer2_t, postCustomerVlanId)
     uint32_t ingress;
     uint32_t egress;
-#define OFFphysIngress offsetof(EXlayer2_t, ingress)
-#define SIZEphysIngress MemberSize(EXlayer2_t, ingress)
-#define OFFphysEgress offsetof(EXlayer2_t, egress)
-#define SIZEphysEgress MemberSize(EXlayer2_t, egress)
     uint64_t vxLan;
     uint16_t etherType;
     uint8_t ipVersion;
-#define OFFetherType offsetof(EXlayer2_t, etherType)
-#define SIZEetherType MemberSize(EXlayer2_t, etherType)
-#define OFFipVersion offsetof(EXlayer2_t, ipVersion)
-#define SIZEipVersion MemberSize(EXlayer2_t, ipVersion)
     uint8_t fill[5];
-} EXlayer2_t;
-#define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
+} EX3layer2_t;
 
-typedef struct EXflowId_s {
-#define EXflowIdID 39
+typedef struct EX3flowId_s {
+#define EX3flowIdID 39
     uint64_t flowId;  // IPFIX_flowId
-#define OFFflowId offsetof(EXflowId_t, flowId)
-#define SIZEflowId MemberSize(EXflowId_t, flowId)
-} EXflowId_t;
-#define EXflowIdSize (sizeof(EXflowId_t) + sizeof(elementHeader_t))
+} EX3flowId_t;
 
-typedef struct EXnokiaNat_s {
-#define EXnokiaNatID 40
+typedef struct EX3nokiaNat_s {
+#define EX3nokiaNatID 40
     uint16_t inServiceID;
     uint16_t outServiceID;
-#define OFFinServiceID offsetof(EXnokiaNat_t, inServiceID)
-#define SIZEinServiceID MemberSize(EXnokiaNat_t, inServiceID)
-#define OFFoutServiceID offsetof(EXnokiaNat_t, outServiceID)
-#define SIZEoutServiceID MemberSize(EXnokiaNat_t, outServiceID)
-} EXnokiaNat_t;
-#define EXnokiaNatSize (sizeof(EXnokiaNat_t) + sizeof(elementHeader_t))
+} EX3nokiaNat_t;
 
-typedef struct EXnokiaNatString_s {
-#define EXnokiaNatStringID 41
+typedef struct EX3nokiaNatString_s {
+#define EX3nokiaNatStringID 41
     char natSubString[4];
-#define OFFnatSubString offsetof(EXnokiaNatString_t, natSubString)
-#define SIZEnatSubString VARLENGTH
-} EXnokiaNatString_t;
-#define EXnokiaNatStringSize (sizeof(EXnokiaNatString_t) + sizeof(elementHeader_t))
+} EX3nokiaNatString_t;
 
-#define EXipInfoID 42
-typedef struct EXipInfo_s {
+#define EX3ipInfoID 42
+typedef struct EX3ipInfo_s {
     uint8_t fill;
 #define flagMF 0x20
 #define flagDF 0x40
     uint8_t fragmentFlags;
-#define OFFfragmentFlags offsetof(EXipInfo_t, fragmentFlags)
-#define SIZEfragmentFlags MemberSize(EXipInfo_t, fragmentFlags)
     uint8_t minTTL;  // unused for nfpcapd
     uint8_t maxTTL;  // unused for nfpcapd
-#define OFFminTTL offsetof(EXipInfo_t, minTTL)
-#define SIZEminTTL MemberSize(EXipInfo_t, minTTL)
-#define OFFmaxTTL offsetof(EXipInfo_t, maxTTL)
-#define SIZEmaxTTL MemberSize(EXipInfo_t, maxTTL)
-} EXipInfo_t;
-#define EXipInfoSize (sizeof(EXipInfo_t) + sizeof(elementHeader_t))
+} EX3ipInfo_t;
 
 // max possible elements
-#define MAXEXTENSIONS 43
-
-// push a fixed length extension to the v3 record
-// h v3 record header
-// x Extension
-// v variable of type Extension
-#define PushExtension(h, x, v)                                                     \
-    {                                                                              \
-        elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
-        elementHeader->type = x##ID;                                               \
-        elementHeader->length = x##Size;                                           \
-        h->size += sizeof(elementHeader_t);                                        \
-    }                                                                              \
-    x##_t *v = (x##_t *)((void *)h + h->size);                                     \
-    memset(v, 0, sizeof(x##_t));                                                   \
-    h->numElements++;                                                              \
-    h->size += sizeof(x##_t);
+#define MAXV3EXTENSIONS 43
 
 // push a var length extension to the v3 record
 // h v3 record header
@@ -753,64 +456,45 @@ typedef struct EXipInfo_s {
     h->numElements++;                                                              \
     h->size += s;
 
+/*
+XXX LEGACY
+
 #define PushExtensionID(h, x, v)                                                   \
-    {                                                                              \
-        elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
-        elementHeader->type = x;                                                   \
-        elementHeader->length = extensionTable[x].size;                            \
-    }                                                                              \
-    void *v = (void *)((void *)h + h->size + sizeof(elementHeader_t));             \
-    memset(v, 0, extensionTable[x].size - sizeof(elementHeader_t));                \
-    h->size += extensionTable[x].size;                                             \
-    h->numElements++;
+{                                                                              \
+elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
+elementHeader->type = x;                                                   \
+elementHeader->length = extensionTable[x].size;                            \
+}                                                                              \
+void *v = (void *)((void *)h + h->size + sizeof(elementHeader_t));             \
+memset(v, 0, extensionTable[x].size - sizeof(elementHeader_t));                \
+h->size += extensionTable[x].size;                                             \
+h->numElements++;
+
 
 #define ExtensionLength(ext) (((elementHeader_t *)((void *)ext - sizeof(elementHeader_t)))->length - sizeof(elementHeader_t))
 
-#define EXTENSION(s) {s##ID, s##Size, #s}
-
-static const struct extensionTable_s {
-    uint32_t id;    // id number
-    uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
-    char *name;     // name of extension
-} extensionTable[] = {{0, 0, "EXnull"},          EXTENSION(EXgenericFlow),    EXTENSION(EXipv4Flow),     EXTENSION(EXipv6Flow),
-                      EXTENSION(EXflowMisc),     EXTENSION(EXcntFlow),        EXTENSION(EXvLan),         EXTENSION(EXasRouting),
-                      EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),   EXTENSION(EXipNextHopV4),  EXTENSION(EXipNextHopV6),
-                      EXTENSION(EXipReceivedV4), EXTENSION(EXipReceivedV6),   EXTENSION(EXmplsLabel),    EXTENSION(EXmacAddr),
-                      EXTENSION(EXasAdjacent),   EXTENSION(EXlatency),        EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
-                      EXTENSION(EXnatXlateIPv4), EXTENSION(EXnatXlateIPv6),   EXTENSION(EXnatXlatePort), EXTENSION(EXnselAcl),
-                      EXTENSION(EXnselUser),     EXTENSION(EXnatCommon),      EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),
-                      EXTENSION(EXlabel),        EXTENSION(EXinPayload),      EXTENSION(EXoutPayload),   EXTENSION(EXtunIPv4),
-                      EXTENSION(EXtunIPv6),      EXTENSION(EXobservation),    EXTENSION(EXinmonMeta),    EXTENSION(EXinmonFrame),
-                      EXTENSION(EXvrf),          EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),       EXTENSION(EXflowId),
-                      EXTENSION(EXnokiaNat),     EXTENSION(EXnokiaNatString), EXTENSION(EXipInfo)};
-
-typedef struct record_map_s {
-    recordHeaderV3_t *recordHeader;
-    elementHeader_t *offsetMap[MAXEXTENSIONS];
-} record_map_t;
-
 typedef struct sequence_s {
-    uint16_t inputType;
-    uint16_t inputLength;
+uint16_t inputType;
+uint16_t inputLength;
 #define NumberCopy 1
 #define ByteCopy 2
-    uint16_t copyMode;
-    uint16_t extensionID;
-    unsigned long offsetRel;
-    uint16_t outputLength;
-    uint16_t stackID;
+uint16_t copyMode;
+uint16_t extensionID;
+unsigned long offsetRel;
+uint16_t outputLength;
+uint16_t stackID;
 } sequence_t;
 
 typedef struct sequencer_s {
-    struct sequencer_s *next;
-    void *offsetCache[MAXEXTENSIONS];
-    sequence_t *sequenceTable;
-    uint16_t templateID;
-    uint16_t ExtSize[MAXEXTENSIONS];
-    uint32_t numSequences;
-    uint32_t numElements;
-    size_t inLength;
-    size_t outLength;
+struct sequencer_s *next;
+void *offsetCache[MAXV3EXTENSIONS];
+sequence_t *sequenceTable;
+uint16_t templateID;
+uint16_t ExtSize[MAXV3EXTENSIONS];
+uint32_t numSequences;
+uint32_t numElements;
+size_t inLength;
+size_t outLength;
 } sequencer_t;
 
 #define SEQ_OK 0
@@ -827,6 +511,7 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
 
 void PrintSequencer(sequencer_t *sequencer);
 
+*/
 int VerifyV3Record(recordHeaderV3_t *recordHeader);
 
 #endif  //_NFXV3_H

@@ -11,7 +11,7 @@ if HAVE_LZ4
 else
 compress += compress/lz4.c compress/lz4.h compress/lz4hc.c compress/lz4hc.h
 endif
-nffile = nffile.c nffile.h nffileV2.h compat_1_6_x.c queue.c queue.h nfxV3.h nfxV3.c id.h
+nffile = nffile.c nffile.h nffileV2.h compat_1_6_x.c queue.c queue.h nfxV4.h nfxV4.c nfxV3.h nfxV3.c id.h
 conf = conf/nfconf.c conf/nfconf.h conf/toml.c conf/toml.h
 nflist = flist.c flist.h
 

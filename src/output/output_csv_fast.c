@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2025-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@
 #include <time.h>
 
 #include "logging.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_csv.h"
 #include "output_util.h"
 #include "util.h"
@@ -97,8 +97,9 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, outputParams_t 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXinterface_t *interface = (EXinterface_t *)recordHandle->extensionList[EXinterfaceID];
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
-    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle->extensionList[EXasInfoID];
 
     EXgenericFlow_t genericNull = {0};
     if (!genericFlow) genericFlow = &genericNull;
@@ -106,8 +107,8 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, outputParams_t 
     EXflowMisc_t miscNull = {0};
     if (!flowMisc) flowMisc = &miscNull;
 
-    EXasRouting_t asNULL = {0};
-    if (!asRouting) asRouting = &asNULL;
+    EXasInfo_t asNULL = {0};
+    if (!asInfo) asInfo = &asNULL;
 
     streamBuff[0] = '\0';
     char *streamPtr = streamBuff;
@@ -144,10 +145,10 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, outputParams_t 
     AddU32(genericFlow->srcPort);
     AddString(da);
     AddU32(genericFlow->dstPort);
-    AddU32(asRouting->srcAS);
-    AddU32(asRouting->dstAS);
-    AddU32(flowMisc->input);
-    AddU32(flowMisc->output);
+    AddU32(asInfo->srcAS);
+    AddU32(asInfo->dstAS);
+    AddU32(interface->input);
+    AddU32(interface->output);
     AddString(FlagsString(genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0));
     AddU32(genericFlow->srcTos);
     AddU64(genericFlow->inPackets);

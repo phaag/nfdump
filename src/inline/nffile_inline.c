@@ -37,7 +37,7 @@ static inline dataBlock_t *AppendToBuffer(queue_t *queue, dataBlock_t *dataBlock
 
 // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
 // lot of code for nothing!!
-static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
+static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeaderV4_t *recordHeaderV4, uint64_t flowCount) {
     dbg_printf("ResolveMultipleIPrecords\n");
     // check, if the at least announce the ipVersion element
     EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
@@ -95,6 +95,7 @@ static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeader
 }  // End of ResolveMultipleIPrecords
 
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
+    /*
     memset((void *)handle, 0, sizeof(recordHandle_t));
     handle->recordHeaderV3 = recordHeaderV3;
 
@@ -113,7 +114,7 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
                     elementHeader->length);
             return 0;
         }
-        if (elementHeader->type == 0) {
+        if (elementHeader->type == EXnull) {
             // Skip this record - advance to next record
             elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
             handle->slackElements++;
@@ -152,9 +153,75 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     if (handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID]) {
         ResolveMultipleIPrecords(handle, recordHeaderV3, flowCount);
     }
+    */
 
     return 1;
-}
+}  // End of MapRecordHandle
+
+static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *recordHeaderV4, uint64_t flowCount) {
+    memset((void *)handle, 0, sizeof(recordHandle_t));
+    handle->recordHeaderV4 = recordHeaderV4;
+
+    uint8_t *eor = (uint8_t *)recordHeaderV4 + recordHeaderV4->size;
+    uint8_t *recordBase = (uint8_t *)recordHeaderV4;
+
+    // offset table
+    uint16_t *offsetTable = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
+
+    // Validate each extension
+    uint64_t bitMap = recordHeaderV4->extBitmap;
+    uint32_t slot = 0;
+    while (bitMap) {
+        // find lowest set bit (ctz) in bitMap
+        uint32_t type = __builtin_ctzll(bitMap);
+        bitMap &= bitMap - 1;
+
+        uint32_t offset = offsetTable[slot++];
+
+        // Offset must be within record
+        if (recordBase + offset > eor) {
+            LogError("MapV4RecordHandle: extension %d offset out of bounds", type);
+            return 0;
+        }
+
+        dbg_assert((offset & 7) == 0);
+
+        // Skip EXnull extensions
+        if (type == EXnull) {
+            handle->slackElements++;
+            dbg_printf("Skip EXnull\n");
+            continue;
+        }
+
+        if (type < MAXEXTENSIONS) {
+            handle->extensionList[type] = recordBase + offset;
+        } else {
+            LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension Type: %u", flowCount, type);
+            dbg(DumpHex(stdout, (void *)recordHeaderV4, recordHeaderV4->size));
+        }
+    }
+
+    handle->extensionList[EXheader] = (void *)recordHeaderV4;
+    handle->extensionList[EXlocal] = (void *)handle;
+    handle->flowCount = flowCount;
+    handle->numElements = recordHeaderV4->numExtensions;
+
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
+    if (genericFlow && genericFlow->msecFirst == 0) {
+        EXnselCommon_t *nselCommon = (EXnselCommon_t *)handle->extensionList[EXnselCommonID];
+        if (nselCommon) {
+            genericFlow->msecFirst = nselCommon->msecEvent;
+        }
+    }
+
+    // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
+    // check first IPv6 as expected less often
+    if (handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID]) {
+        ResolveMultipleIPrecords(handle, recordHeaderV4, flowCount);
+    }
+
+    return 1;
+}  // End of MapV4RecordHandle
 
 static inline dataBlock_t *AppendToBuffer(queue_t *queue, dataBlock_t *dataBlock, void *record, size_t required) {
     if (!IsAvailable(dataBlock, required)) {

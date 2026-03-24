@@ -197,7 +197,7 @@ typedef struct nffile_s {
 
 #define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
 #define SetBlockType(block, blocktype) ((block)->type = (blocktype))
-#define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlock_t))
+#define GetCurrentCursor(block) ((uint8_t *)(block) + (block)->size + sizeof(dataBlock_t))
 #define BlockSize(block) (block)->size)
 #define BlockAvailable(block) ((block)->size > WRITE_BUFFSIZE ? 0 : (WRITE_BUFFSIZE - (block)->size))
 #define IsAvailable(block, required) (((block)->size + required) < WRITE_BUFFSIZE)
@@ -227,8 +227,7 @@ typedef struct record_header_s {
     // record header
     uint16_t type;
     uint16_t size;
-} record_header_t;
-// } __attribute__((__packed__ )) record_header_t;
+} __attribute__((__packed__)) record_header_t;
 
 typedef struct message_rotate_s {
     stat_record_t stat_record;

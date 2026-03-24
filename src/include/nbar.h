@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "nffile.h"
+#include "nfxV3.h"
 
 // var length extension
 // size = sizeof nbarAppInfo_t + *_length

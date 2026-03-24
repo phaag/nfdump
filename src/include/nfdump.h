@@ -60,7 +60,7 @@
 #define VERSION_IPFIX 10
 #define VERSION_NFDUMP 250
 
-#include "nfxV3.h"
+#include "nfxV4.h"
 
 enum { EXlocal = MAXEXTENSIONS, EXheader, EXinPayloadHandle, EXoutPayloadHandle, MAXLISTSIZE };
 
@@ -73,7 +73,8 @@ typedef struct payloadHandle_s {
 } payloadHandle_t;
 
 typedef struct recordHandle_s {
-    recordHeaderV3_t *recordHeaderV3;
+    recordHeaderV4_t *recordHeaderV4;
+    uint16_t *offsetTable;
     void *extensionList[MAXLISTSIZE];
     char geo[16];
 #define OFFinPayload offsetof(recordHandle_t, inPayload)

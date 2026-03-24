@@ -42,6 +42,7 @@
 // exporter/sampler types
 #define ExporterInfoRecordType 7
 #define ExporterStatRecordType 8
+#define ExporterInfoRecordV4Type 17
 
 // legacy sampler
 #define SamplerLegacyRecordType 9
@@ -50,8 +51,9 @@
 // requires moderate changes till 1.7
 #define CommonRecordType 10
 
-// Identifier for new V3Record
+// Identifier for flow records
 #define V3Record 11
+#define V4Record 16
 
 // record type definition
 #define NbarRecordType 12
@@ -60,7 +62,7 @@
 
 #define SamplerRecordType 15
 
-#define MaxRecordID 15
+#define MaxRecordID 17
 
 // array record types
 // maxmind
@@ -72,5 +74,7 @@
 #define ASOrgtreeElementID 7
 // tor
 #define TorTreeElementID 6
+
+#define SlackRecord 256
 
 #endif

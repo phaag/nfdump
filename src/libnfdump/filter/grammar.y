@@ -48,7 +48,7 @@
 
 #include "filter.h"
 #include "userio.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "ipconv.h"
 #include "sgregex.h"
 #include "ja3/ja3.h"
@@ -625,22 +625,22 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				block = NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_SRC_NAT:
-				block = NewElement(EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = 0; // XXX FIX NewElement(EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_DST_NAT:
-				block = NewElement(EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = 0; // XXX FIX! NewElement(EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_SRC_TUN:
-				block = NewElement(EXtunIPv4ID, OFFtunSrc4Addr, SIZEtunSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = 0; // XXX FIX! NewElement(EXtunIPv4ID, OFFtunSrc4Addr, SIZEtunSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_DST_TUN:
-				block = NewElement(EXtunIPv4ID, OFFtunDst4Addr, SIZEtunDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = 0; // XXX FIX! NewElement(EXtunIPv4ID, OFFtunDst4Addr, SIZEtunDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_NEXT:
-				block = NewElement(EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = 0; // XXX FIX!  NewElement(EXNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case BGP_NEXT:
-				block = NewElement(EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = 0; // XXX FIX! NewElement(EXNextHopV4ID, OFFNextbgpV4IP, SIZENextHopV4IP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case SRC_ROUTER:
 				block = NewElement(EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
@@ -660,28 +660,28 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				v6_2 = NewElement(EXipv6FlowID, OFFdst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_SRC_NAT:
-				v6_1 = NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = 0; // XXX FIX! NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = 0; // XXX FIX! NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_DST_NAT:
-				v6_1 = NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = 0; // XXX FIX! NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = 0; // XXX FIX! NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_SRC_TUN:
-				v6_1 = NewElement(EXtunIPv6ID, OFFtunSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXtunIPv6ID, OFFtunSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = 0; // XXX FIX! NewElement(EXtunIPv6ID, OFFtunSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = 0; // XXX FIX! NewElement(EXtunIPv6ID, OFFtunSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_DST_TUN:
-				v6_1 = NewElement(EXtunIPv6ID, OFFtunDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXtunIPv6ID, OFFtunDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = 0; // XXX FIX!  NewElement(EXtunIPv6ID, OFFtunDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = 0; // XXX FIX!  NewElement(EXtunIPv6ID, OFFtunDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_NEXT:
-				v6_1 = NewElement(EXipNextHopV6ID, OFFNextHopV6IP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXipNextHopV6ID, OFFNextHopV6IP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = 0; // XXX FIX! NewElement(EXipNextHopV6ID, OFFNextHopV6IP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = 0; // XXX FIX!  NewElement(EXipNextHopV6ID, OFFNextHopV6IP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case BGP_NEXT:
-				v6_1 = NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = 0; // XXX FIX!  NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = 0; // XXX FIX!  NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case SRC_ROUTER:
 				v6_1 = NewElement(EXipReceivedV6ID, OFFReceived6IP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
@@ -745,20 +745,21 @@ static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 		return -1;
 	}
 	if ( protoStr != NULL ) {
-		protoNum = ProtoNum(protoStr);
-  	if ( protoNum == -1 ) {
+		int proto = ProtoNum(protoStr);
+  	if ( proto == -1 ) {
 	  	yyprintf("Unknown protocol: %s", protoStr);
 			Protoinfo(protoStr);
 			return -1;
   	}
+		protoNum = (uint64_t)proto;
 	}
 
 	if ( direction == DIR_UNSPEC ) {
 		return NewElement(EXgenericFlowID, OFFproto, SIZEproto, protoNum, CMP_EQ, FUNC_NONE, NULLPtr); 
 	} else if ( direction == DIR_UNSPEC_TUN ) {
 		return Connect_OR(
-			NewElement(EXtunIPv4ID, OFFtunProtoV4, SIZEtunProtoV4, protoNum, CMP_EQ, FUNC_NONE, NULLPtr),
-			NewElement(EXtunIPv6ID, OFFtunProtoV6, SIZEtunProtoV6, protoNum, CMP_EQ, FUNC_NONE, NULLPtr)
+			0, // XXX FIX! NewElement(EXtunIPv4ID, OFFtunProtoV4, SIZEtunProtoV4, protoNum, CMP_EQ, FUNC_NONE, NULLPtr),
+			0 // XXX FIX! NewElement(EXtunIPv6ID, OFFtunProtoV6, SIZEtunProtoV6, protoNum, CMP_EQ, FUNC_NONE, NULLPtr)
 		);
 	} else {
 	  	yyprintf("Unknown protocol specifier");
@@ -813,21 +814,21 @@ static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
 		  ret = NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, port, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  case DIR_SRC_NAT:
-		  ret = NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr);
+		  ret = 0; // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  case DIR_DST_NAT:
-		  ret = NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr);
+		  ret = 0; // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  case DIR_UNSPEC:
 		  ret = Connect_OR(
-			  NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, port, comp, FUNC_NONE, NULLPtr),
-			  NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, port, comp, FUNC_NONE, NULLPtr)
+			  0, // XXX FIX! NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, port, comp, FUNC_NONE, NULLPtr),
+			  0 // XXX FIX! NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, port, comp, FUNC_NONE, NULLPtr)
 		  );
 		  break;
 	  case DIR_UNSPEC_NAT:
 		  ret = Connect_OR(
-		  	NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr),
-		  	NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr)
+		  	0, // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr),
+		  	0 // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr)
 		  );
 		  break;
 	  default:
@@ -904,7 +905,7 @@ static int AddFlagsString(direction_t direction, char *flags) {
   if ( strchr(flags, 'C') ) { fl |= 128; cnt++; }
   if ( strchr(flags, 'X') ) { fl =  63; cnt++; }
 
-  if ( cnt != len ) {
+  if ( cnt != (int)len ) {
 	  yyprintf("Unknown flags");
 		return -1;
   }
@@ -1035,13 +1036,13 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 		}
 		int lnum = (int)strtol(s, (char **)NULL, 10);
 		data_t labelIndex = { .dataVal = lnum};
-		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_LABEL, labelIndex);
+		return NewElement(EXmplsID, 0, 0, value, comp, FUNC_MPLS_LABEL, labelIndex);
 	} else if ( strcasecmp(type, "any") == 0 ) {
 		data_t labelValue = { .dataVal = value};
-		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_ANY, labelValue);
+		return NewElement(EXmplsID, 0, 0, value, comp, FUNC_MPLS_ANY, labelValue);
 	} else if ( strcasecmp(type, "eos") == 0 ) {
 		// match End of Stack label 
-		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_EOS, NULLPtr);
+		return NewElement(EXmplsID, 0, 0, value, comp, FUNC_MPLS_EOS, NULLPtr);
 	} else if ( strncasecmp(type, "exp", 3) == 0 ) {
 		char *s = type + 3;
 		if ( *s == '\0' ) {
@@ -1050,7 +1051,7 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 		}
 		int lnum = (int)strtol(s, (char **)NULL, 10);
 		data_t data = {.dataVal = lnum};
-		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_EXP, data);
+		return NewElement(EXmplsID, 0, 0, value, comp, FUNC_MPLS_EXP, data);
 	} else {
 			yyprintf("Unknown mpls argument: %s", type);
 			return -1;
@@ -1071,49 +1072,49 @@ static int AddMAC(direction_t direction, char *macString) {
 
 	switch (direction) {
 		case DIR_IN_SRC:
-			return NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			return 0; // XXX FIX! NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
 			break;
 		case DIR_IN_DST:
-			return NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			return 0; // XXX FIX! NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
 			break;
 		case DIR_OUT_SRC:
-			return NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			return 0; // XXX FIX! NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
 			break;
 		case DIR_OUT_DST:
-			return NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			return 0; // XXX FIX!  NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
 			break;
 		case DIR_SRC:
 			return Connect_OR (
-				NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				0, // XXX FIX! NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				0 // XXX FIX! NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
 		case DIR_DST:
 			return Connect_OR (
-				NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				0, // XXX FIX! NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				0 // XXX FIX! NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
 		case DIR_IN:
 			return Connect_OR (
-				NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				0, // XXX FIX! NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				0 // XXX FIX! NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
 		case DIR_OUT:
 			return Connect_OR (
-				NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				0, // XXX FIX! NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				0 // XXX FIX! NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
 		case DIR_UNSPEC: {
 				int in = Connect_OR (
-					NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
-					NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+					0, // XXX FIX! NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+					0 // XXX FIX! NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
 				);
 				int out = Connect_OR (
-					NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
-					NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+					0, // XXX FIX! NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+					0 // XXX FIX! NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
 				);
 				return Connect_OR(in, out);
 			} break;
@@ -1131,12 +1132,12 @@ static int AddLatency(direction_t direction, uint16_t comp, uint64_t number) {
 	int ret = -1;
   switch (direction) {
 		case DIR_CLIENT:
-			ret =  NewElement(EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, number, comp, FUNC_NONE, NULLPtr);
+			ret =  NewElement(EXlatencyID, OFFmsecClientNwDelay, SIZEmsecClientNwDelay, number, comp, FUNC_NONE, NULLPtr);
 		  break;
 		case DIR_SERVER:
-			ret =  NewElement(EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, number, comp, FUNC_NONE, NULLPtr);
+			ret =  NewElement(EXlatencyID, OFFmsecServerNwDelay, SIZEmsecServerNwDelay, number, comp, FUNC_NONE, NULLPtr);
 		  break;
-		// case XXX	ret =  NewElement(EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, number, comp, FUNC_NONE, NULLPtr);
+		// case XXX	ret =  NewElement(EXlatencyID, OFFmsecApplLatency, SIZEmsecApplLatency, number, comp, FUNC_NONE, NULLPtr);
 		default:
 			yyprintf("Unknown latency argument");
   }
@@ -1254,7 +1255,7 @@ static int AddNATString(char *event, char *natStr) {
 			natEventInfo();
 			return -1;
 		}
-		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
+		return 0; // XXX FIX! NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
 	} 
 
 	yyprintf("Invalid NAT type: %s", event);
@@ -1270,7 +1271,7 @@ static int AddNAT(char *event, uint16_t comp, uint64_t number) {
 			yyprintf("NAT event: %" PRIu64 " out of range", number);
 			return -1;
 		}
-		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
+		return 0; // XXX FIX! NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
 	} 
 
 	return -1;
@@ -1861,6 +1862,7 @@ static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
 
 static int AddIPlist(direction_t direction, void *IPlist) {
 	int ret = -1;
+	/*
 	data_t IPlistData = {IPlist};
 	switch ( direction ) {
 		case DIR_SRC:
@@ -1901,7 +1903,7 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			break;
 		case DIR_NEXT:
 			ret = Connect_OR(
-				NewElement(EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
 				NewElement(EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
 			break;
@@ -1941,7 +1943,7 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 		default:
 			yyprintf("Unknown direction for IP list");
 	}
-
+*/
 	return ret;
 } // AddIPlist
 
@@ -2092,15 +2094,15 @@ static int AddPortList(direction_t direction, void *U64List) {
 		  );
 		  break;
 		case DIR_SRC_NAT:
-		  ret = NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  ret = 0; // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  case DIR_DST_NAT:
-		  ret = NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  ret = 0; // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  case DIR_UNSPEC_NAT:
 		  ret = Connect_OR(
-		  	NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
-		  	NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr )
+		  	0, // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
+		  	0 // XXX FIX! NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr )
 		  );
 		  break;
 	  default:
@@ -2125,15 +2127,15 @@ static int AddASList(direction_t direction, void *U64List) {
 	int ret = -1;
   switch ( direction ) {
 	  case DIR_SRC:
-		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  ret = NewElement(EXasInfoID, OFFsrcAS, SIZEsrcAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  case DIR_DST:
-		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  ret = NewElement(EXasInfoID, OFFdstAS, SIZEdstAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  case DIR_UNSPEC:
 		  ret = Connect_OR(
-			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
-			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr)
+			  NewElement(EXasInfoID, OFFsrcAS, SIZEsrcAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
+			  NewElement(EXasInfoID, OFFdstAS, SIZEdstAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr)
 		  );
 		  break;
 		case DIR_NEXT:
@@ -2223,15 +2225,15 @@ static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 	int ret = -1;
   switch ( direction ) {
 	  case DIR_SRC:
-		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, (data_t){.dataVal = OFFsrcAS});
+		  ret = NewElement(EXasInfoID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, (data_t){.dataVal = OFFsrcAS});
 		  break;
 	  case DIR_DST:
-		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , (data_t){.dataVal = OFFdstAS});
+		  ret = NewElement(EXasInfoID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , (data_t){.dataVal = OFFdstAS});
 		  break;
 	  case DIR_UNSPEC:
 		  ret = Connect_OR(
-			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, (data_t){.dataVal = OFFsrcAS}),
-			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP ,(data_t){.dataVal = OFFdstAS} )
+			  NewElement(EXasInfoID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, (data_t){.dataVal = OFFsrcAS}),
+			  NewElement(EXasInfoID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP ,(data_t){.dataVal = OFFdstAS} )
 		  );
 			break;
 		case DIR_NEXT:

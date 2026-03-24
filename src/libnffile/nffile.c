@@ -78,11 +78,13 @@
 #include "lz4.h"
 #include "lz4hc.h"
 #endif
+#include "logging.h"
 #include "minilzo.h"
 #include "nfdump.h"
 #include "nfdump_1_6_x.h"
 #include "nffileV2.h"
-#include "logging.h"
+#include "nfxV3.h"
+#include "nfxV4.h"
 #include "util.h"
 
 // LZO params
@@ -529,6 +531,7 @@ dataBlock_t *NewDataBlock(void) {
         return NULL;
     }
     InitDataBlock(dataBlock);
+
     atomic_fetch_add(&blocksInUse, 1);
     return dataBlock;
 
@@ -592,6 +595,8 @@ static int ReadAppendix(nffile_t *nffile) {
                         LogError("Error processing appendix stat record");
                     }
                     break;
+                case SlackRecord:
+                    break;
                 default:
                     LogError("Error process appendix record type: %u", record_header->type);
             }
@@ -635,7 +640,7 @@ static int WriteAppendix(nffile_t *nffile) {
     if (nffile->ident == NULL) nffile->ident = strdup("none");
 
     dataBlock_t *block_header = NewDataBlock();
-    void *buff_ptr = (void *)((void *)block_header + sizeof(dataBlock_t));
+    void *buff_ptr = GetCurrentCursor(block_header);
 
     // write ident
     recordHeader_t *recordHeader = (recordHeader_t *)buff_ptr;
@@ -1912,7 +1917,12 @@ int QueryFile(char *filename, int verbose) {
                     printf("Record %i, type: %u, size: %u - block offset: %u", numRecords, recordHeader->type, recordHeader->size, blockSize);
                     if (recordHeader->type == V3Record) {
                         if (VerifyV3Record((recordHeaderV3_t *)recordHeader) == 0) {
-                            printf(" ** malformed **");
+                            printf(" ** malformed v3 record**");
+                        }
+                    }
+                    if (recordHeader->type == V4Record) {
+                        if (VerifyV4Record((recordHeaderV4_t *)recordHeader) == 0) {
+                            printf(" ** malformed v4 record **");
                         }
                     }
                     if (recordHeader->type == TYPE_IDENT) {
@@ -1923,6 +1933,9 @@ int QueryFile(char *filename, int verbose) {
                         } else {
                             printf("  Ident: %s", ident);
                         }
+                    }
+                    if (recordHeader->type == SlackRecord) {
+                        printf(" skip slack record **");
                     }
                     printf("\n");
                 }

@@ -92,13 +92,13 @@ typedef struct sampler_record_s {
 #define SAMPLER_GENERIC -1
     uint32_t packetInterval;  // #305 packet interval
     uint32_t spaceInterval;   // #306 packet space
-} sampler_record_t;
+} sampler_record_V3_t;
 
 // linked sampler v0 or v1 list
 typedef struct sampler_s {
     struct sampler_s *next;
-    sampler_record_t record;  // sampler record nffile
-} sampler_t;
+    sampler_record_V3_t record;  // sampler record nffile
+} sampler_chain_t;
 
 /*
  *
@@ -194,6 +194,39 @@ typedef struct exporter_key_s {
         (_a->version == _b->version) && (_a->id == _b->id) && (_ipa[0] == _ipb[0]) && (_ipa[1] == _ipb[1]); \
     })
 
+// sampler information record per sampler
+typedef struct sampler_record_v2_s {
+    int64_t selectorID;       // #302 or SAMPLER_* constants
+    uint32_t packetInterval;  // #305 packet interval
+    uint32_t spaceInterval;   // #306 packet space
+    uint32_t algorithm;       // #304 sampling algorithm
+    uint16_t inUse;           // use flag
+    uint16_t lru;             // lru value for sampler cache
+} sampler_record_v4_t;
+
+typedef struct sampler_cache_entry_s {
+    sampler_record_v4_t *ptr;
+} sampler_cache_entry_t;
+
+// v4 exporter information record, which includes all
+// information, such as counter stats and sampler information
+typedef struct exporter_info_record_v4_s {
+    record_header_t header;  // type = ExporterInfoRecordV2
+    uint8_t ip[16];          // exporter IP
+    uint32_t version;        // NetFlow/IPFIX/sflow/nfd version
+    uint32_t id;             // v1:0, v5/v7: engine_tag, v9: sourceID, ipfix: observationID
+
+    uint32_t sysID;  // internal ID
+    // stat counters
+    uint64_t packets;           // number of packets sent by this exporter
+    uint64_t flows;             // number of flow records sent by this exporter
+    uint32_t sequence_failure;  // number of sequence failures
+
+    uint16_t sampler_capacity;       // max number of available records
+    uint16_t sampler_count;          // number of allocated records
+    sampler_record_v4_t samplers[];  // var length array of samplers
+} exporter_info_record_v4_t;
+
 // netflow specific exporter data
 // netflow v1
 typedef struct exporter_v1_s {
@@ -207,25 +240,33 @@ typedef struct exporter_v5_s {
 } exporter_v5_t;
 
 // netflow v9
-typedef struct templateList_s templateList_t;
+typedef struct template_s template_t;
 typedef struct exporter_v9_s {
     // exporter parameters
-    uint64_t boot_time;
-
-    // statistics
-    uint64_t TemplateRecords;  // stat counter
-    uint64_t DataRecords;      // stat counter
+    uint32_t sysUptime;
+    uint32_t unix_secs;
 
     // SysUptime if sent with #160
-    uint64_t SysUpTime;  // in msec
+    uint64_t msecSysUpTime;  // in msec
 
-    // in order to prevent search through all lists keep
-    // the last template we processed as a cache
-    templateList_t *currentTemplate;
+    // statistics
+    uint64_t DataRecords;      // stat counter
+    uint32_t TemplateRecords;  // stat counter
 
-    // list of all templates of this exporter
-    templateList_t *template;
+    // often, many data records in sequence are sent for the
+    // same template. Cache last template to speed up access
+    uint32_t lastTemplateID;   // cache last template ID
+    template_t *lastTemplate;  // cache last template pointer
 
+// simple hash for all templates of this exporter
+// defaults to 32 templates in hash
+#define NUMTEMPLATES 32
+#define EMPTY_SLOT 0
+#define DELETED_SLOT 0xFFFFFFFF
+    uint32_t templateCount;     // number of templates in list
+    uint32_t templateCapacity;  // max available space in list
+    uint32_t templateDeleted;   // number of templates deleted in list
+    template_t *template;
 } exporter_v9_t;
 
 // ipfix
@@ -236,19 +277,23 @@ typedef struct exporter_ipfix_s {
     // Current sequence number
     uint32_t PacketSequence;
 
-    // statistics
-    uint64_t TemplateRecords;  // stat counter
-    uint64_t DataRecords;      // stat counter
-
     // SysUptime if sent with #160
     uint64_t SysUpTime;  // in msec
 
-    // in order to prevent search through all lists keep
-    // the last template we processed as a cache
-    templateList_t *currentTemplate;
+    // statistics
+    uint64_t DataRecords;      // stat counter
+    uint32_t TemplateRecords;  // stat counter
+
+    // often, many data records in sequence are sent for the
+    // same template. Cache last template to speed up access
+    uint32_t lastTemplateID;   // cache last template ID
+    template_t *lastTemplate;  // cache last template pointer
 
     // list of all templates of this exporter
-    templateList_t *template;
+    uint32_t templateCount;     // number of templates in list
+    uint32_t templateCapacity;  // max available space in list
+    uint32_t templateDeleted;   // number of templates deleted in list
+    template_t *template;
 
 } exporter_ipfix_t;
 
@@ -257,20 +302,19 @@ typedef struct exporter_nfd_s {
 } exporter_nfd_t;
 
 typedef struct exporter_sflow_s {
-    sampler_t *sampler;  // sampler info
+    sampler_chain_t *sampler;  // sampler info
 } exporter_sflow_t;
 
 // exporter struct
 typedef struct exporter_entry_s {
-    exporter_key_t key;           // key to identify this exporter
-    exporter_info_record_t info;  // common exporter struct to flush to backend
-    uint64_t packets;             // number of packets sent by this exporter
-    uint64_t flows;               // number of flow records sent by this exporter
-    uint32_t sequence_failure;    // number of sequence failures
-    uint32_t sequence;            // sequence counter
+    exporter_key_t key;               // key to identify this exporter
+    exporter_info_record_v4_t *info;  // common exporter struct to flush to backend
+    uint64_t packets;                 // number of packets sent by this exporter
+    uint64_t flows;                   // number of flow records sent by this exporter
+    uint32_t sequence_failure;        // number of sequence failures
+    uint32_t sequence;                // sequence counter
     // sampling information:
 
-    sampler_t *sampler;  // sampler info
     // each flow source may have several sampler applied:
     // SAMPLER_OVERWRITE - supplied on cmd line -s -interval
     // SAMPLER_DEFAULT   - supplied on cmd line -s interval
@@ -278,7 +322,14 @@ typedef struct exporter_entry_s {
     // samplerID         - sampling information tags #48, #49, #50 - mapped to
     // samplerID         - sampling information tags #302, #304, #305, #306
 
-    int in_use;  // flag
+    // hot-path lookup cache
+#define SAMPLER_CACHE_SIZE 4
+    sampler_cache_entry_t sampler_cache[SAMPLER_CACHE_SIZE];
+    uint16_t sampler_count;  // numer of samplers in backend exporter_info_record_v4_t
+
+    int16_t in_use;  // entry in use
+    uint32_t sysID;  // internal sysID
+
     union {
         exporter_v1_t v1;        // netflow v1 specific data
         exporter_v5_t v5;        // netflow v1 specific data
@@ -286,8 +337,10 @@ typedef struct exporter_entry_s {
         exporter_ipfix_t ipfix;  // ipfix specific data
         exporter_nfd_t nfd;      // nfd specific data
         exporter_sflow_t sflow;  // sflow specific data
-    } version;                   // all exporter structs to all netflow/sflow versions
+    };  // all exporter structs to all netflow/sflow versions
 } exporter_entry_t;
+
+static const uint32_t exS = sizeof(exporter_entry_t);
 
 // exporter table
 typedef struct exporter_table_s {
@@ -300,11 +353,11 @@ typedef struct exporter_table_s {
 
 int InitExporterList(void);
 
-int AddExporterInfo(exporter_info_record_t *exporter_record);
+int AddExporterInfo(exporter_info_record_v4_t *exporter_record);
 
-int AddSamplerRecord(sampler_record_t *sampler_record);
+int AddSamplerRecord(sampler_record_V3_t *sampler_record);
 
-sampler_record_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record);
+sampler_record_V3_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record);
 
 int AddExporterStat(exporter_stats_record_t *stat_record);
 

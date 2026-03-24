@@ -34,12 +34,11 @@
 #define _FNF_H 1
 
 #include "config.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 
-typedef struct templateList_s {
-    // linked list
-    struct templateList_s *next;
-
+// generic definition for v9/ipfix template
+// template specific data is attached to the data pointer
+typedef struct template_s {
     // template information
     time_t updated;  // last update/refresh of template
     uint32_t id;     // template ID
@@ -51,16 +50,8 @@ typedef struct templateList_s {
 #define VRFNAME_TEMPLATE 16
 #define SYSUPTIME_TEMPLATE 32
     uint32_t type;  // template type
-    void *data;     // template data
-} templateList_t;
-
-typedef struct dataTemplate_s {
-    // extension elements
-    sequencer_t sequencer;
-    // extension vector
-    uint16_t *extensionList;
-
-} dataTemplate_t;
+    void *data;     // pipeline sequencer or option template
+} template_t;
 
 typedef struct optionTag_s {
     uint16_t offset;

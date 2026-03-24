@@ -47,13 +47,13 @@
 #include "collector.h"
 #include "exporter.h"
 #include "ip128.h"
+#include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_short.h"
-#include "logging.h"
 #include "util.h"
 
 #define NETFLOW_V5_HEADER_LENGTH 24
@@ -134,10 +134,18 @@ typedef struct netflow_v7_record {
     uint32_t router_sc;
 } netflow_v7_record_t;
 
-/* module limited globals */
+// module limited globals
 static int printRecord;
 static int32_t defaultSampling;
-static uint32_t baseRecordSize;
+
+#define BitMapSet(map, id) (map |= (1ULL << (id)))
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+// static maximal possible extensions for netflow v5.
+// EXipReceivedV4 or EXipReceivedV6 added dynamically
+static const uint32_t extList[] = {EXgenericFlowID, EXipv4FlowID, EXinterfaceID, EXasInfoID, EXasRoutingV4ID, EXnull};
+
+static uint32_t baseOffset = 0;  // max size of all extensions in extList incl. offset map entry
 
 // function prototypes
 static exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header);
@@ -145,66 +153,70 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *head
 #include "nffile_inline.c"
 
 int Init_v5_v7(int verbose, int32_t sampling) {
-    assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
-    assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
-
+    LogVerbose("Init v5/v7");
     printRecord = verbose > 2;
-    defaultSampling = sampling;
 
+    uint32_t extensionSize = 0;
+    for (int i = 0; extList[i] != EXnull; i++) {
+        uint32_t type = extList[i];
+        extensionSize += extensionTable[type].size;
+    }
+    uint32_t num_elements = ARRAY_SIZE(extList);  // EXnull entry gets replaced by EXipReceivedV4/v6
+
+    baseOffset = sizeof(recordHeaderV4_t) + extensionSize + ALIGN8(num_elements * sizeof(uint16_t));
+
+    defaultSampling = sampling;
     if (sampling < 0) {
         LogInfo("Init v5/v7: Overwrite sampling: %d", -defaultSampling);
     } else {
         LogInfo("Init v5/v7: Default sampling: %d", defaultSampling);
     }
 
-    baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + EXasRoutingSize + EXipNextHopV4Size;
-
     return 1;
+}  // End of Init_v5_v7
 
-}  // End of Init_v5_input
+static inline int getSampler(netflow_v5_header_t *header, sampler_record_v4_t *sampler_record_v4) {
+    uint32_t interval = 0;
+    uint32_t cnt = 0;
 
-static inline sampler_t *getSampler(netflow_v5_header_t *header) {
-    int32_t type = 0;
-    uint32_t algorithm = 0;
-
-    // some netflow v5 exporter pack sampling information into the header
-    uint32_t interval = 0x3fff & ntohs(header->sampling_interval);
-    dbg_printf("Extracted header sampling: algorithm: %u, interval: %u\n", algorithm, interval);
     if (defaultSampling < 0) {
-        type = SAMPLER_OVERWRITE;
+        // fill sampler record
         interval = -defaultSampling;
         dbg_printf("Use overwrite sampling: %u\n", interval);
-    } else if (interval > 0) {
-        type = SAMPLER_GENERIC;
-        algorithm = (0xC000 & ntohs(header->sampling_interval)) >> 14;
-        dbg_printf("Use generic sampling: %u\n", interval);
+
+        interval--;
+        *sampler_record_v4 =
+            (sampler_record_v4_t){.inUse = 1, .selectorID = SAMPLER_OVERWRITE, .algorithm = 0, .packetInterval = 1, .spaceInterval = interval};
+        sampler_record_v4++;
+        cnt++;
+
     } else if (defaultSampling > 1) {
-        type = SAMPLER_DEFAULT;
         interval = defaultSampling;
         dbg_printf("Use default sampling: %u\n", interval);
+
+        interval--;
+        *sampler_record_v4 =
+            (sampler_record_v4_t){.inUse = 1, .selectorID = SAMPLER_DEFAULT, .algorithm = 0, .packetInterval = 1, .spaceInterval = interval};
+        sampler_record_v4++;
+        cnt++;
     }
 
-    // no sampling
-    if (type == 0) return NULL;
+    interval = 0x3fff & ntohs(header->sampling_interval);
+    if (interval > 0) {
+        uint32_t algorithm = (0xC000 & ntohs(header->sampling_interval)) >> 14;
 
-    // sampler assigned ?
-    interval--;
-    sampler_t *sampler = (sampler_t *)malloc(sizeof(sampler_t));
-    if (!sampler) {
-        LogError("Process_v5: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
+        // some netflow v5 exporter pack sampling information into the header
+        dbg_printf("Extracted header sampling: Use generic sampling - algorithm: %u, interval: %u\n", algorithm, interval);
+
+        interval--;
+        *sampler_record_v4 =
+            (sampler_record_v4_t){.inUse = 1, .selectorID = SAMPLER_GENERIC, .algorithm = algorithm, .packetInterval = 1, .spaceInterval = interval};
+        sampler_record_v4++;
+        cnt++;
     }
-    // fill sampler record
-    sampler->next = NULL;
-    sampler->record.type = SamplerRecordType;
-    sampler->record.size = sizeof(sampler_record_t);
-    sampler->record.id = type;
-    sampler->record.packetInterval = 1;
-    sampler->record.algorithm = algorithm;
-    sampler->record.spaceInterval = interval;
 
-    return sampler;
-}  // End of process Sampling
+    return cnt;
+}  // End of getSampler
 
 static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header) {
     uint16_t engine_tag = ntohs(header->engine_tag);
@@ -233,48 +245,59 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
         if (!e->in_use) {
+            sampler_record_v4_t sampler_record_v4[2] = {0};
+            size_t recordSize = sizeof(exporter_info_record_v4_t);
+
+            // in theory, 2 samplers may exist:
+            // one from command line and one in the header
+            size_t numSampler = getSampler(header, sampler_record_v4);
+            recordSize += (numSampler * sizeof(sampler_record_v4_t));
+
+            void *info = calloc(1, recordSize);
+            if (info == NULL) {
+                LogError("Process_v5: malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                return NULL;
+            }
+
             // create new exporter
-            e->key = key;
-            e->packets = 0;
-            e->flows = 0;
-            e->sequence_failure = 0;
-            e->sequence = UINT32_MAX;
-            e->in_use = 1;
+            *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .in_use = 1, .info = info};
             tab->count++;
 
-            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
-                                               .version = key.version,
-                                               .id = key.id,
-                                               .fill = 0,
-                                               .sysid = 0};
-            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
+            *(e->info) = (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = recordSize},
+                                                     .version = key.version,
+                                                     .id = key.id,
+                                                     .sysID = AssignExporterID()};
+            memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
-            e->version.v5 = (exporter_v5_t){0};
+            e->v5 = (exporter_v5_t){0};
 
             char ipstr[INET6_ADDRSTRLEN];
             ip128_2_str(&fs->ipAddr, ipstr);
             if (fs->sa_family == PF_INET6) {
-                e->version.v5.outRecordSize = baseRecordSize + EXipReceivedV6Size;
+                e->v5.outRecordSize = baseOffset + EXipReceivedV6Size;
                 dbg_printf("Process_v5: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
             } else {
-                e->version.v5.outRecordSize = baseRecordSize + EXipReceivedV4Size;
+                e->v5.outRecordSize = baseOffset + EXipReceivedV4Size;
                 dbg_printf("Process_v5: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
             }
 
-            FlushInfoExporter(fs, &e->info);
-
-            sampler_t *sampler = getSampler(header);
-            if (sampler) {
-                sampler->record.exporter_sysid = e->info.sysid;
-                fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
-                LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, algorithm: %i, packet interval: 1, packet space: %u\n",
-                        e->info.sysid, (engine_tag & 0xFF), ((engine_tag >> 8) & 0xFF), ipstr, sampler->record.algorithm,
-                        sampler->record.spaceInterval);
-            } else {
-                LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s", e->info.sysid, (engine_tag & 0xFF),
-                        ((engine_tag >> 8) & 0xFF), ipstr);
+            LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s", e->info->sysID, (engine_tag & 0xFF),
+                    ((engine_tag >> 8) & 0xFF), ipstr);
+            for (int i = 0; i < 2; i++) {
+                if (sampler_record_v4[i].inUse) {
+                    e->info->samplers[i] = sampler_record_v4[i];
+                    e->info->sampler_count++;
+                    e->sampler_cache[i].ptr = &e->info->samplers[i];
+                    e->sampler_count++;
+                    LogInfo(
+                        "Process_v5: New exporter: SysID: %u, IP: %s, Sampling: selectorID: %lld, algorithm: %i, packet interval: %u, packet space: "
+                        "%u",
+                        e->info->sysID, ipstr, sampler_record_v4[i].selectorID, sampler_record_v4[i].algorithm, sampler_record_v4[i].packetInterval,
+                        sampler_record_v4[i].spaceInterval);
+                }
             }
-            e->sampler = sampler;
+            // XXX REMOVE FlushInfoExporter(fs, e->info);
+            e->sysID = e->info->sysID;
 
             fs->last_key = key;
             fs->last_exp = e;
@@ -309,6 +332,25 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     exporter->packets++;
 
     uint16_t version = ntohs(v5_header->version);
+
+    // handle sampling once for this exporter
+    // for v5 all samplers fit into the cache
+    uint64_t interval = 0x3fff & ntohs(v5_header->sampling_interval);
+    if (unlikely(exporter->sampler_count > 0)) {
+        // SAMPLER_OVERWRITE
+        sampler_record_v4_t *sampler = exporter->sampler_cache[0].ptr;
+        if (sampler) {
+            if (sampler->selectorID == SAMPLER_OVERWRITE) {
+                interval = sampler->spaceInterval + 1;
+                dbg_printf("Has overwrite sampler with interval: %llu\n", interval);
+            } else if (interval == 0) {
+                // SAMPLER_DEFAULT, if no sampling announced in header
+                dbg_printf("Has other sampler with interval: %llu\n", interval);
+                interval = sampler->spaceInterval + 1;
+            }
+        }
+    }
+
     int rawRecordSize = version == 5 ? NETFLOW_V5_RECORD_LENGTH : NETFLOW_V7_RECORD_LENGTH;
 
     // this many data to process
@@ -329,8 +371,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // set output buffer memory
-        void *outBuff = GetCurrentCursor(fs->dataBlock);
-        if (!IsAvailable(fs->dataBlock, count * exporter->version.v5.outRecordSize)) {
+        uint8_t *outBuff = GetCurrentCursor(fs->dataBlock);
+        if (!IsAvailable(fs->dataBlock, count * exporter->v5.outRecordSize)) {
             // flush block - get an empty one
             fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
             // map output memory buffer
@@ -341,14 +383,14 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         if (exporter->sequence != UINT32_MAX) {
             uint32_t distance = seq - exporter->sequence;  // wrap-safe
 
-            if (distance != exporter->version.v5.last_count) {
+            if (distance != exporter->v5.last_count) {
                 fs->stat_record.sequence_failure++;
                 exporter->sequence_failure++;
             }
         }
 
         exporter->sequence = seq;
-        exporter->version.v5.last_count = count;
+        exporter->v5.last_count = count;
 
         v5_header->SysUptime = ntohl(v5_header->SysUptime);
         v5_header->unix_secs = ntohl(v5_header->unix_secs);
@@ -369,16 +411,55 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         uint32_t outSize = 0;
         for (int i = 0; i < count; i++) {
             // header data gets initialized by macro
-            AddV3Header(outBuff, recordHeader);
+            recordHeaderV4_t *recordHeader = AddV4Header(outBuff);
 
             // header data
             recordHeader->engineType = engineType;
             recordHeader->engineID = engineID;
-            recordHeader->exporterID = exporter->info.sysid;
-            recordHeader->nfversion = 5;
+            recordHeader->exporterID = exporter->sysID;
+            recordHeader->nfVersion = 5;
+
+            // define bimap common for all v5 records
+            uint64_t bitMap = 0;
+            BitMapSet(bitMap, EXgenericFlowID);
+            BitMapSet(bitMap, EXipv4FlowID);
+
+            // check optional extensions
+            // check interface input/output
+            int hasInterface = v5_record->input || v5_record->output;
+            if (hasInterface) BitMapSet(bitMap, EXinterfaceID);
+
+            // check for AS info
+            int hasASinfo = v5_record->src_as || v5_record->dst_as;
+            if (hasASinfo) BitMapSet(bitMap, EXasInfoID);
+
+            // check next hop
+            int hasNextHop = v5_record->nexthop;
+            if (hasNextHop) BitMapSet(bitMap, EXasRoutingV4ID);
+
+            uint32_t sa_family;
+            if (fs->sa_family == PF_INET6) {
+                sa_family = PF_INET6;
+                BitMapSet(bitMap, EXipReceivedV6ID);
+            } else {
+                sa_family = PF_INET;
+                BitMapSet(bitMap, EXipReceivedV4ID);
+            }
+            // set bitmap and extensions for this record
+            recordHeader->numExtensions = __builtin_popcountll(bitMap);
+            recordHeader->extBitmap = bitMap;
+
+            // calculate offset table size and next offset after offset table
+            uint32_t offsetTableSize = ALIGN8(recordHeader->numExtensions * sizeof(uint16_t));
+            // clear offset table - set extra slack entries to 0
+            memset((uint8_t *)recordHeader + sizeof(recordHeaderV4_t), 0, offsetTableSize);
+
+            recordHeader->size += offsetTableSize;
+            uint32_t nextOffset = recordHeader->size;
 
             // Add v5 specific data
-            PushExtension(recordHeader, EXgenericFlow, genericFlow);
+            // add EXgenericFlow
+            EXgenericFlow_t *genericFlow = AddV4Extension(recordHeader, nextOffset, EXgenericFlow);
             genericFlow->msecReceived = msecReceived;
             genericFlow->inPackets = ntohl(v5_record->dPkts);
             genericFlow->inBytes = ntohl(v5_record->dOctets);
@@ -388,30 +469,29 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             genericFlow->srcTos = v5_record->tos;
             genericFlow->tcpFlags = v5_record->tcp_flags;
 
-            PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
+            // add EXipv4Flow
+            EXipv4Flow_t *ipv4Flow = AddV4Extension(recordHeader, nextOffset, EXipv4Flow);
             ipv4Flow->srcAddr = ntohl(v5_record->srcaddr);
             ipv4Flow->dstAddr = ntohl(v5_record->dstaddr);
 
-            // add these extensions only if they have non zero values
-            if (v5_record->input || v5_record->output) {
-                PushExtension(recordHeader, EXflowMisc, flowMisc);
-                flowMisc->input = ntohs(v5_record->input);
-                flowMisc->output = ntohs(v5_record->output);
+            if (hasInterface) {
+                EXinterface_t *interface = AddV4Extension(recordHeader, nextOffset, EXinterface);
+                interface->input = ntohs(v5_record->input);
+                interface->output = ntohs(v5_record->output);
             }
 
-            if (v5_record->src_as || v5_record->dst_as) {
-                PushExtension(recordHeader, EXasRouting, asRouting);
-                asRouting->srcAS = ntohs(v5_record->src_as);
-                asRouting->dstAS = ntohs(v5_record->dst_as);
+            if (hasASinfo) {
+                EXasInfo_t *asInfo = AddV4Extension(recordHeader, nextOffset, EXasInfo);
+                asInfo->srcAS = ntohs(v5_record->src_as);
+                asInfo->dstAS = ntohs(v5_record->dst_as);
             }
 
-            if (v5_record->nexthop) {
-                PushExtension(recordHeader, EXipNextHopV4, ipNextHopV4);
-                ipNextHopV4->ip = ntohl(v5_record->nexthop);
+            if (hasNextHop) {
+                EXasRoutingV4_t *nexthop = AddV4Extension(recordHeader, nextOffset, EXasRoutingV4);
+                nexthop->nextHop = ntohl(v5_record->nexthop);
             }
 
-            // post process required data
-
+            // post process data
             // calculate msec values first/last
             uint64_t First = ntohl(v5_record->First);
             uint64_t Last = ntohl(v5_record->Last);
@@ -440,24 +520,28 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
             UpdateFirstLast(fs, msecStart, msecEnd);
 
-            // add router IP
-            if (fs->sa_family == PF_INET6) {
-                PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
+            // add received-IP extension
+            // add received-IP extension
+            if (sa_family == PF_INET6) {
+                EXipReceivedV6_t *ipReceivedV6 = AddV4Extension(recordHeader, nextOffset, EXipReceivedV6);
                 uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
                 ipReceivedV6->ip[0] = ntohll(ipv6[0]);
                 ipReceivedV6->ip[1] = ntohll(ipv6[1]);
+                dbg_printf("Add IPv6 route IP extension\n");
             } else {
-                PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
-                uint32_t ipv4;
-                memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
-                ipReceivedV4->ip = ntohl(ipv4);
+                EXipReceivedV4_t *ipReceivedV4 = AddV4Extension(recordHeader, nextOffset, EXipReceivedV4);
+                uint32_t ip;
+                memcpy(&ip, fs->ipAddr.bytes + 12, 4);
+                ipReceivedV4->ip = ntohl(ip);
+                dbg_printf("Add IPv4 route IP extension\n");
             }
 
             // sampling
-            if (exporter->sampler && exporter->sampler->record.spaceInterval > 1) {
-                genericFlow->inPackets *= (uint64_t)(exporter->sampler->record.spaceInterval + 1);
-                genericFlow->inBytes *= (uint64_t)(exporter->sampler->record.spaceInterval + 1);
-                SetFlag(recordHeader->flags, V3_FLAG_SAMPLED);
+            if (unlikely(interval > 0)) {
+                genericFlow->inPackets *= interval;
+                genericFlow->inBytes *= interval;
+                SetFlag(recordHeader->flags, V4_FLAG_SAMPLED);
+                dbg_printf("Apply sampling rate: %llu\n", interval);
             }
 
             // Update stats
@@ -507,8 +591,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             outSize += recordHeader->size;
             v5_record = (netflow_v5_record_t *)((void *)v5_record + rawRecordSize);
 
-            if (recordHeader->size > exporter->version.v5.outRecordSize) {
-                LogError("Process_v5: Record size check failed! Expected: %u, counted: %u\n", exporter->version.v5.outRecordSize, recordHeader->size);
+            if (recordHeader->size > exporter->v5.outRecordSize) {
+                LogError("Process_v5: Record size check failed! Expected: %u, counted: %u\n", exporter->v5.outRecordSize, recordHeader->size);
                 return;
             }
 

@@ -350,6 +350,7 @@ typedef struct ipfix_template_elements_e_s {
 // Private Enterprise Numbers
 #define IPFIX_ReverseInformationElement 29305
 
+// CERT NetSA Security Suite (PEN 6871)
 #define YAF_payload 18
 #define YAF_dnsQueryResponse 174
 #define YAF_dnsQRType 175
@@ -360,12 +361,15 @@ typedef struct ipfix_template_elements_e_s {
 #define YAF_dnsTTL 199
 #define YAF_dnsID 226
 
-#define LOCAL_IPv4Received 32764
-#define LOCAL_IPv6Received 32765
-#define LOCAL_msecTimeReceived 32766
-#define LOCAL_inPayload 32767
-#define LOCAL_outPayload 32768
+// IANA 530-32767 unassigned
+// LOCAL types
+#define LOCAL_msecTimeReceived 32768
+#define LOCAL_IPv4Received 32769
+#define LOCAL_IPv6Received 32770
+#define LOCAL_inPayload 32771
+#define LOCAL_outPayload 32772
 
+// NOKIA (PEN 637)
 #define NOKIA_InsideServiceId 32769
 #define NOKIA_OutsideServiceId 32770
 #define NOKIA_NatSubString 32771

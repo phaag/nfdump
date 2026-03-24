@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -54,7 +54,7 @@
 #include "logging.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_fmt.h"
 #include "output_util.h"
 #include "userio.h"
@@ -129,10 +129,10 @@ static struct StatParameter_s {
     {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO_PreProcess},
     {"geo", " Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO_PreProcess},
     {"geo", NULL, {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO_PreProcess},
-    {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR, NULL},
-    {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR, NULL},
-    {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR, NULL},
-    {"nhbip", NULL, {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET}, IS_IPADDR, NULL},
+    {"nhip", "Nexthop IP", {EXasRoutingV4ID, OFFnextHopIPV4, SIZEnextHopIPV4, AF_INET}, IS_IPADDR, NULL},
+    {"nhip", NULL, {EXasRoutingV6ID, OFFnextHopIPV6, SIZEnextHopIPV6, AF_INET6}, IS_IPADDR, NULL},
+    {"nhbip", "Nexthop BGP IP", {EXasRoutingV4ID, OFFbgpNextHopV4, SIZEbgpNextHopV4, AF_INET}, IS_IPADDR, NULL},
+    {"nhbip", NULL, {EXasRoutingV6ID, OFFbgpNextHopV6, SIZEbgpNextHopV6, AF_INET}, IS_IPADDR, NULL},
     {"router", "Router IP", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NULL},
     {"router", NULL, {EXipReceivedV6ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NULL},
     {"srcport", "Src Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NULL},
@@ -146,14 +146,14 @@ static struct StatParameter_s {
     {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NULL},
     {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
     {"dir", "Dir", {EXflowMiscID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
-    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
-    {"srcasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
-    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
-    {"dstasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
-    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
-    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
-    {"asn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
-    {"asn", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
+    {"srcas", "Src AS", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
+    {"srcasn", "                                 Organisation (AS num)", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"dstas", "Dst AS", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
+    {"dstasn", "                                 Organisation (AS num)", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
+    {"as", "AS", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
+    {"as", NULL, {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
+    {"asn", "                                 Organisation (AS num)", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"asn", NULL, {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, NULL},
     {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NULL},
     {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
@@ -164,42 +164,41 @@ static struct StatParameter_s {
     {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NULL},
     {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NULL},
     {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NULL},
-    {"tunproto", "Tun proto", {EXtunIPv4ID, OFFtunProtoV4, SIZEtunProtoV4, 0}, IS_NUMBER, NULL},
-    {"tunproto", NULL, {EXtunIPv6ID, OFFtunProtoV6, SIZEtunProtoV6, 0}, IS_NUMBER, NULL},
+    {"tunproto", "Tun proto", {EXtunnelID, OFFtunProto, SIZEtunProto, 0}, IS_NUMBER, NULL},
     {"srcvlan", "Src Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NULL},
     {"dstvlan", "Dst Vlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NULL},
     {"vlan", "Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NULL},
     {"vlan", NULL, {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NULL},
-    {"insrcmac", "In Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
-    {"outdstmac", "Out Dst Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
-    {"indstmac", "In Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
-    {"outsrcmac", "Out Src Mac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"insrcmac", "In Src Mac", {EXinMacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"outdstmac", "Out Dst Mac", {EXinMacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"indstmac", "In Dst Mac", {EXoutMacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"outsrcmac", "Out Src Mac", {EXoutMacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
     {"ethertype", "Ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, IS_NUMBER, NULL},
-    {"srcmac", "Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
-    {"srcmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
-    {"dstmac", "Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
-    {"dstmac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
-    {"inmac", "In Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
-    {"inmac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
-    {"outmac", "Out Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
-    {"outmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
-    {"mac", "Mac Addr", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
-    {"mac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
-    {"mac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
-    {"mac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
-    {"mpls1", "MPLS label 1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL, NULL},
-    {"mpls2", "MPLS label 2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL, NULL},
-    {"mpls3", "MPLS label 3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL, NULL},
-    {"mpls4", "MPLS label 4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL, NULL},
-    {"mpls5", "MPLS label 5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL, NULL},
-    {"mpls6", "MPLS label 6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL, NULL},
-    {"mpls7", "MPLS label 7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL, NULL},
-    {"mpls8", "MPLS label 8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL, NULL},
-    {"mpls9", "MPLS label 9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL, NULL},
-    {"mpls10", "MPLS label 10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL, NULL},
-    {"cl", "Client Latency", {EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, 0}, IS_LATENCY, NULL},
-    {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NULL},
-    {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NULL},
+    {"srcmac", "Src Mac", {EXinMacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"srcmac", NULL, {EXoutMacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"dstmac", "Dst Mac", {EXinMacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"dstmac", NULL, {EXoutMacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"inmac", "In Mac", {EXinMacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"inmac", NULL, {EXoutMacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"outmac", "Out Mac", {EXinMacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"outmac", NULL, {EXoutMacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"mac", "Mac Addr", {EXinMacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"mac", NULL, {EXinMacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"mac", NULL, {EXoutMacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"mac", NULL, {EXoutMacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"mpls1", "MPLS label 1", {EXmplsID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL, NULL},
+    {"mpls2", "MPLS label 2", {EXmplsID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL, NULL},
+    {"mpls3", "MPLS label 3", {EXmplsID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL, NULL},
+    {"mpls4", "MPLS label 4", {EXmplsID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL, NULL},
+    {"mpls5", "MPLS label 5", {EXmplsID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL, NULL},
+    {"mpls6", "MPLS label 6", {EXmplsID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL, NULL},
+    {"mpls7", "MPLS label 7", {EXmplsID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL, NULL},
+    {"mpls8", "MPLS label 8", {EXmplsID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL, NULL},
+    {"mpls9", "MPLS label 9", {EXmplsID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL, NULL},
+    {"mpls10", "MPLS label 10", {EXmplsID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL, NULL},
+    {"cl", "Client Latency", {EXlatencyID, OFFmsecClientNwDelay, SIZEmsecClientNwDelay, 0}, IS_LATENCY, NULL},
+    {"sl", "Server Latency", {EXlatencyID, OFFmsecServerNwDelay, SIZEmsecServerNwDelay, 0}, IS_LATENCY, NULL},
+    {"al", "Application Latency", {EXlatencyID, OFFmsecApplLatency, SIZEmsecApplLatency, 0}, IS_LATENCY, NULL},
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NULL},
     {"ja3", "ja3                             ", {EXinPayloadHandle, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3in_PreProcess},
     {"ja3", NULL, {EXoutPayloadHandle, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3out_PreProcess},
@@ -212,15 +211,15 @@ static struct StatParameter_s {
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NULL},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NULL},
     {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER, NULL},
-    {"nat", "NAT Event", {EXnatCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NULL},
-    {"natsrcip", "X-Src IP Addr", {EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NULL},
-    {"natsrcip", NULL, {EXnatXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NULL},
-    {"natdstip", "X-Dst IP Addr", {EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NULL},
-    {"natdstip", NULL, {EXnatXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NULL},
-    {"natip", "X-IP Addr", {EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NULL},
-    {"natip", NULL, {EXnatXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NULL},
-    {"natip", NULL, {EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NULL},
-    {"natip", NULL, {EXnatXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"nat", "NAT Event", {EXnselCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NULL},
+    {"natsrcip", "X-Src IP Addr", {EXnatXlateV4ID, OFFxlateSrcAddrV4, SIZExlateSrcAddrV4, AF_INET}, IS_IPADDR, NULL},
+    {"natsrcip", NULL, {EXnatXlateV6ID, OFFxlateSrcAddrV6, SIZExlateSrcAddrV6, AF_INET6}, IS_IPADDR, NULL},
+    {"natdstip", "X-Dst IP Addr", {EXnatXlateV4ID, OFFxlateDstAddrV4, SIZExlateDstAddrV4, AF_INET}, IS_IPADDR, NULL},
+    {"natdstip", NULL, {EXnatXlateV6ID, OFFxlateDstAddrV6, SIZExlateDstAddrV6, AF_INET6}, IS_IPADDR, NULL},
+    {"natip", "X-IP Addr", {EXnatXlateV4ID, OFFxlateSrcAddrV4, SIZExlateSrcAddrV4, AF_INET}, IS_IPADDR, NULL},
+    {"natip", NULL, {EXnatXlateV6ID, OFFxlateSrcAddrV6, SIZExlateSrcAddrV6, AF_INET6}, IS_IPADDR, NULL},
+    {"natip", NULL, {EXnatXlateV4ID, OFFxlateDstAddrV4, SIZExlateDstAddrV4, AF_INET}, IS_IPADDR, NULL},
+    {"natip", NULL, {EXnatXlateV6ID, OFFxlateDstAddrV6, SIZExlateDstAddrV6, AF_INET6}, IS_IPADDR, NULL},
     {"natsrcport", "X-Src Port", {EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NULL},
     {"natdstport", "X-Dst Port", {EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NULL},
     {"natport", "X-Port", {EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NULL},
@@ -555,7 +554,7 @@ static uint64_t order_bpp_inout(StatRecord_t *record) {
 int Init_StatTable(int hasGeoDB) {
     if (!nfalloc_Init(8 * 1024 * 1024)) return 0;
 
-    for (int i = 0; i < NumStats; i++) {
+    for (int i = 0; i < (int)NumStats; i++) {
         ElementHashes[i] = elementHash_init(InitStatHashBits);
         if (!ElementHashes[i]) return 0;
     }
@@ -566,7 +565,7 @@ int Init_StatTable(int hasGeoDB) {
 }  // End of Init_StatTable
 
 void Dispose_StatTable(void) {
-    for (int i = 0; i < NumStats; i++) {
+    for (int i = 0; i < (int)NumStats; i++) {
         elementHash_free(ElementHashes[i]);
         ElementHashes[i] = NULL;
     }
@@ -712,17 +711,17 @@ static inline void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle
 static inline void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
-    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle->extensionList[EXasInfoID];
 
-    if (asRouting == NULL) {
+    if (asInfo == NULL) {
         // map AS extension to slack space
         inPtr = (void *)recordHandle->localStack;
-        recordHandle->extensionList[EXasRoutingID] = inPtr;
-        asRouting = (EXasRouting_t *)inPtr;
+        recordHandle->extensionList[EXasInfoID] = inPtr;
+        asInfo = (EXasInfo_t *)inPtr;
     }
 
-    if (HasGeoDB == 0 || asRouting->srcAS) return inPtr;
-    asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
+    if (HasGeoDB == 0 || asInfo->srcAS) return inPtr;
+    asInfo->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
 
     return inPtr;
 }  // End of SRC_AS_PreProcess
@@ -730,24 +729,24 @@ static inline void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle)
 static inline void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
-    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle->extensionList[EXasInfoID];
 
-    if (asRouting == NULL) {
+    if (asInfo == NULL) {
         // map AS extension to slack space
         inPtr = (void *)recordHandle->localStack;
-        recordHandle->extensionList[EXasRoutingID] = inPtr;
-        asRouting = (EXasRouting_t *)inPtr;
+        recordHandle->extensionList[EXasInfoID] = inPtr;
+        asInfo = (EXasInfo_t *)inPtr;
     }
 
-    if (HasGeoDB == 0 || asRouting->dstAS) return inPtr;
-    asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
+    if (HasGeoDB == 0 || asInfo->dstAS) return inPtr;
+    asInfo->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
 
     return inPtr;
 }  // End of DST_AS_PreProcess
 
 static inline void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
+    const EXPayload_t *payload = (const EXPayload_t *)recordHandle->extensionList[EXinPayloadID];
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
 
     payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
@@ -763,8 +762,8 @@ static inline void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle) 
 
     ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
-        uint32_t payloadLength = ExtensionLength(payload);
-        ssl = sslProcess(payload, payloadLength);
+        uint32_t payloadLength = payload->size;
+        ssl = sslProcess(payload->payload, payloadLength);
         payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
@@ -783,7 +782,7 @@ static inline void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle) 
 
 static inline void *JA3out_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXoutPayloadID];
+    const EXPayload_t *payload = (const EXPayload_t *)recordHandle->extensionList[EXoutPayloadID];
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
 
     payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXoutPayloadHandle];
@@ -799,8 +798,8 @@ static inline void *JA3out_PreProcess(void *inPtr, recordHandle_t *recordHandle)
 
     ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
-        uint32_t payloadLength = ExtensionLength(payload);
-        ssl = sslProcess(payload, payloadLength);
+        uint32_t payloadLength = payload->size;
+        ssl = sslProcess(payload->payload, payloadLength);
         payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
@@ -836,8 +835,8 @@ static inline void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
 
     ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
-        uint32_t payloadLength = ExtensionLength(payload);
-        ssl = sslProcess(payload, payloadLength);
+        uint32_t payloadLength = payload->size;
+        ssl = sslProcess(payload->payload, payloadLength);
         payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
@@ -876,8 +875,8 @@ static inline void *JA4Sin_PreProcess(void *inPtr, recordHandle_t *recordHandle)
 
     ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
-        uint32_t payloadLength = ExtensionLength(payload);
-        ssl = sslProcess(payload, payloadLength);
+        uint32_t payloadLength = payload->size;
+        ssl = sslProcess(payload->payload, payloadLength);
         payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
@@ -915,8 +914,8 @@ static inline void *JA4Sout_PreProcess(void *inPtr, recordHandle_t *recordHandle
 
     ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
-        uint32_t payloadLength = ExtensionLength(payload);
-        ssl = sslProcess(payload, payloadLength);
+        uint32_t payloadLength = payload->size;
+        ssl = sslProcess(payload->payload, payloadLength);
         payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
@@ -943,7 +942,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
     uint64_t zero = 0;
 
     // for every requested -s stat do
-    for (int i = 0; i < NumStats; i++) {
+    for (int i = 0; i < (int)NumStats; i++) {
         hashkey_t hashkey = {0};
         hashkey.proto = StatRequest[i].order_proto == 1 ? genericFlow->proto : 0;
         int index = StatRequest[i].StatType;
@@ -1175,7 +1174,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
             break;
     }
     char flows_str[32], byte_str[32], packets_str[32];
-    ScaleCountValue(flows_str, sizeof(flows_str), count_flows, outputParams->printPlain, LENGTH_5);
+    ScaleCountValue(flows_str, sizeof(flows_str), count_flows, outputParams->printPlain, WIDTH_5);
     ScaleCountValue(packets_str, sizeof(packets_str), count_packets, outputParams->printPlain, outputParams->printPlain ? 10 : 5);
     ScaleByteValue(byte_str, sizeof(byte_str), count_bytes, outputParams->printPlain, outputParams->printPlain ? 10 : 5);
 
@@ -1208,8 +1207,8 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     }
 
     char pps_str[32], bps_str[32];
-    ScaleCountValue(pps_str, sizeof(pps_str), pps, outputParams->printPlain, LENGTH_5);
-    ScaleByteValue(bps_str, sizeof(bps_str), bps, outputParams->printPlain, LENGTH_5);
+    ScaleCountValue(pps_str, sizeof(pps_str), pps, outputParams->printPlain, WIDTH_5);
+    ScaleByteValue(bps_str, sizeof(bps_str), bps, outputParams->printPlain, WIDTH_5);
 
     time_t first = statRecord->msecFirst / 1000LL;
     struct tm tbuff_buf;

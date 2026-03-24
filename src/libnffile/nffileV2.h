@@ -144,7 +144,8 @@ typedef struct dataBlock_s {
 #define FLAG_BLOCK_UNCOMPRESSED 0x1
 #define FLAG_BLOCK_UNENCRYPTED 0x2
 #define FLAG_BLOCK_AUTOREAD 0x4
-} dataBlock_t;
+} dataBlockV2_t;
+typedef dataBlockV2_t dataBlock_t;
 
 /*
  * Generic data record

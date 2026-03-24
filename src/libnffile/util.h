@@ -48,13 +48,13 @@
 #define EBUFF_SIZE 256
 
 #ifndef HAVE_HTONLL
-#ifdef WORDS_BIGENDIAN
-#define ntohll(n) (n)
-#define htonll(n) (n)
+static inline uint64_t ntohll(uint64_t x) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return __builtin_bswap64(x);
 #else
-#define ntohll(n) ((((uint64_t)ntohl(n)) << 32) + (ntohl((n) >> 32)))
-#define htonll(n) ((((uint64_t)htonl(n)) << 32) + (htonl((n) >> 32)))
+    return x;
 #endif
+}
 #endif
 
 #if (SIZEOF_VOID_P == 8)
@@ -122,8 +122,8 @@ long getTick(void);
 #define PRINT_SCALED 0
 char *ScaleDuration(char *string, size_t len, uint64_t duration, int plain, int width);
 
-#define VAR_LENGTH 0
-#define LENGTH_5 5
+#define WIDTH_VAR 0
+#define WIDTH_5 5
 char *ScaleByteValue(char *string, size_t len, uint64_t value, int plain, int width);
 
 char *ScaleCountValue(char *string, size_t len, uint64_t value, int plain, int width);

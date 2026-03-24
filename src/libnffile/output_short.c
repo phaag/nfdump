@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -43,9 +43,11 @@
 #include "config.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "userio.h"
 #include "util.h"
+
+typedef void (*funcPrintRecord_t)(FILE *, uint8_t *);
 
 static char *FlagsString(uint16_t flags) {
     static char string[16];
@@ -63,12 +65,10 @@ static char *FlagsString(uint16_t flags) {
     return string;
 }  // End of FlagsString
 
-static void stringEXgenericFlow(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXgenericFlowID];
-    if (!elementHeader) return;
+static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extension;
     char datestr1[64], datestr2[64], datestr3[64];
     struct tm ts_buf;
     struct tm *ts;
@@ -126,72 +126,12 @@ static void stringEXgenericFlow(FILE *stream, record_map_t *r) {
 
 }  // End of EXgenericFlowID
 
-static void stringEXtunIPv4(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXtunIPv4ID];
-    if (!elementHeader) return;
+static void stringsEXipv4Flow(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extension;
 
-    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
-    char sloc[128], dloc[128];
-    sloc[0] = '\0';
-    dloc[0] = '\0';
-    uint32_t src = htonl(tunIPv4->tunSrcAddr);
-    uint32_t dst = htonl(tunIPv4->tunDstAddr);
-    inet_ntop(AF_INET, &src, as, sizeof(as));
-    inet_ntop(AF_INET, &dst, ds, sizeof(ds));
-
-    // LookupLocation(tunIPv4->tun_src_ip.V6, sloc, 128);
-    // LookupLocation(tunIPv4->tun_dst_ip.V6, dloc, 128);
-    fprintf(stream,
-            "  tun proto    =               %3u %s\n"
-            "  tun src addr =  %16s%s%s\n"
-            "  tun dst addr =  %16s%s%s\n",
-            tunIPv4->tunProto, ProtoString(tunIPv4->tunProto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
-
-}  // End of stringEXtunIPv4
-
-static void stringEXtunIPv6(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXtunIPv6ID];
-    if (!elementHeader) return;
-
-    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
-    uint64_t src[2], dst[2];
-    char sloc[128], dloc[128];
-    sloc[0] = '\0';
-    dloc[0] = '\0';
-
-    src[0] = htonll(tunIPv6->tunSrcAddr[0]);
-    src[1] = htonll(tunIPv6->tunSrcAddr[1]);
-    dst[0] = htonll(tunIPv6->tunDstAddr[0]);
-    dst[1] = htonll(tunIPv6->tunDstAddr[1]);
-    inet_ntop(AF_INET6, &src, as, sizeof(as));
-    inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
-
-    // LookupLocation(r->tun_src_ip.V6, sloc, 128);
-    // LookupLocation(r->tun_dst_ip.V6, dloc, 128);
-    fprintf(stream,
-            "  tun proto    =               %3u %s\n"
-            "  tun src addr =  %16s%s%s\n"
-            "  tun dst addr =  %16s%s%s\n",
-            tunIPv6->tunProto, ProtoString(tunIPv6->tunProto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
-
-}  // End of stringEXtunIPv6
-
-static void stringsEXipv4Flow(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXipv4FlowID];
-    if (!elementHeader) return;
-
-    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    if (r->offsetMap[EXtunIPv4ID])
-        stringEXtunIPv4(stream, r);
-    else if (r->offsetMap[EXtunIPv6ID])
-        stringEXtunIPv6(stream, r);
-
-    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
+    char as[INET_ADDRSTRLEN], ds[INET_ADDRSTRLEN];
     uint32_t src = htonl(ipv4Flow->srcAddr);
     uint32_t dst = htonl(ipv4Flow->dstAddr);
     inet_ntop(AF_INET, &src, as, sizeof(as));
@@ -204,16 +144,10 @@ static void stringsEXipv4Flow(FILE *stream, record_map_t *r) {
 
 }  // End of stringsEXipv4Flow
 
-static void stringsEXipv6Flow(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXipv6FlowID];
-    if (!elementHeader) return;
+static void stringsEXipv6Flow(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    if (r->offsetMap[EXtunIPv4ID])
-        stringEXtunIPv4(stream, r);
-    else if (r->offsetMap[EXtunIPv6ID])
-        stringEXtunIPv6(stream, r);
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extension;
 
     char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     uint64_t src[2], dst[2];
@@ -231,56 +165,36 @@ static void stringsEXipv6Flow(FILE *stream, record_map_t *r) {
 
 }  // End of stringsEXipv6Flow
 
-static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXflowMiscID];
-    if (!elementHeader) return;
+static void stringsEXinterface(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXflowMisc_t *flowMisc = (EXflowMisc_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    char snet[INET6_ADDRSTRLEN] = {0};
-    char dnet[INET6_ADDRSTRLEN] = {0};
-    if (r->offsetMap[EXipv6FlowID]) {
-        // IPv6
-        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)r->offsetMap[EXipv6FlowID];
-        inet6_ntop_mask(ipv6Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
-        inet6_ntop_mask(ipv6Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
-    }
-    if (r->offsetMap[EXipv4FlowID]) {
-        // IPv4
-        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)r->offsetMap[EXipv4FlowID];
-        inet_ntop_mask(ipv4Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
-        inet_ntop_mask(ipv4Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
-    }
-
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)r->offsetMap[EXgenericFlowID];
-    uint32_t fwdStatus = 0;
-    uint32_t tos = 0;
-    if (genericFlow) {
-        fwdStatus = genericFlow->fwdStatus;
-        tos = genericFlow->srcTos;
-    }
-
+    EXinterface_t *interface = (EXinterface_t *)extension;
     fprintf(stream,
             "  input        =          %8u\n"
-            "  output       =          %8u\n"
-            "  src mask     =             %5u %s/%u\n"
-            "  dst mask     =             %5u %s/%u\n"
-            "  fwd status   =               %3u\n"
+            "  output       =          %8u\n",
+            interface->input, interface->output);
+
+}  // End of stringsEXinterface
+
+static void stringsEXflowMisc(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
+
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)extension;
+    fprintf(stream,
+            "  src mask     =             %5u\n"
+            "  dst mask     =             %5u\n"
             "  dst tos      =               %3u\n"
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x\n"
             "  end reason   =              0x%.2x\n",
-            flowMisc->input, flowMisc->output, flowMisc->srcMask, snet, flowMisc->srcMask, flowMisc->dstMask, dnet, flowMisc->dstMask, fwdStatus, tos,
-            flowMisc->dir, flowMisc->biFlowDir, flowMisc->flowEndReason);
+            flowMisc->srcMask, flowMisc->dstMask, flowMisc->dstTos, flowMisc->direction, flowMisc->biFlowDir, flowMisc->flowEndReason);
 
 }  // End of stringsEXflowMisc
 
-static void stringsEXcntFlow(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXcntFlowID];
-    if (!elementHeader) return;
+static void stringsEXcntFlow(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXcntFlow_t *cntFlow = (EXcntFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)extension;
     fprintf(stream,
             "  out packets  =        %10llu\n"
             "  out bytes    =        %10llu\n"
@@ -289,12 +203,10 @@ static void stringsEXcntFlow(FILE *stream, record_map_t *r) {
 
 }  // End of stringEXcntFlow
 
-static void stringsEXvLan(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXvLanID];
-    if (!elementHeader) return;
+static void stringsEXvLan(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXvLan_t *vLan = (EXvLan_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
+    EXvLan_t *vLan = (EXvLan_t *)extension;
     fprintf(stream,
             "  src vlan     =             %5u\n"
             "  dst vlan     =             %5u\n",
@@ -302,239 +214,158 @@ static void stringsEXvLan(FILE *stream, record_map_t *r) {
 
 }  // End of stringsEXvLan
 
-static void stringsEXasRouting(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXasRoutingID];
-    if (!elementHeader) return;
+static void stringsEXasInfo(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXasRouting_t *asRouting = (EXasRouting_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
+    EXasInfo_t *asInfo = (EXasInfo_t *)extension;
     fprintf(stream,
             "  src as       =             %5u\n"
             "  dst as       =             %5u\n",
-            asRouting->srcAS, asRouting->dstAS);
+            asInfo->srcAS, asInfo->dstAS);
 
-}  // End of stringsEXasRouting
+}  // End of stringsEXasInfo
 
-static void stringsEXbgpNextHopV4(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXbgpNextHopV4ID];
-    if (!elementHeader) return;
+static void stringsEXasRoutingV4(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+    EXasRoutingV4_t *nextHopV4 = (EXasRoutingV4_t *)extension;
+    char nextIP[INET_ADDRSTRLEN];
+    char bgpNextIP[INET_ADDRSTRLEN];
+    uint32_t ip = htonl(nextHopV4->nextHop);
+    inet_ntop(AF_INET, &ip, nextIP, sizeof(nextIP));
+    ip = htonl(nextHopV4->bgpNextHop);
+    inet_ntop(AF_INET, &ip, bgpNextIP, sizeof(bgpNextIP));
 
-    char ip[INET6_ADDRSTRLEN];
-    ip[0] = 0;
-    uint32_t i = htonl(bgpNextHopV4->ip);
-    inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[INET6_ADDRSTRLEN - 1] = 0;
+    fprintf(stream,
+            "  ip next hop  =  %16s\n"
+            "  bgp next hop =  %16s\n",
+            nextIP, bgpNextIP);
 
-    fprintf(stream, "  bgp next hop =  %16s\n", ip);
+}  // End of stringsEXasRoutingV4
 
-}  // End of stringsEXbgpNextHopV4
+static void stringsEXasRoutingV6(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-static void stringsEXbgpNextHopV6(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXbgpNextHopV6ID];
-    if (!elementHeader) return;
+    EXasRoutingV6_t *routingV6 = (EXasRoutingV6_t *)extension;
+    char nextIP[INET6_ADDRSTRLEN];
+    char bgpNextIP[INET6_ADDRSTRLEN];
+    uint64_t ip[2];
+    ip[0] = htonll(routingV6->nextHop[0]);
+    ip[1] = htonll(routingV6->nextHop[1]);
+    inet_ntop(AF_INET6, ip, nextIP, sizeof(nextIP));
+    ip[0] = htonll(routingV6->bgpNextHop[0]);
+    ip[1] = htonll(routingV6->bgpNextHop[1]);
+    inet_ntop(AF_INET6, ip, bgpNextIP, sizeof(bgpNextIP));
 
-    EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+    fprintf(stream,
+            "  ip next hop  =  %16s\n"
+            "  bgp next hop =  %16s\n",
+            nextIP, bgpNextIP);
 
-    char ip[INET6_ADDRSTRLEN];
-    uint64_t i[2];
-    i[0] = htonll(bgpNextHopV6->ip[0]);
-    i[1] = htonll(bgpNextHopV6->ip[1]);
-    inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[INET6_ADDRSTRLEN - 1] = 0;
+}  // End of stringsEXasRoutingV6
 
-    fprintf(stream, "  bgp next hop =  %16s\n", ip);
+static void stringsEXipReceivedV4(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-}  // End of stringsEXbgpNextHopV6
+    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)extension;
+    char ipStr[INET_ADDRSTRLEN];
+    uint32_t ip = htonl(ipReceivedV4->ip);
+    inet_ntop(AF_INET, &ip, ipStr, sizeof(ipStr));
 
-static void stringsEXipNextHopV4(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXipNextHopV4ID];
-    if (!elementHeader) return;
-
-    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    char ip[INET6_ADDRSTRLEN];
-    ip[0] = 0;
-    uint32_t i = htonl(ipNextHopV4->ip);
-    inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[INET6_ADDRSTRLEN - 1] = 0;
-
-    fprintf(stream, "  ip next hop  =  %16s\n", ip);
-
-}  // End of stringsEXipNextHopV4
-
-static void stringsEXipNextHopV6(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXipNextHopV6ID];
-    if (!elementHeader) return;
-
-    EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    char ip[INET6_ADDRSTRLEN];
-    uint64_t i[2];
-    i[0] = htonll(ipNextHopV6->ip[0]);
-    i[1] = htonll(ipNextHopV6->ip[1]);
-    inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[INET6_ADDRSTRLEN - 1] = 0;
-
-    fprintf(stream, "  ip next hop  =  %16s\n", ip);
-
-}  // End of stringsEXipNextHopV6
-
-static void stringsEXipReceivedV4(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXipReceivedV4ID];
-    if (!elementHeader) return;
-
-    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    char ip[INET6_ADDRSTRLEN];
-    ip[0] = 0;
-    uint32_t i = htonl(ipReceivedV4->ip);
-    inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[INET6_ADDRSTRLEN - 1] = 0;
-
-    fprintf(stream, "  ip exporter  =  %16s\n", ip);
+    fprintf(stream, "  ip exporter  =  %16s\n", ipStr);
 
 }  // End of stringsEXipReceivedV4
 
-static void stringsEXipReceivedV6(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXipReceivedV6ID];
-    if (!elementHeader) return;
+static void stringsEXipReceivedV6(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)extension;
+    char ipStr[INET6_ADDRSTRLEN];
+    uint64_t ip[2];
+    ip[0] = htonll(ipReceivedV6->ip[0]);
+    ip[1] = htonll(ipReceivedV6->ip[1]);
+    inet_ntop(AF_INET6, ip, ipStr, sizeof(ipStr));
 
-    char ip[INET6_ADDRSTRLEN];
-    uint64_t i[2];
-    i[0] = htonll(ipReceivedV6->ip[0]);
-    i[1] = htonll(ipReceivedV6->ip[1]);
-    inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[INET6_ADDRSTRLEN - 1] = 0;
-
-    fprintf(stream, "  ip exporter  =  %16s\n", ip);
+    fprintf(stream, "  ip exporter  =  %16s\n", ipStr);
 
 }  // End of stringsEXipReceivedV6
 
-static void stringsEXinmonMeta(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXinmonMetaID];
-    if (!elementHeader) return;
+static void stringsEXinPayload(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    EXinmonMeta_t *inmonMeta = (EXinmonMeta_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    fprintf(stream,
-            "  imon f-Size  =             %5u\n"
-            "  imon L-type  =             %5u\n",
-            inmonMeta->frameSize, inmonMeta->linkType);
-
-}  // End of stringsEXinmonMeta
-
-static void stringsEXinPayload(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXinPayloadID];
-    if (!elementHeader) return;
-
-    void *payload = (void *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    size_t len = elementHeader->length - sizeof(elementHeader_t);
-    fprintf(stream, "i-payload-len  =             %5zu\n", len);
-    DumpHex(stream, payload, len);
+    uint32_t length = *((uint32_t *)extension);
+    uint8_t *payload = (uint8_t *)extension + sizeof(uint32_t);
+    fprintf(stream, "i-payload-len  =             %5u\n", length);
+    DumpHex(stream, payload, length);
 
 }  // End of stringsEXinPayload
 
-static void stringsEXoutPayload(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXoutPayloadID];
-    if (!elementHeader) return;
+static void stringsEXoutPayload(FILE *stream, uint8_t *extension) {
+    if (!extension) return;
 
-    void *payload = (void *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    size_t len = elementHeader->length - sizeof(elementHeader_t);
-    fprintf(stream, "o-payload-len  =             %5zu\n", len);
-    DumpHex(stream, payload, len);
+    uint32_t length = *((uint32_t *)extension);
+    uint8_t *payload = (uint8_t *)extension + sizeof(uint32_t);
+    fprintf(stream, "o-payload-len  =             %5u\n", length);
+    DumpHex(stream, payload, length);
 
 }  // End of stringsEXinPayload
 
-static void stringsEXinmonFrame(FILE *stream, record_map_t *r) {
-    elementHeader_t *elementHeader = r->offsetMap[EXinmonFrameID];
-    if (!elementHeader) return;
-
-    EXinmonFrame_t *inmonFrame = (EXinmonFrame_t *)((void *)elementHeader + sizeof(elementHeader_t));
-
-    size_t len = elementHeader->length - sizeof(elementHeader_t);
-    void *packet = inmonFrame;
-    fprintf(stream, "  imon F-len   =             %5zu\n", len);
-    DumpHex(stream, packet, len);
-
-}  // End of stringsEXinmonFrame
-
-typedef void (*funcPrintRecord_t)(FILE *, record_map_t *r);
-static funcPrintRecord_t funcPrintRecord[MAXEXTENSIONS] = {
-    NULL,
-    stringEXgenericFlow,
-    stringsEXipv4Flow,
-    stringsEXipv6Flow,
-    stringsEXflowMisc,
-    stringsEXcntFlow,
-    stringsEXvLan,
-    stringsEXasRouting,
-    stringsEXbgpNextHopV4,
-    stringsEXbgpNextHopV6,
-    stringsEXipNextHopV4,
-    stringsEXipNextHopV6,
-    stringsEXipReceivedV4,
-    stringsEXipReceivedV6,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    stringsEXinPayload,
-    stringsEXoutPayload,
-    NULL,
-    NULL,
-    NULL,
-    stringsEXinmonMeta,
-    stringsEXinmonFrame,
+static const funcPrintRecord_t funcPrintRecord[MAXEXTENSIONS] = {
+    [EXgenericFlowID] = stringEXgenericFlow,
+    [EXipv4FlowID] = stringsEXipv4Flow,
+    [EXipv6FlowID] = stringsEXipv6Flow,
+    [EXinterfaceID] = stringsEXinterface,
+    [EXflowMiscID] = stringsEXflowMisc,
+    [EXcntFlowID] = stringsEXcntFlow,
+    [EXvLanID] = stringsEXvLan,
+    [EXasInfoID] = stringsEXasInfo,
+    [EXasRoutingV4ID] = stringsEXasRoutingV4,
+    [EXasRoutingV6ID] = stringsEXasRoutingV6,
+    [EXipReceivedV4ID] = stringsEXipReceivedV4,
+    [EXipReceivedV6ID] = stringsEXipReceivedV6,
+    [EXinPayloadID] = stringsEXinPayload,
+    [EXoutPayloadID] = stringsEXoutPayload,
 };
 
-void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
-    record_map_t record_map = {0};
-
-    record_map.recordHeader = recordHeaderV3;
-    void *p = (void *)recordHeaderV3;
-    // void *eor = p + recordHeaderV3->size;
-
-    elementHeader_t *elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
-    for (int i = 0; i < recordHeaderV3->numElements; i++) {
-        uint32_t type = elementHeader->type;
-        record_map.offsetMap[type] = elementHeader;
-        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+void flow_record_short(FILE *stream, recordHeaderV4_t *recordHeaderV4) {
+    if (!recordHeaderV4) {
+        LogError("flow_recordv4_short() NULL pointer");
+        return;
+    }
+    if (recordHeaderV4->extBitmap == 0) {
+        LogError("flow_recordv4_short() zero bitmap");
+        return;
     }
 
-    char elementString[MAXEXTENSIONS * 5];
+    // all based on recordBase
+    uint8_t *recordBase = (uint8_t *)recordHeaderV4;
+
+    // offset table
+    uint16_t *offsetTable = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
+
+    // Generate extension string
+    uint64_t bitMap = recordHeaderV4->extBitmap;
+    char elementString[recordHeaderV4->numExtensions * 5];
     elementString[0] = '\0';
-    for (int i = 0; i < MAXEXTENSIONS; i++) {
-        if (record_map.offsetMap[i]) snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", i);
+    while (bitMap) {
+        // find lowest set bit (ctz) in bitMap
+        uint32_t type = __builtin_ctzll(bitMap);
+        bitMap &= bitMap - 1;
+        snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", type);
     }
 
-    char *type;
+    // Print flow header
+    char *type = "";
     char version[8];
-    if (TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT)) {
+    if (TestFlag(recordHeaderV4->flags, V4_FLAG_EVENT)) {
         type = "EVENT";
         version[0] = '\0';
     } else {
-        if (recordHeaderV3->nfversion != 0) {
-            snprintf(version, 8, " v%u", recordHeaderV3->nfversion & 0x0F);
-            if (recordHeaderV3->nfversion & 0x80) {
+        if (recordHeaderV4->nfVersion != 0) {
+            snprintf(version, sizeof(version), " v%u", recordHeaderV4->nfVersion & 0x0F);
+            if (recordHeaderV4->nfVersion & 0x80) {
                 type = "SFLOW";
-            } else if (recordHeaderV3->nfversion & 0x40) {
+            } else if (recordHeaderV4->nfVersion & 0x40) {
                 type = "PCAP";
             } else {
                 type = "NETFLOW";
@@ -555,12 +386,24 @@ void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
             "  engine type  =             %5u\n"
             "  engine ID    =             %5u\n"
             "  export sysid =             %5u\n",
-            recordHeaderV3->flags, type, version, TestFlag(recordHeaderV3->flags, V3_FLAG_ANON) ? " Anonymized" : "",
-            TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV3->numElements, elementString,
-            recordHeaderV3->size, recordHeaderV3->engineType, recordHeaderV3->engineID, recordHeaderV3->exporterID);
+            recordHeaderV4->flags, type, version, TestFlag(recordHeaderV4->flags, V4_FLAG_ANON) ? " Anonymized" : "",
+            TestFlag(recordHeaderV4->flags, V4_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV4->numExtensions, elementString,
+            recordHeaderV4->size, recordHeaderV4->engineType, recordHeaderV4->engineID, recordHeaderV4->exporterID);
 
-    for (int i = 0; i < MAXEXTENSIONS; i++) {
-        if (record_map.offsetMap[i] && funcPrintRecord[i]) funcPrintRecord[i](stream, &record_map);
+    // print extensions
+    bitMap = recordHeaderV4->extBitmap;
+    uint32_t slot = 0;
+    while (bitMap) {
+        // find lowest set bit (ctz) in bitMap
+        uint32_t type = __builtin_ctzll(bitMap);
+        bitMap &= bitMap - 1;
+
+        // uint32_t slot = __builtin_popcountll(recordHeaderV4->extBitmap & ((1ULL << type) - 1));
+
+        ptrdiff_t offset = offsetTable[slot++];
+        dbg_printf("Extension: %u at offset: %u\n", type, offset);
+        uint8_t *extension = recordBase + offset;
+        if (funcPrintRecord[type]) funcPrintRecord[type](stream, extension);
     }
 
 }  // flow_record_short

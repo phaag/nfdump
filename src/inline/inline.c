@@ -40,48 +40,56 @@ typedef struct type_mask_s {
     };
 } type_mask_t;
 
-static inline uint16_t Get_val16(const void *p);
+#define getVal16(p)                  \
+    ({                               \
+        uint16_t _v;                 \
+        __builtin_memcpy(&_v, p, 2); \
+        _v = ntohs(_v);              \
+        p += 2;                      \
+        _v;                          \
+    })
 
-static inline uint32_t Get_val24(const void *p);
+static inline uint16_t Get_val16(const uint8_t *p);
 
-static inline uint32_t Get_val32(const void *p);
+static inline uint32_t Get_val24(const uint8_t *p);
 
-static inline uint64_t Get_val40(const void *p);
+static inline uint32_t Get_val32(const uint8_t *p);
 
-static inline uint64_t Get_val48(const void *p);
+static inline uint64_t Get_val40(const uint8_t *p);
 
-static inline uint64_t Get_val56(const void *p);
+static inline uint64_t Get_val48(const uint8_t *p);
 
-static inline uint64_t Get_val64(const void *p);
+static inline uint64_t Get_val56(const uint8_t *p);
 
-static inline uint64_t Get_val(const void *p, uint32_t index, uint32_t length);
+static inline uint64_t Get_val64(const uint8_t *p);
 
-static inline void Put_val8(uint8_t v, void *p);
+static inline uint64_t Get_val(const uint8_t *p, uint32_t index, uint32_t length);
 
-static inline void Put_val16(uint16_t v, void *p);
+static inline void Put_val8(uint8_t v, uint8_t *p);
 
-static inline void Put_val24(uint32_t v, void *p);
+static inline void Put_val16(uint16_t v, uint8_t *p);
 
-static inline void Put_val32(uint32_t v, void *p);
+static inline void Put_val24(uint32_t v, uint8_t *p);
 
-// static inline void	Put_val40(uint64_t v, const void *p);
+static inline void Put_val32(uint32_t v, uint8_t *p);
 
-static inline void Put_val48(uint64_t v, void *p);
+// static inline void	Put_val40(uint64_t v, const uint8_t *p);
 
-// static inline void	Put_val56(uint64_t v, const void *p);
+static inline void Put_val48(uint64_t v, uint8_t *p);
 
-static inline void Put_val64(uint64_t v, void *p);
+// static inline void	Put_val56(uint64_t v, const uint8_t *p);
 
-static inline uint16_t Get_val16(const void *p) {
+static inline void Put_val64(uint64_t v, uint8_t *p);
+
+static inline uint16_t Get_val16(const uint8_t *p) {
     uint16_t in;
-    memcpy(&in, p, sizeof(uint16_t));
+    __builtin_memcpy(&in, p, sizeof(uint16_t));
 
     return ntohs(in);
-
 }  // End of Get_val16
 
-static inline uint32_t Get_val24(const void *p) {
-    const uint8_t *in = (uint8_t *)p;
+static inline uint32_t Get_val24(const uint8_t *p) {
+    const uint8_t *in = p;
 
     uint64_t r = 0;
     for (size_t i = 0; i < 3; ++i) r = (r << 8) + *in++;
@@ -89,15 +97,15 @@ static inline uint32_t Get_val24(const void *p) {
 
 }  // End of Get_val24
 
-static inline uint32_t Get_val32(const void *p) {
+static inline uint32_t Get_val32(const uint8_t *p) {
     uint32_t in;
-    memcpy(&in, p, sizeof(uint32_t));
+    __builtin_memcpy(&in, p, sizeof(uint32_t));
 
     return ntohl(in);
 
 }  // End of Get_val32
 
-static inline uint64_t Get_val40(const void *p) {
+static inline uint64_t Get_val40(const uint8_t *p) {
     const uint8_t *in = (uint8_t *)p;
 
     uint64_t r = 0;
@@ -106,7 +114,7 @@ static inline uint64_t Get_val40(const void *p) {
 
 }  // End of Get_val40
 
-static inline uint64_t Get_val48(const void *p) {
+static inline uint64_t Get_val48(const uint8_t *p) {
     const uint8_t *in = (uint8_t *)p;
 
     uint64_t r = 0;
@@ -116,7 +124,7 @@ static inline uint64_t Get_val48(const void *p) {
 
 }  // End of Get_val48
 
-static inline uint64_t Get_val56(const void *p) {
+static inline uint64_t Get_val56(const uint8_t *p) {
     const uint8_t *in = (uint8_t *)p;
 
     uint64_t r = 0;
@@ -125,15 +133,14 @@ static inline uint64_t Get_val56(const void *p) {
 
 }  // End of Get_val56
 
-static inline uint64_t Get_val64(const void *p) {
+static inline uint64_t Get_val64(const uint8_t *p) {
     uint64_t in;
-    memcpy(&in, p, sizeof(uint64_t));
+    __builtin_memcpy(&in, p, sizeof(uint64_t));
 
     return ntohll(in);
-
 }  // End of Get_val64
 
-static inline uint64_t Get_val(const void *p, uint32_t index, uint32_t length) {
+static inline uint64_t Get_val(const uint8_t *p, uint32_t index, uint32_t length) {
     switch (length) {
         case 1:
             return *((uint8_t *)(p + index));
@@ -166,14 +173,14 @@ static inline uint64_t Get_val(const void *p, uint32_t index, uint32_t length) {
 
 }  // End of Get_val
 
-static inline void Put_val8(uint8_t v, void *p) {
+static inline void Put_val8(uint8_t v, uint8_t *p) {
     uint8_t *out = (uint8_t *)p;
 
     out[0] = v;
 
 }  // End of Put_val16
 
-static inline void Put_val16(uint16_t v, void *p) {
+static inline void Put_val16(uint16_t v, uint8_t *p) {
     uint8_t *out = (uint8_t *)p;
     type_mask_t mask;
 
@@ -183,7 +190,7 @@ static inline void Put_val16(uint16_t v, void *p) {
 
 }  // End of Put_val16
 
-static inline void Put_val24(uint32_t v, void *p) {
+static inline void Put_val24(uint32_t v, uint8_t *p) {
     uint8_t *out = (uint8_t *)p;
     type_mask_t mask;
 
@@ -194,7 +201,7 @@ static inline void Put_val24(uint32_t v, void *p) {
 
 }  // End of Put_val24
 
-static inline void Put_val32(uint32_t v, void *p) {
+static inline void Put_val32(uint32_t v, uint8_t *p) {
     uint8_t *out = (uint8_t *)p;
     type_mask_t mask;
 
@@ -209,7 +216,7 @@ static inline void Put_val32(uint32_t v, void *p) {
 /*
  * not yet used
  *
-static inline void	Put_val40(uint64_t v, void *p) {
+static inline void	Put_val40(uint64_t v, uint8_t *p) {
 uint8_t		*out = (uint8_t *)p;
 type_mask_t mask;
 
@@ -224,7 +231,7 @@ type_mask_t mask;
  *
  */
 
-static inline void Put_val48(uint64_t v, void *p) {
+static inline void Put_val48(uint64_t v, uint8_t *p) {
     uint8_t *out = (uint8_t *)p;
     type_mask_t mask;
 
@@ -241,7 +248,7 @@ static inline void Put_val48(uint64_t v, void *p) {
 /*
  * not yet used
  *
-static inline void	Put_val56(uint64_t v, void *p) {
+static inline void	Put_val56(uint64_t v, uint8_t *p) {
 uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
@@ -258,7 +265,7 @@ type_mask_t mask;
  *
  */
 
-static inline void Put_val64(uint64_t v, void *p) {
+static inline void Put_val64(uint64_t v, uint8_t *p) {
     uint8_t *out = (uint8_t *)p;
     type_mask_t mask;
 

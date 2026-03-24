@@ -43,13 +43,13 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_short.h"
-#include "logging.h"
 #include "util.h"
 
 /* module limited globals */
@@ -67,6 +67,7 @@ int Init_pcapd(int verbose) {
 }  // End of Init_pcapd
 
 static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
+    (void)header;
     const exporter_key_t key = {.version = VERSION_NFDUMP, .id = 0, .ip = fs->ipAddr};
 
     // fast cache
@@ -92,27 +93,29 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
         // key does not exists - create new exporter
         if (!e->in_use) {
             // create new exporter
-            e->key = key;
-            e->packets = 0;
-            e->flows = 0;
-            e->sequence_failure = 0;
-            e->sequence = UINT32_MAX;
-            e->in_use = 1;
+            void *info = calloc(1, sizeof(exporter_info_record_v4_t));
+            if (info == NULL) {
+                LogError("Process_v5: malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                return NULL;
+            }
+
+            // create new exporter
+            *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .in_use = 1, .info = info};
             tab->count++;
 
-            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
-                                               .version = key.version,
-                                               .id = key.id,
-                                               .fill = 0,
-                                               .sysid = 0};
-            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
+            *(e->info) =
+                (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = sizeof(exporter_info_record_v4_t)},
+                                            .version = key.version,
+                                            .id = key.id,
+                                            .sysID = 0};
+            memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
-            e->version.nfd = (exporter_nfd_t){0};
+            e->nfd = (exporter_nfd_t){0};
 
-            FlushInfoExporter(fs, &e->info);
+            // XXX REMOVE FlushInfoExporter(fs, e->info);
 
             char ipstr[INET6_ADDRSTRLEN];
-            LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", e->info.sysid, ipstr, ip128_2_str(&fs->ipAddr, ipstr));
+            LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", e->info->sysID, ipstr, ip128_2_str(&fs->ipAddr, ipstr));
 
             fs->last_key = key;
             fs->last_exp = e;
@@ -133,26 +136,6 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
     return NULL;
 
 }  // End of getExporter
-
-static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
-    size_t recSize = sizeof(recordHeaderV3_t);
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeader + recSize);
-    void *extension = NULL;
-    dbg_printf("Check for extension: %u\n", extensionID);
-    while (extension == NULL && recSize < recordHeader->size) {
-        dbg_printf("Next extension: %u, size: %u\n", elementHeader->type, elementHeader->length);
-        if (elementHeader->type == extensionID) {
-            extension = (void *)elementHeader + sizeof(elementHeader_t);
-        } else {
-            // prevent potential endless loop with buggy record
-            if (elementHeader->length == 0) return NULL;
-            recSize += elementHeader->length;
-            elementHeader = (elementHeader_t *)((void *)recordHeader + recSize);
-        }
-    }
-    return extension;
-
-}  // End of GetExtension
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map pacpd data structure to input buffer
@@ -182,53 +165,54 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     uint32_t numRecords = 0;
     dbg_printf("Process nfd packet: %" PRIu64 ", size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
-    if ((sizeof(nfd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
+    if ((sizeof(nfd_header_t) + sizeof(recordHeaderV4_t)) > size_left) {
         LogError("Process_nfd: Not enough data.");
         return;
     }
 
     // 1st record
-    recordHeaderV3_t *recordHeaderV3 = in_buff + sizeof(nfd_header_t);
+    recordHeaderV4_t *recordHeaderV4 = in_buff + sizeof(nfd_header_t);
     size_left -= sizeof(nfd_header_t);
     do {
         // output buffer size check
-        dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV3->type, recordHeaderV3->size);
+        dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV4->type, recordHeaderV4->size);
         // verify received record.
-        if (VerifyV3Record(recordHeaderV3) == 0) {
+        if (VerifyV4Record(recordHeaderV4) == 0) {
             LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
             return;
         }
 
-        if (recordHeaderV3->size > size_left) {
-            LogError("Process_nfd: record size error. Size v3header: %u > size left: %zd", recordHeaderV3->size, size_left);
+        if (recordHeaderV4->size > size_left) {
+            LogError("Process_nfd: record size error. Size V4header: %u > size left: %zd", recordHeaderV4->size, size_left);
             LogError("Process_nfd: expected %u records, processd: %u", count, numRecords);
             return;
         }
 
-        if (!IsAvailable(fs->dataBlock, recordHeaderV3->size + receivedSize)) {
+        if (!IsAvailable(fs->dataBlock, recordHeaderV4->size + receivedSize)) {
             // flush block - get an empty one
             fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
         }
 
         // copy record
         void *buffPtr = GetCurrentCursor(fs->dataBlock);
-        memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
+        memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
 
         // add router IP at the end of copied record
-        recordHeaderV3_t *copiedV3 = buffPtr;
+        recordHeaderV4_t *copiedV4 = buffPtr;
         // add router IP
 
-        if (GetExtension(recordHeaderV3, EXipReceivedV4ID) == NULL && GetExtension(recordHeaderV3, EXipReceivedV6ID) == NULL) {
+        /* XXX FIX!
+        if (GetExtension(recordHeaderV4, EXipReceivedV4ID) == NULL && GetExtension(recordHeaderV4, EXipReceivedV6ID) == NULL) {
             // no ip received extension
             // push IP received
             if (fs->sa_family == PF_INET6) {
-                PushExtension(copiedV3, EXipReceivedV6, ipReceivedV6);
+                PushExtension(copiedV4, EXipReceivedV6, ipReceivedV6);
                 uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
                 ipReceivedV6->ip[0] = ntohll(ipv6[0]);
                 ipReceivedV6->ip[1] = ntohll(ipv6[1]);
                 dbg_printf("Add IPv6 router IP extension\n");
             } else {
-                PushExtension(copiedV3, EXipReceivedV4, ipReceivedV4);
+                PushExtension(copiedV4, EXipReceivedV4, ipReceivedV4);
                 uint32_t ipv4;
                 memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
                 ipReceivedV4->ip = ntohl(ipv4);
@@ -237,10 +221,11 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         } else {
             dbg_printf("Found existing IP received extension\n");
         }
+        */
 
-        dbg_printf("Record: %u elements, size: %u\n\n", copiedV3->numElements, copiedV3->size);
+        dbg_printf("Record: %u elements, size: %u\n\n", copiedV4->numExtensions, copiedV4->size);
 
-        EXgenericFlow_t *genericFlow = GetExtension(recordHeaderV3, EXgenericFlowID);
+        EXgenericFlow_t *genericFlow = GetExtension(recordHeaderV4, EXgenericFlow);
         if (genericFlow) {
             genericFlow->msecReceived = msecReceived;
 
@@ -278,7 +263,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             fs->stat_record.numpackets += genericFlow->inPackets;
             fs->stat_record.numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
+            uint32_t exporterIdent = MetricExpporterID(recordHeaderV4);
             UpdateMetric(fs->Ident, exporterIdent, genericFlow);
         }
 
@@ -286,19 +271,19 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         exporter->flows++;
 
         if (printRecord) {
-            flow_record_short(stdout, copiedV3);
+            flow_record_short(stdout, copiedV4);
         }
 
         // update size_left
-        size_left -= recordHeaderV3->size;
+        size_left -= recordHeaderV4->size;
 
         // update record block
-        fs->dataBlock->size += copiedV3->size;
+        fs->dataBlock->size += copiedV4->size;
         fs->dataBlock->NumRecords++;
 
         // advance input buffer to next flow record
-        recordHeaderV3 = (recordHeaderV3_t *)((void *)recordHeaderV3 + recordHeaderV3->size);
-    } while (size_left > sizeof(recordHeaderV3_t));
+        recordHeaderV4 = (recordHeaderV4_t *)((void *)recordHeaderV4 + recordHeaderV4->size);
+    } while (size_left > sizeof(recordHeaderV4_t));
 
     if (size_left) LogInfo("Process_nfd(): bytes left in buffer: %zu", size_left);
 
