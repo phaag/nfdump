@@ -177,6 +177,7 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
         bitMap &= bitMap - 1;
 
         uint32_t offset = offsetTable[slot++];
+        // dbg_printf("Extension: %u at offset %u\n", type, offset);
 
         // Offset must be within record
         if (recordBase + offset > eor) {

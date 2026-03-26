@@ -159,13 +159,13 @@ static const struct ipfixTranslationMap_s {
     AddElement(IPFIX_packetTotalCount, SIZEinPackets, MOVE_NUMBER, EXgenericFlowID, OFFinPackets, "input packetTotalCount"),
     AddElement(IPFIX_flowStartMilliseconds, SIZEmsecFirst, MOVE_NUMBER, EXgenericFlowID, OFFmsecFirst, "msec first"),
     AddElement(IPFIX_flowEndMilliseconds, SIZEmsecLast, MOVE_NUMBER, EXgenericFlowID, OFFmsecLast, "msec last"),
-    AddElement(IPFIX_flowStartDeltaMicroseconds, SIZEmsecFirst, 0, EXgenericFlowID, OFFmsecFirst, "delta usec first"),
-    AddElement(IPFIX_flowEndDeltaMicroseconds, SIZEmsecLast, 0, EXgenericFlowID, OFFmsecLast, "delta usec last"),
-    AddElement(IPFIX_flowDurationMilliseconds, 0, 0, EXnull, 0, "duration msec"),
+    AddElement(IPFIX_flowStartDeltaMicroseconds, SIZEmsecFirst, MOVE_IPFIX_USEC, EXgenericFlowID, OFFmsecFirst, "delta usec first"),
+    AddElement(IPFIX_flowEndDeltaMicroseconds, SIZEmsecLast, MOVE_IPFIX_USEC, EXgenericFlowID, OFFmsecLast, "delta usec last"),
+    AddElement(IPFIX_flowDurationMilliseconds, 0, NOP, EXnull, 0, "duration msec"),
     AddElement(IPFIX_postOctetTotalCount, SIZEoutBytes, MOVE_NUMBER, EXcntFlowID, OFFoutBytes, "output octetTotalCount"),
     AddElement(IPFIX_postPacketTotalCount, SIZEoutPackets, MOVE_NUMBER, EXcntFlowID, OFFoutPackets, "output packetTotalCount"),
-    AddElement(IPFIX_engineType, 0, MOVE_NUMBER, EXnull, 0, "engine type"),
-    AddElement(IPFIX_engineId, 0, MOVE_NUMBER, EXnull, 0, "engine ID"),
+    AddElement(IPFIX_engineType, 0, NOP, EXnull, 0, "engine type"),
+    AddElement(IPFIX_engineId, 0, NOP, EXnull, 0, "engine ID"),
     AddElement(NBAR_APPLICATION_ID, SIZEnbarAppID, MOVE_BYTES, EXnbarAppID, OFFnbarAppID, "nbar application ID"),
     AddElement(IPFIX_observationDomainId, SIZEdomainID, MOVE_NUMBER, EXobservationID, OFFdomainID, "observation domainID"),
     AddElement(IPFIX_observationPointId, SIZEpointID, MOVE_NUMBER, EXobservationID, OFFpointID, "observation pointID"),
@@ -199,12 +199,13 @@ static const struct ipfixTranslationMap_s {
     // element ID below LINEAR_MARKER are stored at it's proper index
     // element ID above LINEAR_MARKER are stored linearly at LINEAR_MARKER and above
     // once, element #LINEAR_MARKER-1 gets implemented, this marker shifts
-    AddElement(LINEAR_MARKER - 1, 0, MOVE_NUMBER, 0, 0, "compiler marker"),
+    AddElement(LINEAR_MARKER - 1, 0, NOP, 0, 0, "compiler marker"),
 
     // privat IDs
     AppendElement(LOCAL_IPv4Received, SIZEReceived4IP, MOVE_NUMBER, EXipReceivedV4ID, OFFReceived4IP, "IPv4 exporter"),
     AppendElement(LOCAL_IPv6Received, SIZEReceived6IP, MOVE_NUMBER, EXipReceivedV6ID, OFFReceived6IP, "IPv6 exporter"),
-    AppendElement(LOCAL_msecTimeReceived, SIZEmsecReceived, MOVE_NUMBER, EXgenericFlowID, OFFmsecReceived, "msec time received"),
+    AppendElement(LOCAL_msecTimeReceived, SIZEmsecReceived, MOVE_TIME_RVD, EXgenericFlowID, OFFmsecReceived, "msec time received"),
+
     // payload
     AppendElement(LOCAL_inPayload, VARLENGTH, MOVE_BYTES, EXinPayloadID, 0, "in payload"),
     AppendElement(LOCAL_outPayload, VARLENGTH, MOVE_BYTES, EXoutPayloadID, 0, "out payload"),
@@ -216,7 +217,7 @@ static const struct ipfixTranslationMap_s {
     AppendElement(NOKIA_NatSubString, SIZEnatSubString, MOVE_BYTES, EXnokiaNatStringID, OFFnatSubString, "Nokia nat substring"),
 
     // last element in ipfix translation map
-    AppendElement(65535, 0, 0, 0, 0, NULL),
+    AppendElement(0, 0, NOP, 0, 0, NULL),
 
 };
 
@@ -901,57 +902,6 @@ static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flow
 
 }  // End of Process_ipfix_templates
 
-static inline unsigned SetTransform(pipelineInstr_t *instr, pipelineInstr_t *prev, uint16_t type, uint16_t inLength, uint16_t EnterpriseNumber) {
-    int index = LookupElement(type, EnterpriseNumber);
-    if (index < 0) {  // not found - enter skip sequence
-        if ((EnterpriseNumber == 0) && (type == IPFIX_subTemplateList || type == IPFIX_subTemplateMultiList)) {
-            // Add sub template call
-            *instr = (pipelineInstr_t){
-                // XXX FIX!
-                .type = type,
-            };
-            dbg_printf(" Add sequence for sub template type: %u, enterprise: %u, length: %u\n", type, EnterpriseNumber, inLength);
-            return 1;
-        } else {
-            // not found - add skip sequence
-            // var length skip cannot be stacked
-            if (inLength != VARLENGTH && prev && prev->transform == SKIP_INPUT) {
-                // compact multiple skip instructions
-                prev->inLength += inLength;
-                dbg_printf("Add %u bytes to previous skip instruction\n", inLength);
-            } else {
-                *instr = (pipelineInstr_t){
-                    .transform = SKIP_INPUT,
-                    .type = type,
-                    .inLength = inLength,
-                };
-                dbg_printf("Skip unknown element type: %u, length: %u\n", type, inLength);
-            }
-
-            return 0;
-        }
-
-    } else {
-        *instr = (pipelineInstr_t){
-            .type = type,
-            .inLength = inLength,
-            .extID = ipfixTranslationMap[index].extensionID,
-            .dstOffset = ipfixTranslationMap[index].offsetRel,
-            .transform = ipfixTranslationMap[index].transform,
-            .outLength = ipfixTranslationMap[index].outputLength,
-        };
-
-        dbg_printf(" Map type: %u, length: %u to Extension %u - '%s' - output length: %u, transform: %s\n", ipfixTranslationMap[index].id, inLength,
-                   ipfixTranslationMap[index].extensionID, ipfixTranslationMap[index].name, ipfixTranslationMap[index].outputLength,
-                   trTable[ipfixTranslationMap[index].transform].trName);
-        return 1;
-    }
-
-    // unreached
-    return 0;
-
-}  // End of SetTransform
-
 static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const uint8_t *DataPtr, uint32_t size_left, FlowSource_t *fs) {
     ipfix_template_record_t *ipfix_template_record;
     ipfix_template_elements_std_t *NextElement;
@@ -985,7 +935,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
         }
 
         // temp instruction array
-        pipelineInstr_t instruction[2 * count];
+        pipelineInstr_t instruction[2 * count + 2];
         memset(instruction, 0, sizeof(instruction));
         pipelineInstr_t *instr = instruction;
         pipelineInstr_t *prev = NULL;
@@ -994,6 +944,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
         // process all elements in this record
         NextElement = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
         for (int i = 0; i < (int)count; i++) {
+            dbg_assert((instr - instruction) < (count + 2));
             uint16_t type = ntohs(NextElement->Type);
             uint16_t inLength = ntohs(NextElement->Length);
             int Enterprise = type & 0x8000 ? 1 : 0;
@@ -1023,14 +974,56 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
                 NextElement++;
             }
 
-            if (SetTransform(instr, prev, type, inLength, EnterpriseNumber)) {
+            int index = LookupElement(type, EnterpriseNumber);
+            if (index < 0) {  // not found - enter skip sequence
+                if ((EnterpriseNumber == 0) && (type == IPFIX_subTemplateList || type == IPFIX_subTemplateMultiList)) {
+                    dbg_printf("Fix sub template processing!\n");
+                    // Add sub template call
+                    *instr = (pipelineInstr_t){
+                        // XXX FIX!
+                        .type = type,
+                    };
+                    dbg_printf(" Add sequence for sub template type: %u, enterprise: %u, length: %u\n", type, EnterpriseNumber, inLength);
+                } else {
+                    // not found - add skip sequence
+                    // var length skip cannot be stacked
+                    if (inLength != VARLENGTH && prev && prev->transform == SKIP_INPUT) {
+                        // compact multiple skip instructions
+                        prev->inLength += inLength;
+                        dbg_printf("Add %u bytes to previous skip instruction\n", inLength);
+                        continue;
+                    } else {
+                        *instr = (pipelineInstr_t){
+                            .transform = SKIP_INPUT,
+                            .type = type,
+                            .inLength = inLength,
+                        };
+                        dbg_printf("Skip unknown element type: %u, length: %u\n", type, inLength);
+                    }
+                }
+
+            } else {
+                *instr = (pipelineInstr_t){
+                    .type = type,
+                    .inLength = inLength,
+                    .extID = ipfixTranslationMap[index].extensionID,
+                    .dstOffset = ipfixTranslationMap[index].offsetRel,
+                    .transform = ipfixTranslationMap[index].transform,
+                    .outLength = ipfixTranslationMap[index].outputLength,
+                };
+
+                dbg_printf(" Map type: %s(%u), inLen: %u, Ext: %s(%u), outLen: %u, transform: %s\n", ipfixTranslationMap[index].name,
+                           ipfixTranslationMap[index].id, inLength, extensionTable[ipfixTranslationMap[index].extensionID].name,
+                           ipfixTranslationMap[index].extensionID, ipfixTranslationMap[index].outputLength,
+                           trTable[ipfixTranslationMap[index].transform].trName);
                 commonFound++;
             }
+
             prev = instr;
             instr++;
         }
 
-        dbg_printf("Processed: %u, common found: %u\n", size_required, commonFound);
+        dbg_printf("Processed bytes: %u, common found: %u\n", size_required, commonFound);
         if (commonFound == 0) {
             size_left -= size_required;
             DataPtr = DataPtr + size_required + 4;  // +4 for header
@@ -1049,6 +1042,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
             dbg_printf("Map type: receivedV6, length: 16 to Extension %u - '%s' - output length: %lu\n", EXipReceivedV6ID,
                        extensionTable[EXipReceivedV6ID].name, SIZEReceived6IP);
         }
+
         if (fs->sa_family == PF_INET && ExtensionsEnabled[EXipReceivedV4ID]) {
             *instr++ = (pipelineInstr_t){
                 .transform = MOVE_IPV4_RVD,
@@ -1060,6 +1054,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
                        extensionTable[EXipReceivedV4ID].name, SIZEReceived4IP);
         }
 
+        dbg_assert((instr - instruction) < (count + 2));
         int index = LookupElement(LOCAL_msecTimeReceived, 0);
         *instr++ = (pipelineInstr_t){
             .type = ipfixTranslationMap[index].id,
@@ -1073,6 +1068,8 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
                    ipfixTranslationMap[index].extensionID, ipfixTranslationMap[index].name, ipfixTranslationMap[index].outputLength);
 
         uint32_t cnt = instr - instruction;
+        dbg_printf("Total instructions: %u, template count: %u\n", cnt, count);
+
         pipeline_t *pipeline = PipelineCompile(instruction, id, cnt);
         if (!pipeline) {
             LogError("Process_ipfix: PipelineCompile() failed");
@@ -1446,6 +1443,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
     // general runtime parameters for pipiling processor, common for all flows
     pipelineRuntime_t runtime = {.SysUptime = exporter_ipfix->SysUpTime,
                                  .unix_secs = 0,
+                                 .secExported = ExportTime,
                                  .ipReceived = fs->ipAddr,
                                  .msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL)};
 
@@ -1528,7 +1526,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     LogError("Process_ipfix: pipeline runtime error. Skip v9 record processing");
                     break;
                 default:
-                    dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %zu\n", recordHeaderV4->numExtensions,
+                    dbg_printf("New record added with %u elements and size: %u, processed inLength: %zu\n", recordHeaderV4->numExtensions,
                                recordHeaderV4->size, processed);
             }
 

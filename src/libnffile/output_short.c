@@ -98,11 +98,11 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
     }
 
     fprintf(stream,
-            "  first        =     %13llu [%s.%03llu]\n"
-            "  last         =     %13llu [%s.%03llu]\n"
-            "  received at  =     %13llu [%s.%03llu]\n"
-            "  proto        =               %3u %s\n"
-            "  tcp flags    =              0x%.2x %s\n",
+            "  first        =      %13llu [%s.%03llu]\n"
+            "  last         =      %13llu [%s.%03llu]\n"
+            "  received at  =      %13llu [%s.%03llu]\n"
+            "  proto        =                %3u %s\n"
+            "  tcp flags    =               0x%.2x %s\n",
             (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % 1000LL, (long long unsigned)genericFlow->msecLast,
             datestr2, genericFlow->msecLast % 1000LL, (long long unsigned)genericFlow->msecReceived, datestr3,
             (long long unsigned)genericFlow->msecReceived % 1000L, genericFlow->proto, ProtoString(genericFlow->proto, 0),
@@ -113,15 +113,15 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
         fprintf(stream, "  ICMP         =              %2u.%-2u type.code\n", genericFlow->icmpType, genericFlow->icmpCode);
     } else {
         fprintf(stream,
-                "  src port     =             %5u\n"
-                "  dst port     =             %5u\n"
-                "  src tos      =               %3u\n",
+                "  src port     =              %5u\n"
+                "  dst port     =              %5u\n"
+                "  src tos      =                %3u\n",
                 genericFlow->srcPort, genericFlow->dstPort, genericFlow->srcTos);
     }
 
     fprintf(stream,
-            "  in packets   =        %10llu\n"
-            "  in bytes     =        %10llu\n",
+            "  in packets   =         %10llu\n"
+            "  in bytes     =         %10llu\n",
             (unsigned long long)genericFlow->inPackets, (unsigned long long)genericFlow->inBytes);
 
 }  // End of EXgenericFlowID
@@ -138,8 +138,8 @@ static void stringsEXipv4Flow(FILE *stream, uint8_t *extension) {
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
     fprintf(stream,
-            "  src addr     =  %16s\n"
-            "  dst addr     =  %16s\n",
+            "  src addr     =   %16s\n"
+            "  dst addr     =   %16s\n",
             as, ds);
 
 }  // End of stringsEXipv4Flow
@@ -159,8 +159,8 @@ static void stringsEXipv6Flow(FILE *stream, uint8_t *extension) {
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
     fprintf(stream,
-            "  src addr     =  %16s\n"
-            "  dst addr     =  %16s\n",
+            "  src addr     =   %16s\n"
+            "  dst addr     =   %16s\n",
             as, ds);
 
 }  // End of stringsEXipv6Flow
@@ -170,8 +170,8 @@ static void stringsEXinterface(FILE *stream, uint8_t *extension) {
 
     EXinterface_t *interface = (EXinterface_t *)extension;
     fprintf(stream,
-            "  input        =          %8u\n"
-            "  output       =          %8u\n",
+            "  input        =           %8u\n"
+            "  output       =           %8u\n",
             interface->input, interface->output);
 
 }  // End of stringsEXinterface
@@ -181,12 +181,12 @@ static void stringsEXflowMisc(FILE *stream, uint8_t *extension) {
 
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)extension;
     fprintf(stream,
-            "  src mask     =             %5u\n"
-            "  dst mask     =             %5u\n"
-            "  dst tos      =               %3u\n"
-            "  direction    =               %3u\n"
-            "  biFlow Dir   =              0x%.2x\n"
-            "  end reason   =              0x%.2x\n",
+            "  src mask     =              %5u\n"
+            "  dst mask     =              %5u\n"
+            "  dst tos      =                %3u\n"
+            "  direction    =                %3u\n"
+            "  biFlow Dir   =               0x%.2x\n"
+            "  end reason   =               0x%.2x\n",
             flowMisc->srcMask, flowMisc->dstMask, flowMisc->dstTos, flowMisc->direction, flowMisc->biFlowDir, flowMisc->flowEndReason);
 
 }  // End of stringsEXflowMisc
@@ -196,9 +196,9 @@ static void stringsEXcntFlow(FILE *stream, uint8_t *extension) {
 
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)extension;
     fprintf(stream,
-            "  out packets  =        %10llu\n"
-            "  out bytes    =        %10llu\n"
-            "  aggr flows   =        %10llu\n",
+            "  out packets  =         %10llu\n"
+            "  out bytes    =         %10llu\n"
+            "  aggr flows   =         %10llu\n",
             (long long unsigned)cntFlow->outPackets, (long long unsigned)cntFlow->outBytes, (long long unsigned)cntFlow->flows);
 
 }  // End of stringEXcntFlow
@@ -208,8 +208,8 @@ static void stringsEXvLan(FILE *stream, uint8_t *extension) {
 
     EXvLan_t *vLan = (EXvLan_t *)extension;
     fprintf(stream,
-            "  src vlan     =             %5u\n"
-            "  dst vlan     =             %5u\n",
+            "  src vlan     =              %5u\n"
+            "  dst vlan     =              %5u\n",
             vLan->srcVlan, vLan->dstVlan);
 
 }  // End of stringsEXvLan
@@ -219,8 +219,8 @@ static void stringsEXasInfo(FILE *stream, uint8_t *extension) {
 
     EXasInfo_t *asInfo = (EXasInfo_t *)extension;
     fprintf(stream,
-            "  src as       =             %5u\n"
-            "  dst as       =             %5u\n",
+            "  src as       =              %5u\n"
+            "  dst as       =              %5u\n",
             asInfo->srcAS, asInfo->dstAS);
 
 }  // End of stringsEXasInfo
@@ -237,8 +237,8 @@ static void stringsEXasRoutingV4(FILE *stream, uint8_t *extension) {
     inet_ntop(AF_INET, &ip, bgpNextIP, sizeof(bgpNextIP));
 
     fprintf(stream,
-            "  ip next hop  =  %16s\n"
-            "  bgp next hop =  %16s\n",
+            "  ip next hop  =   %16s\n"
+            "  bgp next hop =   %16s\n",
             nextIP, bgpNextIP);
 
 }  // End of stringsEXasRoutingV4
@@ -258,11 +258,40 @@ static void stringsEXasRoutingV6(FILE *stream, uint8_t *extension) {
     inet_ntop(AF_INET6, ip, bgpNextIP, sizeof(bgpNextIP));
 
     fprintf(stream,
-            "  ip next hop  =  %16s\n"
-            "  bgp next hop =  %16s\n",
+            "  ip next hop  =   %16s\n"
+            "  bgp next hop =   %16s\n",
             nextIP, bgpNextIP);
 
 }  // End of stringsEXasRoutingV6
+
+static void stringsEXinMacAddr(FILE *stream, uint8_t *extensionRecord) {
+    EXinMacAddr_t *macAddr = (EXinMacAddr_t *)extensionRecord;
+
+    uint8_t *mac1 = (uint8_t *)&macAddr->inSrcMac;
+    uint8_t *mac2 = (uint8_t *)&macAddr->outDstMac;
+
+    fprintf(stream,
+            "  in src mac   =  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n"
+            "  out dst mac  =  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n",
+            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
+
+}  // End of stringsEXinMacAddr
+
+static void stringsEXoutMacAddr(FILE *stream, uint8_t *extensionRecord) {
+    EXoutMacAddr_t *macAddr = (EXoutMacAddr_t *)extensionRecord;
+    uint8_t mac1[6], mac2[6];
+
+    for (int i = 0; i < 6; i++) {
+        mac1[i] = (macAddr->inDstMac >> (i * 8)) & 0xFF;
+        mac2[i] = (macAddr->outSrcMac >> (i * 8)) & 0xFF;
+    }
+
+    fprintf(stream,
+            "  in dst mac   =  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n"
+            "  out src mac  =  %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n",
+            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
+
+}  // End of stringsEXoutMacAddr
 
 static void stringsEXipReceivedV4(FILE *stream, uint8_t *extension) {
     if (!extension) return;
@@ -272,7 +301,7 @@ static void stringsEXipReceivedV4(FILE *stream, uint8_t *extension) {
     uint32_t ip = htonl(ipReceivedV4->ip);
     inet_ntop(AF_INET, &ip, ipStr, sizeof(ipStr));
 
-    fprintf(stream, "  ip exporter  =  %16s\n", ipStr);
+    fprintf(stream, "  ip exporter  =   %16s\n", ipStr);
 
 }  // End of stringsEXipReceivedV4
 
@@ -286,9 +315,18 @@ static void stringsEXipReceivedV6(FILE *stream, uint8_t *extension) {
     ip[1] = htonll(ipReceivedV6->ip[1]);
     inet_ntop(AF_INET6, ip, ipStr, sizeof(ipStr));
 
-    fprintf(stream, "  ip exporter  =  %16s\n", ipStr);
+    fprintf(stream, "  ip exporter  =   %16s\n", ipStr);
 
 }  // End of stringsEXipReceivedV6
+
+static void stringsEXobservation(FILE *stream, uint8_t *extensionRecord) {
+    EXobservation_t *observation = (EXobservation_t *)extensionRecord;
+    fprintf(stream,
+            "  obs domainID =            0x%05llx\n"
+            "  obs pointID  =       0x%010llx\n",
+            (long long unsigned)observation->domainID, (long long unsigned)observation->pointID);
+
+}  // End of stringsEXobservation
 
 static void stringsEXinPayload(FILE *stream, uint8_t *extension) {
     if (!extension) return;
@@ -325,6 +363,9 @@ static const funcPrintRecord_t funcPrintRecord[MAXEXTENSIONS] = {
     [EXipReceivedV6ID] = stringsEXipReceivedV6,
     [EXinPayloadID] = stringsEXinPayload,
     [EXoutPayloadID] = stringsEXoutPayload,
+    [EXinMacAddrID] = stringsEXinMacAddr,
+    [EXoutMacAddrID] = stringsEXoutMacAddr,
+    [EXobservationID] = stringsEXobservation,
 };
 
 void flow_record_short(FILE *stream, recordHeaderV4_t *recordHeaderV4) {
@@ -345,6 +386,7 @@ void flow_record_short(FILE *stream, recordHeaderV4_t *recordHeaderV4) {
 
     // Generate extension string
     uint64_t bitMap = recordHeaderV4->extBitmap;
+    dbg_assert(recordHeaderV4->numExtensions != 0);
     char elementString[recordHeaderV4->numExtensions * 5];
     elementString[0] = '\0';
     while (bitMap) {
@@ -380,12 +422,12 @@ void flow_record_short(FILE *stream, recordHeaderV4_t *recordHeaderV4) {
     fprintf(stream,
             "\n"
             "Flow Record: \n"
-            "  Flags        =              0x%.2x %s%s%s, %s\n"
-            "  Elements     =             %5u: %s\n"
-            "  size         =             %5u\n"
-            "  engine type  =             %5u\n"
-            "  engine ID    =             %5u\n"
-            "  export sysid =             %5u\n",
+            "  Flags        =               0x%.2x %s%s%s, %s\n"
+            "  Elements     =              %5u: %s\n"
+            "  size         =              %5u\n"
+            "  engine type  =              %5u\n"
+            "  engine ID    =              %5u\n"
+            "  export sysid =              %5u\n",
             recordHeaderV4->flags, type, version, TestFlag(recordHeaderV4->flags, V4_FLAG_ANON) ? " Anonymized" : "",
             TestFlag(recordHeaderV4->flags, V4_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV4->numExtensions, elementString,
             recordHeaderV4->size, recordHeaderV4->engineType, recordHeaderV4->engineID, recordHeaderV4->exporterID);
@@ -398,10 +440,7 @@ void flow_record_short(FILE *stream, recordHeaderV4_t *recordHeaderV4) {
         uint32_t type = __builtin_ctzll(bitMap);
         bitMap &= bitMap - 1;
 
-        // uint32_t slot = __builtin_popcountll(recordHeaderV4->extBitmap & ((1ULL << type) - 1));
-
         ptrdiff_t offset = offsetTable[slot++];
-        dbg_printf("Extension: %u at offset: %u\n", type, offset);
         uint8_t *extension = recordBase + offset;
         if (funcPrintRecord[type]) funcPrintRecord[type](stream, extension);
     }

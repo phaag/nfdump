@@ -739,22 +739,23 @@ static const struct extensionTable_s {
 
 #define BitMapSet(map, id) (map |= (1ULL << (id)))
 
-#define TRANSFORM_LIST(TR)                                                        \
-    TR(NOP)             /* no transformation */                                   \
-    TR(SKIP_INPUT)      /* skip input */                                          \
-    TR(RESERVE)         /* add offset entry to offset table */                    \
-    TR(MOVE_NUMBER)     /* endian aware copy input/output*/                       \
-    TR(MOVE_BYTES)      /* byte copy */                                           \
-    TR(MOVE_IPV6)       /* endian aware copy of IPv6 128bit addr */               \
-    TR(MOVE_V9_TIME)    /* msec time with v9 header Sysup and UNIX time */        \
-    TR(MOVE_IPFIX_TIME) /* msec time with sysuptimemsec #160 */                   \
-    TR(MOVE_SYSUP)      /* move sysuptime #160 into runtime sysuptime */          \
-    TR(MOVE_TIMESEC)    /* time in sec */                                         \
-    TR(MOVE_IPV4_RVD)   /* add IPv4 received from runtime*/                       \
-    TR(MOVE_IPV6_RVD)   /* add IPv6 received from runtime*/                       \
-    TR(MOVE_TIME_RVD)   /* add time received from runtime*/                       \
-    TR(REGISTER_0)      /* copy to runtime register 0 instead of output stream */ \
-    TR(REGISTER_1)      /* copy to runtime register 1 instead of output stream */ \
+#define TRANSFORM_LIST(TR)                                                             \
+    TR(NOP)             /* no transformation */                                        \
+    TR(SKIP_INPUT)      /* skip input */                                               \
+    TR(RESERVE)         /* add offset entry to offset table */                         \
+    TR(MOVE_NUMBER)     /* endian aware copy input/output*/                            \
+    TR(MOVE_BYTES)      /* byte copy */                                                \
+    TR(MOVE_IPV6)       /* endian aware copy of IPv6 128bit addr */                    \
+    TR(MOVE_V9_TIME)    /* msec time with v9 header Sysup and UNIX time */             \
+    TR(MOVE_IPFIX_TIME) /* msec time of #21, #22 with sysuptimemsec #160 */            \
+    TR(MOVE_IPFIX_USEC) /* negative usec time of  #158, #159 to header export time  */ \
+    TR(MOVE_SYSUP)      /* move sysuptime #160 into runtime sysuptime */               \
+    TR(MOVE_TIMESEC)    /* time in sec */                                              \
+    TR(MOVE_IPV4_RVD)   /* add IPv4 received from runtime*/                            \
+    TR(MOVE_IPV6_RVD)   /* add IPv6 received from runtime*/                            \
+    TR(MOVE_TIME_RVD)   /* add time received from runtime*/                            \
+    TR(REGISTER_0)      /* copy to runtime register 0 instead of output stream */      \
+    TR(REGISTER_1)      /* copy to runtime register 1 instead of output stream */      \
     TR(REGISTER_2 /* copy to runtime register 2 instead of output stream */)
 
 // generate enum
@@ -775,38 +776,40 @@ static const struct trTable_s {
 #undef AS_TABLE
 };
 
-#define PIPELINE_OP_LIST(OP)                                                                  \
-    OP(OP_NULL)            /* NULL */                                                         \
-    OP(OP_COPY_1)          /* Copy 1 byte */                                                  \
-    OP(OP_COPY_BE_2)       /* Copy 2 bytes byte-endian */                                     \
-    OP(OP_COPY_BE_4)       /* Copy 4 bytes byte-endian */                                     \
-    OP(OP_COPY_BE_8)       /* Copy 8 bytes byte-endian */                                     \
-    OP(OP_COPY_BE_2_4)     /* Copy 2 bytes byte-endian into 4 byte destination */             \
-    OP(OP_COPY_BE_4_8)     /* Copy 4 bytes byte-endian into 8 byte destination */             \
-    OP(OP_COPY_16)         /* copy 16 bytes byte stream */                                    \
-    OP(OP_COPY_IPV6)       /* copy 16 bytes IPv6 addr */                                      \
-    OP(OP_ALLOC_EXT)       /* allocate slot in offset table for extension */                  \
-    OP(OP_COPY_N)          /* copy N bytes byte stream */                                     \
-    OP(OP_COPY_VAR)        /* copy var length elements */                                     \
-    OP(OP_COPY_V9_TIME)    /* copy 4bytes v9 time stamps and add v9 header sysup/unix time */ \
-    OP(OP_COPY_SYSUP_TIME) /* copy 8 bytes sysup time into runtime */                         \
-    OP(OP_COPY_IPV4_RVD)   /* copy 4bytes IPv4 received from runtime */                       \
-    OP(OP_COPY_IPV6_RVD)   /* copy 16bytes IPv6 received from runtime */                      \
-    OP(OP_COPY_TIME_RVD)   /* copy time received from runtime */                              \
-    OP(OP_SKIP)            /* skip fixed input bytes */                                       \
-    OP(OP_SKIP_VAR)        /* skip var length input bytes */                                  \
-    OP(OP_INIT)            /* init space for extension, added later */                        \
-    OP(OP_CALL)            /* call sub template pipeline, */                                  \
-    OP(OP_ADD_8)           /* add with argument in instruction */                             \
-    OP(OP_ADD_SYSUP)       /* add with sysUptime in runtime */                                \
-    OP(OP_MUL_8)           /* multiply with argument in instruction */                        \
-    OP(OP_LOAD_1)          /* load 1 byte into tmp register */                                \
-    OP(OP_LOAD_2)          /* load 2 byte into tmp register */                                \
-    OP(OP_LOAD_4)          /* load 4 byte into tmp register */                                \
-    OP(OP_LOAD_8)          /* load 8 byte into tmp register */                                \
-    OP(OP_STORE_0)         /* store temp register into runtime register 0 */                  \
-    OP(OP_STORE_1)         /* store temp register into runtime register 1 */                  \
-    OP(OP_STORE_2)         /* store temp register into runtime register 2 */                  \
+#define PIPELINE_OP_LIST(OP)                                                                   \
+    OP(OP_NULL)            /* NULL */                                                          \
+    OP(OP_COPY_1)          /* Copy 1 byte */                                                   \
+    OP(OP_COPY_BE_2)       /* Copy 2 bytes byte-endian */                                      \
+    OP(OP_COPY_BE_4)       /* Copy 4 bytes byte-endian */                                      \
+    OP(OP_COPY_BE_8)       /* Copy 8 bytes byte-endian */                                      \
+    OP(OP_COPY_BE_2_4)     /* Copy 2 bytes byte-endian into 4 byte destination */              \
+    OP(OP_COPY_BE_4_8)     /* Copy 4 bytes byte-endian into 8 byte destination */              \
+    OP(OP_COPY_BE_6_8)     /* Copy 6 bytes byte-endian into 8 byte destination */              \
+    OP(OP_COPY_16)         /* copy 16 bytes byte stream */                                     \
+    OP(OP_COPY_IPV6)       /* copy 16 bytes IPv6 addr */                                       \
+    OP(OP_ALLOC_EXT)       /* allocate slot in offset table for extension */                   \
+    OP(OP_COPY_N)          /* copy N bytes byte stream */                                      \
+    OP(OP_COPY_VAR)        /* copy var length elements */                                      \
+    OP(OP_COPY_V9_TIME)    /* copy 4 bytes v9 time stamps and add v9 header sysup/unix time */ \
+    OP(OP_COPY_IPFIX_USEC) /* copy 4 bytes time stamps offset to header export time */         \
+    OP(OP_COPY_SYSUP_TIME) /* copy 8 bytes sysup time into runtime */                          \
+    OP(OP_COPY_IPV4_RVD)   /* copy 4bytes IPv4 received from runtime */                        \
+    OP(OP_COPY_IPV6_RVD)   /* copy 16bytes IPv6 received from runtime */                       \
+    OP(OP_COPY_TIME_RVD)   /* copy time received from runtime */                               \
+    OP(OP_SKIP)            /* skip fixed input bytes */                                        \
+    OP(OP_SKIP_VAR)        /* skip var length input bytes */                                   \
+    OP(OP_INIT)            /* init space for extension, added later */                         \
+    OP(OP_CALL)            /* call sub template pipeline, */                                   \
+    OP(OP_ADD_8)           /* add with argument in instruction */                              \
+    OP(OP_ADD_SYSUP)       /* add with sysUptime in runtime */                                 \
+    OP(OP_MUL_8)           /* multiply with argument in instruction */                         \
+    OP(OP_LOAD_1)          /* load 1 byte into tmp register */                                 \
+    OP(OP_LOAD_2)          /* load 2 byte into tmp register */                                 \
+    OP(OP_LOAD_4)          /* load 4 byte into tmp register */                                 \
+    OP(OP_LOAD_8)          /* load 8 byte into tmp register */                                 \
+    OP(OP_STORE_0)         /* store temp register into runtime register 0 */                   \
+    OP(OP_STORE_1)         /* store temp register into runtime register 1 */                   \
+    OP(OP_STORE_2)         /* store temp register into runtime register 2 */                   \
     OP(OP_END)             /* end of pipeline processing */
 
 typedef enum {
@@ -859,9 +862,9 @@ typedef struct pipeline_s {
 
 typedef struct pipelineRuntime_s {
     // input to pipeline
-    uint64_t SysUptime;  // Time in milliseconds since this device was first booted
-    uint32_t unix_secs;  // UNIX seconds
-    uint32_t unused;
+    uint64_t SysUptime;     // Time in milliseconds since this device was first booted
+    uint32_t unix_secs;     // UNIX seconds
+    uint32_t secExported;   // ipfix header tme exported
     ip128_t ipReceived;     // points to ip128_t from flowsource
     uint64_t msecReceived;  // time msec packet received
 

@@ -972,7 +972,6 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
 
         ptrdiff_t offset = offsetTable[slot++];
         uint8_t *extension = recordBase + offset;
-        dbg_printf("Extension: %u at offset: %td\n", type, offset);
 
         switch (type) {
             case EXnull:

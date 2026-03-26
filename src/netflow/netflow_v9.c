@@ -151,9 +151,9 @@ static const struct v9TranslationMap_s {
     AddElement(NF9_OUT_SRC_MAC, SIZEoutSrcMac, MOVE_NUMBER, EXoutMacAddrID, OFFoutSrcMac, "out src MAC addr"),
     AddElement(NF_F_FLOW_CREATE_TIME_MSEC, SIZEmsecFirst, MOVE_NUMBER, EXgenericFlowID, OFFmsecFirst, "msec first"),
     AddElement(NF_F_FLOW_END_TIME_MSEC, SIZEmsecLast, MOVE_NUMBER, EXgenericFlowID, OFFmsecLast, "msec last"),
-    AddElement(SystemInitTimeMiliseconds, 0, MOVE_NUMBER, EXnull, 0, "SysupTime msec"),
-    AddElement(NF9_ENGINE_TYPE, 0, MOVE_NUMBER, EXnull, 0, "engine type"),
-    AddElement(NF9_ENGINE_ID, 0, MOVE_NUMBER, EXnull, 0, "engine ID"),
+    AddElement(SystemInitTimeMiliseconds, 0, MOVE_SYSUP, EXnull, 0, "SysupTime msec"),
+    AddElement(NF9_ENGINE_TYPE, 0, NOP, EXnull, 0, "engine type"),
+    AddElement(NF9_ENGINE_ID, 0, NOP, EXnull, 0, "engine ID"),
     AddElement(NF9_ETHERTYPE, SIZEetherType, MOVE_NUMBER, EXlayer2ID, OFFetherType, "ethertype"),
 
     // NSEL extensions
@@ -194,7 +194,7 @@ static const struct v9TranslationMap_s {
     // element ID below LINEAR_MARKER are stored at it's proper index
     // element ID above LINEAR_MARKER are stored linearly at LINEAR_MARKER and above
     // once, element #LINEAR_MARKER-1 gets implemented, this marker shifts
-    AddElement(LINEAR_MARKER - 1, 0, MOVE_NUMBER, 0, 0, "compiler marker"),
+    AddElement(LINEAR_MARKER - 1, 0, NOP, 0, 0, "compiler marker"),
 
     // privat IDs
     AppendElement(LOCAL_IPv4Received, SIZEReceived4IP, MOVE_NUMBER, EXipReceivedV4ID, OFFReceived4IP, "IPv4 exporter"),
@@ -213,7 +213,7 @@ static const struct v9TranslationMap_s {
     AppendElement(NF_F_USERNAME, SIZEusername, MOVE_NUMBER, EXnselUserID, OFFusername, "AAA username"),
 
     // last element in v9 translation map
-    AppendElement(65535, 0, 0, 0, 0, NULL),
+    AppendElement(0, 0, NOP, 0, 0, NULL),
 
 };
 
@@ -837,7 +837,7 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
         }
 
         // temp instruction array
-        pipelineInstr_t instruction[2 * count];  // +2 for IP received, time received
+        pipelineInstr_t instruction[count + 2];  // +2 for IP received, time received
         memset(instruction, 0, sizeof(instruction));
         pipelineInstr_t *instr = instruction;
         pipelineInstr_t *prev = NULL;
@@ -1236,6 +1236,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
     // general runtime parameters for pipiling processor, common for all flows
     pipelineRuntime_t runtime = {.SysUptime = exporter_v9->sysUptime,
                                  .unix_secs = exporter_v9->unix_secs,
+                                 .secExported = 0,
                                  .ipReceived = fs->ipAddr,
                                  .msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL)};
 
@@ -1318,7 +1319,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                     LogError("Process_v9: pipeline runtime error. Skip v9 record processing");
                     break;
                 default:
-                    dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %zu\n", recordHeaderV4->numExtensions,
+                    dbg_printf("New record added with %u elements and size: %u, processed inLength: %zu\n", recordHeaderV4->numExtensions,
                                recordHeaderV4->size, processed);
             }
             // process < 0 means error pipeline processing
