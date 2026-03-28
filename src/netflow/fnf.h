@@ -49,8 +49,8 @@ typedef struct template_s {
 #define IFNAME_TEMPLATE 8
 #define VRFNAME_TEMPLATE 16
 #define SYSUPTIME_TEMPLATE 32
-    uint32_t type;  // template type
-    void *data;     // pipeline sequencer or option template
+    uint16_t type;           // template type
+    void *data;              // pipeline sequencer or option template
 } template_t;
 
 typedef struct optionTag_s {

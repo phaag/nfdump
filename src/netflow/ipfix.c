@@ -977,13 +977,9 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
             int index = LookupElement(type, EnterpriseNumber);
             if (index < 0) {  // not found - enter skip sequence
                 if ((EnterpriseNumber == 0) && (type == IPFIX_subTemplateList || type == IPFIX_subTemplateMultiList)) {
-                    dbg_printf("Fix sub template processing!\n");
-                    // Add sub template call
-                    *instr = (pipelineInstr_t){
-                        // XXX FIX!
-                        .type = type,
-                    };
-                    dbg_printf(" Add sequence for sub template type: %u, enterprise: %u, length: %u\n", type, EnterpriseNumber, inLength);
+                    // Sub-template IEs (RFC 6313) — skip content at runtime
+                    *instr = (pipelineInstr_t){.transform = SUBTEMPLATE, .type = type, .inLength = inLength};
+                    dbg_printf(" Skip sub template type: %u, enterprise: %u, length: %u\n", type, EnterpriseNumber, inLength);
                 } else {
                     // not found - add skip sequence
                     // var length skip cannot be stacked

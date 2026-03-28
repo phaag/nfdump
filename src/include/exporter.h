@@ -298,11 +298,10 @@ typedef struct exporter_ipfix_s {
     template_t *lastTemplate;  // cache last template pointer
 
     // list of all templates of this exporter
+    template_t *template;
     uint32_t templateCount;     // number of templates in list
     uint32_t templateCapacity;  // max available space in list
     uint32_t templateDeleted;   // number of templates deleted in list
-    template_t *template;
-
 } exporter_ipfix_t;
 
 typedef struct exporter_nfd_s {

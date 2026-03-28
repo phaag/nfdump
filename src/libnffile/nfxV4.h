@@ -756,7 +756,8 @@ static const struct extensionTable_s {
     TR(MOVE_TIME_RVD)   /* add time received from runtime*/                            \
     TR(REGISTER_0)      /* copy to runtime register 0 instead of output stream */      \
     TR(REGISTER_1)      /* copy to runtime register 1 instead of output stream */      \
-    TR(REGISTER_2 /* copy to runtime register 2 instead of output stream */)
+    TR(REGISTER_2)      /* copy to runtime register 2 instead of output stream */      \
+    TR(SUBTEMPLATE)     /* process sub template */
 
 // generate enum
 typedef enum {
@@ -799,7 +800,7 @@ static const struct trTable_s {
     OP(OP_SKIP)            /* skip fixed input bytes */                                        \
     OP(OP_SKIP_VAR)        /* skip var length input bytes */                                   \
     OP(OP_INIT)            /* init space for extension, added later */                         \
-    OP(OP_CALL)            /* call sub template pipeline, */                                   \
+    OP(OP_CALL)            /* reserved - unused */                                             \
     OP(OP_ADD_8)           /* add with argument in instruction */                              \
     OP(OP_ADD_SYSUP)       /* add with sysUptime in runtime */                                 \
     OP(OP_MUL_8)           /* multiply with argument in instruction */                         \
@@ -880,7 +881,8 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
 #define PIP_ERR_SHORT_OUTPUT (ssize_t) - 2
 #define PIP_ERR_RUNTIME_INPUT (ssize_t) - 3
 #define PIP_ERR_RUNTIME_ERROR (ssize_t) - 4
-ssize_t PipelineRun(const pipeline_t *pipeline, const uint8_t *in, size_t inSize, uint8_t *out, size_t outSize, pipelineRuntime_t *runtime);
+ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict in, size_t inSize, uint8_t *restrict out, size_t outSize,
+                    pipelineRuntime_t *restrict runtime);
 
 void PrintPipeline(pipeline_t *pipeline);
 
