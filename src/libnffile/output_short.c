@@ -237,17 +237,21 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
 
     char snet[INET6_ADDRSTRLEN] = {0};
     char dnet[INET6_ADDRSTRLEN] = {0};
-    if (r->offsetMap[EXipv6FlowID]) {
-        // IPv6
-        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)r->offsetMap[EXipv6FlowID];
-        inet6_ntop_mask(ipv6Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
-        inet6_ntop_mask(ipv6Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
-    }
     if (r->offsetMap[EXipv4FlowID]) {
         // IPv4
-        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)r->offsetMap[EXipv4FlowID];
+        elementHeader = r->offsetMap[EXipv4FlowID];
+        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
         inet_ntop_mask(ipv4Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
         inet_ntop_mask(ipv4Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
+    } else if (r->offsetMap[EXipv6FlowID]) {
+        // IPv6
+        elementHeader = r->offsetMap[EXipv4FlowID];
+        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+        inet6_ntop_mask(ipv6Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
+        inet6_ntop_mask(ipv6Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
+    } else {
+        snet[0] = '\0';
+        dnet[0] = '\0';
     }
 
     uint32_t fwdStatus = 0;
