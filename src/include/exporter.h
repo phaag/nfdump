@@ -210,14 +210,15 @@ typedef struct exporter_v5_s {
 typedef struct templateList_s templateList_t;
 typedef struct exporter_v9_s {
     // exporter parameters
-    uint64_t boot_time;
+    uint32_t SysUptime;
+    uint32_t unix_secs;
 
     // statistics
     uint64_t TemplateRecords;  // stat counter
     uint64_t DataRecords;      // stat counter
 
     // SysUptime if sent with #160
-    uint64_t SysUpTime;  // in msec
+    uint64_t msecSysUpTime;  // in msec
 
     // in order to prevent search through all lists keep
     // the last template we processed as a cache

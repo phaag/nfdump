@@ -1173,13 +1173,18 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
                 uint64_t First = stack[STACK_MSECFIRST];
                 uint64_t Last = stack[STACK_MSECLAST];
 
-                if (First > Last) /* First in msec, in case of msec overflow, between start and end */
-                    genericFlow->msecFirst = exporter_v9->boot_time - 0x100000000LL + First;
-                else
-                    genericFlow->msecFirst = First + exporter_v9->boot_time;
+                uint64_t export_time_ms = (uint64_t)exporter_v9->unix_secs * 1000;
+                dbg_printf("SysupTime: %u, Unix_sec: %u\n", exporter_v9->SysUptime, exporter_v9->unix_secs);
+                dbg_printf("First: %llu, Last: %llu, exportTimeMS: %llu\n", First, Last, export_time_ms);
 
-                // end time in msecs
-                genericFlow->msecLast = (uint64_t)Last + exporter_v9->boot_time;
+                uint32_t offset = (uint32_t)exporter_v9->SysUptime - (uint32_t)First;
+                dbg_printf("Offset first: %u\n", offset);
+                genericFlow->msecFirst = export_time_ms - (uint64_t)offset;
+
+                offset = (uint32_t)exporter_v9->SysUptime - (uint32_t)Last;
+                dbg_printf("Offset last: %u\n", offset);
+                genericFlow->msecLast = export_time_ms - (uint64_t)offset;
+
             } else if (stack[STACK_SECFIRST]) {
                 genericFlow->msecFirst = stack[STACK_SECFIRST] * (uint64_t)1000;
                 genericFlow->msecLast = stack[STACK_SECLAST] * (uint64_t)1000;
@@ -1652,8 +1657,8 @@ static void Process_v9_SysUpTime_option_data(exporter_entry_t *exporter_entry, t
     // map input buffer as a byte array
     uint8_t *in = (uint8_t *)(data_flowset + 4);  // skip flowset header
     if (CHECK_OPTION_DATA(size_left, optionTemplate->SysUpOption)) {
-        exporter_v9->SysUpTime = Get_val(in, optionTemplate->SysUpOption.offset, optionTemplate->SysUpOption.length);
-        dbg_printf("Extracted SysUpTime : %" PRIu64 "\n", exporter_v9->SysUpTime);
+        exporter_v9->msecSysUpTime = Get_val(in, optionTemplate->SysUpOption.offset, optionTemplate->SysUpOption.length);
+        dbg_printf("Extracted SysUpTime : %" PRIu64 "\n", exporter_v9->msecSysUpTime);
     } else {
         LogError("Process_v9_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
         return;
@@ -1712,9 +1717,8 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     exporter_v9_t *exporter_v9 = &exporter_entry->version.v9;
 
     /* calculate boot time in msec */
-    v9_header->SysUptime = ntohl(v9_header->SysUptime);
-    v9_header->unix_secs = ntohl(v9_header->unix_secs);
-    exporter_v9->boot_time = (uint64_t)1000 * (uint64_t)(v9_header->unix_secs) - (uint64_t)v9_header->SysUptime;
+    exporter_v9->SysUptime = ntohl(v9_header->SysUptime);
+    exporter_v9->unix_secs = ntohl(v9_header->unix_secs);
 
     void *flowset_header = (void *)v9_header + V9_HEADER_LENGTH;
     size_left -= V9_HEADER_LENGTH;
@@ -1722,7 +1726,7 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 #ifdef DEVEL
     uint32_t expected_records = ntohs(v9_header->count);
     printf("[%u] records: %u, buffer: %zd \n", exporter_id, expected_records, size_left);
-    printf("SourceID: %u, Sysuptime: %u.%u\n", v9_header->source_id, v9_header->SysUptime, v9_header->unix_secs);
+    printf("SourceID: %u, Sysuptime: %u.%u\n", exporter_id, exporter_v9->SysUptime, exporter_v9->unix_secs);
 #endif
 
     // sequence check
