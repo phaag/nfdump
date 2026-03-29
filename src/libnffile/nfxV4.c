@@ -48,25 +48,6 @@
 #define subTemplateListType 292
 #define subTemplateMultiListType 293
 
-static void ComputeRanks(pipeline_t *pipeline) {
-    uint16_t extRank[MAXEXTENSIONS];
-    uint32_t rank = 0;
-
-    for (int ext = 0; ext < MAXEXTENSIONS; ext++) {
-        if (pipeline->extBitmap & (1ULL << ext)) {
-            extRank[ext] = rank++;
-        } else {
-            extRank[ext] = 0xFFFF;
-        }
-    }
-
-    for (int i = 0; i < pipeline->numInstructions; i++) {
-        pipelineInstr_t *instr = &pipeline->instruction[i];
-
-        if (instr->extID != EXnull) instr->rank = extRank[instr->extID];
-    }
-}  // End of ComputeRanks
-
 static inline void CopyField(uint8_t *dst, const uint8_t *src, uint16_t inSize, uint16_t outSize) {
     uint16_t copy = (inSize < outSize) ? inSize : outSize;
 
@@ -452,8 +433,6 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
     pipeline->numExtensions = __builtin_popcountll(bitMap);
     pipeline->baseOffset = ALIGN8(sizeof(recordHeaderV4_t) + pipeline->numExtensions * sizeof(uint16_t));
 
-    ComputeRanks(pipeline);
-
     return pipeline;
 }  // End of PipelineCompile
 
@@ -539,20 +518,19 @@ ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict
 
 L_ALLOC_EXT: {
     if (unlikely(nextOffset + inst->outLength > outSize)) return PIP_ERR_SHORT_OUTPUT;
-    baseCache[inst->rank] = out + nextOffset;
-    offsetTable[inst->rank] = nextOffset;
+    baseCache[inst->extID] = out + nextOffset;
     memset(out + nextOffset, 0, inst->outLength);
     if (inst->extID == EXgenericFlowID)
-        runtime->genericRecord = baseCache[inst->rank];
+        runtime->genericRecord = baseCache[inst->extID];
     else if (inst->extID == EXcntFlowID)
-        runtime->cntRecord = baseCache[inst->rank];
+        runtime->cntRecord = baseCache[inst->extID];
     nextOffset += inst->outLength;
     DISPATCH();
 }
 
 L_COPY_1:
     if (unlikely(inPtr + 1 > inEnd)) return PIP_ERR_SHORT_INPUT;
-    *(uint8_t *)(baseCache[inst->rank] + inst->dstOffset) = *inPtr;
+    *(uint8_t *)(baseCache[inst->extID] + inst->dstOffset) = *inPtr;
     inPtr += 1;
     DISPATCH();
 
@@ -560,7 +538,7 @@ L_COPY_BE_2: {
     if (unlikely(inPtr + 2 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint16_t v;
     __builtin_memcpy(&v, inPtr, 2);
-    uint16_t *dst = (uint16_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint16_t *dst = (uint16_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohs(v);
     inPtr += 2;
     DISPATCH();
@@ -571,7 +549,7 @@ L_COPY_BE_2_4: {
     if (unlikely(inPtr + 2 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint16_t v;
     __builtin_memcpy(&v, inPtr, 2);
-    uint32_t *dst = (uint32_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint32_t *dst = (uint32_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohs(v);
     inPtr += 2;
     DISPATCH();
@@ -581,7 +559,7 @@ L_COPY_BE_4: {
     if (unlikely(inPtr + 4 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint32_t v;
     __builtin_memcpy(&v, inPtr, 4);
-    uint32_t *dst = (uint32_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint32_t *dst = (uint32_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohl(v);
     inPtr += 4;
     DISPATCH();
@@ -592,7 +570,7 @@ L_COPY_BE_4_8: {
     if (unlikely(inPtr + 4 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint32_t v;
     __builtin_memcpy(&v, inPtr, 4);
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohl(v);
     inPtr += 4;
     DISPATCH();
@@ -603,7 +581,7 @@ L_COPY_BE_6_8: {
     if (unlikely(inPtr + 6 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint64_t v = 0;
     __builtin_memcpy((uint8_t *)&v + 2, inPtr, 6);
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohll(v);
 
     inPtr += 6;
@@ -614,7 +592,7 @@ L_COPY_BE_8: {
     if (unlikely(inPtr + 8 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint64_t v;
     __builtin_memcpy(&v, inPtr, 8);
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohll(v);
     inPtr += 8;
     DISPATCH();
@@ -622,7 +600,7 @@ L_COPY_BE_8: {
 
 L_COPY_16:
     if (unlikely(inPtr + 16 > inEnd)) return PIP_ERR_SHORT_INPUT;
-    __builtin_memcpy(baseCache[inst->rank] + inst->dstOffset, inPtr, 16);
+    __builtin_memcpy(baseCache[inst->extID] + inst->dstOffset, inPtr, 16);
     inPtr += 16;
     DISPATCH();
 
@@ -630,7 +608,7 @@ L_COPY_IPV6: {
     if (unlikely(inPtr + 16 > inEnd)) return PIP_ERR_SHORT_INPUT;
     uint64_t ipv6[2];
     __builtin_memcpy(ipv6, inPtr, 16);
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     dst[0] = ntohll(ipv6[0]);
     dst[1] = ntohll(ipv6[1]);
     inPtr += 16;
@@ -639,7 +617,7 @@ L_COPY_IPV6: {
 
 L_COPY_N: {
     if (unlikely(inPtr + inst->inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
-    CopyField(baseCache[inst->rank] + inst->dstOffset, inPtr, inst->inLength, inst->outLength);
+    CopyField(baseCache[inst->extID] + inst->dstOffset, inPtr, inst->inLength, inst->outLength);
     inPtr += inst->inLength;
     DISPATCH();
 }
@@ -655,9 +633,9 @@ L_COPY_VAR: {
 
     uint32_t copyLength = (inst->outLength == VARLENGTH) ? inLength : inst->outLength;
     // dynamic extension have only one part with dyn length
-    // set offset table and copy in one go
-    if (likely(offsetTable[inst->rank] == 0)) {
-        offsetTable[inst->rank] = nextOffset;
+    // allocate space on first encounter
+    if (likely(baseCache[inst->extID] == NULL)) {
+        baseCache[inst->extID] = out + nextOffset;
         // varlength extension have a length field and the var length content
         nextOffset += sizeof(uint32_t) + copyLength;
         // make it 8 byte boundary aligned
@@ -666,7 +644,7 @@ L_COPY_VAR: {
         if (unlikely(nextOffset > outSize)) return PIP_ERR_SHORT_OUTPUT;
     }
 
-    uint8_t *outPtr = out + offsetTable[inst->rank];
+    uint8_t *outPtr = baseCache[inst->extID];
     // copy uint32_t length at the top
     __builtin_memcpy(outPtr, &inLength, 4);
     outPtr += 4;
@@ -680,21 +658,21 @@ L_COPY_VAR: {
 L_COPY_IPV4_RVD: {
     uint32_t ipv4;
     __builtin_memcpy(&ipv4, runtime->ipReceived.bytes + 12, 4);
-    uint32_t *dst = (uint32_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint32_t *dst = (uint32_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = ntohl(ipv4);
     DISPATCH();
 }
 
 L_COPY_IPV6_RVD: {
     uint64_t *ipv6 = (uint64_t *)runtime->ipReceived.bytes;
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     dst[0] = ntohll(ipv6[0]);
     dst[1] = ntohll(ipv6[1]);
     DISPATCH();
 }
 
 L_COPY_TIME_RVD: {
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = runtime->msecReceived;
     DISPATCH();
 }
@@ -714,7 +692,7 @@ L_COPY_V9_TIME: {
     dbg_printf("OP_COPY_V9_TIME: t: %u, sysUptime: %u, UNIXtime: %u\n", t, SysUptime, runtime->unix_secs);
     dbg_printf("OP_COPY_V9_TIME: offset: %u, export_time_ms: %llu, msecTime: %llu\n", offset, export_time_ms, msecTime);
 
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = msecTime;
     inPtr += 4;
     DISPATCH();
@@ -727,7 +705,7 @@ L_COPY_IPFIX_USEC: {
     __builtin_memcpy(&t, inPtr, 4);
     t = ntohl(t);
 
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = (uint64_t)runtime->secExported * (uint64_t)1000 - (uint64_t)t / (uint64_t)1000;
     inPtr += 4;
     DISPATCH();
@@ -744,7 +722,7 @@ L_COPY_SYSUP_TIME: {
 
 L_ADD_SYSUP: {
     pipelineInstr_t *fixUp = pipeline->fixUp[inst->argument];
-    uint64_t *dst = (uint64_t *)(baseCache[fixUp->rank] + fixUp->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[fixUp->extID] + fixUp->dstOffset);
     dbg_printf("Fixup time: %llu", *dst);
     *dst += runtime->SysUptime;
     dbg_printf(" --> %llu\n", *dst);
@@ -840,12 +818,20 @@ L_CALL: {
 }
 
 L_MUL_8: {
-    uint64_t *dst = (uint64_t *)(baseCache[inst->rank] + inst->dstOffset);
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst *= (uint64_t)inst->argument;
     DISPATCH();
 }
 
-L_END:
+L_END: {
+    // populate offset table from baseCache, walking the bitmap
+    uint64_t bm = pipeline->extBitmap;
+    uint16_t *offPtr = offsetTable;
+    while (bm) {
+        uint32_t extID = __builtin_ctzll(bm);
+        bm &= bm - 1;
+        *offPtr++ = (uint16_t)(baseCache[extID] - out);
+    }
     recordHeader->size = nextOffset;
     recordHeader->extBitmap = pipeline->extBitmap;
     recordHeader->numExtensions = pipeline->numExtensions;
@@ -853,6 +839,7 @@ L_END:
         return PIP_ERR_SHORT_OUTPUT;
     else
         return inPtr - in;
+}
 
 L_NULL:
     DISPATCH();

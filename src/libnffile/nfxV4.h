@@ -835,10 +835,9 @@ typedef struct __attribute__((aligned(16))) pipelineInstr_s {
     uint16_t extID;      // extension ID for this value
     uint16_t dstOffset;  // offset in output rel to extension
     uint16_t outLength;  // size of value in output stream
-    uint16_t rank;       // index into offset table for this extension
     uint8_t op;          // type of operation - pipelineOp_t
     uint8_t transform;   // optional value transformation
-    uint16_t argument;   // argument calculation OPs
+    uint32_t argument;   // argument calculation OPs
 } pipelineInstr_t;
 
 typedef struct pipeline_s {
