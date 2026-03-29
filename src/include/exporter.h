@@ -309,7 +309,10 @@ typedef struct exporter_nfd_s {
 } exporter_nfd_t;
 
 typedef struct exporter_sflow_s {
-    sampler_chain_t *sampler;  // sampler info
+    uint32_t extensionSize;  // size of pre-computed extension
+    uint64_t bitMap;         // precomputed extension bitmap
+    // uint16_t numExtensions;    // precomputed extension count
+    // uint16_t offsetTableSize;  // precomputed offset table size
 } exporter_sflow_t;
 
 // exporter struct

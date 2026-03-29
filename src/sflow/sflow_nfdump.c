@@ -57,11 +57,13 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_short.h"
-#include "sflow.h" /* sFlow v5 */
+// sFlow v5
+#include "sflow.h"
 #include "sflow_process.h"
-#include "sflow_v2v4.h" /* sFlow v2/4 */
+// sFlow v2/4
+#include "sflow_v2v4.h"
 #include "util.h"
 
 #define MAX_SFLOW_EXTENSIONS 8
@@ -69,7 +71,13 @@
 static int PrintRecord = 0;
 
 static int ExtensionsEnabled[MAXEXTENSIONS];
-uint32_t BaseRecordSize = EXgenericFlowSize;
+
+// extension size of all basic enabled extensions
+// Init_sflow() adds more basic extension StoreSFlow() adds more dynamic extensions
+static uint32_t baseExtensionSize = EXgenericFlowSize;
+
+// corresponding bitmap
+static uint64_t baseBitMap = 1LL << EXgenericFlowID;
 
 static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount);
 
@@ -113,20 +121,25 @@ int Init_sflow(int verbose, char *extensionList) {
     }
 
     // extension available in all flows
+    if (ExtensionsEnabled[EXinterfaceID]) {
+        BitMapSet(baseBitMap, EXinterfaceID);
+        baseExtensionSize += EXinterfaceSize;
+    }
     if (ExtensionsEnabled[EXflowMiscID]) {
-        BaseRecordSize += EXflowMiscSize;
+        BitMapSet(baseBitMap, EXflowMiscID);
+        baseExtensionSize += EXflowMiscSize;
     }
     if (ExtensionsEnabled[EXvLanID]) {
-        BaseRecordSize += EXvLanSize;
+        BitMapSet(baseBitMap, EXvLanID);
+        baseExtensionSize += EXvLanSize;
     }
-    if (ExtensionsEnabled[EXasRoutingID]) {
-        BaseRecordSize += EXasRoutingSize;
+    if (ExtensionsEnabled[EXasInfoID]) {
+        BitMapSet(baseBitMap, EXasInfoID);
+        baseExtensionSize += EXasInfoSize;
     }
-    if (ExtensionsEnabled[EXmacAddrID]) {
-        BaseRecordSize += EXmacAddrSize;
-    }
-    if (ExtensionsEnabled[EXmplsLabelID]) {
-        BaseRecordSize += EXmplsLabelSize;
+    if (ExtensionsEnabled[EXinMacAddrID]) {
+        BitMapSet(baseBitMap, EXinMacAddrID);
+        baseExtensionSize += EXinMacAddrSize;
     }
 
     return 1;
@@ -162,6 +175,13 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 
     // not found - search in hash table
     exporter_table_t *tab = &fs->exporters;
+    // Check load factor in case we need a new slot
+    if ((tab->count * 4) >= (tab->capacity * 3)) {
+        // expand exporter index
+        expand_exporter_table(tab);
+        tab = &fs->exporters;
+    }
+
     uint32_t hash = EXPORTERHASH(key);
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
@@ -171,59 +191,63 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
         // key does not exists - create new exporter
         if (!e->in_use) {
             // create new exporter
-            e->key = key;
-            e->packets = 0;
-            e->flows = 0;
-            e->sequence_failure = 0;
-            e->sequence = UINT32_MAX;
-            e->in_use = 1;
-            tab->count++;
-
-            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
-                                               .version = key.version,
-                                               .id = key.id,
-                                               .fill = 0,
-                                               .sysid = 0};
-            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
-
-            e->version.sflow = (exporter_sflow_t){0};
-
-            FlushInfoExporter(fs, &e->info);
-            // attach sampler
-            sampler_t *sampler = (sampler_t *)malloc(sizeof(sampler_t));
-            if (!sampler) {
-                LogError("SFLOW: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            size_t recordSize = sizeof(exporter_info_record_v4_t) + sizeof(sampler_record_v4_t);
+            void *info = calloc(1, recordSize);
+            if (info == NULL) {
+                LogError("Process_sflow: malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 return NULL;
             }
-            e->version.sflow.sampler = sampler;
-            *sampler = (sampler_t){.record.type = SamplerRecordType,
-                                   .record.size = sizeof(sampler_record_t),
-                                   .record.id = -1,
-                                   .record.algorithm = 0,
-                                   .record.packetInterval = 1,
-                                   .record.spaceInterval = meanSkipCount - 1,
-                                   .next = NULL};
-            sampler->record.exporter_sysid = e->info.sysid;
-            fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
+
+            // create new exporter
+            *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .sysID = AssignExporterID(), .in_use = 1, .info = info};
+            tab->count++;
+
+            *(e->info) = (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = recordSize},
+                                                     .version = key.version,
+                                                     .id = key.id,
+                                                     .sysID = e->sysID,
+                                                     .sampler_capacity = 1};
+            memcpy(e->info->ip, fs->ipAddr.bytes, 16);
+
+            e->sflow = (exporter_sflow_t){0};
+
+            // attach sampler
+            sampler_record_v4_t *sampler = &e->info->samplers[0];
+            *sampler = (sampler_record_v4_t){
+                .inUse = 1, .selectorID = SAMPLER_GENERIC, .algorithm = 0, .packetInterval = 1, .spaceInterval = meanSkipCount - 1};
+
+            e->sampler_cache[0].ptr = &e->info->samplers[0];
+            e->sampler_count++;
 
             char ipstr[INET6_ADDRSTRLEN];
-            LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", e->info.sysid, agentSubId, meanSkipCount,
+            ip128_2_str(&fs->ipAddr, ipstr);
+
+            e->sflow.bitMap = baseBitMap;
+            if (fs->sa_family == PF_INET6) {
+                BitMapSet(e->sflow.bitMap, EXipReceivedV6ID);
+                // max proposed output record size
+                e->sflow.extensionSize = baseExtensionSize + EXipReceivedV6Size;
+                dbg_printf("Process_v5: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
+            } else {
+                BitMapSet(e->sflow.bitMap, EXipReceivedV4ID);
+                // max proposed output record size
+                e->sflow.extensionSize = baseExtensionSize + EXipReceivedV4Size;
+                dbg_printf("Process_v5: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
+            }
+
+            LogInfo("Process_sflow: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", e->info->sysID, agentSubId, meanSkipCount,
                     ip128_2_str(&fs->ipAddr, ipstr));
 
             fs->last_key = key;
             fs->last_exp = e;
             return e;
         }
-        if (e->key.version == key.version && e->key.id == key.id) {
+        if (EXPORTER_KEY_EQUAL(e->key, key)) {
             fs->last_key = key;
             fs->last_exp = e;
             return e;
         }
-        // key not yet found and slot in use - check for exhausted hash
-        if ((tab->count * 4) >= (tab->capacity * 3)) {
-            // expand exporter index
-            expand_exporter_table(tab);
-        }
+
         dbg_assert(tab->count < tab->capacity);
         i = (i + 1) & mask;
     }
@@ -237,8 +261,7 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     dbg_printf("StoreSflowRecord\n");
 
-    struct timeval now;
-    gettimeofday(&now, NULL);
+    struct timeval now = fs->received;
 
     exporter_entry_t *exporter = GetExporter(fs, sample->agentSubId, sample->meanSkipCount);
     if (!exporter) {
@@ -252,253 +275,247 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         sample->dcd_dport = 0;
     }
 
-    uint32_t recordSize = BaseRecordSize;
+    // build up record and extensions
+    uint32_t extensionSize = exporter->sflow.extensionSize;
+    uint64_t bitMap = exporter->sflow.bitMap;
 
     int isV4 = sample->ipsrc.type == SFLADDRESSTYPE_IP_V4;
     if (isV4 && ExtensionsEnabled[EXipv4FlowID]) {
-        recordSize += EXipv4FlowSize;
+        BitMapSet(bitMap, EXipv4FlowID);
+        extensionSize += EXipv4FlowSize;
     }
 
     int isV6 = sample->ipsrc.type == SFLADDRESSTYPE_IP_V6;
     if (isV6 && ExtensionsEnabled[EXipv6FlowID]) {
-        recordSize += EXipv6FlowSize;
+        BitMapSet(bitMap, EXipv6FlowID);
+        extensionSize += EXipv6FlowSize;
     }
     dbg_printf("IPv4: %u, IPv6: %u\n", isV4, isV6);
 
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXipNextHopV4ID]) {
-        recordSize += EXipNextHopV4Size;
+    if ((sample->nextHop.type == SFLADDRESSTYPE_IP_V4 || sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4) && ExtensionsEnabled[EXasRoutingV4ID]) {
+        BitMapSet(bitMap, EXasRoutingV4ID);
+        extensionSize += EXasRoutingV4Size;
     }
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXipNextHopV6ID]) {
-        recordSize += EXipNextHopV6Size;
+    if ((sample->nextHop.type == SFLADDRESSTYPE_IP_V6 || sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6) && ExtensionsEnabled[EXasRoutingV6ID]) {
+        BitMapSet(bitMap, EXasRoutingV6ID);
+        extensionSize += EXasRoutingV6Size;
     }
 
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXbgpNextHopV4ID]) {
-        recordSize += EXbgpNextHopV4Size;
-    }
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXbgpNextHopV6ID]) {
-        recordSize += EXbgpNextHopV6Size;
+    if (sample->mpls_num_labels > 0 && ExtensionsEnabled[EXmplsID]) {
+        BitMapSet(bitMap, EXmplsID);
+        extensionSize += EXmplsSize;
     }
 
     if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXnatXlateIPv4ID]) {
-            recordSize += EXnatXlateIPv4Size;
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXnatXlateV4ID]) {
+            BitMapSet(bitMap, EXnatXlateV4ID);
+            extensionSize += EXnatXlateV4Size;
         }
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXnatXlateIPv6ID]) {
-            recordSize += EXnatXlateIPv6Size;
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXnatXlateV6ID]) {
+            BitMapSet(bitMap, EXnatXlateV6ID);
+            extensionSize += EXnatXlateV6Size;
         }
         if (ExtensionsEnabled[EXnatXlatePortID]) {
-            recordSize += EXnatXlatePortSize;
+            BitMapSet(bitMap, EXnatXlatePortID);
+            extensionSize += EXnatXlatePortSize;
         }
-    }
-
-    if (fs->sa_family == AF_INET && ExtensionsEnabled[EXipReceivedV4ID]) {
-        recordSize += EXipReceivedV4Size;
-    }
-    if (fs->sa_family == AF_INET6 && ExtensionsEnabled[EXipReceivedV6ID]) {
-        recordSize += EXipReceivedV6Size;
     }
 
     // Tunnels
     int tun_isV4 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V4;
-    if (tun_isV4 && ExtensionsEnabled[EXtunIPv4ID]) {
-        recordSize += EXtunIPv4Size;
+    int tun_isV6 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V6;
+    if ((tun_isV4 || tun_isV6) && ExtensionsEnabled[EXtunnelID]) {
+        BitMapSet(bitMap, EXtunnelID);
+        extensionSize += EXtunnelSize;
     }
 
-    int tun_isV6 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V6;
-    if (isV6 && ExtensionsEnabled[EXtunIPv6ID]) {
-        recordSize += EXtunIPv6Size;
-    }
     dbg_printf("Tunnel: IPv4: %u, IPv6: %u\n", tun_isV4, tun_isV6);
 
-    recordSize += sizeof(recordHeaderV3_t);
+    uint32_t numExtensions = __builtin_popcountll(bitMap);
+    size_t tableSize = ALIGN8(numExtensions * sizeof(uint16_t));
+    uint32_t baseOffset = sizeof(recordHeaderV4_t) + tableSize;
+    uint32_t recordSize = baseOffset + extensionSize;
+
     if (!IsAvailable(fs->dataBlock, recordSize)) {
         // flush block - get an empty one
         fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
     }
 
-    void *buffPtr = GetCurrentCursor(fs->dataBlock);
+    uint8_t *buffPtr = GetCurrentCursor(fs->dataBlock);
     dbg_printf("Fill Record\n");
-    AddV3Header(buffPtr, recordHeader);
 
-    recordHeader->exporterID = exporter->info.sysid;
-    recordHeader->flags = V3_FLAG_SAMPLED;
-    recordHeader->nfversion = 0x80 | sample->datagramVersion;
+    // zero entire record at once
+    recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
+    *recordHeader = (recordHeaderV4_t){.type = V4Record,
+                                       .exporterID = exporter->sysID,
+                                       .nfVersion = 0x80 | sample->datagramVersion,
+                                       .flags = V4_FLAG_SAMPLED,
+                                       .extBitmap = bitMap,
+                                       .numExtensions = numExtensions};
 
-    // pack V3 record
-    PushExtension(recordHeader, EXgenericFlow, genericFlow);
-    uint64_t msec = (uint64_t)(now.tv_sec * 1000L + now.tv_usec / 1000);
-    *genericFlow = (EXgenericFlow_t){
-        .msecFirst = msec,
-        .msecLast = msec,
-        .proto = sample->dcd_ipProtocol,
-        .tcpFlags = sample->dcd_tcpFlags,
-        .srcPort = (uint16_t)sample->dcd_sport,
-        .dstPort = (uint16_t)sample->dcd_dport,
-        .msecReceived = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL),
-        .inPackets = sample->meanSkipCount,
-        .inBytes = sample->meanSkipCount * sample->sampledPacketSize,
-        .srcTos = sample->dcd_ipTos,
-    };
+    EXgenericFlow_t *genericFlow = NULL;
+    // fill the record based on the bitMap
+    uint8_t *recordBase = buffPtr;
+    uint16_t *offset = (uint16_t *)(buffPtr + sizeof(recordHeaderV4_t));
+    memset(offset, 0, tableSize);
+    uint32_t nextOffset = baseOffset;
+    while (bitMap) {
+        uint64_t t = bitMap & -bitMap;
+        uint32_t extID = __builtin_ctzll(bitMap);
+        bitMap ^= t;
 
-    if (isV4 && ExtensionsEnabled[EXipv4FlowID]) {
-        PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-        ipv4Flow->srcAddr = ntohl(sample->ipsrc.address.ip_v4.addr);
-        ipv4Flow->dstAddr = ntohl(sample->ipdst.address.ip_v4.addr);
-    }
+        *offset++ = nextOffset;
+        uint32_t extSize = extensionTable[extID].size;
+        uint8_t *extension = recordBase + nextOffset;
+        nextOffset += extSize;
 
-    if (isV6 && ExtensionsEnabled[EXipv6FlowID]) {
-        PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
+        switch (extID) {
+            case EXgenericFlowID: {
+                genericFlow = (EXgenericFlow_t *)extension;
+                uint64_t msec = (uint64_t)(now.tv_sec * 1000L + now.tv_usec / 1000);
+                *genericFlow = (EXgenericFlow_t){
+                    .msecFirst = msec,
+                    .msecLast = msec,
+                    .proto = sample->dcd_ipProtocol,
+                    .tcpFlags = sample->dcd_tcpFlags,
+                    .srcPort = (uint16_t)sample->dcd_sport,
+                    .dstPort = (uint16_t)sample->dcd_dport,
+                    .msecReceived = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL),
+                    .inPackets = sample->meanSkipCount,
+                    .inBytes = sample->meanSkipCount * sample->sampledPacketSize,
+                    .srcTos = sample->dcd_ipTos,
+                };
+            } break;
+            case EXipv4FlowID: {
+                EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extension;
+                ipv4Flow->srcAddr = ntohl(sample->ipsrc.address.ip_v4.addr);
+                ipv4Flow->dstAddr = ntohl(sample->ipdst.address.ip_v4.addr);
+            } break;
+            case EXipv6FlowID: {
+                EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extension;
+                uint64_t ip6[2];
+                memcpy(ip6, sample->ipsrc.address.ip_v6.addr, 16);
+                ipv6Flow->srcAddr[0] = ntohll(ip6[0]);
+                ipv6Flow->srcAddr[1] = ntohll(ip6[1]);
 
-        u_char *b = sample->ipsrc.address.ip_v6.addr;
-        uint64_t *u = (uint64_t *)b;
-        ipv6Flow->srcAddr[0] = ntohll(*u);
-        u = (uint64_t *)&(b[8]);
-        ipv6Flow->srcAddr[1] = ntohll(*u);
+                memcpy(ip6, sample->ipdst.address.ip_v6.addr, 16);
+                ipv6Flow->dstAddr[0] = ntohll(ip6[0]);
+                ipv6Flow->dstAddr[1] = ntohll(ip6[1]);
+            } break;
+            case EXinterfaceID: {
+                EXinterface_t *interface = (EXinterface_t *)extension;
+                interface->input = sample->inputPort;
+                interface->output = sample->outputPort;
+            } break;
+            case EXflowMiscID: {
+                EXflowMisc_t *flowMisc = (EXflowMisc_t *)extension;
+                *flowMisc = (EXflowMisc_t){.srcMask = sample->srcMask, .dstMask = sample->dstMask};
+            } break;
+            case EXvLanID: {
+                EXvLan_t *vLan = (EXvLan_t *)extension;
+                vLan->srcVlan = sample->in_vlan;
+                vLan->dstVlan = sample->out_vlan;
+            } break;
+            case EXasInfoID: {
+                EXasInfo_t *asInfo = (EXasInfo_t *)extension;
+                asInfo->srcAS = sample->src_as;
+                asInfo->dstAS = sample->dst_as;
+            } break;
+            case EXasRoutingV4ID: {
+                EXasRoutingV4_t *asRouting = (EXasRoutingV4_t *)extension;
+                asRouting->nextHop = ntohl(sample->nextHop.address.ip_v4.addr);
+                asRouting->bgpNextHop = ntohl(sample->bgp_nextHop.address.ip_v4.addr);
+            } break;
+            case EXasRoutingV6ID: {
+                EXasRoutingV6_t *asRouting = (EXasRoutingV6_t *)extension;
+                uint64_t ip6[2];
+                memcpy(ip6, sample->nextHop.address.ip_v6.addr, 16);
+                asRouting->nextHop[0] = ntohll(ip6[0]);
+                asRouting->nextHop[1] = ntohll(ip6[1]);
 
-        b = sample->ipdst.address.ip_v6.addr;
-        u = (uint64_t *)b;
-        ipv6Flow->dstAddr[0] = ntohll(*u);
-        u = (uint64_t *)&(b[8]);
-        ipv6Flow->dstAddr[1] = ntohll(*u);
-    }
-
-    if (ExtensionsEnabled[EXflowMiscID]) {
-        PushExtension(recordHeader, EXflowMisc, flowMisc);
-        flowMisc->input = sample->inputPort;
-        flowMisc->output = sample->outputPort;
-        flowMisc->srcMask = sample->srcMask;
-        flowMisc->dstMask = sample->dstMask;
-    }
-
-    if (ExtensionsEnabled[EXvLanID]) {
-        PushExtension(recordHeader, EXvLan, vLan);
-        vLan->srcVlan = sample->in_vlan;
-        vLan->dstVlan = sample->out_vlan;
-    }
-
-    if (ExtensionsEnabled[EXasRoutingID]) {
-        PushExtension(recordHeader, EXasRouting, asRouting);
-        asRouting->srcAS = sample->src_as;
-        asRouting->dstAS = sample->dst_as;
-    }
-
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXipNextHopV4ID]) {
-        PushExtension(recordHeader, EXipNextHopV4, ipNextHopV4);
-        ipNextHopV4->ip = ntohl(sample->nextHop.address.ip_v4.addr);
-    }
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXipNextHopV6ID]) {
-        uint64_t *addr = (uint64_t *)sample->nextHop.address.ip_v6.addr;
-        PushExtension(recordHeader, EXipNextHopV6, ipNextHopV6);
-        ipNextHopV6->ip[0] = ntohll(addr[0]);
-        ipNextHopV6->ip[1] = ntohll(addr[1]);
-    }
-
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXbgpNextHopV4ID]) {
-        PushExtension(recordHeader, EXbgpNextHopV4, bgpNextHopV4);
-        bgpNextHopV4->ip = ntohl(sample->bgp_nextHop.address.ip_v4.addr);
-    }
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXbgpNextHopV6ID]) {
-        uint64_t *addr = (void *)sample->bgp_nextHop.address.ip_v6.addr;
-        PushExtension(recordHeader, EXbgpNextHopV6, bgpNextHopV6);
-        bgpNextHopV6->ip[0] = ntohll(addr[0]);
-        bgpNextHopV6->ip[1] = ntohll(addr[1]);
-    }
-
-    if (ExtensionsEnabled[EXmacAddrID]) {
-        PushExtension(recordHeader, EXmacAddr, macAddr);
-        macAddr->inSrcMac = Get_val48((void *)&sample->eth_src);
-        macAddr->outDstMac = Get_val48((void *)&sample->eth_dst);
-        macAddr->inDstMac = 0;
-        macAddr->outSrcMac = 0;
-    }
-
-    if (ExtensionsEnabled[EXmplsLabelID]) {
-        if (sample->mpls_num_labels > 0) {
-            PushExtension(recordHeader, EXmplsLabel, mplsLabel);
-            for (int i = 0; i < sample->mpls_num_labels; i++) {
-                mplsLabel->mplsLabel[i] = sample->mpls_label[i];
-            }
-        }
-    }
-
-    if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
-        switch (sample->nat_src.type) {
-            case SFLADDRESSTYPE_IP_V4:
-                if (ExtensionsEnabled[EXnatXlateIPv4ID]) {
-                    dbg_printf("NAT v4 addr\n");
-                    PushExtension(recordHeader, EXnatXlateIPv4, natXlateIPv4);
-                    natXlateIPv4->xlateSrcAddr = ntohl(sample->nat_src.address.ip_v4.addr);
-                    natXlateIPv4->xlateDstAddr = ntohl(sample->nat_dst.address.ip_v4.addr);
-                }
-                break;
-            case SFLADDRESSTYPE_IP_V6: {
-                if (ExtensionsEnabled[EXnatXlateIPv6ID]) {
-                    dbg_printf("NAT v6 addr\n");
-                    PushExtension(recordHeader, EXnatXlateIPv6, natXlateIPv6);
-                    uint64_t *addr = (void *)sample->nat_src.address.ip_v6.addr;
-                    natXlateIPv6->xlateSrcAddr[0] = ntohll(addr[0]);
-                    natXlateIPv6->xlateSrcAddr[1] = ntohll(addr[1]);
-                    addr = (void *)sample->nat_dst.address.ip_v6.addr;
-                    natXlateIPv6->xlateDstAddr[0] = ntohll(addr[0]);
-                    natXlateIPv6->xlateDstAddr[1] = ntohll(addr[1]);
+                memcpy(ip6, sample->bgp_nextHop.address.ip_v6.addr, 16);
+                asRouting->bgpNextHop[0] = ntohll(ip6[0]);
+                asRouting->bgpNextHop[1] = ntohll(ip6[1]);
+            } break;
+            case EXinMacAddrID: {
+                EXinMacAddr_t *macAddr = (EXinMacAddr_t *)extension;
+                macAddr->inSrcMac = Get_val48((void *)&sample->eth_src);
+                macAddr->outDstMac = Get_val48((void *)&sample->eth_dst);
+            } break;
+            case EXmplsID: {
+                EXmpls_t *mpls = (EXmpls_t *)extension;
+                if (sample->mpls_num_labels > 0) {
+                    for (int i = 0; i < sample->mpls_num_labels; i++) {
+                        mpls->label[i] = sample->mpls_label[i];
+                    }
+                    for (int i = sample->mpls_num_labels; i < 10; i++) {
+                        mpls->label[i] = 0;
+                    }
                 }
             } break;
-            default:
-                /* undefined address type - bail out */
-                LogError("SFLOW: getAddress() unknown address type = %d\n", sample->nat_src.type);
+            case EXnatXlateV4ID: {
+                EXnatXlateV4_t *natXlateIPv4 = (EXnatXlateV4_t *)extension;
+                natXlateIPv4->xlateSrcAddr = ntohl(sample->nat_src.address.ip_v4.addr);
+                natXlateIPv4->xlateDstAddr = ntohl(sample->nat_dst.address.ip_v4.addr);
+            } break;
+            case EXnatXlateV6ID: {
+                EXnatXlateV6_t *natXlateIPv6 = (EXnatXlateV6_t *)extension;
+                uint64_t ip6[2];
+                memcpy(ip6, sample->nat_src.address.ip_v6.addr, 16);
+                natXlateIPv6->xlateSrcAddr[0] = ntohll(ip6[0]);
+                natXlateIPv6->xlateSrcAddr[1] = ntohll(ip6[1]);
+                memcpy(ip6, sample->nat_dst.address.ip_v6.addr, 16);
+                natXlateIPv6->xlateDstAddr[0] = ntohll(ip6[0]);
+                natXlateIPv6->xlateDstAddr[1] = ntohll(ip6[1]);
+            } break;
+            case EXnatXlatePortID: {
+                EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)extension;
+                natXlatePort->xlateSrcPort = sample->nat_src_port;
+                natXlatePort->xlateDstPort = sample->nat_dst_port;
+            } break;
+            case EXipReceivedV4ID: {
+                EXipReceivedV4_t *ipReceived = (EXipReceivedV4_t *)extension;
+                uint32_t ipv4;
+                memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
+                ipReceived->ip = ntohl(ipv4);
+                dbg_printf("Add IPv4 router IP extension\n");
+            } break;
+            case EXipReceivedV6ID: {
+                EXipReceivedV6_t *ipReceived = (EXipReceivedV6_t *)extension;
+                uint64_t ip6[2];
+                memcpy(ip6, fs->ipAddr.bytes, 16);
+                ipReceived->ip[0] = ntohll(ip6[0]);
+                ipReceived->ip[1] = ntohll(ip6[1]);
+                dbg_printf("Add IPv6 router IP extension\n");
+            } break;
+            case EXtunnelID: {
+                EXtunnel_t *tunnel = (EXtunnel_t *)extension;
+                if (tun_isV4) {
+                    dbg_printf("Add IPv4 tunnel extension\n");
+                    memset(tunnel->tunSrcAddr, 0, 10);
+                    memset(tunnel->tunDstAddr, 0, 10);
+                    tunnel->tunSrcAddr[10] = 0xff;
+                    tunnel->tunSrcAddr[11] = 0xff;
+                    tunnel->tunDstAddr[10] = 0xff;
+                    tunnel->tunDstAddr[11] = 0xff;
+                    memcpy(tunnel->tunSrcAddr + 12, &sample->tun_ipsrc.address.ip_v4.addr, 4);
+                    memcpy(tunnel->tunDstAddr + 12, &sample->tun_ipdst.address.ip_v4.addr, 4);
+                } else if (tun_isV6) {
+                    memcpy(tunnel->tunSrcAddr, sample->tun_ipsrc.address.ip_v6.addr, 16);
+                    memcpy(tunnel->tunDstAddr, sample->tun_ipdst.address.ip_v6.addr, 16);
+                }
+                tunnel->tunProto = sample->tun_proto;
+            } break;
         }
-        if (ExtensionsEnabled[EXnatXlatePortID]) {
-            PushExtension(recordHeader, EXnatXlatePort, natXlatePort);
-            natXlatePort->xlateSrcPort = sample->nat_src_port;
-            natXlatePort->xlateDstPort = sample->nat_dst_port;
-        }
     }
 
-    // add router IP
-    if (fs->sa_family == PF_INET && ExtensionsEnabled[EXipReceivedV4ID]) {
-        PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
-        uint32_t ipv4;
-        memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
-        ipReceivedV4->ip = ntohl(ipv4);
-        dbg_printf("Add IPv4 router IP extension\n");
-    }
-    if (fs->sa_family == PF_INET6 && ExtensionsEnabled[EXipReceivedV6ID]) {
-        PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
-        uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
-        ipReceivedV6->ip[0] = ntohll(ipv6[0]);
-        ipReceivedV6->ip[1] = ntohll(ipv6[1]);
-        dbg_printf("Add IPv6 router IP extension\n");
-    }
-
-    // Tunnels
-    if (tun_isV4 && ExtensionsEnabled[EXtunIPv4ID]) {
-        PushExtension(recordHeader, EXtunIPv4, tunIPv4);
-        tunIPv4->tunSrcAddr = ntohl(sample->tun_ipsrc.address.ip_v4.addr);
-        tunIPv4->tunDstAddr = ntohl(sample->tun_ipdst.address.ip_v4.addr);
-        tunIPv4->tunProto = sample->tun_proto;
-        dbg_printf("Add IPv4 tunnel extension\n");
-    }
-
-    if (tun_isV6 && ExtensionsEnabled[EXtunIPv6ID]) {
-        PushExtension(recordHeader, EXtunIPv6, tunIPv6);
-
-        u_char *b = sample->tun_ipsrc.address.ip_v6.addr;
-        uint64_t *u = (uint64_t *)b;
-        tunIPv6->tunSrcAddr[0] = ntohll(*u);
-        u = (uint64_t *)&(b[8]);
-        tunIPv6->tunSrcAddr[1] = ntohll(*u);
-
-        b = sample->tun_ipdst.address.ip_v6.addr;
-        u = (uint64_t *)b;
-        tunIPv6->tunDstAddr[0] = ntohll(*u);
-        u = (uint64_t *)&(b[8]);
-        tunIPv6->tunDstAddr[1] = ntohll(*u);
-
-        tunIPv6->tunProto = sample->tun_proto;
-        dbg_printf("Add IPv6 tunnel extension\n");
-    }
+    recordHeader->size = nextOffset;
 
     // update first_seen, last_seen
+    if (!genericFlow) {
+        LogError("SFLOW: genericFlow extension missing - skip stats update");
+        return;
+    }
     if (genericFlow->msecFirst < fs->stat_record.msecFirstSeen)  // the very first time stamp need to be set
         fs->stat_record.msecFirstSeen = genericFlow->msecFirst;
     fs->stat_record.msecLastSeen = genericFlow->msecFirst;

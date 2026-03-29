@@ -138,8 +138,6 @@ typedef struct netflow_v7_record {
 static int printRecord;
 static int32_t defaultSampling;
 
-#define BitMapSet(map, id) (map |= (1ULL << (id)))
-
 // netflow v5 has at max all these extensions
 // always EXgenericFlow, EXipv4Flow, optional at runtime EXinterface, EXasInfo EXasRoutingV4
 // including EXipReceivedV4 or EXipReceivedV4, added at runtime
@@ -221,6 +219,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
         return fs->last_exp;
     }
 
+    // not found - search in hash table
     exporter_table_t *tab = &fs->exporters;
     // Check load factor in case we need a new slot
     if ((tab->count * 4) >= (tab->capacity * 3)) {
@@ -301,7 +300,6 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
                         sampler_record_v4[i].spaceInterval);
                 }
             }
-            e->sysID = e->info->sysID;
 
             fs->last_key = key;
             fs->last_exp = e;

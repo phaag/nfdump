@@ -664,6 +664,8 @@ typedef struct EXipInfo_s {
 } EXipInfo_t;
 #define EXipInfoSize sizeof(EXipInfo_t)
 
+#define BitMapSet(map, id) (map |= (1ULL << (id)))
+
 #define AddV4Header(p)                                  \
     ({                                                  \
         recordHeaderV4_t *_h = (recordHeaderV4_t *)(p); \
