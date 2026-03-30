@@ -293,8 +293,8 @@ typedef struct EXasRoutingV4_s {
 #define EXasRoutingV4Size sizeof(EXasRoutingV4_t)
 
 typedef struct EXasRoutingV6_s {
-    uint8_t nextHop[16];
-    uint8_t bgpNextHop[16];
+    uint64_t nextHop[2];
+    uint64_t bgpNextHop[2];
 #define OFFnextHopIPV6 offsetof(EXasRoutingV6_t, nextHop)
 #define SIZEnextHopIPV6 MemberSize(EXasRoutingV6_t, nextHop)
 #define OFFbgpNextHopV6 offsetof(EXasRoutingV6_t, bgpNextHop)
@@ -400,8 +400,8 @@ typedef struct EXnatXlateV4_s {
 #define EXnatXlateV4Size sizeof(EXnatXlateV4_t)
 
 typedef struct EXnatXlateV6_s {
-    uint8_t xlateSrcAddr[16];  // NF_F_XLATE_SRC_ADDR_IPV6(281)
-    uint8_t xlateDstAddr[16];  // NF_F_XLATE_DST_ADDR_IPV6(282),
+    uint64_t xlateSrcAddr[2];  // NF_F_XLATE_SRC_ADDR_IPV6(281)
+    uint64_t xlateDstAddr[2];  // NF_F_XLATE_DST_ADDR_IPV6(282),
 #define OFFxlateSrcAddrV6 offsetof(EXnatXlateV6_t, xlateSrcAddr)
 #define SIZExlateSrcAddrV6 MemberSize(EXnatXlateV6_t, xlateSrcAddr)
 #define OFFxlateDstAddrV6 offsetof(EXnatXlateV6_t, xlateDstAddr)

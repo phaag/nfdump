@@ -43,6 +43,7 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "id.h"
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"

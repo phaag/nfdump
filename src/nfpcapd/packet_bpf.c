@@ -277,9 +277,9 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
             break;
         } else if (ready == 0) {
             dbg_printf("select() bpf - timeout\n");
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
-            t_packet = tv.tv_sec;
+            struct timespec ts;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            t_packet = ts.tv_sec;
             if ((t_packet - t_start) >= t_win) { /* rotate file */
                 if (DoPacketDump) {
                     // Rotate dump file - close old - open new

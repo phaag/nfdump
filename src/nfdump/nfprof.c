@@ -37,8 +37,8 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/resource.h>
-#include <sys/time.h>
 #include <sys/types.h>
+#include <time.h>
 
 #include "config.h"
 #include "logging.h"
@@ -50,7 +50,7 @@
  */
 int nfprof_start(nfprof_t *profile_data) {
     memset((void *)profile_data, 0, sizeof(nfprof_t));
-    return gettimeofday(&profile_data->tstart, (struct timezone *)NULL) == 0 ? 1 : 0;
+    return clock_gettime(CLOCK_MONOTONIC, &profile_data->tstart) == 0 ? 1 : 0;
 
 }  // End of nfprof_start
 
@@ -61,7 +61,7 @@ int nfprof_start(nfprof_t *profile_data) {
 int nfprof_end(nfprof_t *profile_data, uint64_t numflows) {
     int ret;
 
-    if ((ret = gettimeofday(&profile_data->tend, (struct timezone *)NULL)) == -1) return 1;
+    if ((ret = clock_gettime(CLOCK_MONOTONIC, &profile_data->tend)) == -1) return 1;
 
     if ((ret = getrusage(RUSAGE_SELF, &profile_data->used)) == -1) return 1;
 
@@ -76,16 +76,16 @@ int nfprof_end(nfprof_t *profile_data, uint64_t numflows) {
  *
  */
 void nfprof_print(nfprof_t *profile_data, FILE *std) {
-    struct timeval tv;
+    struct timespec ts;
 
-    gettimeofday(&tv, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &ts);
 
     double tsys = profile_data->used.ru_stime.tv_sec + profile_data->used.ru_stime.tv_usec / 1000000.0;
     double tuser = profile_data->used.ru_utime.tv_sec + profile_data->used.ru_utime.tv_usec / 1000000.0;
 
-    double tstart = profile_data->tstart.tv_sec + profile_data->tstart.tv_usec / 1000000.0;
-    double tend = profile_data->tend.tv_sec + profile_data->tend.tv_usec / 1000000.0;
-    double tstop = tv.tv_sec + tv.tv_usec / 1000000.0;
+    double tstart = profile_data->tstart.tv_sec + profile_data->tstart.tv_nsec / 1000000000.0;
+    double tend = profile_data->tend.tv_sec + profile_data->tend.tv_nsec / 1000000000.0;
+    double tstop = ts.tv_sec + ts.tv_nsec / 1000000000.0;
 
     double fps;
     if (tstart == tend)

@@ -32,13 +32,13 @@
 
 #include <arpa/inet.h>
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 
-#include "exporter.h"
 #include "nfxV4.h"
 
 /* v5 structures */
@@ -83,7 +83,9 @@ typedef struct netflow_v5_record {
 // for sending netflow v5
 static netflow_v5_header_t *v5_output_header;
 static netflow_v5_record_t *v5_output_record;
-static exporter_entry_t output_engine = {0};
+static uint32_t v5_sequence = 0;
+static uint32_t v5_last_count = 0;
+static bool v5_first_record = true;
 
 /*
  * functions used for sending netflow v5 records
@@ -99,8 +101,9 @@ void Init_v5_v7_output(send_peer_t *peer) {
     v5_output_header->unix_nsecs = 0;
     v5_output_header->count = 0;
 
-    output_engine = (exporter_entry_t){.sequence = UINT32_MAX};
-    output_engine.v5 = (exporter_v5_t){0};
+    v5_sequence = 0;
+    v5_last_count = 0;
+    v5_first_record = true;
 
     v5_output_record = (netflow_v5_record_t *)((void *)v5_output_header + NETFLOW_V5_HEADER_LENGTH);
 
@@ -123,12 +126,18 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     // set device boot time to 1 day back of tstart of first flow
-    if (output_engine.sequence == UINT32_MAX) {  // first time a record is added
-        // boot time is set one day back - assuming that the start time of every flow does not start
-        // earlier
+    if (v5_first_record) {
         msecBoot = ((genericFlow->msecFirst / 1000LL) - 86400LL) * 1000LL;
         cnt = 0;
-        output_engine.sequence = 0;
+        v5_first_record = false;
+    }
+
+    // check buffer space for one more v5 record
+    if ((peer->buff_ptr + NETFLOW_V5_RECORD_LENGTH) > peer->endp) {
+        peer->flush = 1;
+        v5_last_count = cnt;
+        cnt = 0;
+        return 1;
     }
 
     if (cnt == 0) {
@@ -136,8 +145,8 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
         peer->buff_ptr = (void *)v5_output_record;
         memset(peer->buff_ptr, 0, NETFLOW_V5_MAX_RECORDS * NETFLOW_V5_RECORD_LENGTH);
 
-        output_engine.sequence += output_engine.v5.last_count;
-        v5_output_header->flow_sequence = htonl(output_engine.sequence);
+        v5_sequence += v5_last_count;
+        v5_output_header->flow_sequence = htonl(v5_sequence);
 
         uint32_t unix_secs = (genericFlow->msecLast / 1000LL) + 3600;
         v5_output_header->unix_secs = htonl(unix_secs);
@@ -199,7 +208,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     v5_output_record++;
     if (cnt == NETFLOW_V5_MAX_RECORDS) {
         peer->flush = 1;
-        output_engine.v5.last_count = cnt;
+        v5_last_count = cnt;
         cnt = 0;
     }
 

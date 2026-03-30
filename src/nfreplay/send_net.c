@@ -65,9 +65,10 @@ int setSourceAddress(int sockfd, const char *shostname, int family, int socktype
         LogError("getaddrinfo(%s) error: %s", shostname, gai_strerror(error));
         return -1;
     }
-    printf("Hacemos el bind(%s)\n", shostname);
+
     if (bind(sockfd, sres->ai_addr, sres->ai_addrlen) < 0) {
         LogError("bind(%s) error: %s", shostname, strerror(errno));
+        freeaddrinfo(sres);
         return -1;
     }
     freeaddrinfo(sres);
@@ -106,19 +107,8 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
         if (sockfd < 0) {
             LogError("socket() error: could not open the requested socket: %s", strerror(errno));
         } else {
-            // socket call was successful
-            if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
-                // unsuccessful connect :(
-                LogError("connect() error: could not open the requested socket: %s", strerror(errno));
-                close(sockfd);
-                sockfd = -1;
-            } else {
-                // connect successful - we are done
-                close(sockfd);
-                // ok - we need now an unconnected socket
-                sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-                break;
-            }
+            // socket opened successfully
+            break;
         }
         res = res->ai_next;
     }

@@ -48,7 +48,6 @@
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -331,9 +330,9 @@ void *__attribute__((noreturn)) linux_packet_thread(void *args) {
                 done = 1;
             } else if (ready == 0) {
                 dbg_printf("poll() - timeout\n");
-                struct timeval tv;
-                gettimeofday(&tv, NULL);
-                t_packet = tv.tv_sec;
+                struct timespec ts;
+                clock_gettime(CLOCK_REALTIME, &ts);
+                t_packet = ts.tv_sec;
                 if ((t_packet - t_start) >= t_win) { /* rotate file */
                     if (DoPacketDump) {
                         // Rote dump file - close old - open new

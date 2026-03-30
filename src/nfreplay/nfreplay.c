@@ -43,7 +43,6 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -80,6 +79,9 @@
 #ifdef HAVE_FPURGE
 #define FPURGE fpurge
 #endif
+#endif
+#ifndef FPURGE
+#define FPURGE(x) ((void)(x))
 #endif
 
 /* Local Variables */
@@ -128,18 +130,22 @@ static void usage(char *name) {
         name);
 } /* usage */
 
+static void Flush_nfd_header(send_peer_t *peer) {
+    size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
+    nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
+    nfd_header->version = htons(VERSION_NFDUMP);
+    nfd_header->length = htons(len);
+    sequence++;
+    dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
+    nfd_header->lastSequence = htonl(sequence);
+    nfd_header->numRecord = htonl(recordCnt);
+    recordCnt = 0;
+}  // End of Flush_nfd_header
+
 void Close_nfd_output(send_peer_t *peer) {
     size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
     if (len > 0) {
-        // flush last packet
-        nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-        nfd_header->version = htons(VERSION_NFDUMP);
-        nfd_header->length = htons(len);
-        sequence++;
-        dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
-        nfd_header->lastSequence = htonl(sequence);
-        nfd_header->numRecord = htonl(recordCnt);
-        recordCnt = 0;
+        Flush_nfd_header(peer);
         peer->flush = 1;
     } else {
         peer->flush = 0;
@@ -158,19 +164,9 @@ int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
         peer->buff_ptr = peer->buff_ptr + sizeof(nfd_header_t);
     }
 
-    // record_header == NULL -> no record to add, but flush buffer
-    if ((peer->buff_ptr + record_header->size) >= peer->endp) {
+    if (record_header == NULL || (peer->buff_ptr + record_header->size) >= peer->endp) {
         // flush packet first
-        size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
-
-        nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-        nfd_header->version = htons(VERSION_NFDUMP);
-        nfd_header->length = htons(len);
-        sequence++;
-        dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
-        nfd_header->lastSequence = htonl(sequence);
-        nfd_header->numRecord = htonl(recordCnt);
-        recordCnt = 0;
+        Flush_nfd_header(peer);
         peer->flush = 1;
         return 1;
     }
@@ -226,7 +222,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     uint64_t twin_msecFirst, twin_msecLast;
 
     // z-parameter variables
-    struct timeval todayTime, currentTime;
+    struct timespec todayTime, currentTime;
     double today = 0, reftime = 0;
     int reducer = 0;
 
@@ -244,10 +240,6 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     nffile = GetNextFile();
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return;
-    }
-    if (nffile == NULL) {
-        LogError("Empty file list. No files to process\n");
         return;
     }
     FilterSetParam(engine, nffile->ident, NOGEODB);
@@ -268,13 +260,19 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
             Init_v5_v7_output(&peer);
             break;
         case 9:
-            if (!Init_v9_output(&peer)) return;
+            if (!Init_v9_output(&peer)) {
+                free(peer.send_buffer);
+                DisposeFile(nffile);
+                return;
+            }
             break;
     }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(peer.send_buffer);
+        DisposeFile(nffile);
         return;
     }
 
@@ -297,7 +295,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
             continue;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+        if (dataBlock->type != DATA_BLOCK_TYPE_2) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
             continue;
         }
@@ -342,13 +340,13 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
                     int again = 0;
                     switch (netflow_version) {
-                        case 5:
+                        case VERSION_NETFLOW_V5:
                             again = Add_v5_output_record(recordHandle, &peer);
                             break;
-                        case 9:
+                        case VERSION_NETFLOW_V9:
                             again = Add_v9_output_record(recordHandle, &peer);
                             break;
-                        case 250:
+                        case VERSION_NFDUMP:  // nfd raw format
                             again = Add_nfd_output_record(record_ptr, &peer);
                             break;
                     }
@@ -372,13 +370,13 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
                     if (again) {
                         switch (netflow_version) {
-                            case 5:
+                            case VERSION_NETFLOW_V5:
                                 again = Add_v5_output_record(recordHandle, &peer);
                                 break;
-                            case 9:
+                            case VERSION_NETFLOW_V9:
                                 again = Add_v9_output_record(recordHandle, &peer);
                                 break;
-                            case 250:
+                            case VERSION_NFDUMP:  // nfd raw format
                                 again = Add_nfd_output_record(record_ptr, &peer);
                                 break;
                         }
@@ -405,21 +403,21 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
             EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
             if (genericFlow) last = (double)genericFlow->msecLast / 1000.0;
 
-            gettimeofday(&currentTime, NULL);
-            double now = (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
+            clock_gettime(CLOCK_MONOTONIC, &currentTime);
+            double now = (double)currentTime.tv_sec + (double)currentTime.tv_nsec / 1000000000.0;
 
             // remove incoherent values
             if (reftime == 0 && last > 1000000000 && last < 2000000000) {
                 reftime = last;
-                gettimeofday(&todayTime, NULL);
-                today = (double)todayTime.tv_sec + (double)todayTime.tv_usec / 1000000;
+                clock_gettime(CLOCK_MONOTONIC, &todayTime);
+                today = (double)todayTime.tv_sec + (double)todayTime.tv_nsec / 1000000000.0;
             }
 
             // Reducer avoid to have too much computation: It takes 1 over 3 line to regulate sending time
             if (reducer % 3 == 0 && distribution != 0 && reftime != 0 && last > 1000000000) {
                 while (last - reftime > distribution * (now - today)) {
-                    gettimeofday(&currentTime, NULL);
-                    now = (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
+                    clock_gettime(CLOCK_MONOTONIC, &currentTime);
+                    now = (double)currentTime.tv_sec + (double)currentTime.tv_nsec / 1000000000.0;
                 }
             }
             reducer++;
@@ -438,7 +436,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         case 9:
             Close_v9_output(&peer);
             break;
-        case 250:
+        case VERSION_NFDUMP:  // nfd raw format
             Close_nfd_output(&peer);
             break;
     }
@@ -460,12 +458,10 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 int main(int argc, char **argv) {
     char *ffile, *filter, *tstring;
     unsigned int delay, sockbuff_size;
-    timeWindow_t *timeWindow;
     flist_t flist;
 
     memset((void *)&flist, 0, sizeof(flist));
     ffile = filter = tstring = NULL;
-    timeWindow = NULL;
 
     peer.hostname = NULL;
     peer.shostname = NULL;
@@ -532,8 +528,8 @@ int main(int argc, char **argv) {
             } break;
             case 'v':
                 netflow_version = atoi(optarg);
-                if (netflow_version != 5 && netflow_version != 9 && netflow_version != 250) {
-                    LogError("Invalid netflow version: %s. Accept only 5 or 9 or 250", optarg);
+                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_NFDUMP) {
+                    LogError("Invalid netflow version: %s. Accept only 5 or 9 or %d", optarg, VERSION_NFDUMP);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -629,7 +625,7 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!Init_nffile(1, fileList)) exit(254);
 
-    send_data(engine, timeWindow, count, delay, confirm, netflow_version, distribution);
+    send_data(engine, flist.timeWindow, count, delay, confirm, netflow_version, distribution);
 
     return 0;
 }

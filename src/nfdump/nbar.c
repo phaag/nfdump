@@ -45,7 +45,6 @@
 #include "config.h"
 #include "khash.h"
 #include "logging.h"
-#include "nfxV3.h"
 #include "util.h"
 
 typedef struct AppInfoHash_s {
@@ -113,28 +112,6 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
 
 }  // end of InsertNbarAppInfo
 
-/*
- * nbar record storage has been improved - read older nbar records correctly
- */
-static int AddOldNbarRecord(arrayRecordHeader_t *nbarRecord) {
-    dbg_printf("Old nbar record:\n");
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
-    for (int i = 0; i < nbarRecord->numElements; i++) {
-        switch (elementHeader->type) {
-            case NbarAppInfoID: {
-                NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
-                InsertNbarAppInfo(NbarAppInfo, nbarData);
-            } break;
-            default:
-                printf("Unknown nbar element id: %u\n", elementHeader->type);
-        }
-    }
-
-    return 0;
-
-}  // End of AddNbarRecord
-
 int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     if (NbarAppInfoHash == NULL) {
         NbarAppInfoHash = kh_init(NbarAppInfoHash);
@@ -145,7 +122,10 @@ int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     }
 
     // old buggy nbarRecord
-    if (nbarRecord->elementSize == 0) return AddOldNbarRecord(nbarRecord);
+    if (nbarRecord->elementSize == 0) {
+        LogError("Skip legacy nbar record");
+        return 0;
+    }
 
     NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
     uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));

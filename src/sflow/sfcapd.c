@@ -71,7 +71,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "pidfile.h"
 #include "repeater.h"
 #include "sflow_nfdump.h"

@@ -78,10 +78,10 @@ static const scale_steps_t si_scale_steps[] = {{1000000000000.0, "T"},  // 1000^
 
 double t(void) {
     static double t0;
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
     double h = t0;
-    t0 = tv.tv_sec + tv.tv_usec / 1000000.0;
+    t0 = ts.tv_sec + ts.tv_nsec / 1000000000.0;
     return t0 - h;
 }  // End of t
 

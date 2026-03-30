@@ -41,16 +41,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "config.h"
-#include "nffile.h"
-#include "nfxV3.h"
 #include "logging.h"
+#include "nffile.h"
 #include "util.h"
 
 static char *socket_path = NULL;
@@ -114,6 +112,7 @@ static inline metric_record_t *GetMetric(char *ident, uint32_t exporterID) {
 }  // End of GetMetric
 
 int OpenMetric(char *path, unsigned interval) {
+    (void)interval;
     socket_path = path;
     int fd = OpenSocket();
     if (fd == 0) {
@@ -212,6 +211,7 @@ void UpdateMetric(char *ident, uint32_t exporterID, EXgenericFlow_t *genericFlow
 }  // End of UpdateMetric
 
 __attribute__((noreturn)) void *MetricThread(void *arg) {
+    (void)arg;
     dbg_printf("Started MetricThread\n");
     void *message = malloc(sizeof(message_header_t) + sizeof(metric_record_t));
     if (!message) {
@@ -235,14 +235,14 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
     uint32_t cnt = 1;
 
     struct timespec sleepTime;
-    struct timeval te;
-    gettimeofday(&te, NULL);
+    struct timespec te;
+    clock_gettime(CLOCK_REALTIME, &te);
     sleepTime.tv_sec = interval - (te.tv_sec % interval) - 1;
-    sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
+    sleepTime.tv_nsec = 1000000000LL - te.tv_nsec;
 
     while (1) {
         nanosleep(&sleepTime, NULL);
-        gettimeofday(&te, NULL);
+        clock_gettime(CLOCK_REALTIME, &te);
 
         // check for end condition
         uint64_t _tstart = atomic_load(&tstart);
@@ -251,7 +251,7 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
         if (numMetrics == 0) {
             dbg_printf("No metric available\n");
             sleepTime.tv_sec = interval - (te.tv_sec % interval) - 1;
-            sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
+            sleepTime.tv_nsec = 1000000000LL - te.tv_nsec;
             continue;
         }
 
@@ -309,9 +309,9 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
         }
         pthread_mutex_unlock(&mutex);
 
-        gettimeofday(&te, NULL);
+        clock_gettime(CLOCK_REALTIME, &te);
         sleepTime.tv_sec = interval - (te.tv_sec % interval) - 1;
-        sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
+        sleepTime.tv_nsec = 1000000000LL - te.tv_nsec;
     }
     free(message);
     pthread_exit(NULL);

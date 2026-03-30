@@ -70,7 +70,6 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nflog.h"
-#include "nfxV3.h"
 #include "pflog.h"
 #include "util.h"
 

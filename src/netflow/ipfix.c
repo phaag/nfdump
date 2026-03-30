@@ -47,6 +47,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "fnf.h"
+#include "id.h"
 #include "logging.h"
 #include "metric.h"
 #include "nbar.h"

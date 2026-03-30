@@ -37,10 +37,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "id.h"
+#include "logging.h"
 #include "nffile.h"
 #include "nffileV2.h"
-#include "nfxV3.h"
-#include "logging.h"
 #include "util.h"
 
 // include after
@@ -248,7 +248,7 @@ int LoadTorTree(char *fileName) {
         switch (arrayHeader->type) {
             case TorTreeElementID: {
                 torNode_t *torNode = (torNode_t *)arrayElement;
-                for (int i = 0; i < dataBlock->NumRecords; i++) {
+                for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
                     torNode_t *node = kb_getp(torTree, torTree, torNode);
                     if (node) {
                         LogError("Duplicate IP node: ip: 0x%x", torNode->ipaddr);
@@ -281,11 +281,11 @@ int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo) {
     if (torNode) {
         first /= 1000;
         last /= 1000;
-        for (int i = 0; i <= torNode->intervalIndex; i++) {
+        for (int i = 0; i <= (int)torNode->intervalIndex; i++) {
             // allow 24h over last seen
             time_t graceLastSeen = torNode->interval[i].lastSeen + 24 * 3600;
-            if ((first >= torNode->interval[i].firstSeen && first <= graceLastSeen) ||
-                (last >= torNode->interval[i].firstSeen && last <= graceLastSeen)) {
+            if ((first >= (uint64_t)torNode->interval[i].firstSeen && first <= (uint64_t)graceLastSeen) ||
+                (last >= (uint64_t)torNode->interval[i].firstSeen && last <= (uint64_t)graceLastSeen)) {
                 torInfo[0] = 'E';
                 torInfo[1] = 'X';
                 torInfo[2] = '\0';

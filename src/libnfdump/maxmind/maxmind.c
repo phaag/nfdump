@@ -44,12 +44,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "id.h"
+#include "logging.h"
 #include "maxmind.h"
 #include "mmhash.h"
 #include "nffile.h"
 #include "nffileV2.h"
-#include "nfxV3.h"
-#include "logging.h"
 #include "util.h"
 
 #define arrayElementSizeCheck(type)                                          \

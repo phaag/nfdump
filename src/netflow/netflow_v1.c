@@ -44,6 +44,7 @@
 
 #include "collector.h"
 #include "exporter.h"
+#include "id.h"
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"

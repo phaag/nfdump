@@ -63,6 +63,7 @@
 #include "sflow.h"
 #include "sflow_process.h"
 // sFlow v2/4
+#include "id.h"
 #include "sflow_v2v4.h"
 #include "util.h"
 

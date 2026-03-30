@@ -32,7 +32,6 @@
 #define _METRIC_H 1
 
 #include "nffile.h"
-#include "nfxV3.h"
 
 typedef struct message_header_s {
     char prefix;

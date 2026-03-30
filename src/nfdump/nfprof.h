@@ -35,14 +35,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/resource.h>
-#include <sys/time.h>
 #include <sys/types.h>
+#include <time.h>
 
 typedef struct nfprof_s {
-    struct timeval tstart; /* start time */
-    struct timeval tend;   /* end time */
-    struct rusage used;    /* system resources used */
-    uint64_t numflows;     /* total # of flows processed */
+    struct timespec tstart; /* start time */
+    struct timespec tend;   /* end time */
+    struct rusage used;     /* system resources used */
+    uint64_t numflows;      /* total # of flows processed */
 } nfprof_t;
 
 int nfprof_start(nfprof_t *profile_data);

@@ -197,10 +197,18 @@ static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon
             case EXasRoutingV6ID: {
                 EXasRoutingV6_t *asRouting = (EXasRoutingV6_t *)extension;
                 uint8_t anon_ip[16];
-                anonymize_v6(asRouting->nextHop, anon_ip);
-                __builtin_memcpy(asRouting->nextHop, anon_ip, sizeof(anon_ip));
-                anonymize_v6(asRouting->bgpNextHop, anon_ip);
-                __builtin_memcpy(asRouting->bgpNextHop, anon_ip, sizeof(anon_ip));
+                // convert host-order uint64_t[2] to network-order bytes for CryptoPAn
+                uint64_t tmp[2] = {htonll(asRouting->nextHop[0]), htonll(asRouting->nextHop[1])};
+                anonymize_v6((uint8_t *)tmp, anon_ip);
+                __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                asRouting->nextHop[0] = ntohll(tmp[0]);
+                asRouting->nextHop[1] = ntohll(tmp[1]);
+                tmp[0] = htonll(asRouting->bgpNextHop[0]);
+                tmp[1] = htonll(asRouting->bgpNextHop[1]);
+                anonymize_v6((uint8_t *)tmp, anon_ip);
+                __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                asRouting->bgpNextHop[0] = ntohll(tmp[0]);
+                asRouting->bgpNextHop[1] = ntohll(tmp[1]);
             } break;
             case EXasAdjacentID: {
                 EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)extension;
@@ -230,12 +238,19 @@ static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon
                 EXnatXlateV6_t *natXlateIPv6 = (EXnatXlateV6_t *)extension;
                 uint8_t anon_ip[16];
                 if (anon_src) {
-                    anonymize_v6(natXlateIPv6->xlateSrcAddr, anon_ip);
-                    __builtin_memcpy(natXlateIPv6->xlateSrcAddr, anon_ip, sizeof(anon_ip));
+                    // convert host-order uint64_t[2] to network-order bytes for CryptoPAn
+                    uint64_t tmp[2] = {htonll(natXlateIPv6->xlateSrcAddr[0]), htonll(natXlateIPv6->xlateSrcAddr[1])};
+                    anonymize_v6((uint8_t *)tmp, anon_ip);
+                    __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                    natXlateIPv6->xlateSrcAddr[0] = ntohll(tmp[0]);
+                    natXlateIPv6->xlateSrcAddr[1] = ntohll(tmp[1]);
                 }
                 if (anon_dst) {
-                    anonymize_v6(natXlateIPv6->xlateDstAddr, anon_ip);
-                    __builtin_memcpy(natXlateIPv6->xlateDstAddr, anon_ip, sizeof(anon_ip));
+                    uint64_t tmp[2] = {htonll(natXlateIPv6->xlateDstAddr[0]), htonll(natXlateIPv6->xlateDstAddr[1])};
+                    anonymize_v6((uint8_t *)tmp, anon_ip);
+                    __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                    natXlateIPv6->xlateDstAddr[0] = ntohll(tmp[0]);
+                    natXlateIPv6->xlateDstAddr[1] = ntohll(tmp[1]);
                 }
             } break;
             case EXtunnelID: {

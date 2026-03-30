@@ -70,7 +70,6 @@
 #include "nfprof.h"
 #include "nfstat.h"
 #include "nfx.h"
-#include "nfxV3.h"
 #include "output.h"
 #include "ssl/ssl.h"
 #include "tor/tor.h"

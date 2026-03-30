@@ -29,7 +29,7 @@
  */
 
 #ifndef _SEND_V9_H
-#define _SEND_V5_H 1
+#define _SEND_V9_H 1
 
 #include "nfdump.h"
 #include "send_net.h"

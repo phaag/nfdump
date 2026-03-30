@@ -191,7 +191,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     // nothing found, otherwise we would not get here
     *t = (outTemplate_t *)calloc(1, sizeof(outTemplate_t));
     if (!(*t)) {
-        LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
     (*t)->next = NULL;
@@ -213,7 +213,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     int32_t numV9Elements = 40;  // assume, this may be enough, otherwise expand table
     (*t)->template_flowset = calloc(1, sizeof(template_flowset_t) + (size_t)(numV9Elements * 4));
     if (!(*t)->template_flowset) {
-        LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
     template_flowset_t *flowset = (*t)->template_flowset;
@@ -244,7 +244,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
             size_t newSize = sizeof(template_flowset_t) + (numV9Elements * 4);
             (*t)->template_flowset = realloc((*t)->template_flowset, newSize);
             if (!(*t)->template_flowset) {
-                LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                LogError("realloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 exit(255);
             }
             // remap flowset

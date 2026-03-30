@@ -53,12 +53,13 @@
 #include "conf/nfconf.h"
 #include "flist.h"
 #include "flowsource.h"
+#include "id.h"
 #include "ip128.h"
 #include "launch.h"
 #include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "util.h"
 
 typedef struct finaliseArgs_s {
@@ -422,7 +423,7 @@ void FlushExporter(FlowSource_t *fs) {
                info_record->version, info_record->id, info_record->packets, info_record->flows, info_record->sequence_failure);
         sampler_record_v4_t *sampler = info_record->samplers;
         for (int i = 0; i < info_record->sampler_count; i++) {
-            printf("[%d] Sampler - ID: %d, packetInterval: %u, spaceInterval: %u, algorithm: %u\n", i, sampler->selectorID, sampler->packetInterval,
+            printf("[%d] Sampler - ID: %lld, packetInterval: %u, spaceInterval: %u, algorithm: %u\n", i, sampler->selectorID, sampler->packetInterval,
                    sampler->spaceInterval, sampler->algorithm);
         }
 

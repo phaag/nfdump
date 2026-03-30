@@ -50,6 +50,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "flowdump.h"
+#include "id.h"
 #include "logging.h"
 #include "metric.h"
 #include "nfd_raw.h"
@@ -336,7 +337,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
 } /* End of ProcessFlow */
 
-static inline int CloseSender(flowParam_t *flowParam, time_t timestamp) {
+static inline int CloseSender(flowParam_t *flowParam) {
     repeater_t *sendHost = flowParam->sendHost;
 
     return close(sendHost->sockfd);
@@ -366,7 +367,7 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
                 // skip
                 break;
             case SIGNAL_NODE_DONE:
-                CloseSender(flowParam, Node->timestamp);
+                CloseSender(flowParam);
                 done = 1;
                 break;
             default:

@@ -43,7 +43,7 @@
 #include "config.h"
 #include "ip128.h"
 #include "nfdump.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "pflog.h"
 
 typedef struct flowHashStat_s {
