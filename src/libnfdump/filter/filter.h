@@ -35,7 +35,6 @@
 #include <stdio.h>
 
 #include "nfdump.h"
-#include "nfxV3.h"
 #include "rbtree.h"
 
 typedef enum {

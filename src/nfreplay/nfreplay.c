@@ -55,6 +55,7 @@
 
 #include "filter/filter.h"
 #include "flist.h"
+#include "id.h"
 #include "logging.h"
 #include "nbar.h"
 #include "nfd_raw.h"
