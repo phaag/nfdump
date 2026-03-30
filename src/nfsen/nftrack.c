@@ -56,7 +56,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nftrack_rrd.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "util.h"
 #include "version.h"
 
@@ -203,9 +203,9 @@ static data_row *process(void *engine) {
             sumSize += record_ptr->size;
 
             switch (record_ptr->type) {
-                case V3Record: {
+                case V4Record: {
                     processed++;
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+                    MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, processed);
                     int ret = FilterRecord(engine, recordHandle);
 
                     if (ret == 0) {  // record failed to pass the filter

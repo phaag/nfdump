@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,9 +31,7 @@
 #ifndef _NBAR_H
 #define _NBAR_H 1
 
-#include "config.h"
-#include "nffile.h"
-#include "nfxV3.h"
+#include "nffileV3.h"
 
 // var length extension
 // size = sizeof nbarAppInfo_t + *_length

@@ -367,7 +367,7 @@ int main(int argc, char **argv) {
         LogInfo("Expired files:      %llu", (unsigned long long)(expired_files));
         char string[128];
         LogInfo("Expired file size:  %sB", ScaleByteValue(string, sizeof(string), expired_size, PRINT_SCALED, 0));
-        LogInfo("Expired time range: %s", ScaleDuration(string, sizeof(string), expired_time, PRINT_SCALED, VAR_LENGTH));
+        LogInfo("Expired time range: %s", ScaleDuration(string, sizeof(string), expired_time, PRINT_SCALED, WIDTH_VAR));
     }
 
     if (do_update_param) {

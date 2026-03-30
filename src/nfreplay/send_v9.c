@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022-2025, Peter Haag
+ *  Copyright (c) 2022-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@
 #include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "send_net.h"
 #include "util.h"
 
@@ -176,10 +176,7 @@ int Close_v9_output(send_peer_t *peer) {
 static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     uint32_t template_id = 0;
 
-    uint64_t elementBits = 0;
-    for (int i = 0; i < MAXEXTENSIONS; i++) {
-        if (recordHandle->extensionList[i]) elementBits |= (uint64_t)1 << i;
-    }
+    uint64_t elementBits = recordHandle->recordHeaderV4->extBitmap;
 
     outTemplate_t **t = &outTemplates;
     // search for the template, which corresponds to our flags and extension map
@@ -317,13 +314,16 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 srcMaskType = NF9_IPV6_SRC_MASK;
                 dstMaskType = NF9_IPV6_DST_MASK;
                 break;
-            case EXflowMiscID:
+            case EXinterfaceID:
                 flowset->field[count].type = htons(NF9_INPUT_SNMP);
                 flowset->field[count].length = htons(4);
                 count++;
                 flowset->field[count].type = htons(NF9_OUTPUT_SNMP);
                 flowset->field[count].length = htons(4);
                 count++;
+                data_length += 8;
+                break;
+            case EXflowMiscID:
                 flowset->field[count].type = htons(srcMaskType);
                 flowset->field[count].length = htons(1);
                 count++;
@@ -336,7 +336,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 flowset->field[count].type = htons(NF9_DST_TOS);
                 flowset->field[count].length = htons(1);
                 count++;
-                data_length += 12;
+                data_length += 4;
                 break;
             case EXcntFlowID:
                 flowset->field[count].type = htons(NF9_FLOWS_AGGR);
@@ -359,7 +359,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 count++;
                 data_length += 4;
                 break;
-            case EXasRoutingID:
+            case EXasInfoID:
                 flowset->field[count].type = htons(NF9_SRC_AS);
                 flowset->field[count].length = htons(4);
                 count++;
@@ -368,31 +368,25 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 count++;
                 data_length += 8;
                 break;
-            case EXbgpNextHopV4ID:
-                flowset->field[count].type = htons(NF9_BGP_V4_NEXT_HOP);
-                flowset->field[count].length = htons(4);
-                count++;
-                data_length += 4;
-                break;
-            case EXbgpNextHopV6ID:
-                flowset->field[count].type = htons(NF9_BPG_V6_NEXT_HOP);
-                flowset->field[count].length = htons(16);
-                count++;
-                data_length += 16;
-                break;
-            case EXipNextHopV4ID:
+            case EXasRoutingV4ID:
                 flowset->field[count].type = htons(NF9_V4_NEXT_HOP);
                 flowset->field[count].length = htons(4);
                 count++;
-                data_length += 4;
+                flowset->field[count].type = htons(NF9_BGP_V4_NEXT_HOP);
+                flowset->field[count].length = htons(4);
+                count++;
+                data_length += 8;
                 break;
-            case EXipNextHopV6ID:
+            case EXasRoutingV6ID:
                 flowset->field[count].type = htons(NF9_V6_NEXT_HOP);
                 flowset->field[count].length = htons(16);
                 count++;
-                data_length += 16;
+                flowset->field[count].type = htons(NF9_BPG_V6_NEXT_HOP);
+                flowset->field[count].length = htons(16);
+                count++;
+                data_length += 32;
                 break;
-            case EXmplsLabelID:
+            case EXmplsID:
                 flowset->field[count].type = htons(NF9_MPLS_LABEL_1);
                 flowset->field[count].length = htons(3);
                 count++;
@@ -425,20 +419,23 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 count++;
                 data_length += 30;
                 break;
-            case EXmacAddrID:
+            case EXinMacAddrID:
                 flowset->field[count].type = htons(NF9_IN_SRC_MAC);
                 flowset->field[count].length = htons(6);
                 count++;
                 flowset->field[count].type = htons(NF9_OUT_DST_MAC);
                 flowset->field[count].length = htons(6);
                 count++;
+                data_length += 12;
+                break;
+            case EXoutMacAddrID:
                 flowset->field[count].type = htons(NF9_IN_DST_MAC);
                 flowset->field[count].length = htons(6);
                 count++;
                 flowset->field[count].type = htons(NF9_OUT_SRC_MAC);
                 flowset->field[count].length = htons(6);
                 count++;
-                data_length += 24;
+                data_length += 12;
                 break;
             case EXasAdjacentID:
                 flowset->field[count].type = htons(NF_F_BGP_ADJ_NEXT_AS);
@@ -499,8 +496,8 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
 
 static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
     uint8_t *p = (uint8_t *)peer->buff_ptr;
-    *p++ = recordHandle->recordHeaderV3->engineType;
-    *p++ = recordHandle->recordHeaderV3->engineID;
+    *p++ = recordHandle->recordHeaderV4->engineType;
+    *p++ = recordHandle->recordHeaderV4->engineID;
     peer->buff_ptr = (void *)p;
 
     int added = 0;
@@ -560,17 +557,20 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
                 Put_val64(htonll(ipv6Flow->dstAddr[1]), peer->buff_ptr);
                 peer->buff_ptr += 8;
             } break;
+            case EXinterfaceID: {
+                EXinterface_t *interface = (EXinterface_t *)elementPtr;
+                Put_val32(htonl(interface->input), peer->buff_ptr);
+                peer->buff_ptr += 4;
+                Put_val32(htonl(interface->output), peer->buff_ptr);
+                peer->buff_ptr += 4;
+            } break;
             case EXflowMiscID: {
                 EXflowMisc_t *flowMisc = (EXflowMisc_t *)elementPtr;
-                Put_val32(htonl(flowMisc->input), peer->buff_ptr);
-                peer->buff_ptr += 4;
-                Put_val32(htonl(flowMisc->output), peer->buff_ptr);
-                peer->buff_ptr += 4;
                 Put_val8(flowMisc->srcMask, peer->buff_ptr);
                 peer->buff_ptr += 1;
                 Put_val8(flowMisc->dstMask, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(flowMisc->dir, peer->buff_ptr);
+                Put_val8(flowMisc->direction, peer->buff_ptr);
                 peer->buff_ptr += 1;
                 Put_val8(flowMisc->dstTos, peer->buff_ptr);
                 peer->buff_ptr += 1;
@@ -604,47 +604,41 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
                 Put_val8(layer2->ipVersion, peer->buff_ptr);
                 peer->buff_ptr += 1;
             } break;
-            case EXasRoutingID: {
-                EXasRouting_t *asRouting = (EXasRouting_t *)elementPtr;
-                Put_val32(htonl(asRouting->srcAS), peer->buff_ptr);
+            case EXasInfoID: {
+                EXasInfo_t *asInfo = (EXasInfo_t *)elementPtr;
+                Put_val32(htonl(asInfo->srcAS), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                Put_val32(htonl(asRouting->dstAS), peer->buff_ptr);
-                peer->buff_ptr += 4;
-            } break;
-            case EXbgpNextHopV4ID: {
-                EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)elementPtr;
-                Put_val32(htonl(bgpNextHopV4->ip), peer->buff_ptr);
+                Put_val32(htonl(asInfo->dstAS), peer->buff_ptr);
                 peer->buff_ptr += 4;
             } break;
-            case EXbgpNextHopV6ID: {
-                EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)elementPtr;
-                Put_val64(htonll(bgpNextHopV6->ip[0]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(bgpNextHopV6->ip[1]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-            } break;
-            case EXipNextHopV4ID: {
-                EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)elementPtr;
-                Put_val32(htonl(ipNextHopV4->ip), peer->buff_ptr);
+            case EXasRoutingV4ID: {
+                EXasRoutingV4_t *asRouting = (EXasRoutingV4_t *)elementPtr;
+                Put_val32(htonl(asRouting->nextHop), peer->buff_ptr);
+                peer->buff_ptr += 4;
+                Put_val32(htonl(asRouting->bgpNextHop), peer->buff_ptr);
                 peer->buff_ptr += 4;
             } break;
-            case EXipNextHopV6ID: {
-                EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)elementPtr;
-                Put_val64(htonll(ipNextHopV6->ip[0]), peer->buff_ptr);
+            case EXasRoutingV6ID: {
+                EXasRoutingV6_t *asRouting = (EXasRoutingV6_t *)elementPtr;
+                Put_val64(htonll(asRouting->nextHop[0]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(ipNextHopV6->ip[1]), peer->buff_ptr);
+                Put_val64(htonll(asRouting->nextHop[1]), peer->buff_ptr);
+                peer->buff_ptr += 8;
+                Put_val64(htonll(asRouting->bgpNextHop[0]), peer->buff_ptr);
+                peer->buff_ptr += 8;
+                Put_val64(htonll(asRouting->bgpNextHop[1]), peer->buff_ptr);
                 peer->buff_ptr += 8;
             } break;
-            case EXmplsLabelID: {
-                EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)elementPtr;
+            case EXmplsID: {
+                EXmpls_t *mpls = (EXmpls_t *)elementPtr;
                 for (int i = 0; i < 10; i++) {
-                    uint32_t val32 = htonl(mplsLabel->mplsLabel[i]);
+                    uint32_t val32 = htonl(mpls->label[i]);
                     Put_val24(val32, peer->buff_ptr);
                     peer->buff_ptr += 3;
                 }
             } break;
-            case EXmacAddrID: {
-                EXmacAddr_t *macAddr = (EXmacAddr_t *)elementPtr;
+            case EXinMacAddrID: {
+                EXinMacAddr_t *macAddr = (EXinMacAddr_t *)elementPtr;
                 uint64_t val64 = htonll(macAddr->inSrcMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
@@ -652,8 +646,10 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
                 val64 = htonll(macAddr->outDstMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
-
-                val64 = htonll(macAddr->inDstMac);
+            } break;
+            case EXoutMacAddrID: {
+                EXoutMacAddr_t *macAddr = (EXoutMacAddr_t *)elementPtr;
+                uint64_t val64 = htonll(macAddr->inDstMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
 
@@ -678,7 +674,7 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
 static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer) {
     dbg_printf("Add template %u, bytes: %u\n", outTemplate->template_id, outTemplate->flowset_length);
     memcpy(peer->buff_ptr, (void *)outTemplate->template_flowset, outTemplate->flowset_length);
-    peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + outTemplate->flowset_length);
+    peer->buff_ptr = (void *)((ptrdiff_t)peer->buff_ptr + outTemplate->flowset_length);
 
     sender_data->header.template_count++;
 
@@ -693,7 +689,7 @@ static void CloseDataFlowset(send_peer_t *peer) {
             uint32_t align = 4 - bits;
             length += align;
             // fill padding with 0
-            for (int i = 0; i < align; i++) {
+            for (int i = 0; i < (int)align; i++) {
                 *((char *)peer->buff_ptr) = '\0';
                 peer->buff_ptr++;
             }

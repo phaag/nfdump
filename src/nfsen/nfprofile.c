@@ -54,7 +54,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "profile.h"
 #include "ssl/ssl.h"
 #include "tor.h"
@@ -168,8 +168,8 @@ static void *worker_thread(void *arg) {
             recordCount++;
 
             switch (record_ptr->type) {
-                case V3Record:
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, recordCount);
+                case V4Record:
+                    MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, recordCount);
 
                     for (int j = self; j < (int)numChannels; j += numWorkers) {
                         int match;
@@ -238,7 +238,7 @@ static void *worker_thread(void *arg) {
                 }
             }
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);
+            record_ptr = (record_header_t *)((ptrdiff_t)record_ptr + record_ptr->size);
 
         }  // End of for all umRecords
 

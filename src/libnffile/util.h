@@ -57,12 +57,6 @@ static inline uint64_t ntohll(uint64_t x) {
 }
 #endif
 
-#if (SIZEOF_VOID_P == 8)
-typedef uint64_t pointer_addr_t;
-#else
-typedef uint32_t pointer_addr_t;
-#endif
-
 #define _1KB (double)(1000.0)
 #define _1MB (double)(1000.0 * 1000.0)
 #define _1GB (double)(1000.0 * 1000.0 * 1000.0)

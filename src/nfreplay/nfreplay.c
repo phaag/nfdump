@@ -61,7 +61,7 @@
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "send_net.h"
 #include "send_v5.h"
 #include "send_v9.h"
@@ -129,7 +129,7 @@ static void usage(char *name) {
 } /* usage */
 
 void Close_nfd_output(send_peer_t *peer) {
-    size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
+    size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
     if (len > 0) {
         // flush last packet
         nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
@@ -149,7 +149,7 @@ void Close_nfd_output(send_peer_t *peer) {
 
 int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
 #ifdef DEVEL
-    size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
+    size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
     printf("Buffer size: %zu, Record count: %u\n", len, recordCnt);
 #endif
 
@@ -161,7 +161,7 @@ int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
     // record_header == NULL -> no record to add, but flush buffer
     if ((peer->buff_ptr + record_header->size) >= peer->endp) {
         // flush packet first
-        size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
+        size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
 
         nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
         nfd_header->version = htons(VERSION_NFDUMP);
@@ -185,7 +185,7 @@ int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
 static int FlushBuffer(int confirm) {
     static unsigned long cnt = 1;
 
-    size_t len = (pointer_addr_t)peer.buff_ptr - (pointer_addr_t)peer.send_buffer;
+    size_t len = (ptrdiff_t)peer.buff_ptr - (ptrdiff_t)peer.send_buffer;
     if (len == 0) return 0;
 
     peer.flush = 0;
@@ -260,7 +260,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         return;
     }
     peer.buff_ptr = peer.send_buffer;
-    peer.endp = (void *)((pointer_addr_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
+    peer.endp = (void *)((ptrdiff_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
 
     dbg_printf("Init output protocol version: %u\n", netflow_version);
     switch (netflow_version) {
@@ -314,10 +314,10 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
             sumSize += record_ptr->size;
 
             switch (record_ptr->type) {
-                case V3Record: {
+                case V4Record: {
                     int match;
                     processed++;
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+                    MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, processed);
 
                     // Time based filter
                     // if no time filter is given, the result is always true
@@ -427,7 +427,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         NEXT:
             FreeRecordHandle(recordHandle);
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);
+            record_ptr = (record_header_t *)((ptrdiff_t)record_ptr + record_ptr->size);
         }
     }  // while
 

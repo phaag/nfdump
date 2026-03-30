@@ -51,14 +51,15 @@
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
+#include "id.h"
 #include "ip128.h"
+#include "logging.h"
 #include "nbar.h"
 #include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "panonymizer.h"
-#include "logging.h"
 #include "util.h"
 
 #define MAXANONWORKERS 8
@@ -74,12 +75,14 @@ typedef struct worker_param_s {
     pthread_control_barrier_t *barrier;
 } worker_param_t;
 
+static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+
 /* Function Prototypes */
 static void usage(char *name);
 
-static inline void AnonExporterInfo(exporter_info_record_t *exporter_record);
+static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record);
 
-static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst);
+static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst);
 
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
 
@@ -103,200 +106,168 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-static inline void AnonExporterInfo(exporter_info_record_t *exporter_record) {
-    const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-
-    if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
+static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record) {
+    if (exporter_record->header.size < sizeof(exporter_info_record_v4_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return;
     }
 
-    uint64_t anon_ip[2];
-
-    ip128_t ipAddr;
-    uint64_t *u = (uint64_t *)ipAddr.bytes;
-    memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
-    switch (exporter_record->fill) {
-        case 0: {  // new type of info record
-            // anonymizing an IPv4/IPv6 combind record is more complicated,
-            // the the anonimizer expects host order bytes and has seperate
-            // functions for IPv4 and IPv6
-            if (is_ipv4_mapped(&ipAddr)) {
-                // anonymise IPv4
-                uint32_t ipv4;
-                memcpy(&ipv4, ipAddr.bytes + 12, sizeof(uint32_t));
-                ipv4 = anonymize(ntohl(ipv4));
-                ipv4 = htonl(ipv4);
-                memcpy(ipAddr.bytes + 12, &ipv4, sizeof(uint32_t));
-
-            } else {
-                // anonymise IPv6
-                u[0] = ntohll(u[0]);
-                u[1] = ntohll(u[1]);
-                anonymize_v6(u, anon_ip);
-                u[0] = htonll(anon_ip[0]);
-                u[1] = htonll(anon_ip[1]);
-            }
-        } break;
-        case AF_INET: {  // old IPV4 record
-            uint32_t ipv4 = anonymize(u[1]);
-
-            // convert to new representation
-            ipv4 = htonl(ipv4);
-            memcpy(ipAddr.bytes, prefix, sizeof(prefix));
-            memcpy(ipAddr.bytes + 12, &ipv4, sizeof(uint32_t));
-            exporter_record->fill = 0;
-
-            char s[INET6_ADDRSTRLEN];
-            inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
-            dbg_printf("Exporter: %s\n", s);
-            // copy back to exporter ip
-        } break;
-        case AF_INET6: {  // old IPv6 record
-            anonymize_v6(u, anon_ip);
-            u[0] = htonll(anon_ip[0]);
-            u[1] = htonll(anon_ip[1]);
-
-            // convert to new representation
-            exporter_record->fill = 0;
-        } break;
+    int is_mapped_v4 = memcmp(exporter_record->ip, prefix, sizeof(prefix)) == 0;
+    // anonymizing an IPv4/IPv6 combind record is more complicated,
+    // the the anonimizer expects host order bytes and has seperate
+    // functions for IPv4 and IPv6
+    if (is_mapped_v4) {
+        // anonymise IPv4
+        uint32_t ipv4;
+        __builtin_memcpy(&ipv4, exporter_record->ip + 12, sizeof(uint32_t));
+        ipv4 = anonymize(ntohl(ipv4));
+        ipv4 = htonl(ipv4);
+        __builtin_memcpy(exporter_record->ip + 12, &ipv4, sizeof(uint32_t));
+    } else {
+        // anonymise IPv6
+        uint8_t anon_ip[16];
+        anonymize_v6(exporter_record->ip, anon_ip);
+        memcpy(exporter_record->ip, anon_ip, 16);
     }
-    memcpy(exporter_record->ip, ipAddr.bytes, sizeof(ip128_t));
 
 #ifdef DEVEL
     char s[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, exporter_record->ip, s, INET6_ADDRSTRLEN);
     printf("Exporter: %s\n", s);
 #endif
 
 }  // End of AnonExporterInfo
 
-static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst) {
-    elementHeader_t *elementHeader;
-    uint32_t size = sizeof(recordHeaderV3_t);
+static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst) {
+    uint8_t *p = (void *)v4Record;
 
-    void *p = (void *)v3Record;
-    void *eor = p + v3Record->size;
-
-    if (v3Record->size < size) {
-        LogError("v3Record - unexpected size: '%u'", v3Record->size);
+    if (v4Record->size < sizeof(recordHeaderV4_t)) {
+        LogError("v4Record - unexpected size: '%u'", v4Record->size);
         return;
     }
 
-    SetFlag(v3Record->flags, V3_FLAG_ANON);
-    dbg_printf("Record announces %u extensions with total size %u\n", v3Record->numElements, v3Record->size);
-    // first record header
-    elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
-    for (int i = 0; i < v3Record->numElements; i++) {
-        uint64_t anon_ip[2];
-        dbg_printf("[%i] next extension: %u: %s\n", i, elementHeader->type,
-                   elementHeader->type < MAXEXTENSIONS ? extensionTable[elementHeader->type].name : "<unknown>");
-        switch (elementHeader->type) {
-            case EXnull:
-                break;
-            case EXgenericFlowID:
-                break;
+    SetFlag(v4Record->flags, V4_FLAG_ANON);
+    dbg_printf("Record announces %u extensions with total size %u\n", v4Record->numExtensions, v4Record->size);
+
+    uint64_t bitMap = v4Record->extBitmap;
+    uint8_t *recordBase = p;
+    uint16_t *offset = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
+    while (bitMap) {
+        uint64_t t = bitMap & -bitMap;
+        uint32_t extID = __builtin_ctzll(bitMap);
+        bitMap ^= t;
+
+        uint8_t *extension = recordBase + *offset++;
+
+        switch (extID) {
             case EXipv4FlowID: {
-                EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extension;
                 if (anon_src) ipv4Flow->srcAddr = anonymize(ipv4Flow->srcAddr);
                 if (anon_dst) ipv4Flow->dstAddr = anonymize(ipv4Flow->dstAddr);
             } break;
             case EXipv6FlowID: {
-                EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                uint8_t anon_ip[16];
+                EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extension;
                 if (anon_src) {
-                    anonymize_v6(ipv6Flow->srcAddr, anon_ip);
-                    ipv6Flow->srcAddr[0] = anon_ip[0];
-                    ipv6Flow->srcAddr[1] = anon_ip[1];
+                    uint64_t tmp[2] = {htonll(ipv6Flow->srcAddr[0]), htonll(ipv6Flow->srcAddr[1])};
+                    anonymize_v6((uint8_t *)tmp, anon_ip);
+                    __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                    ipv6Flow->srcAddr[0] = ntohll(tmp[0]);
+                    ipv6Flow->srcAddr[1] = ntohll(tmp[1]);
                 }
 
                 if (anon_dst) {
-                    anonymize_v6(ipv6Flow->srcAddr, anon_ip);
-                    ipv6Flow->dstAddr[0] = anon_ip[0];
-                    ipv6Flow->dstAddr[1] = anon_ip[1];
+                    uint64_t tmp[2] = {htonll(ipv6Flow->dstAddr[0]), htonll(ipv6Flow->dstAddr[1])};
+                    anonymize_v6((uint8_t *)tmp, anon_ip);
+                    __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                    ipv6Flow->dstAddr[0] = ntohll(tmp[0]);
+                    ipv6Flow->dstAddr[1] = ntohll(tmp[1]);
                 }
             } break;
-            case EXflowMiscID:
-                break;
-            case EXcntFlowID:
-                break;
-            case EXvLanID:
-                break;
-            case EXasRoutingID: {
-                EXasRouting_t *asRouting = (EXasRouting_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                if (anon_src) asRouting->srcAS = 0;
-                if (anon_dst) asRouting->dstAS = 0;
+            case EXasInfoID: {
+                EXasInfo_t *asInfo = (EXasInfo_t *)extension;
+                if (anon_src) asInfo->srcAS = 0;
+                if (anon_dst) asInfo->dstAS = 0;
             } break;
-            case EXbgpNextHopV4ID: {
-                EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                bgpNextHopV4->ip = anonymize(bgpNextHopV4->ip);
+            case EXasRoutingV4ID: {
+                EXasRoutingV4_t *asRouting = (EXasRoutingV4_t *)extension;
+                asRouting->nextHop = anonymize(asRouting->nextHop);
+                asRouting->bgpNextHop = anonymize(asRouting->bgpNextHop);
             } break;
-            case EXbgpNextHopV6ID: {
-                EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(bgpNextHopV6->ip, anon_ip);
-                bgpNextHopV6->ip[0] = anon_ip[0];
-                bgpNextHopV6->ip[1] = anon_ip[1];
+            case EXasRoutingV6ID: {
+                EXasRoutingV6_t *asRouting = (EXasRoutingV6_t *)extension;
+                uint8_t anon_ip[16];
+                anonymize_v6(asRouting->nextHop, anon_ip);
+                __builtin_memcpy(asRouting->nextHop, anon_ip, sizeof(anon_ip));
+                anonymize_v6(asRouting->bgpNextHop, anon_ip);
+                __builtin_memcpy(asRouting->bgpNextHop, anon_ip, sizeof(anon_ip));
             } break;
-            case EXipNextHopV4ID: {
-                EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
-            } break;
-            case EXipNextHopV6ID: {
-                EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipNextHopV6->ip, anon_ip);
-                ipNextHopV6->ip[0] = anon_ip[0];
-                ipNextHopV6->ip[1] = anon_ip[1];
-            } break;
-            case EXipReceivedV4ID: {
-                EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
-            } break;
-            case EXipReceivedV6ID: {
-                EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipReceivedV6->ip, anon_ip);
-                ipReceivedV6->ip[0] = anon_ip[0];
-                ipReceivedV6->ip[1] = anon_ip[1];
-            } break;
-            case EXmplsLabelID:
-                break;
-            case EXmacAddrID:
-                break;
             case EXasAdjacentID: {
-                EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)extension;
                 asAdjacent->nextAdjacentAS = 0;
                 asAdjacent->prevAdjacentAS = 0;
             } break;
-            case EXlatencyID:
-                break;
-            case EXnselCommonID:
-                break;
-            case EXnatXlateIPv4ID: {
-                EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+            case EXipReceivedV4ID: {
+                EXipReceivedV4_t *ipReceived = (EXipReceivedV4_t *)extension;
+                ipReceived->ip = anonymize(ipReceived->ip);
+            } break;
+            case EXipReceivedV6ID: {
+                EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)extension;
+                uint8_t anon_ip[16];
+                // convert host-order uint64_t[2] to network-order bytes for CryptoPAn
+                uint64_t tmp[2] = {htonll(ipReceivedV6->ip[0]), htonll(ipReceivedV6->ip[1])};
+                anonymize_v6((uint8_t *)tmp, anon_ip);
+                __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                ipReceivedV6->ip[0] = ntohll(tmp[0]);
+                ipReceivedV6->ip[1] = ntohll(tmp[1]);
+            } break;
+            case EXnatXlateV4ID: {
+                EXnatXlateV4_t *natXlateIPv4 = (EXnatXlateV4_t *)extension;
                 if (anon_src) natXlateIPv4->xlateSrcAddr = anonymize(natXlateIPv4->xlateSrcAddr);
                 if (anon_dst) natXlateIPv4->xlateDstAddr = anonymize(natXlateIPv4->xlateDstAddr);
             } break;
-            case EXnatXlateIPv6ID: {
-                EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+            case EXnatXlateV6ID: {
+                EXnatXlateV6_t *natXlateIPv6 = (EXnatXlateV6_t *)extension;
+                uint8_t anon_ip[16];
                 if (anon_src) {
                     anonymize_v6(natXlateIPv6->xlateSrcAddr, anon_ip);
-                    natXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
-                    natXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
+                    __builtin_memcpy(natXlateIPv6->xlateSrcAddr, anon_ip, sizeof(anon_ip));
                 }
                 if (anon_dst) {
                     anonymize_v6(natXlateIPv6->xlateDstAddr, anon_ip);
-                    natXlateIPv6->xlateDstAddr[0] = anon_ip[0];
-                    natXlateIPv6->xlateDstAddr[1] = anon_ip[1];
+                    __builtin_memcpy(natXlateIPv6->xlateDstAddr, anon_ip, sizeof(anon_ip));
                 }
             } break;
-                // default:
-                // skip other and unknown extension
-        }
+            case EXtunnelID: {
+                EXtunnel_t *tunnel = (EXtunnel_t *)extension;
 
-        size += elementHeader->length;
-        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+                int is_mapped_v4 = memcmp(tunnel->tunSrcAddr, prefix, sizeof(prefix)) == 0;
+                // anonymizing an IPv4/IPv6 combind record is more complicated,
+                // the the anonimizer expects host order bytes and has seperate
+                // functions for IPv4 and IPv6
+                if (is_mapped_v4) {
+                    // anonymise IPv4
+                    uint32_t ipv4;
+                    __builtin_memcpy(&ipv4, tunnel->tunSrcAddr + 12, sizeof(uint32_t));
+                    ipv4 = anonymize(ntohl(ipv4));
+                    ipv4 = htonl(ipv4);
+                    __builtin_memcpy(tunnel->tunSrcAddr + 12, &ipv4, sizeof(uint32_t));
 
-        if ((void *)elementHeader > eor) {
-            LogError("ptr error - elementHeader > eor");
-            exit(255);
+                    __builtin_memcpy(&ipv4, tunnel->tunDstAddr + 12, sizeof(uint32_t));
+                    ipv4 = anonymize(ntohl(ipv4));
+                    ipv4 = htonl(ipv4);
+                    __builtin_memcpy(tunnel->tunDstAddr + 12, &ipv4, sizeof(uint32_t));
+
+                } else {
+                    // anonymise IPv6
+                    uint8_t anon_ip[16];
+                    anonymize_v6(tunnel->tunSrcAddr, anon_ip);
+                    memcpy(tunnel->tunSrcAddr, anon_ip, 16);
+
+                    anonymize_v6(tunnel->tunDstAddr, anon_ip);
+                    memcpy(tunnel->tunDstAddr, anon_ip, 16);
+                }
+            } break;
         }
     }
 
@@ -373,7 +344,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             }
 
             SetIdent(nffile_w, FILE_IDENT(nffile_r));
-            memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+            __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
             // read first block from next file
             nextBlock = ReadBlock(nffile_r, NULL);
@@ -448,12 +419,12 @@ static void *worker_thread(void *arg) {
 
                 // work on our record
                 switch (record_ptr->type) {
-                    case V3Record:
-                        AnonRecord((recordHeaderV3_t *)record_ptr, worker_param->anon_src, worker_param->anon_dst);
+                    case V4Record:
+                        AnonRecord((recordHeaderV4_t *)record_ptr, worker_param->anon_src, worker_param->anon_dst);
                         break;
-                    case ExporterInfoRecordType:
-                        AnonExporterInfo((exporter_info_record_t *)record_ptr);
-
+                    case ExporterInfoRecordV4Type:
+                        AnonExporterInfo((exporter_info_record_v4_t *)record_ptr);
+                        break;
                     default: {
                         // Silently skip unknown records
                     }
@@ -566,7 +537,6 @@ int main(int argc, char **argv) {
             case 'q':
                 LogError("Option -q deprecated. Use -v 0");
                 exit(EXIT_FAILURE);
-                verbose = 0;
                 break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -592,6 +562,7 @@ int main(int argc, char **argv) {
             case 't':
                 // legacy option - fall through
                 LogError("Legacy option. Use -W <num> to select the number of workers");
+                /* fallthrough */
             case 'W':
                 CheckArgLen(optarg, 16);
                 numWorkers = atoi(optarg);

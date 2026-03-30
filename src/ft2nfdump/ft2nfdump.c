@@ -50,36 +50,19 @@
 
 #include "barrier.h"
 #include "ftlib.h"
+#include "id.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_short.h"
-#include "logging.h"
 #include "util.h"
 #include "version.h"
-
-/* Global defines */
-#define MAXRECORDS 30
-
-static bool HasFlows = false;
-
-typedef struct v5_block_s {
-    uint32_t srcaddr;
-    uint32_t dstaddr;
-    uint32_t dPkts;
-    uint32_t dOctets;
-    uint8_t data[4];  // link to next record
-} v5_block_t;
-
-/* externals */
-extern uint32_t Max_num_extensions;
 
 /* prototypes */
 void usage(char *name);
 
 static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extended, uint32_t limitflows);
-
-#include "nffile_inline.c"
 
 void usage(char *name) {
     printf(
@@ -100,57 +83,45 @@ void usage(char *name) {
 
 }  // End of usage
 
-static uint16_t *GenExtensionList(struct ftio *ftio, uint32_t *extensionSize, uint32_t *numExtensions) {
-    int i;
-
-// maximux of extensions + terminating ExNULL
-#define FTMAXEXTENSIONS 10
-    uint16_t *extensionList = calloc(FTMAXEXTENSIONS, sizeof(uint16_t));
-    if (!extensionList) {
-        LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-
-    *extensionSize = 0;
-    *numExtensions = 0;
-    i = 0;
+static uint32_t GenExtensionList(struct ftio *ftio, uint64_t *bitMap) {
+    uint32_t extension_size = 0;
+    uint64_t bitmap = 0;
     if (!ftio_check_xfield(ftio, FT_XFIELD_SRCPORT | FT_XFIELD_DSTPORT | FT_XFIELD_TCP_FLAGS | FT_XFIELD_PROT | FT_XFIELD_UNIX_SECS |
                                      FT_XFIELD_UNIX_NSECS | FT_XFIELD_SYSUPTIME | FT_XFIELD_DOCTETS | FT_XFIELD_DPKTS)) {
-        extensionList[i++] = EXgenericFlowID;
-        *extensionSize += EXgenericFlowSize;
-        (*numExtensions)++;
+        BitMapSet(bitmap, EXgenericFlowID);
+        extension_size += EXgenericFlowSize;
     }
     if (!ftio_check_xfield(ftio, FT_XFIELD_SRCADDR | FT_XFIELD_DSTADDR)) {
-        extensionList[i++] = EXipv4FlowID;
-        *extensionSize += EXipv4FlowSize;
-        (*numExtensions)++;
+        BitMapSet(bitmap, EXipv4FlowID);
+        extension_size += EXipv4FlowSize;
     }
-    if (!ftio_check_xfield(ftio, FT_XFIELD_INPUT | FT_XFIELD_OUTPUT | FT_XFIELD_SRC_MASK | FT_XFIELD_DST_MASK)) {
-        extensionList[i++] = EXflowMiscID;
-        *extensionSize += EXflowMiscSize;
-        (*numExtensions)++;
+    if (!ftio_check_xfield(ftio, FT_XFIELD_INPUT | FT_XFIELD_OUTPUT)) {
+        BitMapSet(bitmap, EXinterfaceID);
+        extension_size += EXinterfaceSize;
+    }
+    if (!ftio_check_xfield(ftio, FT_XFIELD_SRC_MASK | FT_XFIELD_DST_MASK)) {
+        BitMapSet(bitmap, EXflowMiscID);
+        extension_size += EXflowMiscSize;
     }
     if (!ftio_check_xfield(ftio, FT_XFIELD_DFLOWS)) {
-        HasFlows = true;
+        BitMapSet(bitmap, EXcntFlowID);
+        extension_size += EXcntFlowSize;
     }
     if (!ftio_check_xfield(ftio, FT_XFIELD_SRC_AS | FT_XFIELD_DST_AS)) {
-        extensionList[i++] = EXasRoutingID;
-        *extensionSize += EXasRoutingSize;
-        (*numExtensions)++;
+        BitMapSet(bitmap, EXasInfoID);
+        extension_size += EXasInfoSize;
     }
-    if (ftio_check_xfield(ftio, FT_XFIELD_PEER_NEXTHOP) == 0) {
-        extensionList[i++] = EXipNextHopV4ID;
-        *extensionSize += EXipNextHopV4Size;
-        (*numExtensions)++;
+    if (!ftio_check_xfield(ftio, FT_XFIELD_NEXTHOP) || !ftio_check_xfield(ftio, FT_XFIELD_PEER_NEXTHOP)) {
+        BitMapSet(bitmap, EXasRoutingV4ID);
+        extension_size += EXasRoutingV4Size;
     }
     if (!ftio_check_xfield(ftio, FT_XFIELD_EXADDR)) {
-        extensionList[i++] = EXipReceivedV4ID;
-        *extensionSize += EXipReceivedV4Size;
-        (*numExtensions)++;
+        BitMapSet(bitmap, EXipReceivedV4ID);
+        extension_size += EXipReceivedV4Size;
     }
-    extensionList[i] = EXnull;
 
-    return extensionList;
+    *bitMap = bitmap;
+    return extension_size;
 
 }  // End of GenExtensionList
 
@@ -174,19 +145,21 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     memset((void *)&fo, 0xFF, sizeof(fo));
     fts3rec_compute_offsets(&fo, &ftv);
 
-    uint32_t recordSize = 0;
-    uint32_t numElements = 0;
-    uint16_t *extensionInfo = GenExtensionList(ftio, &recordSize, &numElements);
-    dbg_printf("GenExtensionList: numElements: %u, recordSize: %u\n", numElements, recordSize);
-    if (numElements == 0) {
+    uint64_t bitMap = 0;
+    uint16_t extensionSize = GenExtensionList(ftio, &bitMap);
+    if (bitMap == 0) {
         LogError("No usable fields found it flowtools file");
         return 1;
     }
-    recordSize += sizeof(recordHeaderV3_t);
 
+    uint32_t numExtensions = __builtin_popcountll(bitMap);
+    uint32_t tableSize = ALIGN8(numExtensions * sizeof(uint16_t));
+    uint32_t recordSize = sizeof(recordHeaderV4_t) + tableSize + extensionSize;
+    dbg_printf("GenExtensionList: numExtensions: %u, recordSize: %u\n", numExtensions, recordSize);
+
+    uint64_t savedBitMap = bitMap;
     int cnt = 0;
     while ((rec = ftio_read(ftio))) {
-        int i, exID;
         dbg_printf("FT record %u\n", cnt);
         if (!IsAvailable(dataBlock, recordSize)) {
             // flush block - get an empty one
@@ -194,24 +167,48 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
         }
 
         void *buffPtr = GetCurrentCursor(dataBlock);
-        AddV3Header(buffPtr, recordHeader);
+        recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
+        *recordHeader = (recordHeaderV4_t){.type = V4Record,
+                                           .size = recordSize,
+                                           .engineType = *((uint8_t *)(rec + fo.engine_type)),
+                                           .exporterID = *((uint8_t *)(rec + fo.engine_id)),
+                                           .nfVersion = 5,
+                                           .extBitmap = savedBitMap,
+                                           .numExtensions = numExtensions};
 
-        // header data
-        recordHeader->engineType = *((uint8_t *)(rec + fo.engine_type));
-        recordHeader->engineID = *((uint8_t *)(rec + fo.engine_id));
+        uint8_t *recordBase = buffPtr;
+        uint16_t *offset = (uint16_t *)(buffPtr + sizeof(recordHeaderV4_t));
+        memset(offset, 0, tableSize);
+        uint32_t nextOffset = sizeof(recordHeaderV4_t) + tableSize;
 
-        i = 0;
-        while ((exID = extensionInfo[i]) != EXnull) {
-            dbg_printf("Process slot %i extension %u - %s\n", i, exID, extensionTable[exID].name);
-            switch (exID) {
+        bitMap = savedBitMap;
+        while (bitMap) {
+            uint64_t t = bitMap & -bitMap;
+            uint32_t extID = __builtin_ctzll(bitMap);
+            bitMap ^= t;
+
+            *offset++ = nextOffset;
+            uint32_t extSize = extensionTable[extID].size;
+            uint8_t *extension = recordBase + nextOffset;
+            nextOffset += extSize;
+
+            switch (extID) {
                 case EXgenericFlowID: {
-                    uint32_t when, unix_secs, unix_nsecs, sysUpTime;
-                    unix_secs = *((uint32_t *)(rec + fo.unix_secs));
-                    unix_nsecs = *((uint32_t *)(rec + fo.unix_nsecs));
-                    sysUpTime = *((uint32_t *)(rec + fo.sysUpTime));
+                    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extension;
+                    *genericFlow = (EXgenericFlow_t){
+                        .inPackets = *((uint32_t *)(rec + fo.dPkts)),
+                        .inBytes = *((uint32_t *)(rec + fo.dOctets)),
+                        .srcPort = *((uint16_t *)(rec + fo.srcport)),
+                        .dstPort = *((uint16_t *)(rec + fo.dstport)),
+                        .proto = *((uint8_t *)(rec + fo.prot)),
+                        .tcpFlags = *((uint8_t *)(rec + fo.tcp_flags)),
+                        .srcTos = *((uint8_t *)(rec + fo.tos)),
+                    };
+                    uint32_t unix_secs = *((uint32_t *)(rec + fo.unix_secs));
+                    uint32_t unix_nsecs = *((uint32_t *)(rec + fo.unix_nsecs));
+                    uint32_t sysUpTime = *((uint32_t *)(rec + fo.sysUpTime));
 
-                    PushExtension(recordHeader, EXgenericFlow, genericFlow);
-                    when = *((uint32_t *)(rec + fo.First));
+                    uint32_t when = *((uint32_t *)(rec + fo.First));
                     ftt = ftltime(sysUpTime, unix_secs, unix_nsecs, when);
                     genericFlow->msecFirst = (1000LL * (uint64_t)ftt.secs) + (uint64_t)ftt.msecs;
 
@@ -219,44 +216,45 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
                     ftt = ftltime(sysUpTime, unix_secs, unix_nsecs, when);
                     genericFlow->msecLast = (1000LL * (uint64_t)ftt.secs) + (uint64_t)ftt.msecs;
 
-                    genericFlow->inPackets = *((uint32_t *)(rec + fo.dPkts));
-                    genericFlow->inBytes = *((uint32_t *)(rec + fo.dOctets));
-                    genericFlow->srcPort = *((uint16_t *)(rec + fo.srcport));
-                    genericFlow->dstPort = *((uint16_t *)(rec + fo.dstport));
-                    genericFlow->proto = *((uint8_t *)(rec + fo.prot));
-                    genericFlow->tcpFlags = *((uint8_t *)(rec + fo.tcp_flags));
-                    genericFlow->srcTos = *((uint8_t *)(rec + fo.tos));
-                    genericFlow->fwdStatus = 0;
                 } break;
-                case EXipv4FlowID:
-                    PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
+                case EXipv4FlowID: {
+                    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extension;
                     ipv4Flow->srcAddr = *((uint32_t *)(rec + fo.srcaddr));
                     ipv4Flow->dstAddr = *((uint32_t *)(rec + fo.dstaddr));
-                    break;
-                case EXflowMiscID:
-                    PushExtension(recordHeader, EXflowMisc, flowMisc);
-                    flowMisc->input = *((uint16_t *)(rec + fo.input));
-                    flowMisc->output = *((uint16_t *)(rec + fo.output));
-                    flowMisc->srcMask = *((uint8_t *)(rec + fo.src_mask));
-                    flowMisc->dstMask = *((uint8_t *)(rec + fo.dst_mask));
-                    flowMisc->dir = 0;
-                    flowMisc->dstTos = 0;
-                    break;
-                case EXasRoutingID:
-                    PushExtension(recordHeader, EXasRouting, asRouting);
-                    asRouting->srcAS = *((uint16_t *)(rec + fo.src_as));
-                    asRouting->dstAS = *((uint16_t *)(rec + fo.dst_as));
-                    break;
-                case EXipNextHopV4ID:
-                    PushExtension(recordHeader, EXipNextHopV4, ipNextHopV4);
-                    ipNextHopV4->ip = *((uint32_t *)(rec + fo.peer_nexthop));
-                    break;
-                case EXipReceivedV4ID:
-                    PushExtension(recordHeader, EXipReceivedV4, received);
-                    received->ip = *((uint32_t *)(rec + fo.exaddr));
-                    break;
+                } break;
+                case EXinterfaceID: {
+                    EXinterface_t *interface = (EXinterface_t *)extension;
+                    interface->input = *((uint16_t *)(rec + fo.input));
+                    interface->output = *((uint16_t *)(rec + fo.output));
+                } break;
+                case EXflowMiscID: {
+                    EXflowMisc_t *flowMisc = (EXflowMisc_t *)extension;
+                    *flowMisc = (EXflowMisc_t){
+                        .srcMask = *((uint8_t *)(rec + fo.src_mask)),
+                        .dstMask = *((uint8_t *)(rec + fo.dst_mask)),
+                    };
+                } break;
+                case EXcntFlowID: {
+                    EXcntFlow_t *cntFlow = (EXcntFlow_t *)extension;
+                    *cntFlow = (EXcntFlow_t){
+                        .flows = *((uint32_t *)(rec + fo.dFlows)),
+                    };
+                } break;
+                case EXasInfoID: {
+                    EXasInfo_t *asInfo = (EXasInfo_t *)extension;
+                    asInfo->srcAS = *((uint16_t *)(rec + fo.src_as));
+                    asInfo->dstAS = *((uint16_t *)(rec + fo.dst_as));
+                } break;
+                case EXasRoutingV4ID: {
+                    EXasRoutingV4_t *asRouting = (EXasRoutingV4_t *)extension;
+                    asRouting->nextHop = !ftio_check_xfield(ftio, FT_XFIELD_NEXTHOP) ? *((uint32_t *)(rec + fo.nexthop)) : 0;
+                    asRouting->bgpNextHop = !ftio_check_xfield(ftio, FT_XFIELD_PEER_NEXTHOP) ? *((uint32_t *)(rec + fo.peer_nexthop)) : 0;
+                } break;
+                case EXipReceivedV4ID: {
+                    EXipReceivedV4_t *ipReceived = (EXipReceivedV4_t *)extension;
+                    ipReceived->ip = *((uint32_t *)(rec + fo.exaddr));
+                } break;
             }
-            i++;
         }
 
         // update file record size ( -> output buffer size )
@@ -270,7 +268,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
         }
 
         cnt++;
-        if (cnt == limitflows) break;
+        if (cnt == (int)limitflows) break;
 
     } /* while */
 

@@ -34,7 +34,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "nfxV3.h"
+#include "nffileV3.h"
 
 int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader);
 

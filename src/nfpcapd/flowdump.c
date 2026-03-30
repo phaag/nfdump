@@ -57,7 +57,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 #include "output_short.h"
 #include "pflog.h"
 #include "queue.h"
@@ -65,10 +65,6 @@
 
 static int printRecord = 0;
 #include "nffile_inline.c"
-
-#define UpdateRecordSize(s) \
-    recordSize += (s);      \
-    if (recordSize > availableSize) continue;
 
 static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node);
 
@@ -78,216 +74,286 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     dbg_printf("Store Flow node\n");
 
-    // start with a min buffer of 1024. if it's too small, it gets extended
-    uint32_t recordSize = 1024;
-    do {
-        if (!IsAvailable(fs->dataBlock, recordSize)) {
-            // flush block - get an empty one
-            fs->dataBlock = WriteBlock(nffile_ctx->nffile, fs->dataBlock);
+    // ── Phase 1: determine bitmap and total record size ──
+    uint64_t bitMap = 0;
+    uint32_t extensionSize = 0;
+    uint16_t flags = 0;
+
+    // always present
+    BitMapSet(bitMap, EXgenericFlowID);
+    extensionSize += EXgenericFlowSize;
+
+    int isIPv6 = (Node->hotNode.flowKey.version == AF_INET6);
+    if (isIPv6) {
+        BitMapSet(bitMap, EXipv6FlowID);
+        extensionSize += EXipv6FlowSize;
+    } else {
+        BitMapSet(bitMap, EXipv4FlowID);
+        extensionSize += EXipv4FlowSize;
+    }
+
+    if (flowParam->extendedFlow) {
+        // EXvLanID = 7
+        if (Node->coldNode.vlanID) {
+            BitMapSet(bitMap, EXvLanID);
+            extensionSize += EXvLanSize;
         }
-
-        unsigned availableSize = BlockAvailable(fs->dataBlock);
-        if (availableSize == 0) {
-            // fishy! - should never happen. maybe disk full?
-            LogError("StorePcapFlow(): output buffer size error. Skip record");
-            return 0;
+        // EXmplsID = 13
+        if (Node->coldNode.mpls[0]) {
+            BitMapSet(bitMap, EXmplsID);
+            extensionSize += EXmplsSize;
         }
-        recordSize = 0;
-
-        void *buffPtr = GetCurrentCursor(fs->dataBlock);
-        // map output record to memory buffer
-        UpdateRecordSize(V3HeaderRecordSize);
-        AddV3Header(buffPtr, recordHeader);
-
-        // header data
-        recordHeader->nfversion = 0x41;
-        recordHeader->engineType = 0x11;
-        recordHeader->engineID = 1;
-        recordHeader->exporterID = 0;
-
-        // pack V3 record
-        UpdateRecordSize(EXgenericFlowSize);
-        PushExtension(recordHeader, EXgenericFlow, genericFlow);
-        genericFlow->msecFirst = (1000LL * (uint64_t)Node->hotNode.t_first.tv_sec) + (uint64_t)Node->hotNode.t_first.tv_usec / 1000LL;
-        genericFlow->msecLast = (1000LL * (uint64_t)Node->hotNode.t_last.tv_sec) + (uint64_t)Node->hotNode.t_last.tv_usec / 1000LL;
-
-        struct timeval now;
-        gettimeofday(&now, NULL);
-        genericFlow->msecReceived = (uint64_t)now.tv_sec * 1000LL + (uint64_t)now.tv_usec / 1000LL;
-
-        genericFlow->inPackets = Node->hotNode.packets;
-        genericFlow->inBytes = Node->hotNode.bytes;
-
-        genericFlow->tcpFlags = Node->hotNode.flags;
-        genericFlow->proto = Node->hotNode.flowKey.proto;
-        genericFlow->srcPort = Node->hotNode.flowKey.src_port;
-        genericFlow->dstPort = Node->hotNode.flowKey.dst_port;
-
-        if (Node->hotNode.flowKey.version == AF_INET6) {
-            UpdateRecordSize(EXipv6FlowSize);
-            PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            uint64_t *src = (uint64_t *)Node->hotNode.flowKey.src_addr.bytes;
-            uint64_t *dst = (uint64_t *)Node->hotNode.flowKey.dst_addr.bytes;
-            ipv6Flow->srcAddr[0] = ntohll(src[0]);
-            ipv6Flow->srcAddr[1] = ntohll(src[1]);
-            ipv6Flow->dstAddr[0] = ntohll(dst[0]);
-            ipv6Flow->dstAddr[1] = ntohll(dst[1]);
-        } else {
-            UpdateRecordSize(EXipv4FlowSize);
-            PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            uint32_t ipv4;
-            memcpy(&ipv4, Node->hotNode.flowKey.src_addr.bytes + 12, 4);
-            ipv4Flow->srcAddr = ntohl(ipv4);
-            memcpy(&ipv4, Node->hotNode.flowKey.dst_addr.bytes + 12, 4);
-            ipv4Flow->dstAddr = ntohl(ipv4);
+        // EXinMacAddrID = 14
+        if (Node->coldNode.srcMac) {
+            BitMapSet(bitMap, EXinMacAddrID);
+            extensionSize += EXinMacAddrSize;
         }
-
-        if (flowParam->extendedFlow) {
-            UpdateRecordSize(EXipInfoSize);
-            PushExtension(recordHeader, EXipInfo, ipInfo);
-            ipInfo->minTTL = Node->coldNode.minTTL;
-            ipInfo->maxTTL = Node->coldNode.maxTTL;
-            ipInfo->fragmentFlags = Node->coldNode.fragmentFlags;
-
-            if (Node->coldNode.vlanID) {
-                UpdateRecordSize(EXvLanSize);
-                PushExtension(recordHeader, EXvLan, vlan);
-                vlan->srcVlan = Node->coldNode.vlanID;
-            }
-
-            if (Node->coldNode.srcMac) {
-                UpdateRecordSize(EXmacAddrSize);
-                PushExtension(recordHeader, EXmacAddr, macAddr);
-                macAddr->inSrcMac = ntohll(Node->coldNode.srcMac) >> 16;
-                macAddr->outDstMac = ntohll(Node->coldNode.dstMac) >> 16;
-                macAddr->inDstMac = 0;
-                macAddr->outSrcMac = 0;
-            }
-
-            if (Node->coldNode.mpls[0]) {
-                UpdateRecordSize(EXmplsLabelSize);
-                PushExtension(recordHeader, EXmplsLabel, mplsLabel);
-                for (int i = 0; Node->coldNode.mpls[i] != 0; i++) {
-                    mplsLabel->mplsLabel[i] = ntohl(Node->coldNode.mpls[i]) >> 8;
-                }
-            }
-
-            if (Node->hotNode.flowKey.proto == IPPROTO_TCP && Node->coldNode.latency.application) {
-                UpdateRecordSize(EXlatencySize);
-                PushExtension(recordHeader, EXlatency, latency);
-                latency->usecClientNwDelay = Node->coldNode.latency.client;
-                latency->usecServerNwDelay = Node->coldNode.latency.server;
-                latency->usecApplLatency = Node->coldNode.latency.application;
-                dbg_printf("Node RTT: %u\n", Node->coldNode.latency.rtt);
-            }
-
-            if (Node->coldNode.pflog.has_pfinfo) {
-                size_t ifnameLen = strnlen(Node->coldNode.pflog.ifname, PFLOG_IFNAMSIZ);
-                if (ifnameLen) {
-                    ifnameLen++;  // add terminating '\0'
-                }
-                size_t align = ifnameLen & 0x3;
-                if (align) {
-                    ifnameLen += 4 - align;
-                }
-
-                UpdateRecordSize(EXpfinfoSize + ifnameLen);
-                PushVarLengthExtension(recordHeader, EXpfinfo, pfinfo, ifnameLen);
-                pfinfo->action = Node->coldNode.pflog.action;
-                pfinfo->reason = Node->coldNode.pflog.reason;
-                pfinfo->dir = Node->coldNode.pflog.dir;
-                pfinfo->rewritten = Node->coldNode.pflog.rewritten;
-                pfinfo->uid = Node->coldNode.pflog.uid;
-                pfinfo->pid = Node->coldNode.pflog.pid;
-                pfinfo->rulenr = Node->coldNode.pflog.rulenr;
-                pfinfo->subrulenr = Node->coldNode.pflog.subrulenr;
-                memcpy(pfinfo->ifname, Node->coldNode.pflog.ifname, ifnameLen);
-                SetFlag(recordHeader->flags, V3_FLAG_EVENT);
-            }
+        // EXlatencyID = 17
+        if (Node->hotNode.flowKey.proto == IPPROTO_TCP && Node->coldNode.latency.application) {
+            BitMapSet(bitMap, EXlatencyID);
+            extensionSize += EXlatencySize;
         }
-
-        if (flowParam->addPayload) {
-            if (Node->coldNode.payloadSize) {
-                size_t payloadSize = Node->coldNode.payloadSize;
-                size_t align = payloadSize & 0x3;
-                if (align) {
-                    payloadSize += (4 - align);
-                }
-
-                UpdateRecordSize(EXinPayloadSize + payloadSize);
-                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, payloadSize);
-                memcpy(inPayload, Node->coldNode.payload, Node->coldNode.payloadSize);
-            }
+        // EXpfinfoID = 33
+        if (Node->coldNode.pflog.has_pfinfo) {
+            BitMapSet(bitMap, EXpfinfoID);
+            extensionSize += EXpfinfoSize;
+            SetFlag(flags, V4_FLAG_EVENT);
         }
+        // EXipInfoID = 38
+        BitMapSet(bitMap, EXipInfoID);
+        extensionSize += EXipInfoSize;
+    }
 
-        if (Node->coldNode.tun_ip_version == AF_INET) {
-            UpdateRecordSize(EXtunIPv4Size);
-            PushExtension(recordHeader, EXtunIPv4, tunIPv4);
-            uint32_t ipv4;
-            memcpy(&ipv4, Node->coldNode.tun_src_addr.bytes + 12, 4);
-            tunIPv4->tunSrcAddr = ntohl(ipv4);
-            memcpy(&ipv4, Node->coldNode.tun_dst_addr.bytes + 12, 4);
-            tunIPv4->tunDstAddr = ntohl(ipv4);
-            tunIPv4->tunProto = Node->coldNode.tun_proto;
-        } else if (Node->coldNode.tun_ip_version == AF_INET6) {
-            UpdateRecordSize(EXtunIPv6Size);
-            PushExtension(recordHeader, EXtunIPv6, tunIPv6);
-            uint64_t *src = (uint64_t *)Node->coldNode.tun_src_addr.bytes;
-            uint64_t *dst = (uint64_t *)Node->coldNode.tun_dst_addr.bytes;
-            tunIPv6->tunSrcAddr[0] = ntohll(src[0]);
-            tunIPv6->tunSrcAddr[1] = ntohll(src[1]);
-            tunIPv6->tunDstAddr[0] = ntohll(dst[0]);
-            tunIPv6->tunDstAddr[1] = ntohll(dst[1]);
-            tunIPv6->tunProto = Node->coldNode.tun_proto;
+    // EXinPayloadID = 26 (variable-length)
+    uint32_t payloadAligned = 0;
+    if (flowParam->addPayload && Node->coldNode.payloadSize) {
+        BitMapSet(bitMap, EXinPayloadID);
+        payloadAligned = ALIGN8(sizeof(uint32_t) + Node->coldNode.payloadSize);
+        extensionSize += payloadAligned;
+    }
+
+    // EXtunnelID = 28 (unified, replaces EXtunIPv4/EXtunIPv6)
+    if (Node->coldNode.tun_ip_version) {
+        BitMapSet(bitMap, EXtunnelID);
+        extensionSize += EXtunnelSize;
+    }
+
+    uint32_t numExtensions = __builtin_popcountll(bitMap);
+    uint32_t tableSize = ALIGN8(numExtensions * sizeof(uint16_t));
+    uint32_t baseOffset = sizeof(recordHeaderV4_t) + tableSize;
+    uint32_t recordSize = baseOffset + extensionSize;
+
+    // ── Buffer check — single check, no retry loop ──
+    if (!IsAvailable(fs->dataBlock, recordSize)) {
+        fs->dataBlock = WriteBlock(nffile_ctx->nffile, fs->dataBlock);
+    }
+    if (BlockAvailable(fs->dataBlock) < recordSize) {
+        LogError("StorePcapFlow(): output buffer size error. Skip record");
+        return 0;
+    }
+
+    // ── Phase 2: write V4 record ──
+    uint8_t *buffPtr = GetCurrentCursor(fs->dataBlock);
+
+    recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
+    *recordHeader = (recordHeaderV4_t){
+        .type = V4Record,
+        .size = recordSize,
+        .numExtensions = numExtensions,
+        .flags = flags,
+        .exporterID = 0,
+        .engineType = 0x11,
+        .engineID = 1,
+        .nfVersion = 0x41,
+        .extBitmap = bitMap,
+    };
+
+    // zero the offset table
+    uint16_t *offset = V4OffsetTable(recordHeader);
+    memset(offset, 0, tableSize);
+    uint32_t nextOffset = baseOffset;
+
+    // Extensions must be written in ascending extID order
+    // so that *offset++ fills the table in bitmap rank order
+
+    // ── EXgenericFlow (ID=1, always present) ──
+    *offset++ = nextOffset;
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(buffPtr + nextOffset);
+    nextOffset += EXgenericFlowSize;
+    *genericFlow = (EXgenericFlow_t){
+        .msecFirst = 1000LL * (uint64_t)Node->hotNode.t_first.tv_sec + (uint64_t)Node->hotNode.t_first.tv_usec / 1000LL,
+        .msecLast = 1000LL * (uint64_t)Node->hotNode.t_last.tv_sec + (uint64_t)Node->hotNode.t_last.tv_usec / 1000LL,
+        .msecReceived = 1000LL * (uint64_t)Node->hotNode.t_last.tv_sec + (uint64_t)Node->hotNode.t_last.tv_usec / 1000LL,
+        .inPackets = Node->hotNode.packets,
+        .inBytes = Node->hotNode.bytes,
+        .srcPort = Node->hotNode.flowKey.src_port,
+        .dstPort = Node->hotNode.flowKey.dst_port,
+        .proto = Node->hotNode.flowKey.proto,
+        .tcpFlags = Node->hotNode.flags,
+    };
+
+    // ── EXipv4Flow (ID=2) or EXipv6Flow (ID=3) ──
+    if (isIPv6) {
+        *offset++ = nextOffset;
+        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)(buffPtr + nextOffset);
+        nextOffset += EXipv6FlowSize;
+        uint64_t *src = (uint64_t *)Node->hotNode.flowKey.src_addr.bytes;
+        uint64_t *dst = (uint64_t *)Node->hotNode.flowKey.dst_addr.bytes;
+        ipv6Flow->srcAddr[0] = ntohll(src[0]);
+        ipv6Flow->srcAddr[1] = ntohll(src[1]);
+        ipv6Flow->dstAddr[0] = ntohll(dst[0]);
+        ipv6Flow->dstAddr[1] = ntohll(dst[1]);
+    } else {
+        *offset++ = nextOffset;
+        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)(buffPtr + nextOffset);
+        nextOffset += EXipv4FlowSize;
+        uint32_t ipv4;
+        memcpy(&ipv4, Node->hotNode.flowKey.src_addr.bytes + 12, 4);
+        ipv4Flow->srcAddr = ntohl(ipv4);
+        memcpy(&ipv4, Node->hotNode.flowKey.dst_addr.bytes + 12, 4);
+        ipv4Flow->dstAddr = ntohl(ipv4);
+    }
+
+    // ── Conditional extensions in ascending ID order ──
+
+    // EXvLan (ID=7)
+    if (bitMap & (1ULL << EXvLanID)) {
+        *offset++ = nextOffset;
+        EXvLan_t *vlan = (EXvLan_t *)(buffPtr + nextOffset);
+        nextOffset += EXvLanSize;
+        *vlan = (EXvLan_t){.srcVlan = Node->coldNode.vlanID};
+    }
+
+    // EXmpls (ID=13)
+    if (bitMap & (1ULL << EXmplsID)) {
+        *offset++ = nextOffset;
+        EXmpls_t *mpls = (EXmpls_t *)(buffPtr + nextOffset);
+        nextOffset += EXmplsSize;
+        memset(mpls, 0, EXmplsSize);
+        for (int i = 0; i < 10 && Node->coldNode.mpls[i] != 0; i++) {
+            mpls->label[i] = ntohl(Node->coldNode.mpls[i]) >> 8;
         }
+    }
 
-        // update first_seen, last_seen
-        UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
+    // EXinMacAddr (ID=14)
+    if (bitMap & (1ULL << EXinMacAddrID)) {
+        *offset++ = nextOffset;
+        EXinMacAddr_t *macAddr = (EXinMacAddr_t *)(buffPtr + nextOffset);
+        nextOffset += EXinMacAddrSize;
+        *macAddr = (EXinMacAddr_t){
+            .inSrcMac = ntohll(Node->coldNode.srcMac) >> 16,
+            .outDstMac = ntohll(Node->coldNode.dstMac) >> 16,
+        };
+    }
 
-        // Update stats
-        stat_record_t *stat_record = &fs->stat_record;
-        switch (genericFlow->proto) {
-            case IPPROTO_ICMP:
-                stat_record->numflows_icmp++;
-                stat_record->numpackets_icmp += genericFlow->inPackets;
-                stat_record->numbytes_icmp += genericFlow->inBytes;
-                break;
-            case IPPROTO_TCP:
-                stat_record->numflows_tcp++;
-                stat_record->numpackets_tcp += genericFlow->inPackets;
-                stat_record->numbytes_tcp += genericFlow->inBytes;
-                break;
-            case IPPROTO_UDP:
-                stat_record->numflows_udp++;
-                stat_record->numpackets_udp += genericFlow->inPackets;
-                stat_record->numbytes_udp += genericFlow->inBytes;
-                break;
-            default:
-                stat_record->numflows_other++;
-                stat_record->numpackets_other += genericFlow->inPackets;
-                stat_record->numbytes_other += genericFlow->inBytes;
-        }
-        stat_record->numflows++;
-        stat_record->numpackets += genericFlow->inPackets;
-        stat_record->numbytes += genericFlow->inBytes;
+    // EXlatency (ID=17)
+    if (bitMap & (1ULL << EXlatencyID)) {
+        *offset++ = nextOffset;
+        EXlatency_t *latency = (EXlatency_t *)(buffPtr + nextOffset);
+        nextOffset += EXlatencySize;
+        *latency = (EXlatency_t){
+            .msecClientNwDelay = Node->coldNode.latency.client,
+            .msecServerNwDelay = Node->coldNode.latency.server,
+            .msecApplLatency = Node->coldNode.latency.application,
+        };
+        dbg_printf("Node RTT: %u\n", Node->coldNode.latency.rtt);
+    }
 
-        uint32_t exporterIdent = MetricExpporterID(recordHeader);
-        UpdateMetric(nffile_ctx->nffile->ident, exporterIdent, genericFlow);
+    // EXinPayload (ID=26, variable-length)
+    if (bitMap & (1ULL << EXinPayloadID)) {
+        *offset++ = nextOffset;
+        EXinPayload_t *inPayload = (EXinPayload_t *)(buffPtr + nextOffset);
+        inPayload->size = Node->coldNode.payloadSize;
+        memcpy(inPayload->payload, Node->coldNode.payload, Node->coldNode.payloadSize);
+        nextOffset += payloadAligned;
+    }
 
-        if (printRecord) {
-            flow_record_short(stdout, recordHeader);
-        }
+    // EXtunnel (ID=28, unified IPv4/IPv6)
+    if (bitMap & (1ULL << EXtunnelID)) {
+        *offset++ = nextOffset;
+        EXtunnel_t *tunnel = (EXtunnel_t *)(buffPtr + nextOffset);
+        nextOffset += EXtunnelSize;
+        // ip128_t bytes are already stored as ::ffff:IPv4 or IPv6
+        memcpy(tunnel->tunSrcAddr, Node->coldNode.tun_src_addr.bytes, 16);
+        memcpy(tunnel->tunDstAddr, Node->coldNode.tun_dst_addr.bytes, 16);
+        tunnel->tunProto = Node->coldNode.tun_proto;
+        tunnel->align = 0;
+    }
 
-        // update file record size ( -> output buffer size )
-        fs->dataBlock->NumRecords += 1;
-        fs->dataBlock->size += recordHeader->size;
+    // EXpfinfo (ID=33)
+    if (bitMap & (1ULL << EXpfinfoID)) {
+        *offset++ = nextOffset;
+        EXpfinfo_t *pfinfo = (EXpfinfo_t *)(buffPtr + nextOffset);
+        nextOffset += EXpfinfoSize;
+        *pfinfo = (EXpfinfo_t){
+            .action = Node->coldNode.pflog.action,
+            .reason = Node->coldNode.pflog.reason,
+            .dir = Node->coldNode.pflog.dir,
+            .rewritten = Node->coldNode.pflog.rewritten,
+            .rulenr = Node->coldNode.pflog.rulenr,
+            .subrulenr = Node->coldNode.pflog.subrulenr,
+            .uid = Node->coldNode.pflog.uid,
+            .pid = Node->coldNode.pflog.pid,
+        };
+        // copy up to 3 chars + NUL into fixed ifname[4]
+        strncpy(pfinfo->ifname, Node->coldNode.pflog.ifname, sizeof(pfinfo->ifname) - 1);
+        pfinfo->ifname[sizeof(pfinfo->ifname) - 1] = '\0';
+    }
 
-        dbg_printf("Record size: %u, header size: %u\n", recordSize, recordHeader->size);
+    // EXipInfo (ID=38)
+    if (bitMap & (1ULL << EXipInfoID)) {
+        *offset++ = nextOffset;
+        EXipInfo_t *ipInfo = (EXipInfo_t *)(buffPtr + nextOffset);
+        nextOffset += EXipInfoSize;
+        *ipInfo = (EXipInfo_t){
+            .fragmentFlags = Node->coldNode.fragmentFlags,
+            .minTTL = Node->coldNode.minTTL,
+            .maxTTL = Node->coldNode.maxTTL,
+        };
+    }
 
-        assert(recordHeader->size == recordSize);
-        break;
+    assert(nextOffset == recordSize);
 
-    } while (1);
+    // update first_seen, last_seen
+    UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
+
+    // Update stats
+    stat_record_t *stat_record = &fs->stat_record;
+    switch (genericFlow->proto) {
+        case IPPROTO_ICMP:
+            stat_record->numflows_icmp++;
+            stat_record->numpackets_icmp += genericFlow->inPackets;
+            stat_record->numbytes_icmp += genericFlow->inBytes;
+            break;
+        case IPPROTO_TCP:
+            stat_record->numflows_tcp++;
+            stat_record->numpackets_tcp += genericFlow->inPackets;
+            stat_record->numbytes_tcp += genericFlow->inBytes;
+            break;
+        case IPPROTO_UDP:
+            stat_record->numflows_udp++;
+            stat_record->numpackets_udp += genericFlow->inPackets;
+            stat_record->numbytes_udp += genericFlow->inBytes;
+            break;
+        default:
+            stat_record->numflows_other++;
+            stat_record->numpackets_other += genericFlow->inPackets;
+            stat_record->numbytes_other += genericFlow->inBytes;
+    }
+    stat_record->numflows++;
+    stat_record->numpackets += genericFlow->inPackets;
+    stat_record->numbytes += genericFlow->inBytes;
+
+    uint32_t exporterIdent = MetricExpporterID(recordHeader);
+    UpdateMetric(nffile_ctx->nffile->ident, exporterIdent, genericFlow);
+
+    if (printRecord) {
+        flow_record_short(stdout, recordHeader);
+    }
+
+    // update file record size ( -> output buffer size )
+    fs->dataBlock->NumRecords += 1;
+    fs->dataBlock->size += recordSize;
 
     return 1;
 

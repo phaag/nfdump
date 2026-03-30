@@ -31,13 +31,9 @@
 
 #include <inttypes.h>
 
-static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount);
-
-static inline dataBlock_t *AppendToBuffer(queue_t *queue, dataBlock_t *dataBlock, void *record, size_t required);
-
 // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
 // lot of code for nothing!!
-static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeaderV4_t *recordHeaderV4, uint64_t flowCount) {
+static inline void ResolveMultipleIPrecords(recordHandle_t *handle, uint64_t flowCount) {
     dbg_printf("ResolveMultipleIPrecords\n");
     // check, if the at least announce the ipVersion element
     EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
@@ -81,9 +77,6 @@ static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeader
 
     // mark element to skip as EXnull with length != 0
     if (skipID) {
-        void *skipElement = handle->extensionList[skipID];
-        elementHeader_t *elementHeader = (elementHeader_t *)(skipElement - sizeof(elementHeader_t));
-        elementHeader->type = EXnull;
         handle->extensionList[skipID] = NULL;
     }
 
@@ -94,118 +87,40 @@ static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeader
 
 }  // End of ResolveMultipleIPrecords
 
-static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
-    /*
-    memset((void *)handle, 0, sizeof(recordHandle_t));
-    handle->recordHeaderV3 = recordHeaderV3;
-
-    void *eor = (void *)recordHeaderV3 + recordHeaderV3->size;
-
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
-    // map all extensions
-    int num = 0;
-    while (num < recordHeaderV3->numElements) {
-        if ((void *)elementHeader > eor) {
-            LogError("Mapping record: %" PRIu64 "  - Error - element %d out of bounds", flowCount, num);
-            return 0;
-        }
-        if (elementHeader->length == 0) {
-            LogInfo("Mapping record: %" PRIu64 " - Corrupt extension %d Type: %u with Length: %u", flowCount, num, elementHeader->type,
-                    elementHeader->length);
-            return 0;
-        }
-        if (elementHeader->type == EXnull) {
-            // Skip this record - advance to next record
-            elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-            handle->slackElements++;
-            num++;
-            dbg_printf("Skip EXnull, size: %u\n", elementHeader->length);
-            continue;
-        }
-        if (elementHeader->type < MAXEXTENSIONS) {
-            handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
-        } else {
-            LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension %d Type: %u, Length: %u", flowCount, num, elementHeader->type,
-                    elementHeader->length);
-            DumpHex(stdout, (void *)recordHeaderV3, recordHeaderV3->size);
-        }
-        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-        num++;
-    }
-    handle->extensionList[EXheader] = (void *)recordHeaderV3;
-    handle->extensionList[EXlocal] = (void *)handle;
-    handle->flowCount = flowCount;
-    handle->numElements = recordHeaderV3->numElements;
-
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
-    if (genericFlow && genericFlow->msecFirst == 0) {
-        EXnselCommon_t *nselCommon = (EXnselCommon_t *)handle->extensionList[EXnselCommonID];
-        if (nselCommon) {
-            genericFlow->msecFirst = nselCommon->msecEvent;
-        } else {
-            EXnatCommon_t *natCommon = (EXnatCommon_t *)handle->extensionList[EXnatCommonID];
-            if (natCommon) genericFlow->msecFirst = natCommon->msecEvent;
-        }
-    }
-
-    // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
-    // check first IPv6 as expected less often
-    if (handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID]) {
-        ResolveMultipleIPrecords(handle, recordHeaderV3, flowCount);
-    }
-    */
-
-    return 1;
-}  // End of MapRecordHandle
-
 static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *recordHeaderV4, uint64_t flowCount) {
-    memset((void *)handle, 0, sizeof(recordHandle_t));
-    handle->recordHeaderV4 = recordHeaderV4;
+    *handle = (recordHandle_t){.recordHeaderV4 = recordHeaderV4, .numElements = recordHeaderV4->numExtensions, .flowCount = flowCount};
 
     uint8_t *eor = (uint8_t *)recordHeaderV4 + recordHeaderV4->size;
     uint8_t *recordBase = (uint8_t *)recordHeaderV4;
 
     // offset table
-    uint16_t *offsetTable = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
+    uint16_t *offset = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
 
     // Validate each extension
     uint64_t bitMap = recordHeaderV4->extBitmap;
-    uint32_t slot = 0;
     while (bitMap) {
         // find lowest set bit (ctz) in bitMap
-        uint32_t type = __builtin_ctzll(bitMap);
+        uint32_t extID = __builtin_ctzll(bitMap);
         bitMap &= bitMap - 1;
 
-        uint32_t offset = offsetTable[slot++];
-        // dbg_printf("Extension: %u at offset %u\n", type, offset);
+        uint8_t *extension = recordBase + *offset++;
 
         // Offset must be within record
-        if (recordBase + offset > eor) {
-            LogError("MapV4RecordHandle: extension %d offset out of bounds", type);
+        if (extension > eor) {
+            LogError("MapV4RecordHandle: extension %d offset out of bounds", extID);
             return 0;
         }
 
-        dbg_assert((offset & 7) == 0);
-
-        // Skip EXnull extensions
-        if (type == EXnull) {
-            handle->slackElements++;
-            dbg_printf("Skip EXnull\n");
-            continue;
-        }
-
-        if (type < MAXEXTENSIONS) {
-            handle->extensionList[type] = recordBase + offset;
+        if (extID < MAXEXTENSIONS) {
+            handle->extensionList[extID] = extension;
         } else {
-            LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension Type: %u", flowCount, type);
+            LogError("Mapping record: %" PRIu64 " - Skip unknown extension Type: %u", flowCount, extID);
             dbg(DumpHex(stdout, (void *)recordHeaderV4, recordHeaderV4->size));
         }
     }
 
     handle->extensionList[EXheader] = (void *)recordHeaderV4;
     handle->extensionList[EXlocal] = (void *)handle;
-    handle->flowCount = flowCount;
-    handle->numElements = recordHeaderV4->numExtensions;
 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
     if (genericFlow && genericFlow->msecFirst == 0) {
@@ -218,7 +133,7 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
     // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
     // check first IPv6 as expected less often
     if (handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID]) {
-        ResolveMultipleIPrecords(handle, recordHeaderV4, flowCount);
+        ResolveMultipleIPrecords(handle, flowCount);
     }
 
     return 1;

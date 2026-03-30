@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022-2025, Peter Haag
+ *  Copyright (c) 2022-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
 #include <sys/types.h>
 
 #include "exporter.h"
-#include "nfxV3.h"
+#include "nfxV4.h"
 
 /* v5 structures */
 typedef struct netflow_v5_header {
@@ -100,7 +100,7 @@ void Init_v5_v7_output(send_peer_t *peer) {
     v5_output_header->count = 0;
 
     output_engine = (exporter_entry_t){.sequence = UINT32_MAX};
-    output_engine.version.v5 = (exporter_v5_t){0};
+    output_engine.v5 = (exporter_v5_t){0};
 
     v5_output_record = (netflow_v5_record_t *)((void *)v5_output_header + NETFLOW_V5_HEADER_LENGTH);
 
@@ -136,7 +136,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
         peer->buff_ptr = (void *)v5_output_record;
         memset(peer->buff_ptr, 0, NETFLOW_V5_MAX_RECORDS * NETFLOW_V5_RECORD_LENGTH);
 
-        output_engine.sequence += output_engine.version.v5.last_count;
+        output_engine.sequence += output_engine.v5.last_count;
         v5_output_header->flow_sequence = htonl(output_engine.sequence);
 
         uint32_t unix_secs = (genericFlow->msecLast / 1000LL) + 3600;
@@ -165,26 +165,31 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     v5_output_record->srcaddr = htonl(ipv4Flow->srcAddr);
     v5_output_record->dstaddr = htonl(ipv4Flow->dstAddr);
 
+    // EXinterfaceID
+    EXinterface_t *interface = (EXinterface_t *)recordHandle->extensionList[EXinterfaceID];
+    if (interface) {
+        v5_output_record->input = htons(interface->input);
+        v5_output_record->output = htons(interface->output);
+    }
+
     // EXflowMiscID
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
     if (flowMisc) {
-        v5_output_record->input = htons(flowMisc->input);
-        v5_output_record->output = htons(flowMisc->output);
         v5_output_record->src_mask = flowMisc->srcMask;
         v5_output_record->dst_mask = flowMisc->dstMask;
     }
 
     // EXasRoutingID
-    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
-    if (asRouting) {
-        v5_output_record->src_as = htons(asRouting->srcAS);
-        v5_output_record->dst_as = htons(asRouting->dstAS);
+    EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle->extensionList[EXasInfoID];
+    if (asInfo) {
+        v5_output_record->src_as = htons(asInfo->srcAS);
+        v5_output_record->dst_as = htons(asInfo->dstAS);
     }
 
     // EXipNextHopV4ID
-    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)recordHandle->extensionList[EXipNextHopV4ID];
-    if (ipNextHopV4) {
-        v5_output_record->nexthop = htonl(ipNextHopV4->ip);
+    EXasRoutingV4_t *asRouting = (EXasRoutingV4_t *)recordHandle->extensionList[EXasRoutingV4ID];
+    if (asRouting) {
+        v5_output_record->nexthop = htonl(asRouting->nextHop);
     }
 
     cnt++;
@@ -194,7 +199,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     v5_output_record++;
     if (cnt == NETFLOW_V5_MAX_RECORDS) {
         peer->flush = 1;
-        output_engine.version.v5.last_count = cnt;
+        output_engine.v5.last_count = cnt;
         cnt = 0;
     }
 

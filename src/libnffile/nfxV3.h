@@ -80,36 +80,6 @@ typedef struct recordHeaderV3_s {
     h->size = sizeof(recordHeaderV3_t);
 
 /*
- * array record header for nbar, ifname, vrf name records
- */
-typedef struct arrayRecordHeader_s {
-    // record header
-    uint16_t type;
-    uint16_t size;
-    uint16_t numElements;
-    uint16_t elementSize;
-} arrayRecordHeader_t;
-
-#define arrayHeaderSize sizeof(arrayRecordHeader_t)
-#define AddArrayHeader(p, h, t, s)                     \
-    arrayRecordHeader_t *h = (arrayRecordHeader_t *)p; \
-    memset(h, 0, sizeof(arrayRecordHeader_t));         \
-    h->type = t;                                       \
-    h->size = sizeof(arrayRecordHeader_t);             \
-    h->elementSize = s;
-
-#define PushArrayVarElement(h, x, v, s)        \
-    x##_t *v = (x##_t *)((void *)h + h->size); \
-    memset(v, 0, s);                           \
-    h->numElements++;                          \
-    h->size += s;
-
-#define PushArrayNextElement(h, p, t) \
-    p = (t *)((void *)h + h->size);   \
-    h->numElements++;                 \
-    h->size += h->elementSize;
-
-/*
  * Extension element header
  */
 typedef struct elementHeader_s {

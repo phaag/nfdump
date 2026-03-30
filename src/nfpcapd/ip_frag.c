@@ -112,7 +112,7 @@ static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, co
 
 static void expireFragmentList(time_t now, time_t timeout) {
     uint32_t cnt = 0;
-    for (int slot = 0; slot < ipFragList.numFrags; slot++) {
+    for (int slot = 0; slot < (int)ipFragList.numFrags; slot++) {
         // skip empty slots
         if (ipFragList.fragList[slot].created == 0) continue;
 

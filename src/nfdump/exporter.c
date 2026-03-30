@@ -42,9 +42,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "id.h"
 #include "logging.h"
 #include "nfdump.h"
 #include "nfxV3.h"
+#include "nfxV4.h"
 #include "util.h"
 
 // exporter local variables
@@ -257,7 +259,7 @@ int AddSamplerRecord(sampler_record_V3_t *sampler_record) {
     }
 
     while (*sampler) {
-        if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_V3_t)) == 0) {
+        if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_v4_t)) == 0) {
             // Found identical sampler already registered
             dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n",
                        sampler_record->exporter_sysid, sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
@@ -273,7 +275,7 @@ int AddSamplerRecord(sampler_record_V3_t *sampler_record) {
     }
     (*sampler)->next = NULL;
 
-    memcpy((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_V3_t));
+    memcpy((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_v4_t));
 
     dbg_printf("Insert sampler record for exporter: %u\n", sysID);
     */

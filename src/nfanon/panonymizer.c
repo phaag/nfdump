@@ -175,28 +175,26 @@ uint32_t anonymize(const uint32_t orig_addr) {
  * orig_addr is a ptr to memory, return by inet_pton for IPv6
  * anon_addr return the result in the same order
  */
-void anonymize_v6(const uint64_t orig_addr[2], uint64_t *anon_addr) {
+void anonymize_v6(const uint8_t *orig_addr, uint8_t *anon_addr) {
     uint8_t rin_output[16], *orig_bytes, *result;
     uint8_t rin_input[16];
 
-    int pos, i, bit_num, left_byte;
-
-    anon_addr[0] = anon_addr[1] = 0;
+    memset(anon_addr, 0, 16);
     result = (uint8_t *)anon_addr;
     orig_bytes = (uint8_t *)orig_addr;
 
     // For each prefixes with length from 0 to 127, generate a bit using the Rijndael cipher,
     // which is used as a pseudorandom function here. The bits generated in every rounds
     // are combineed into a pseudorandom one-time-pad.
-    for (pos = 0; pos <= 127; pos++) {
-        bit_num = pos & 0x7;
-        left_byte = (pos >> 3);
+    for (int pos = 0; pos <= 127; pos++) {
+        int bit_num = pos & 0x7;
+        int left_byte = (pos >> 3);
 
-        for (i = 0; i < left_byte; i++) {
+        for (int i = 0; i < left_byte; i++) {
             rin_input[i] = orig_bytes[i];
         }
         rin_input[left_byte] = orig_bytes[left_byte] >> (7 - bit_num) << (7 - bit_num) | (m_pad[left_byte] << bit_num) >> bit_num;
-        for (i = left_byte + 1; i < 16; i++) {
+        for (int i = left_byte + 1; i < 16; i++) {
             rin_input[i] = m_pad[i];
         }
 
@@ -208,6 +206,7 @@ void anonymize_v6(const uint64_t orig_addr[2], uint64_t *anon_addr) {
         result[left_byte] |= (rin_output[0] >> 7) << bit_num;
     }
     // XOR the original address with the pseudorandom one-time-pad
-    anon_addr[0] ^= orig_addr[0];
-    anon_addr[1] ^= orig_addr[1];
+    for (int j = 0; j < 16; j++) {
+        anon_addr[j] ^= orig_addr[j];
+    }
 }
