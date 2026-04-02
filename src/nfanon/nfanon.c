@@ -209,7 +209,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon
                 }
 
                 if (anon_dst) {
-                    anonymize_v6(ipv6Flow->srcAddr, anon_ip);
+                    anonymize_v6(ipv6Flow->dstAddr, anon_ip);
                     ipv6Flow->dstAddr[0] = anon_ip[0];
                     ipv6Flow->dstAddr[1] = anon_ip[1];
                 }
