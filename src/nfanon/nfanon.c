@@ -246,14 +246,14 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon
                 ipNextHopV6->ip[1] = anon_ip[1];
             } break;
             case EXipReceivedV4ID: {
-                EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
+                EXipReceivedV4_t *ipReceived = (EXipReceivedV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                ipReceived->ip = anonymize(ipReceived->ip);
             } break;
             case EXipReceivedV6ID: {
-                EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipReceivedV6->ip, anon_ip);
-                ipReceivedV6->ip[0] = anon_ip[0];
-                ipReceivedV6->ip[1] = anon_ip[1];
+                EXipReceivedV6_t *ipReceived = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                anonymize_v6(ipReceived->ip, anon_ip);
+                ipReceived->ip[0] = anon_ip[0];
+                ipReceived->ip[1] = anon_ip[1];
             } break;
             case EXmplsLabelID:
                 break;
