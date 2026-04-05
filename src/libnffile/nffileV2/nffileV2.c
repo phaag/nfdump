@@ -311,10 +311,10 @@ int VerifyFileV2(const char *filename, int verbose) {
         }
 
         printf("Version    : %u - %s\n", fileHeader.version,
-               fileHeader.compression == ZSTD_COMPRESSED_V2   ? "lzo compressed"
-               : fileHeader.compression == ZSTD_COMPRESSED_V2 ? "lz4 compressed"
+               fileHeader.compression == LZO_COMPRESSED_V2    ? "lzo compressed"
+               : fileHeader.compression == LZ4_COMPRESSED_V2  ? "lz4 compressed"
                : fileHeader.compression == ZSTD_COMPRESSED_V2 ? "zstd compressed"
-               : fileHeader.compression == ZSTD_COMPRESSED_V2 ? "bz2 compressed"
+               : fileHeader.compression == BZ2_COMPRESSED_V2  ? "bz2 compressed"
                                                               : "not compressed");
 
         if (fileHeader.encryption != NOT_ENCRYPTED) {
@@ -359,7 +359,7 @@ int VerifyFileV2(const char *filename, int verbose) {
     }
 #endif
 #ifndef HAVE_BZ2
-    if (fileHeader.compression == ZSTD_COMPRESSED_V2) {
+    if (fileHeader.compression == BZ2_COMPRESSED_V2) {
         LogError("BZIP2 compression not compiled in. Skip checking.");
         close(fd);
         return 0;
@@ -370,6 +370,10 @@ int VerifyFileV2(const char *filename, int verbose) {
     dataBlockV2_t *readBlock = NewDataBlockV2();
     // tmp uncompress buffer
     dataBlockV2_t *buff = NewDataBlockV2();
+
+    // V2 files often have BlockSize == 0 (field was added late, never written)
+    // Default to WRITE_BUFFSIZE which is the standard V2 max uncompressed payload
+    uint32_t blockSize = fileHeader.BlockSize ? fileHeader.BlockSize : WRITE_BUFFSIZE;
 
     printf("Checking data blocks\n");
     if (verbose == 0) setvbuf(stdout, (char *)NULL, _IONBF, 0);
@@ -443,7 +447,7 @@ int VerifyFileV2(const char *filename, int verbose) {
         }
         int compression = fileHeader.compression;
         if (TestFlag(readBlock->flags, FLAG_BLOCK_UNCOMPRESSED)) {
-            compression = ZSTD_COMPRESSED_V2;
+            compression = NOT_COMPRESSED_V2;
         }
 
         void *read_ptr = GetCursor(readBlock);
@@ -473,7 +477,7 @@ int VerifyFileV2(const char *filename, int verbose) {
                 dataBlockV2_t *b = readBlock;
                 readBlock = buff;
                 buff = b;
-                if (Uncompress_BlockV2_LZO(buff, readBlock, fileHeader.BlockSize) < 0) {
+                if (Uncompress_BlockV2_LZO(buff, readBlock, blockSize) < 0) {
                     LogError("LZO decompress failed");
                     failed = 1;
                 }
@@ -482,7 +486,7 @@ int VerifyFileV2(const char *filename, int verbose) {
                 dataBlockV2_t *b = readBlock;
                 readBlock = buff;
                 buff = b;
-                if (Uncompress_BlockV2_LZ4(buff, readBlock, fileHeader.BlockSize) < 0) {
+                if (Uncompress_BlockV2_LZ4(buff, readBlock, blockSize) < 0) {
                     LogError("LZ4 decompress failed");
                     failed = 1;
                 }
@@ -491,7 +495,7 @@ int VerifyFileV2(const char *filename, int verbose) {
                 dataBlockV2_t *b = readBlock;
                 readBlock = buff;
                 buff = b;
-                if (Uncompress_BlockV2_BZ2(buff, readBlock, fileHeader.BlockSize) < 0) {
+                if (Uncompress_BlockV2_BZ2(buff, readBlock, blockSize) < 0) {
                     LogError("Bzip2 decompress failed");
                     failed = 1;
                 }
@@ -500,7 +504,7 @@ int VerifyFileV2(const char *filename, int verbose) {
                 dataBlockV2_t *b = readBlock;
                 readBlock = buff;
                 buff = b;
-                if (Uncompress_BlockV2_ZSTD(buff, readBlock, fileHeader.BlockSize) < 0) {
+                if (Uncompress_BlockV2_ZSTD(buff, readBlock, blockSize) < 0) {
                     LogError("Zstd decompress failed");
                     failed = 1;
                 }

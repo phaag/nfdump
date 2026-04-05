@@ -16,6 +16,7 @@ nffileV3 += nffileV3/nfread.h nffileV3/nfread.c nffileV3/nfwrite.h nffileV3/nfwr
 nffileV2 = nffileV2/nffileV2.c nffileV2/nffileV2.h nffileV2/uncompress.c nffileV2/uncompress.h
 nfxV4 = queue.c queue.h nfxV4.h nfxV4.c id.h
 nfxV3 = nffileV2/nfxV3.h nffileV2/nfxV3.c
+convert = nffileV3/nfconvert.h nffileV3/nfconvert.c
 conf = conf/nfconf.c conf/nfconf.h conf/toml.c conf/toml.h
 nflist = flist.c flist.h
 
@@ -33,7 +34,7 @@ vcs_track.h: Makefile
 	./gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(bookkeeper) $(version) vcs_track.h
+libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(bookkeeper) $(version) vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS)
 libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@

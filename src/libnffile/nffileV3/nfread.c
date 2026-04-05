@@ -46,6 +46,7 @@
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
+#include "nfconvert.h"
 #include "nfdump.h"
 #include "nffileV3.h"
 #include "nfxV4.h"
@@ -247,6 +248,9 @@ nffileV3_t *mmapFileV3(const char *filename) {
         return NULL;
     }
 
+    if (fileHeader->layoutVersion == LAYOUT_VERSION_2) {
+        return ConvertFileV2(filename);
+    }
     if (fileHeader->layoutVersion != LAYOUT_VERSION_3) {
         LogError("Unsupported layout version %u in '%s'", fileHeader->layoutVersion, filename);
         munmap((void *)map, fileSize);
