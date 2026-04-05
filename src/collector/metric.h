@@ -31,7 +31,10 @@
 #ifndef _METRIC_H
 #define _METRIC_H 1
 
-#include "nffile.h"
+#include <stdint.h>
+
+#include "nfdump.h"
+#include "nfxV4.h"
 
 typedef struct message_header_s {
     char prefix;
@@ -45,7 +48,7 @@ typedef struct message_header_s {
 
 typedef struct metric_record_s {
     // Ident
-    char ident[128];
+    char ident[IDENTLEN];
     uint64_t exporterID;  // 32bit: exporter_id:16 engineType:8 engineID:*
 
     // flow stat

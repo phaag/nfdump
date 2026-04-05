@@ -446,7 +446,7 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
 
 }  // End of ConvertRecordV2
 
-void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
+void ConvertBlockType2(dataBlockV2_t *dataBlockV2, dataBlockV3_t *dataBlockV3) {
     record_header_t *v2record_ptr = GetCursor(v2DataBlock);
     uint32_t sumSize = 0;
     for (int i = 0; i < v2DataBlock->NumRecords; i++) {

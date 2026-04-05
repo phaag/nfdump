@@ -34,11 +34,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "nffileV3.h"
+#include "nffileV3/nffileV3.h"
 
-int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader);
+int AddIfNameRecord(arrayBlockV3_t *arrayBlock);
 
-int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader);
+int AddVrfNameRecord(arrayBlockV3_t *arrayBlock);
 
 char *GetIfName(uint32_t ingress, char *name, size_t len);
 

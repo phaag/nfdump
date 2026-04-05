@@ -54,7 +54,7 @@
 #include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_util.h"
 #include "payload/dns/output_dns.h"
@@ -905,7 +905,7 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
 
     // Generate extension string
     uint64_t bitMap = recordHeaderV4->extBitmap;
-    char elementString[recordHeaderV4->numExtensions * 5];
+    char elementString[recordHeaderV4->numExtensions * 5 + 1];  // if numExtensions == 0 -> '\0'
     elementString[0] = '\0';
     while (bitMap) {
         // find lowest set bit (ctz) in bitMap

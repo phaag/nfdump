@@ -34,9 +34,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "nffileV2.h"
-#include "nfxV3.h"
+#include "nffileV2/nffileV2.h"
+#include "nffileV3/nffileV3.h"
 
-void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock);
+void ConvertBlockType2(dataBlockV2_t *dataBlockV2, dataBlockV3_t *dataBlockV3);
 
 #endif  //_NFDUMP_H

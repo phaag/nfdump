@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfdump
 
-nfdump_CPPFLAGS = -I.. -Icompat_1_6_x -I../include -I../libnffile -I../libnfdump -I../output -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
+nfdump_CPPFLAGS = -I.. -Icompat_1_6_x -Icompat_1_7_x -I../include -I../libnffile -I../libnfdump -I../output -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
 nfdump_CFLAGS = $(PTHREAD_CFLAGS)
 
 nflowcache = nflowcache.c nflowcache.h memhandle.h
@@ -11,7 +11,8 @@ nfprof = nfprof.h nfprof.c
 exporter = exporter.c
 nbar = nbar.c 
 ifvrf = ifvrf.c 
-compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c compat_1_6_x/convert.c compat_1_6_x/nfdump_1_6_x.h
+compat =
+#compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c compat_1_6_x/convert.c compat_1_6_x/nfdump_1_6_x.h
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort) $(compat)

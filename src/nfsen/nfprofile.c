@@ -53,7 +53,7 @@
 #include "maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfstatfile.h"
 #include "nfxV4.h"
 #include "profile.h"
@@ -72,7 +72,7 @@ typedef struct worker_param_s {
     uint32_t numWorkers;
     uint32_t numChannels;
     profile_channel_info_t *channels;
-    dataBlock_t **dataBlock;
+    flowBlockV3_t **dataBlock;
 
     // sync barrier
     pthread_control_barrier_t *barrier;

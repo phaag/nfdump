@@ -71,7 +71,6 @@
 
 #include "flowhash.h"
 #include "logging.h"
-#include "nffile.h"
 #include "packet_pcap.h"
 #include "pcapdump.h"
 #include "pcaproc.h"
@@ -459,7 +458,7 @@ void *__attribute__((noreturn)) pcap_file_packet_thread(void *args) {
 
             size_t size = sizeof(struct pcap_sf_pkthdr) + hdr->caplen;
             if (DoPacketDump && ok) {
-                if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
+                if ((packetBuffer->bufferSize + size) > 1048576) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
                     queue_push(packetParam->flushQueue, packetBuffer);

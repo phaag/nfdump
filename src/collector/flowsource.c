@@ -42,6 +42,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "backend.h"
 #include "config.h"
 #include "ip128.h"
 #include "logging.h"
@@ -217,7 +218,7 @@ FlowSource_t *GetFlowSource(collector_ctx_t *ctx, const struct sockaddr_storage 
     // still unknown - check for IP list
     static const ip128_t zero128 = {.bytes = {0}};
     for (source_array_t *sa = ctx->source_array; sa != NULL; sa = sa->next) {
-        for (int i = 0; i < sa->ipNum; i++) {
+        for (int i = 0; i < (int)sa->ipNum; i++) {
             if (ip128_equal(&sa->ipList[i].mask, &zero128)) {
                 if (ip128_equal(&sa->ipList[i].net, &ipAddr)) {
                     FlowSource_t *fs = sa->fs;
@@ -417,6 +418,15 @@ static int inline GetClientIP(const struct sockaddr_storage *ss, ip128_t *ip, ui
 
     return 1;
 }  // End of GetClientIP
+
+static int CheckIdent(const char *s) {
+    int len = 0;
+    for (; *s; s++, len++) {
+        if (len >= IDENTLEN) return 0;
+        if (*s <= 32 || *s > 126) return 0;
+    }
+    return 1;
+}  // End of CheckIdent
 
 static int initFileInfo(FlowSource_t *fs, const char *ident, const char *dataDir, unsigned subDir) {
     // Check identifier

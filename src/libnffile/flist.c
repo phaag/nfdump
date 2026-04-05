@@ -61,7 +61,6 @@
 #include "flist.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
 #include "queue.h"
 #include "util.h"
 
@@ -1156,6 +1155,9 @@ int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) 
 
     return ret;
 }  // End of SetupPath
+
+// XXX FIX! - consider to remove
+static int GetStatRecord(char *filename, stat_record_t *stat_record) { return 1; }
 
 static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
     // no time search window set

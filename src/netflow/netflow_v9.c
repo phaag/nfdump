@@ -54,7 +54,7 @@
 #include "metric.h"
 #include "nbar.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"
@@ -259,7 +259,7 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
 
 static void Process_v9_SysUpTime_option_data(exporter_entry_t *exporter_entry, template_t *template, const uint8_t *data_flowset);
 
-#include "nffile_inline.c"
+// XXXX #include "nffile_inline.c"
 
 int Init_v9(int verbose, int32_t sampling, char *extensionList) {
     printRecord = verbose > 2;
@@ -422,7 +422,8 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
                 .key = key, .sequence = UINT32_MAX, .in_use = 1, .sysID = AssignExporterID(), .sampler_count = numSamplers, .info = info};
             tab->count++;
 
-            *(e->info) = (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = recordSize},
+            *(e->info) = (exporter_info_record_v4_t){.type = ExporterInfoRecordV4Type,
+                                                     .size = recordSize,
                                                      .version = key.version,
                                                      .id = key.id,
                                                      .sysID = e->sysID,
@@ -534,7 +535,7 @@ static void InsertSampler(exporter_entry_t *exporter_entry, sampler_record_v4_t 
         }
 
         info_record->sampler_capacity = numSamplers;
-        info_record->header.size = newSize;
+        info_record->size = newSize;
     }
 
     sampler_record_v4_t *samplers = info_record->samplers;
@@ -1249,12 +1250,13 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
 
         // check for enough space in output buffer
         uint32_t outRecordSize = pipeline->recordSize == VARLENGTH ? 1024 : pipeline->recordSize;
-        if (!IsAvailable(fs->dataBlock, sizeof(recordHeaderV4_t) + outRecordSize)) {
+        if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, sizeof(recordHeaderV4_t) + outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            InitFlowBlock(fs->dataBlock);
         }
 
-        int buffAvail = BlockAvailable(fs->dataBlock);
+        int buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
         if (buffAvail == 0) {
             // this should really never occur, because the buffer gets flushed earlier
             LogError("Process_v9: output buffer size error. Skip v9 record processing");
@@ -1267,7 +1269,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
         ssize_t processed = 0;
         do {
             // map file record to output buffer
-            outBuff = GetCurrentCursor(fs->dataBlock);
+            outBuff = GetCursor(fs->dataBlock);
             dbg_printf("Redone: %u\n", redone);
             dbg_printf("[%u] Process data record: %u offset: %ld, size_left: %u buff_avail: %u\n", exporter_entry->info->id, processed_records,
                        (inBuff - data_flowset), size_left, buffAvail);
@@ -1292,19 +1294,20 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                     processed = size_left;
                     break;
                 case PIP_ERR_SHORT_OUTPUT:
-                    if (buffAvail == WRITE_BUFFSIZE) {
+                    if (buffAvail == BLOCK_SIZE_V3) {
                         LogError("Process v9: PipelineRun() short output. Skip record processing");
                         return;
                     }
 
                     LogVerbose("Process v9: PipelinRun() resize output buffer");
                     // request new and empty buffer
-                    fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+                    fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
                     if (fs->dataBlock == NULL) {
                         return;
                     }
+                    InitFlowBlock(fs->dataBlock);
 
-                    buffAvail = BlockAvailable(fs->dataBlock);
+                    buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
                     if (buffAvail == 0 || redone) {
                         // this should really never happen, because the buffer got flushed
                         LogError("Process_v9: output buffer size error. Skip v9 record processing");
@@ -1480,18 +1483,18 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
             flow_record_short(stdout, recordHeaderV4);
         }
 
-        fs->dataBlock->size += recordHeaderV4->size;
-        fs->dataBlock->NumRecords++;
+        fs->dataBlock->rawSize += recordHeaderV4->size;
+        fs->dataBlock->numRecords++;
 
         // buffer size sanity check
-        if (fs->dataBlock->size > WRITE_BUFFSIZE) {
+        if (fs->dataBlock->rawSize >= BLOCK_SIZE_V3) {
             // should never happen
             LogError("Process v9: Output buffer overflow! Flush buffer and skip records.");
-            LogError("Buffer size: %u > %u", fs->dataBlock->size, WRITE_BUFFSIZE);
+            LogError("Buffer size: %u > %u", fs->dataBlock->rawSize, BLOCK_SIZE_V3);
 
             // reset buffer
-            fs->dataBlock->size = 0;
-            fs->dataBlock->NumRecords = 0;
+            InitFlowBlock(fs->dataBlock);
+            fs->dataBlock->numRecords = 0;
             return;
         }
     }
@@ -1576,6 +1579,7 @@ static inline void Process_v9_sampler_option_data(exporter_entry_t *exporter_ent
 
 }  // End of Process_v9_sampler_option_data
 
+// XXX FIX!
 static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, template_t *template, const uint8_t *data_flowset) {
     uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
     dbg_printf("[%u] Process nbar option data flowset size: %u\n", exporter_entry->info->id, size_left);
@@ -1603,34 +1607,38 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
     if (align) {
         elementSize += 4 - align;
     }
-    size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(NbarAppInfo_t) + numRecords * elementSize;
+
+    // write array block
+    fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+    arrayBlockV3_t *arrayBlock = (arrayBlockV3_t *)fs->dataBlock;
+    InitArrayBlock(arrayBlock);
+    arrayBlock->elementType = NbarRecordType;
+    arrayBlock->elementSize = elementSize;
+    arrayBlock->numElements = numRecords;
+
+    size_t total_size = sizeof(arrayBlockV3_t) + numRecords * elementSize;
+    arrayBlock->rawSize = total_size;
     dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
-    if (!IsAvailable(fs->dataBlock, total_size)) {
-        // flush block - get an empty one
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+    if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, total_size)) {
+        LogError("Cannot store nbar array - block size error");
+        InitFlowBlock(fs->dataBlock);
+        return;
     }
 
-    void *outBuff = GetCurrentCursor(fs->dataBlock);
-    // push nbar header
-    AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
-
-    // put array info descriptor next
-    NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)(outBuff + sizeof(arrayRecordHeader_t));
-    nbarHeader->size += sizeof(NbarAppInfo_t);
+    uint8_t *outBuff = GetCursor(fs->dataBlock);
+    NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)outBuff;
 
     // info record for each element in array
     NbarInfo->app_id_length = nbarOption->id.length;
     NbarInfo->app_name_length = nbarOption->name.length;
     NbarInfo->app_desc_length = nbarOption->desc.length;
 
+    /*
     dbg(int cnt = 0);
+    uint8_t *p = outBuff;
     while (size_left >= option_size) {
-        // push nbar app info record
-        uint8_t *p;
-        PushArrayNextElement(nbarHeader, p, uint8_t);
-
         // copy data
         // id octet array
         memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
@@ -1667,16 +1675,16 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
 
         // in case of an err we do not store this record
         if (err != 0) {
-            nbarHeader->numElements--;
-            nbarHeader->size -= elementSize;
+            // XXX FIX!     nbarHeader->numElements--;
+            // XXX FIX!     nbarHeader->size -= elementSize;
         }
         inBuff += option_size;
         size_left -= option_size;
     }
 
     // update data block header
-    fs->dataBlock->size += nbarHeader->size;
-    fs->dataBlock->NumRecords++;
+    // XXX FIX!fs->dataBlock->size += nbarHeader->size;
+    // XXX FIX!fs->dataBlock->NumRecords++;
 
     if (size_left > 7) {
         LogVerbose("Process nbar data record - %u extra bytes", size_left);
@@ -1684,7 +1692,8 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
     processed_records++;
 
     dbg_printf("nbar processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nbarHeader->size,
-               nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
+    nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
+    */
 
 }  // End of Process_v9_nbar_option_data
 
@@ -1735,13 +1744,14 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     if (align) {
         elementSize += 4 - align;
     }
+    /* XXX FIX!!
     size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
     dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
     if (!IsAvailable(fs->dataBlock, total_size)) {
         // flush block - get an empty one
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
     }
 
     void *outBuff = GetCurrentCursor(fs->dataBlock);
@@ -1810,6 +1820,7 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
 
     dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
                nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
+    */
 
 }  // End of Process_v9_ifvrf_option_data
 

@@ -33,6 +33,33 @@
 
 #include "collector.h"
 #include "flowsource.h"
+#include "nffileV3/nffileV3.h"
+
+typedef struct nffile_backend_ctx_s {
+    char Ident[IDENTLEN];  // source identifier
+
+    book_handle_t *book_handle;  // book_handle for statistics of all files
+    char *datadir;               // base dir to store flow files
+    char *tmpFileName;           // name of tmp collection file
+    uint32_t subdir;             // index of sub dir layout - see nffile.h
+    nffileV3_t *nffile;          // nffile handle
+
+    // const args
+    char *time_extension;    // parameter passing
+    uint32_t creator;        // creator - nfcapd or sfcapd
+    uint16_t compressType;   // compression type
+    uint16_t compressLevel;  // compression Level
+    uint32_t encryption;     // encryption for new files
+    int pfd;                 // launcher socket
+
+    // collector param
+    queue_t *blockQueue;  // queue from collector
+    // launcher
+    queue_t *msgQueue;  // queue for launcher
+
+    pthread_t self;
+
+} nffile_backend_ctx_t;
 
 int InitBackend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *init_nffile_ctx);
 

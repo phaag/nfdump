@@ -32,6 +32,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -47,7 +48,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"
@@ -59,8 +60,6 @@ static int printRecord;
 static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
 
 /* functions */
-
-#include "nffile_inline.c"
 
 int Init_pcapd(int verbose) {
     printRecord = verbose;
@@ -104,11 +103,13 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
             *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .sysID = AssignExporterID(), .in_use = 1, .info = info};
             tab->count++;
 
-            *(e->info) =
-                (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = sizeof(exporter_info_record_v4_t)},
-                                            .version = key.version,
-                                            .id = key.id,
-                                            .sysID = e->sysID};
+            *(e->info) = (exporter_info_record_v4_t){
+                .type = ExporterInfoRecordV4Type,
+                .size = sizeof(exporter_info_record_v4_t),
+                .version = key.version,
+                .id = key.id,
+                .sysID = e->sysID,
+            };
             memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
             e->nfd = (exporter_nfd_t){0};
@@ -269,12 +270,12 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             outputSize = recordHeaderV4->size + (newOTSize - oldOTSize) + receivedSize;
         }
 
-        if (!IsAvailable(fs->dataBlock, outputSize)) {
+        if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, outputSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
         }
 
-        void *buffPtr = GetCurrentCursor(fs->dataBlock);
+        void *buffPtr = GetCursor(fs->dataBlock);
         recordHeaderV4_t *copiedV4;
 
         if (hasReceived) {
@@ -333,8 +334,8 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         size_left -= recordHeaderV4->size;
 
         // update record block
-        fs->dataBlock->size += copiedV4->size;
-        fs->dataBlock->NumRecords++;
+        fs->dataBlock->rawSize += copiedV4->size;
+        fs->dataBlock->numRecords++;
 
         // advance input buffer to next flow record
         recordHeaderV4 = (recordHeaderV4_t *)((void *)recordHeaderV4 + recordHeaderV4->size);

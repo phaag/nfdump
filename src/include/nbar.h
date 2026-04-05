@@ -31,7 +31,9 @@
 #ifndef _NBAR_H
 #define _NBAR_H 1
 
-#include "nffileV3.h"
+#include <stdint.h>
+
+#include "nffileV3/nffileV3.h"
 
 // var length extension
 // size = sizeof nbarAppInfo_t + *_length
@@ -42,12 +44,12 @@ typedef struct NbarAppInfo_s {
     uint16_t app_desc_length;
 } NbarAppInfo_t;
 
-int AddNbarRecord(arrayRecordHeader_t *nbarRecord);
+int AddNbarRecord(arrayBlockV3_t *arraBlock);
 
 char *GetNbarInfo(uint8_t *id, size_t size);
 
 void DumpNbarList(void);
 
-void PrintNbarRecord(arrayRecordHeader_t *nbarRecord);
+void PrintNbarRecord(arrayBlockV3_t *arrayBlock);
 
 #endif  // _NBAR_H

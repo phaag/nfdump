@@ -49,11 +49,12 @@
 #include <unistd.h>
 
 #include "barrier.h"
+#include "compress/nfcompress.h"
 #include "ftlib.h"
 #include "id.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_short.h"
 #include "util.h"
@@ -61,8 +62,6 @@
 
 /* prototypes */
 void usage(char *name);
-
-static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extended, uint32_t limitflows);
 
 void usage(char *name) {
     printf(
@@ -125,7 +124,7 @@ static uint32_t GenExtensionList(struct ftio *ftio, uint64_t *bitMap) {
 
 }  // End of GenExtensionList
 
-static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extended, uint32_t limitflows) {
+static int flows2nfdump(struct ftio *ftio, char *wfile, uint32_t compressType, uint32_t compressLevel, int extended, uint32_t limitflows) {
     // required flow tools variables
     struct fttime ftt;
     struct fts3rec_offsets fo;
@@ -134,12 +133,12 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     // nfdump variables
 
     char *ident = "flow-tools";
-    nffile_t *nffile = OpenNewFile(wfile, CREATOR_FT2NFDUMP, compress, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_FT2NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
     if (!nffile) {
         LogError("OpenNewFile() failed.");
         return 1;
     }
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    flowBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
 
     ftio_get_ver(ftio, &ftv);
     memset((void *)&fo, 0xFF, sizeof(fo));
@@ -161,12 +160,12 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     int cnt = 0;
     while ((rec = ftio_read(ftio))) {
         dbg_printf("FT record %u\n", cnt);
-        if (!IsAvailable(dataBlock, recordSize)) {
+        if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, recordSize)) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
         }
 
-        void *buffPtr = GetCurrentCursor(dataBlock);
+        void *buffPtr = GetCursor(dataBlock);
         recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
         *recordHeader = (recordHeaderV4_t){.type = V4Record,
                                            .size = recordSize,
@@ -258,8 +257,8 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
         }
 
         // update file record size ( -> output buffer size )
-        dataBlock->NumRecords++;
-        dataBlock->size += recordSize;
+        dataBlock->numRecords++;
+        dataBlock->rawSize += recordSize;
 
         dbg_assert(recordHeader->size == recordSize);
 
@@ -272,10 +271,10 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
 
     } /* while */
 
-    SetIdent(nffile, ident);
-    FlushBlock(nffile, dataBlock);
-    FlushFile(nffile);
-    DisposeFile(nffile);
+    // XXX FIX! SetIdent(nffile, ident);
+    FlushBlockV3(nffile, dataBlock);
+    FlushFileV3(nffile);
+    CloseFileV3(nffile);
     return 0;
 
 }  // End of flows2nfdump
@@ -284,7 +283,7 @@ int main(int argc, char **argv) {
     struct ftio ftio;
     struct stat statbuf;
     uint32_t limitflows;
-    int extended, ret, fd, compress;
+    int extended, ret, fd;
 
     /* init fterr */
     fterr_setid(argv[0]);
@@ -293,10 +292,11 @@ int main(int argc, char **argv) {
     limitflows = 0;
     char *ftfile = NULL;
     char *wfile = NULL;
-    compress = NOT_COMPRESSED;
+    uint32_t compressType = NOT_COMPRESSED;
+    uint32_t compressLevel = LEVEL_0;
 
     int c;
-    while ((c = getopt(argc, argv, "z::jyzEVc:hr:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "z::EVc:hr:w:")) != EOF) {
         switch (c) {
             case 'h': /* help */
                 usage(argv[0]);
@@ -316,35 +316,19 @@ int main(int argc, char **argv) {
                     exit(255);
                 }
                 break;
-            case 'j':
-                if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-                    exit(EXIT_FAILURE);
-                }
-                compress = BZ2_COMPRESSED;
-                break;
-            case 'y':
-                if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-                    exit(EXIT_FAILURE);
-                }
-                compress = LZ4_COMPRESSED;
-                break;
             case 'z':
-                if (compress) {
+                if (compressType) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
-                    compress = LZO_COMPRESSED;
+                    compressType = LZO_COMPRESSED;
                     LogInfo("Legacy option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
-                    int ret = ParseCompression(optarg);
-                    if (ret == -1) {
+                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
                         LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                         exit(EXIT_FAILURE);
                     }
-                    compress = (unsigned)ret;
                 }
                 break;
             case 'r':
@@ -390,7 +374,7 @@ int main(int argc, char **argv) {
     /* read from fd */
     if (ftio_init(&ftio, fd, FT_IO_FLAG_READ) < 0) fterr_errx(1, "ftio_init(): failed");
 
-    ret = flows2nfdump(&ftio, wfile, compress, extended, limitflows);
+    ret = flows2nfdump(&ftio, wfile, compressType, compressLevel, extended, limitflows);
 
     return ret;
 

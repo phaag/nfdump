@@ -37,7 +37,8 @@
 
 #include "config.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
+#include "nfxV4.h"
 #include "output.h"
 
 #define InitFlowHashBits 23
@@ -145,6 +146,6 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 
 void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams);
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir);
+int ExportFlowTable(nffileV3_t *nffile, int aggregate, int bidir, int GuessDir);
 
 #endif  //_NFLOWCACHE_H

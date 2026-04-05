@@ -53,7 +53,7 @@
 #include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_util.h"
 #include "payload/dns/output_dns.h"
@@ -1155,7 +1155,7 @@ static void String_nbarID(FILE *stream, recordHandle_t *recordHandle) {
             selector = (selector << 8) | nbar->id[index];
             index++;
         }
-        fprintf(stream, "%2u..%u", nbar[0], selector);
+        fprintf(stream, "%2u..%u", nbar->id[0], selector);
     }
 
 }  // End of String_nbarID

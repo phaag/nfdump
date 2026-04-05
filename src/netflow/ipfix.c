@@ -32,6 +32,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -52,7 +53,7 @@
 #include "metric.h"
 #include "nbar.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"
@@ -267,8 +268,6 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
 
 static int LookupElement(uint16_t type, uint32_t EnterpriseNumber);
 
-#include "nffile_inline.c"
-
 int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
     printRecord = verbose > 2;
 
@@ -475,7 +474,8 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
                 .key = key, .sequence = UINT32_MAX, .in_use = 1, .sysID = AssignExporterID(), .sampler_count = numSamplers, .info = info};
             tab->count++;
 
-            *(e->info) = (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = recordSize},
+            *(e->info) = (exporter_info_record_v4_t){.type = ExporterInfoRecordV4Type,
+                                                     .size = recordSize,
                                                      .version = key.version,
                                                      .id = key.id,
                                                      .sysID = e->sysID,
@@ -588,7 +588,7 @@ static void InsertSampler(exporter_entry_t *exporter_entry, sampler_record_v4_t 
         }
 
         info_record->sampler_capacity = numSamplers;
-        info_record->header.size = newSize;
+        info_record->size = newSize;
     }
 
     sampler_record_v4_t *samplers = info_record->samplers;
@@ -1452,12 +1452,12 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
 
         // check for enough space in output buffer
         uint32_t outRecordSize = pipeline->recordSize == VARLENGTH ? 1024 : pipeline->recordSize;
-        if (!IsAvailable(fs->dataBlock, sizeof(recordHeaderV4_t) + outRecordSize)) {
+        if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, sizeof(recordHeaderV4_t) + outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
         }
 
-        unsigned buffAvail = BlockAvailable(fs->dataBlock);
+        unsigned buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
         if (buffAvail == 0) {
             // this should really never occur, because the buffer gets flushed earlier
             LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
@@ -1470,7 +1470,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         ssize_t processed = 0;
         do {
             // map file record to output buffer
-            outBuff = GetCurrentCursor(fs->dataBlock);
+            outBuff = GetCursor(fs->dataBlock);
             dbg_printf("Redone: %u\n", redone);
             dbg_printf("[%u] Process data record: %u offset: %ld, size_left: %u buff_avail: %u\n", exporter_entry->info->id, processed_records,
                        (inBuff - data_flowset), size_left, buffAvail);
@@ -1495,19 +1495,20 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     processed = size_left;
                     break;
                 case PIP_ERR_SHORT_OUTPUT:
-                    if (buffAvail == WRITE_BUFFSIZE) {
+                    if (buffAvail == BLOCK_SIZE_V3) {
                         LogError("Process ipfix: PipelineRun() short output. Skip record processing");
                         return;
                     }
 
                     LogVerbose("Process ipfix: PipelinRun() resize output buffer");
                     // request new and empty buffer
-                    fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+                    fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
                     if (fs->dataBlock == NULL) {
                         return;
                     }
+                    InitFlowBlock(fs->dataBlock);
 
-                    buffAvail = BlockAvailable(fs->dataBlock);
+                    buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
                     if (buffAvail == 0 || redone) {
                         // this should really never happen, because the buffer got flushed
                         LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
@@ -1670,18 +1671,17 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             flow_record_short(stdout, recordHeaderV4);
         }
 
-        fs->dataBlock->size += recordHeaderV4->size;
-        fs->dataBlock->NumRecords++;
+        fs->dataBlock->rawSize += recordHeaderV4->size;
+        fs->dataBlock->numRecords++;
 
         // buffer size sanity check
-        if (fs->dataBlock->size > WRITE_BUFFSIZE) {
+        if (fs->dataBlock->rawSize > BLOCK_SIZE_V3) {
             // should never happen
             LogError("Process ipfix: Output buffer overflow! Flush buffer and skip records.");
-            LogError("Buffer size: %u > %u", fs->dataBlock->size, WRITE_BUFFSIZE);
+            LogError("Buffer size: %u > %u", fs->dataBlock->rawSize, BLOCK_SIZE_V3);
 
             // reset buffer
-            fs->dataBlock->size = 0;
-            fs->dataBlock->NumRecords = 0;
+            InitFlowBlock(fs->dataBlock);
             return;
         }
     }
@@ -1764,7 +1764,10 @@ static inline void Process_ipfix_sampler_option_data(exporter_entry_t *exporter_
 
 }  // End of Process_ipfix_sampler_option_data
 
+// XXX FIX!
+
 static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, template_t *template, const uint8_t *data_flowset) {
+    /*
     uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
     dbg_printf("[%u] Process nbar option data flowset size: %u\n", exporter_entry->info->id, size_left);
 
@@ -1801,10 +1804,10 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
     // output buffer size check for all expected records
     if (!IsAvailable(fs->dataBlock, total_size)) {
         // flush block - get an empty one
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
     }
 
-    void *outBuff = GetCurrentCursor(fs->dataBlock);
+    void *outBuff = GetCursor(fs->dataBlock);
     // push nbar header
     AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
@@ -1888,129 +1891,132 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
 
     dbg_printf("nbar processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nbarHeader->size,
                nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
+    */
 }  // End of Process_ipfix_nbar_option_data
 
 static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, int type, template_t *template,
                                       const uint8_t *data_flowset) {
-    uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
-    dbg_printf("[%u] Process ifvrf option data flowset size: %u\n", exporter_entry->info->id, size_left);
+    /*
+        uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
+        dbg_printf("[%u] Process ifvrf option data flowset size: %u\n", exporter_entry->info->id, size_left);
 
-    uint32_t recordType = 0;
-    optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
-    struct nameOptionList_s *nameOption = NULL;
-    switch (type) {
-        case IFNAME_TEMPLATE:
-            nameOption = &(optionTemplate->ifnameOption);
-            recordType = IfNameRecordType;
-            dbg_printf("[%u] Process if name option data flowset size: %u\n", exporter_entry->info->id, size_left);
-            break;
-        case VRFNAME_TEMPLATE:
-            nameOption = &(optionTemplate->vrfnameOption);
-            recordType = VrfNameRecordType;
-            dbg_printf("[%u] Process vrf name option data flowset size: %u\n", exporter_entry->info->id, size_left);
-            break;
-        default:
-            LogError("Unknown array record type: %d", type);
+        uint32_t recordType = 0;
+        optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
+        struct nameOptionList_s *nameOption = NULL;
+        switch (type) {
+            case IFNAME_TEMPLATE:
+                nameOption = &(optionTemplate->ifnameOption);
+                recordType = IfNameRecordType;
+                dbg_printf("[%u] Process if name option data flowset size: %u\n", exporter_entry->info->id, size_left);
+                break;
+            case VRFNAME_TEMPLATE:
+                nameOption = &(optionTemplate->vrfnameOption);
+                recordType = VrfNameRecordType;
+                dbg_printf("[%u] Process vrf name option data flowset size: %u\n", exporter_entry->info->id, size_left);
+                break;
+            default:
+                LogError("Unknown array record type: %d", type);
+                return;
+
+                // unreached
+                break;
+        }
+
+        // map input buffer as a byte array
+        const uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
+        // data size
+        size_t data_size = nameOption->name.length + sizeof(uint32_t);
+        // size of record
+        size_t option_size = optionTemplate->optionSize;
+        // number of records in data
+        unsigned numRecords = size_left / option_size;
+        dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
+
+        if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+            LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
             return;
-
-            // unreached
-            break;
-    }
-
-    // map input buffer as a byte array
-    const uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
-    // data size
-    size_t data_size = nameOption->name.length + sizeof(uint32_t);
-    // size of record
-    size_t option_size = optionTemplate->optionSize;
-    // number of records in data
-    unsigned numRecords = size_left / option_size;
-    dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
-
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
-        LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
-        return;
-    }
-
-    size_t elementSize = data_size;
-    size_t align = elementSize & 0x3;
-    if (align) {
-        elementSize += 4 - align;
-    }
-    size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
-    dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
-
-    // output buffer size check for all expected records
-    if (!IsAvailable(fs->dataBlock, total_size)) {
-        // flush block - get an empty one
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
-    }
-
-    void *outBuff = GetCurrentCursor(fs->dataBlock);
-    // push nbar header
-    AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
-
-    // put array info descriptor next
-    uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
-    nameHeader->size += sizeof(uint32_t);
-
-    // info record for each element in array
-    *nameSize = nameOption->name.length;
-
-    dbg(unsigned cnt = 0);
-    while (size_left >= option_size) {
-        // push nbar app info record
-        uint8_t *p;
-        PushArrayNextElement(nameHeader, p, uint8_t);
-
-        // copy data
-        // ingress ID
-        uint32_t val = 0;
-        for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + *((uint8_t *)(inBuff + nameOption->ingress.offset + i));
-
-        uint32_t *ingress = (uint32_t *)p;
-        *ingress = val;
-        p += sizeof(uint32_t);
-
-        // name string
-        memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
-        uint32_t state = UTF8_ACCEPT;
-        int err = 0;
-        if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
-            LogError("Process_name_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
-            err = 1;
         }
-        p[nameOption->name.length - 1] = '\0';
-#ifdef DEVEL
-        if (err == 0) {
-            printf("name record: %u: ingress: %d, %s\n", cnt, val, p);
-        } else {
-            printf("Invalid name information - skip record\n");
+
+        size_t elementSize = data_size;
+        size_t align = elementSize & 0x3;
+        if (align) {
+            elementSize += 4 - align;
         }
-        cnt++;
-#endif
-        p += nameOption->name.length;
+        size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
+        dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
-        // in case of an err we do no store this record
-        if (err != 0) {
-            nameHeader->numElements--;
-            nameHeader->size -= elementSize;
+        // output buffer size check for all expected records
+        if (!IsAvailable(fs->dataBlock, total_size)) {
+            // flush block - get an empty one
+            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
         }
-        inBuff += option_size;
-        size_left -= option_size;
-    }
 
-    // update data block header
-    fs->dataBlock->size += nameHeader->size;
-    fs->dataBlock->NumRecords++;
+        void *outBuff = GetCursor(fs->dataBlock);
+        // push nbar header
+        AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
 
-    if (size_left > 7) {
-        LogInfo("Process ifvrf data record - %u extra bytes", size_left);
-    }
-    processed_records++;
+        // put array info descriptor next
+        uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
+        nameHeader->size += sizeof(uint32_t);
 
-    dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
-               nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
+        // info record for each element in array
+        *nameSize = nameOption->name.length;
+
+        dbg(unsigned cnt = 0);
+        while (size_left >= option_size) {
+            // push nbar app info record
+            uint8_t *p;
+            PushArrayNextElement(nameHeader, p, uint8_t);
+
+            // copy data
+            // ingress ID
+            uint32_t val = 0;
+            for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + *((uint8_t *)(inBuff + nameOption->ingress.offset + i));
+
+            uint32_t *ingress = (uint32_t *)p;
+            *ingress = val;
+            p += sizeof(uint32_t);
+
+            // name string
+            memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
+            uint32_t state = UTF8_ACCEPT;
+            int err = 0;
+            if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
+                LogError("Process_name_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
+                err = 1;
+            }
+            p[nameOption->name.length - 1] = '\0';
+    #ifdef DEVEL
+            if (err == 0) {
+                printf("name record: %u: ingress: %d, %s\n", cnt, val, p);
+            } else {
+                printf("Invalid name information - skip record\n");
+            }
+            cnt++;
+    #endif
+            p += nameOption->name.length;
+
+            // in case of an err we do no store this record
+            if (err != 0) {
+                nameHeader->numElements--;
+                nameHeader->size -= elementSize;
+            }
+            inBuff += option_size;
+            size_left -= option_size;
+        }
+
+        // update data block header
+        fs->dataBlock->size += nameHeader->size;
+        fs->dataBlock->NumRecords++;
+
+        if (size_left > 7) {
+            LogInfo("Process ifvrf data record - %u extra bytes", size_left);
+        }
+        processed_records++;
+
+        dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
+                   nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
+        */
 
 }  // End of Process_ifvrf_option_data
 

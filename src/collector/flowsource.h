@@ -37,7 +37,7 @@
 
 #include "bookkeeper.h"
 #include "exporter.h"
-#include "nffileV2.h"
+#include "nffileV3/nffileV3.h"
 #include "queue.h"
 
 // FlowSource struct:
@@ -45,7 +45,7 @@
 // contains the hash of exporters for this flow source
 typedef struct FlowSource_s {
     char Ident[IDENTLEN];       // name of this flowsource
-    dataBlock_t *dataBlock;     // current datablock to write records
+    flowBlockV3_t *dataBlock;   // current datablock to write records
     stat_record_t stat_record;  // sum up statistics for this flow source
 
     // backend context - nffile for now

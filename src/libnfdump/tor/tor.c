@@ -39,8 +39,7 @@
 
 #include "id.h"
 #include "logging.h"
-#include "nffile.h"
-#include "nffileV2.h"
+#include "nffileV3/nffileV3.h"
 #include "util.h"
 
 // include after
@@ -176,38 +175,41 @@ void UpdateTorNode(torNode_t *torNode) {
 }
 
 int SaveTorTree(char *fileName) {
-    nffile_t *nffile = OpenNewFile(fileName, CREATOR_TORLOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_TORLOOKUP, LZ4_COMPRESSED, LEVEL_0, NOT_ENCRYPTED);
+    uint32_t blockSize = nffile->fileHeader->blockSize;
 
     // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = TorTreeElementID;
+    dataBlock->elementSize = sizeof(torNode_t);
 
-    // push array header
-    PushArrayHeader(dataBlock, TorTreeElementID, sizeof(torNode_t));
-    void *outBuff = GetCurrentCursor(dataBlock);
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     kbitr_t itr;
     kb_itr_first(torTree, torTree, &itr);                              // get an iterator pointing to the first
     for (; kb_itr_valid(&itr); kb_itr_next(torTree, torTree, &itr)) {  // move on
         torNode_t *torNode = &kb_itr_key(torNode_t, &itr);
         dbg_printf("ip: %u, first: %ld, last: %ld\n", torNode->ipaddr, torNode->interval[0].firstSeen, torNode->interval[0].lastSeen);
-        if (!IsAvailable(dataBlock, sizeof(torNode_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(torNode_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = TorTreeElementID;
+            dataBlock->elementSize = sizeof(torNode_t);
 
-            PushArrayHeader(dataBlock, TorTreeElementID, sizeof(torNode_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, torNode, sizeof(torNode_t));
         outBuff += sizeof(torNode_t);
-        dataBlock->size += sizeof(torNode_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(torNode_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
-
-    int ret = FlushFile(nffile);
-    DisposeFile(nffile);
+    FlushBlockV3(nffile, dataBlock);
+    int ret = FlushFileV3(nffile);
+    CloseFileV3(nffile);
 
     return ret;
 }  // End of SaveTorTree
@@ -216,39 +218,40 @@ int LoadTorTree(char *fileName) {
     dbg_printf("Load TorNode DB file %s\n", fileName);
 
     Init_TorLookup();
-    nffile_t *nffile = OpenFile(fileName);
+    nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
         return 0;
     }
 
-    dataBlock_t *dataBlock = NULL;
+    arrayBlockV3_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
+        dataBlock = ReadBlockV3(nffile);
         if (dataBlock == NULL) {
             done = 1;
             continue;
         }
 
-        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->size);
+        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->rawSize);
         if (dataBlock->type != DATA_BLOCK_TYPE_4) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
+            FreeDataBlock(dataBlock);
             continue;
         }
 
-        record_header_t *arrayHeader = GetCursor(dataBlock);
-        void *arrayElement = (void *)arrayHeader + sizeof(record_header_t);
-        size_t expected = ((uint32_t)arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
-        if (expected != dataBlock->size) {
-            LogError("Array size calculated: %zu != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
+        void *arrayElement = GetCursor(dataBlock);
+        size_t expected = (dataBlock->elementSize * dataBlock->numElements) + sizeof(arrayBlockV3_t);
+        if (expected != dataBlock->rawSize) {
+            LogError("Bad array block - size error - found: %zu, expected: %u for element: %u", expected, dataBlock->rawSize, dataBlock->elementType);
+            FreeDataBlock(dataBlock);
             continue;
         }
 
-        switch (arrayHeader->type) {
+        switch (dataBlock->elementType) {
             case TorTreeElementID: {
                 torNode_t *torNode = (torNode_t *)arrayElement;
-                for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
+                for (int i = 0; i < (int)dataBlock->numElements; i++) {
                     torNode_t *node = kb_getp(torTree, torTree, torNode);
                     if (node) {
                         LogError("Duplicate IP node: ip: 0x%x", torNode->ipaddr);
@@ -259,11 +262,11 @@ int LoadTorTree(char *fileName) {
                 }
             } break;
             default:
-                LogError("Skip unknown array element: %u", arrayHeader->type);
+                LogError("Skip unknown array element: %u", dataBlock->elementType);
         }
+        FreeDataBlock(dataBlock);
     }
-    FreeDataBlock(dataBlock);
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
 
     return 1;
 }  // End of LoadTorTree

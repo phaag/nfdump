@@ -55,6 +55,7 @@ KBTREE_INIT(vrfTree, nameNode_t, nodeCMP)
 static kbtree_t(ifTree) *ifTree = NULL;
 static kbtree_t(vrfTree) *vrfTree = NULL;
 
+/*
 int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
     if (ifTree == NULL) {
         ifTree = kb_init(ifTree, KB_DEFAULT_SIZE);
@@ -120,6 +121,7 @@ int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
     return 0;
 
 }  // End of AddVrfNameRecord
+*/
 
 char *GetIfName(uint32_t ingress, char *name, size_t len) {
     name[0] = '\0';

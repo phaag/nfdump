@@ -33,7 +33,7 @@
 #define _PROFILE_H 1
 
 #include "bookkeeper.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 
 typedef struct profile_param_info_s {
     struct profile_param_info_s *next;
@@ -54,8 +54,8 @@ typedef struct profile_channel_info_s {
     char *wfile;         // final filename
     char *rrdfile;       // rrd filename for update
     char *dirstat_path;  // pathname for dirstat file
-    nffile_t *nffile;
-    dataBlock_t *dataBlock;
+    nffileV3_t *nffile;
+    flowBlockV3_t *dataBlock;
     stat_record_t stat_record;
     int type;
     bookkeeper_t bookkeeper;

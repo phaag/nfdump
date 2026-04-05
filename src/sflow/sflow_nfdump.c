@@ -203,11 +203,14 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
             *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .sysID = AssignExporterID(), .in_use = 1, .info = info};
             tab->count++;
 
-            *(e->info) = (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = recordSize},
-                                                     .version = key.version,
-                                                     .id = key.id,
-                                                     .sysID = e->sysID,
-                                                     .sampler_capacity = 1};
+            *(e->info) = (exporter_info_record_v4_t){
+                .type = ExporterInfoRecordV4Type,
+                .size = recordSize,
+                .version = key.version,
+                .id = key.id,
+                .sysID = e->sysID,
+                .sampler_capacity = 1,
+            };
             memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
             e->sflow = (exporter_sflow_t){0};
@@ -337,12 +340,12 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     uint32_t baseOffset = sizeof(recordHeaderV4_t) + tableSize;
     uint32_t recordSize = baseOffset + extensionSize;
 
-    if (!IsAvailable(fs->dataBlock, recordSize)) {
+    if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, recordSize)) {
         // flush block - get an empty one
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
     }
 
-    uint8_t *buffPtr = GetCurrentCursor(fs->dataBlock);
+    uint8_t *buffPtr = GetCursor(fs->dataBlock);
     dbg_printf("Fill Record\n");
 
     // zero entire record at once
@@ -566,8 +569,8 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 #endif
     // update file record size ( -> output buffer size )
-    fs->dataBlock->NumRecords++;
-    fs->dataBlock->size += recordHeader->size;
+    fs->dataBlock->numRecords++;
+    fs->dataBlock->rawSize += recordHeader->size;
 
     dbg_printf("Record size: Header: %u, calc: %u\n", recordHeader->size, recordSize);
     dbg_assert(recordHeader->size <= recordSize);

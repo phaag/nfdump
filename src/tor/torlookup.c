@@ -52,7 +52,7 @@
 
 #include "conf/nfconf.h"
 #include "logging.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "tor/tor.h"
 #include "util.h"
 
@@ -120,7 +120,7 @@ static int inline getNumber(char **timeString, char eos) {
 static int epoch_days(int y, int m, int d) {
     const uint32_t year_base = 4800; /* Before min year, multiple of 400. */
     const uint32_t m_adj = m - 3;    /* March-based month. */
-    const uint32_t carry = m_adj > m ? 1 : 0;
+    const uint32_t carry = m_adj > (uint32_t)m ? 1 : 0;
     const uint32_t adjust = carry ? 12 : 0;
     const uint32_t y_adj = y + year_base - carry;
     const uint32_t month_days = ((m_adj + adjust) * 62719 + 769) / 2048;

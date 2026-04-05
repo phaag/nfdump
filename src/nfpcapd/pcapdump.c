@@ -47,7 +47,6 @@
 #include "config.h"
 #include "flist.h"
 #include "logging.h"
-#include "nffile.h"
 #include "packet_pcap.h"
 #include "queue.h"
 #include "util.h"
@@ -244,7 +243,7 @@ int InitFlushParam(flushParam_t *flushParam) {
         return -1;
     }
     for (int i = 0; i < MAXBUFFERS; i++) {
-        packetBuffer_t *packetBuffer = malloc(sizeof(packetBuffer_t) + BUFFSIZE);
+        packetBuffer_t *packetBuffer = malloc(sizeof(packetBuffer_t) + 1048576);
         if (!packetBuffer) {
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return -1;

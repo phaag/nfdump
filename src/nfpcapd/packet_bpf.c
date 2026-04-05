@@ -350,7 +350,7 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
             int ok = ProcessPacket(packetParam, &phdr, data);
 
             if (DoPacketDump && ok) {
-                if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
+                if ((packetBuffer->bufferSize + size) > 1048576) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
                     queue_push(packetParam->flushQueue, packetBuffer);

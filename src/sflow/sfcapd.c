@@ -60,6 +60,7 @@
 #include "backend.h"
 #include "barrier.h"
 #include "collector.h"
+#include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "daemon.h"
 #include "flist.h"
@@ -69,7 +70,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "pidfile.h"
@@ -295,7 +296,7 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, NULL);
         fs->bad_packets = 0;
     }
 
@@ -400,7 +401,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, NULL);
         fs->bad_packets = 0;
     }
 
@@ -473,7 +474,7 @@ int main(int argc, char **argv) {
     time_t twin;
     int sock, family, do_daemonize, expire, verbose, spec_time_extension;
     bool parse_tun;
-    unsigned subdir_index, compress;
+    unsigned subdir_index;
     int numWorkers;
     char *pcap_file = NULL;
 #ifdef ENABLE_READPCAP
@@ -488,6 +489,8 @@ int main(int argc, char **argv) {
     char *dataDir = NULL;
 
     char *listenport = DEFAULTLISTENPORT;
+    uint32_t compressType = NOT_COMPRESSED;
+    uint32_t compressLevel = LEVEL_0;
     receive_packet = NULL;
     verbose = -1;
     do_daemonize = 0;
@@ -503,7 +506,6 @@ int main(int argc, char **argv) {
     time_extension = "%Y%m%d%H%M";
     spec_time_extension = 0;
     expire = 0;
-    compress = NOT_COMPRESSED;
     configFile = NULL;
     Ident = "none";
     dynFlowDir = NULL;
@@ -515,7 +517,7 @@ int main(int argc, char **argv) {
     parse_tun = false;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:yz::Z:")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:J:l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -710,30 +712,19 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'j':
-                LogError("Option -j is deprecated. Use -z=bz2");
-                exit(EXIT_FAILURE);
-                compress = BZ2_COMPRESSED;
-                break;
-            case 'y':
-                LogError("Option -y is deprecated. Use -z=lz4");
-                exit(EXIT_FAILURE);
-                break;
             case 'z':
-                if (compress) {
+                if (compressLevel) {
                     LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
-                    compress = LZO_COMPRESSED;
+                    compressType = LZO_COMPRESSED;
                     LogInfo("Deprecated option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
-                    int ret = ParseCompression(optarg);
-                    if (ret == -1) {
+                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
                         LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                         exit(EXIT_FAILURE);
                     }
-                    compress = (unsigned)ret;
                 }
                 break;
             case 'Z':
@@ -891,7 +882,8 @@ int main(int argc, char **argv) {
     }
 
     const nffile_backend_ctx_t nffile_backend_ctx = {.creator = CREATOR_SFCAPD,
-                                                     .compress = compress,
+                                                     .compressType = compressType,
+                                                     .compressLevel = compressLevel,
                                                      .encryption = NOT_ENCRYPTED,
                                                      .subdir = subdir_index,
                                                      .time_extension = time_extension,

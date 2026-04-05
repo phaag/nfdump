@@ -60,7 +60,7 @@
 #include "nbar.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "send_net.h"
 #include "send_v5.h"
@@ -219,7 +219,7 @@ static void FreeRecordHandle(recordHandle_t *handle) {
 
 static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version,
                       int distribution) {
-    nffile_t *nffile;
+    nffileV3_t *nffile;
     uint64_t twin_msecFirst, twin_msecLast;
 
     // z-parameter variables
@@ -249,7 +249,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     peer.flush = 0;
     if (!peer.send_buffer) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        DisposeFile(nffile);
+        CloseFileV3(nffile);
         return;
     }
     peer.buff_ptr = peer.send_buffer;
@@ -263,7 +263,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         case 9:
             if (!Init_v9_output(&peer)) {
                 free(peer.send_buffer);
-                DisposeFile(nffile);
+                CloseFileV3(nffile);
                 return;
             }
             break;
@@ -273,19 +273,18 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     if (!recordHandle) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         free(peer.send_buffer);
-        DisposeFile(nffile);
+        CloseFileV3(nffile);
         return;
     }
 
-    dataBlock_t *dataBlock = NULL;
     uint64_t numflows = 0;
     uint64_t processed = 0;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
+        flowBlockV3_t *dataBlock = ReadBlockV3(nffile);
         if (dataBlock == NULL) {
-            DisposeFile(nffile);
+            CloseFileV3(nffile);
             nffile = GetNextFile();
             if (nffile == NULL) {
                 done = 1;
@@ -296,7 +295,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
             continue;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2) {
+        if (dataBlock->type != FLOW_BLOCK_TYPE) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
             continue;
         }
@@ -305,8 +304,8 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         // and added to the output buffer
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < (int)dataBlock->numRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(EXIT_FAILURE);
             }
@@ -359,7 +358,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
                         if (err < 0) {
                             LogError("Error sending data");
-                            DisposeFile(nffile);
+                            CloseFileV3(nffile);
                             return;
                         }
 
@@ -447,7 +446,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     }
 
     if (nffile) {
-        DisposeFile(nffile);
+        CloseFileV3(nffile);
     }
 
     close(peer.sockfd);

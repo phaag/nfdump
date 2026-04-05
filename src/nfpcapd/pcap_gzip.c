@@ -129,8 +129,8 @@ int reader_gz_run(readerParam_t *readerParam) {
         void *buf = payload_handle(batch, batch->count);
 
         // should never trigger - test it anyway to prevent memory corruption
-        dbg_assert(incl <= batch->payload_size);
-        if (incl > batch->payload_size) {
+        dbg_assert(incl <= (int)batch->payload_size);
+        if (incl > (int)batch->payload_size) {
             incl = batch->payload_size;
         }
         int got = gzread(gz, buf, incl);

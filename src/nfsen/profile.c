@@ -51,7 +51,7 @@
 #include "flist.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfstatfile.h"
 #include "rbtree.h"
 #include "util.h"

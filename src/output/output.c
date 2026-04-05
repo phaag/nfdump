@@ -132,14 +132,19 @@ static PrologPrinter_t print_epilog;  // prints the output epilog
 static void UpdateFormatList(void);
 
 static void null_record(FILE *stream, recordHandle_t *record, outputParams_t *outputParam) {
+    (void)stream;
+    (void)record;
+    (void)outputParam;
     // empty - do not list any flows
 }  // End of null_record
 
 static void null_prolog(outputParams_t *outputParam) {
+    (void)outputParam;
     // empty prolog
 }  // End of null_prolog
 
 static void null_epilog(outputParams_t *outputParam) {
+    (void)outputParam;
     // empty epilog
 }  // End of null_epilog
 

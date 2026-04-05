@@ -1,5 +1,5 @@
 
-check_PROGRAMS = nftest nfgen
+check_PROGRAMS = nftest nfgen4
 TESTS = nftest runprepare.sh runlzo.sh runlz4.sh
 
 if HAVE_BZ2
@@ -26,14 +26,14 @@ AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)
 
-nfgen_SOURCES = nfgen.c
-nfgen_LDADD = -lnffile
-nfgen_LDFLAGS = -L../libnffile
+nfgen4_SOURCES = nfgen4.c
+nfgen4_LDADD = -lnffile
+nfgen4_LDFLAGS = -L../libnffile
 
 nftest_SOURCES = nftest.c 
 nftest_LDADD = -lnfdump -lnffile 
 nftest_LDFLAGS = -L../libnfdump -L../libnffile
-nftest_DEPENDENCIES = nfgen
+nftest_DEPENDENCIES = nfgen4
 
 EXTRA_DIST = runprepare.sh runtest.sh runbz2.sh runlz4.sh runlzo.sh runzstd.sh
 EXTRA_DIST += nftest.1.out nftest.2.out nftest.4.out

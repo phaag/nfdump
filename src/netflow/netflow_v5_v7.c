@@ -51,7 +51,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"
@@ -150,8 +150,6 @@ static const uint32_t baseOffset = sizeof(recordHeaderV4_t) + ALIGN8(6 * sizeof(
 
 // function prototypes
 static exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header);
-
-#include "nffile_inline.c"
 
 int Init_v5_v7(int verbose, int32_t sampling) {
     LogVerbose("Init v5/v7");
@@ -256,11 +254,14 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
             *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .sysID = AssignExporterID(), .in_use = 1, .info = info};
             tab->count++;
 
-            *(e->info) = (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = recordSize},
-                                                     .version = key.version,
-                                                     .id = key.id,
-                                                     .sysID = e->sysID,
-                                                     .sampler_capacity = numSampler};
+            *(e->info) = (exporter_info_record_v4_t){
+                .type = ExporterInfoRecordV4Type,
+                .size = recordSize,
+                .version = key.version,
+                .id = key.id,
+                .sysID = e->sysID,
+                .sampler_capacity = numSampler,
+            };
             memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
             e->v5 = (exporter_v5_t){0};
@@ -381,10 +382,11 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // set output buffer memory
-        uint8_t *outBuff = GetCurrentCursor(fs->dataBlock);
-        if (!IsAvailable(fs->dataBlock, count * exporter->v5.outRecordSize)) {
+        uint8_t *outBuff = GetCursor(fs->dataBlock);
+        if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, count * exporter->v5.outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            InitFlowBlock(fs->dataBlock);
             // map output memory buffer
             outBuff = GetCursor(fs->dataBlock);
         }
@@ -592,8 +594,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }  // End of foreach v5 record
 
         // update file record size ( -> output buffer size )
-        fs->dataBlock->NumRecords += count;
-        fs->dataBlock->size += outSize;
+        fs->dataBlock->numRecords += count;
+        fs->dataBlock->rawSize += outSize;
 
         // still to go for this many input bytes
         size_left -= NETFLOW_V5_HEADER_LENGTH + count * rawRecordSize;

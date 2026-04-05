@@ -52,6 +52,7 @@
 #include <unistd.h>
 
 #include "barrier.h"
+#include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "config.h"
 #include "exporter.h"
@@ -64,7 +65,7 @@
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "nfdump_1_6_x.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nflowcache.h"
 #include "nfnet.h"
 #include "nfprof.h"
@@ -79,7 +80,7 @@
 extern char *FilterFilename;
 
 typedef struct dataHandle_s {
-    dataBlock_t *dataBlock;
+    flowBlockV3_t *dataBlock;
     char *ident;
     uint64_t blockCnt;
     uint64_t recordCnt;
@@ -123,9 +124,6 @@ static void usage(char *name);
 static int SetStat(char *str, int *element_stat, int *flow_stat);
 
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
-
-static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int numWorkers);
 
 /* Functions */
 
@@ -290,20 +288,13 @@ static void FreeRecordHandle(recordHandle_t *handle) {
 
 // preprocess block - check of block is valid and
 // add exporter records
-static int PreProcessBlock(dataBlock_t *dataBlock) {
-    record_header_t *record_ptr = GetCursor(dataBlock);
+static int PreProcessBlock(flowBlockV3_t *dataBlock) {
+    recordHeaderV4_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
     uint32_t sumSize = 0;
     unsigned i;
-    for (i = 0; i < dataBlock->NumRecords; i++) {
-        if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
-            if (sumSize == dataBlock->size) {
-                LogError("DataBlock count error");
-                LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
-                dataBlock->NumRecords = i;
-                return 0;
-            }
-            LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
-            LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
+    for (i = 0; i < dataBlock->numRecords; i++) {
+        if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeaderV4_t))) {
+            LogError("Bad flow block. Inconsistent block size in %s line %d", __FILE__, __LINE__);
             return 0;
         }
         sumSize += record_ptr->size;
@@ -341,9 +332,9 @@ static int PreProcessBlock(dataBlock_t *dataBlock) {
         }
 
         // Advance pointer by number of bytes for netflow record
-        record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+        record_ptr = (recordHeaderV4_t *)((uint8_t *)record_ptr + record_ptr->size);
     }
-    dbg_printf("PreProcess datablock: count: %u, size: %u. Found: %u, size: %u\n", dataBlock->NumRecords, dataBlock->size, i, sumSize);
+    dbg_printf("PreProcess datablock: count: %u, size: %u. Found: %u, size: %u\n", dataBlock->numRecords, dataBlock->rawSize, i, sumSize);
 
     return 1;
 }  // End of PreProcessBlock
@@ -355,7 +346,7 @@ static void *prepareThread(void *arg) {
 
     // dispatch args
     queue_t *prepareQueue = prepareArgs->prepareQueue;
-    nffile_t *nffile = GetNextFile();
+    nffileV3_t *nffile = GetNextFile();
     if (nffile == NULL) {
         queue_close(prepareQueue);
         dbg_printf("prepareThread exit\n");
@@ -375,13 +366,13 @@ static void *prepareThread(void *arg) {
             dataHandle = calloc(1, sizeof(dataHandle_t));
             dataHandle->ident = nffile->ident != NULL ? strdup(nffile->ident) : NULL;
         }
-        dataHandle->dataBlock = ReadBlock(nffile, NULL);
+        dataHandle->dataBlock = ReadBlockV3(nffile);
         dataHandle->blockCnt = ++processedBlocks;
 
         // get next data block from file
         if (dataHandle->dataBlock == NULL) {
             // continue with next file
-            DisposeFile(nffile);
+            CloseFileV3(nffile);
             nffile = GetNextFile();
             if (nffile == NULL) {
                 done = 1;
@@ -395,27 +386,30 @@ static void *prepareThread(void *arg) {
         }
 
         switch (dataHandle->dataBlock->type) {
-            case DATA_BLOCK_TYPE_1:
-                LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
-                goto SKIP;
-                break;
-            case DATA_BLOCK_TYPE_2: {
-                dataBlock_t *v3DataBlock = NewDataBlock();
-                ConvertBlockType2(dataHandle->dataBlock, v3DataBlock);
-                FreeDataBlock(dataHandle->dataBlock);
-                dataHandle->dataBlock = v3DataBlock;
-            } break;
-            case DATA_BLOCK_TYPE_3:
-                if (PreProcessBlock(dataHandle->dataBlock) == 0) {
+            case BLOCK_TYPE_FLOW:
+                if (PreProcessBlock((flowBlockV3_t *)dataHandle->dataBlock) == 0) {
                     // corrupt dataBlock
                     goto SKIP;
                 }
                 // processed blocks
                 break;
+            /*
+            case DATA_BLOCK_TYPE_1:
+            LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
+            goto SKIP;
+            break;
+            case DATA_BLOCK_TYPE_2: {
+                flowBlockV3_t *flowBlock = (flowBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+                InitFlowBlock(flowBlock);
+                // XXX FIX! ConvertBlockType2(dataHandle->dataBlock, flowBlock);
+                FreeDataBlock(dataHandle->dataBlock);
+                dataHandle->dataBlock = flowBlock;
+            } break;
             case DATA_BLOCK_TYPE_4:
-                // silently skipped
-                goto SKIP;
-                break;
+            // silently skipped
+            goto SKIP;
+            break;
+            */
             default:
                 LogError("Unknown block type %u. Skip block", dataHandle->dataBlock->type);
             SKIP:
@@ -426,7 +420,7 @@ static void *prepareThread(void *arg) {
         }
 
         dataHandle->recordCnt = recordCnt;
-        recordCnt += (uint64_t)dataHandle->dataBlock->NumRecords;
+        // XXX FIX!! recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
         queue_push(prepareQueue, (void *)dataHandle);
         dataHandle = NULL;
         done = abortProcessing;
@@ -442,7 +436,7 @@ static void *prepareThread(void *arg) {
     } else {
         queue_close(prepareQueue);
     }
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
 
     prepareArgs->processedBlocks = processedBlocks;
     prepareArgs->skippedBlocks = skippedBlocks;
@@ -500,17 +494,17 @@ static void *filterThread(void *arg) {
 
         FilterSetParam(engine, dataHandle->ident, hasGeoDB);
 
-        dataBlock_t *dataBlock = dataHandle->dataBlock;
+        flowBlockV3_t *dataBlock = dataHandle->dataBlock;
 
 #ifdef DEVEL
         numBlocks++;
-        printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->NumRecords);
+        printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->numRecords);
 #endif
 
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        record_header_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
         uint32_t matched = 0;
         uint32_t dataRecords = 0;
-        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
+        for (int i = 0; i < (int)dataBlock->numRecords; i++) {
             processedRecords++;
             recordCounter++;
 
@@ -568,10 +562,10 @@ static void *filterThread(void *arg) {
             record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
         }
 
-        if (matched || dataBlock->NumRecords > dataRecords) {
+        if (matched || dataBlock->numRecords > dataRecords) {
             // we have matched flows
             dbg_printf("Filter thread %u: dataBlock: %llu, matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
-                       matched, dataRecords, dataBlock->NumRecords);
+                       matched, dataRecords, dataBlock->numRecords);
             queue_push(processQueue, dataHandle);
         } else {
             // no matched flows and only data records - short end
@@ -597,7 +591,7 @@ static void *filterThread(void *arg) {
 }  // End of filterThread
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int numWorkers) {
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers) {
     stat_record_t stat_record = {0};
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
@@ -633,16 +627,16 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         }
     }
 
-    nffile_t *nffile_w = NULL;
-    dataBlock_t *dataBlock_w = NULL;
+    nffileV3_t *nffile_w = NULL;
+    dataBlockV3_t *dataBlock_w = NULL;
     // prepare output file if requested
     if (wfile) {
-        nffile_w = OpenNewFile(wfile, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
+        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
         if (!nffile_w) {
             stat_record.msecFirstSeen = 0;
             return stat_record;
         }
-        dataBlock_w = WriteBlock(nffile_w, NULL);
+        dataBlock_w = WriteBlockV3(nffile_w, NULL);
     }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
@@ -658,19 +652,19 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         }
 
         dbg(numBlocks++);
-        dataBlock_t *dataBlock = dataHandle->dataBlock;
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        flowBlockV3_t *dataBlock = dataHandle->dataBlock;
+        record_header_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
 
         uint64_t recordCounter = dataHandle->recordCnt;
         if (outputParams->ident) free(outputParams->ident);
         outputParams->ident = dataHandle->ident;
 
         // successfully read block
-        total_bytes += dataBlock->size;
+        total_bytes += dataBlock->rawSize;
 
-        dbg_printf("processData() Next block: %d, Records: %u\n", numBlocks, dataBlock->NumRecords);
+        dbg_printf("processData() Next block: %d, Records: %u\n", numBlocks, dataBlock->numRecords);
 
-        for (int i = 0; i < (int)dataBlock->NumRecords && !abortProcessing; i++) {
+        for (int i = 0; i < (int)dataBlock->numRecords && !abortProcessing; i++) {
             recordCounter++;
             // process records
             switch (record_ptr->type) {
@@ -703,7 +697,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                             InsertFlow(recordHandle);
                             break;
                         case WRITEFILE:
-                            dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                             break;
                         case PRINTRECORD:
                             print_record(stdout, recordHandle, outputParams);
@@ -718,7 +712,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case ExporterInfoRecordType: {
                     if (nffile_w) {
                         dbg_printf("Dump ExporterInfo Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     }
                 } break;
                 case ExporterStatRecordType:
@@ -727,32 +721,32 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     if (nffile_w) {
                         sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
                         dbg_printf("Dump converted Sampler Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)sampler_record, sampler_record->size);
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)sampler_record, sampler_record->size);
                         free(sampler_record);
                     }
                     break;
                 case SamplerRecordType:
                     if (nffile_w) {
                         dbg_printf("Dump Sampler Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     }
                     break;
                 case NbarRecordType: {
-                    arrayRecordHeader_t *nbarRecord = (arrayRecordHeader_t *)record_ptr;
+                    // XXX FIX!! arrayRecordHeader_t *nbarRecord = (arrayRecordHeader_t *)record_ptr;
 #ifdef DEVEL
-                    printf("Found nbar record: %u elements\n", nbarRecord->numElements);
-                    PrintNbarRecord(nbarRecord);
+                    // XXX FIX! printf("Found nbar record: %u elements\n", nbarRecord->numElements);
+                    // XXX FIX! PrintNbarRecord(nbarRecord);
 #endif
-                    AddNbarRecord(nbarRecord);
+                    // XXX FIX!! AddNbarRecord(nbarRecord);
                 } break;
                 case IfNameRecordType: {
-                    arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
-                    AddIfNameRecord(arrayRecordHeader);
+                    // XXX FIX!! arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
+                    // XXX FIX!! AddIfNameRecord(arrayRecordHeader);
                 } break;
 
                 case VrfNameRecordType: {
-                    arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
-                    AddVrfNameRecord(arrayRecordHeader);
+                    // XXX FIX!  arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
+                    // XXX FIX!  AddVrfNameRecord(arrayRecordHeader);
                 } break;
                 case LegacyRecordType1:
                 case LegacyRecordType2:
@@ -782,13 +776,13 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     // flush output file
     if (nffile_w) {
         // flush current buffer to disc
-        FlushBlock(nffile_w, dataBlock_w);
-        SetIdent(nffile_w, outputParams->ident);
+        FlushBlockV3(nffile_w, dataBlock_w);
+        // XXX FIX! SetIdent(nffile_w, outputParams->ident);
 
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
-        FlushFile(nffile_w);
-        DisposeFile(nffile_w);
+        FlushFileV3(nffile_w);
+        CloseFileV3(nffile_w);
     }
 
     dbg_printf("processData() wait for prepare thread\n");
@@ -823,7 +817,7 @@ int main(int argc, char **argv) {
     char *print_order, *query_file, *configFile, *aggr_fmt;
     int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
-    int print_stat, gnuplot_stat, syntax_only, compress, numWorkers;
+    int print_stat, gnuplot_stat, syntax_only, numWorkers;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
@@ -845,7 +839,6 @@ int main(int argc, char **argv) {
     element_stat = 0;
     limitRecords = 0;
     skippedBlocks = 0;
-    compress = NOT_COMPRESSED;
     numWorkers = 0;
     GuessDir = 0;
 
@@ -853,10 +846,12 @@ int main(int argc, char **argv) {
     print_record = NULL;
     print_order = NULL;
     query_file = NULL;
-    ModifyCompress = -1;
+    ModifyCompress = 0;
     aggr_fmt = NULL;
 
     configFile = NULL;
+    uint32_t compressType = NOT_COMPRESSED;
+    uint32_t compressLevel = 0;
     char *geo_file = getenv("NFGEODB");
     char *tor_file = getenv("NFTORDB");
 
@@ -944,32 +939,31 @@ int main(int argc, char **argv) {
                 outputParams->quiet = 1;
                 break;
             case 'j':
-                if (compress) {
+                if (compressType) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
-                compress = BZ2_COMPRESSED;
+                compressType = BZ2_COMPRESSED;
                 break;
             case 'y':
-                if (compress) {
+                if (compressType) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
-                compress = LZ4_COMPRESSED;
+                compressType = LZ4_COMPRESSED;
                 break;
             case 'z':
-                if (compress) {
+                if (compressType) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
-                    compress = LZO_COMPRESSED;
+                    compressType = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg);
-                }
-                if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                    exit(EXIT_FAILURE);
+                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
+                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                        exit(EXIT_FAILURE);
+                    }
                 }
                 break;
             case 'c': {
@@ -1072,25 +1066,25 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'J':
-                ModifyCompress = ParseCompression(optarg);
-                if (ModifyCompress < 0) {
+                if (!ParseCompression(optarg, &compressType, &compressLevel)) {
                     LogError("Expected -J <arg>, 0 for uncompressed, 1, LZO, 2, BZ2, 3, LZ4");
                     exit(EXIT_FAILURE);
                 }
+                ModifyCompress = 1;
                 break;
             case 'x': {
                 CheckArgLen(optarg, MAXPATHLEN);
-                InitExtensionMaps(NO_EXTENSION_LIST);
+                // XXX FIX! - old 1.6.x extension map   InitExtensionMaps(NO_EXTENSION_LIST);
                 flist.single_file = strdup(optarg);
                 queue_t *fileList = SetupInputFileSequence(&flist);
                 if (!fileList || !Init_nffile(1, fileList)) exit(EXIT_FAILURE);
-                DumpExMaps();
+                // XXX FIX! - old 1.6.x extension map  DumpExMaps();
                 exit(EXIT_SUCCESS);
             } break;
             case 'v':
                 CheckArgLen(optarg, MAXPATHLEN);
                 query_file = optarg;
-                if (!QueryFile(query_file, fdump))
+                if (!VerifyFileV3(query_file, fdump))
                     exit(EXIT_FAILURE);
                 else
                     exit(EXIT_SUCCESS);
@@ -1203,18 +1197,18 @@ int main(int argc, char **argv) {
     if (!fileList || !Init_nffile(numWorkers, fileList)) exit(EXIT_FAILURE);
 
     // Modify compression
-    if (ModifyCompress >= 0) {
+    if (ModifyCompress) {
         if (!flist.single_file && !flist.multiple_files) {
             LogError("Expected -r <file> or -R <dir> to change compression");
             exit(EXIT_FAILURE);
         }
-        ModifyCompressFile(ModifyCompress);
+        ModifyCompressFile(compressType, compressLevel);
         exit(EXIT_SUCCESS);
     }
 
     // Change Ident only
     if (flist.single_file && strlen(Ident) > 0) {
-        ChangeIdent(flist.single_file, Ident);
+        // XXX FIX!! ChangeIdent(flist.single_file, Ident);
         exit(EXIT_SUCCESS);
     }
 
@@ -1226,7 +1220,7 @@ int main(int argc, char **argv) {
 
         memset((void *)&sum_stat, 0, sizeof(stat_record_t));
         sum_stat.msecFirstSeen = 0x7fffffffffffffff;
-        nffile_t *nffile = GetNextFile();
+        nffileV3_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error open file: %s", strerror(errno));
             exit(250);
@@ -1236,11 +1230,11 @@ int main(int argc, char **argv) {
             ident = strdup(nffile->ident);
         }
         while (nffile != NULL) {
-            SumStatRecords(&sum_stat, nffile->stat_record);
-            DisposeFile(nffile);
+            // XXX FIX! SumStatRecords(&sum_stat, nffile->stat_record);
+            CloseFileV3(nffile);
             nffile = GetNextFile();
         }
-        PrintStat(&sum_stat, ident);
+        // XXX FIX! PrintStat(&sum_stat, ident);
         free(ident);
         exit(EXIT_SUCCESS);
     }
@@ -1298,15 +1292,15 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
 
-        nffile_t *nffile = GetNextFile();
+        nffileV3_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error open file: %s\n", strerror(errno));
             exit(250);
         }
         printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
         while (nffile != NULL) {
-            PrintGNUplotSumStat(nffile);
-            DisposeFile(nffile);
+            // XXX FIX! PrintGNUplotSumStat(nffile);
+            CloseFileV3(nffile);
             nffile = GetNextFile();
         }
         exit(EXIT_SUCCESS);
@@ -1342,7 +1336,8 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compress, numWorkers);
+    sum_stat =
+        process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compressType, compressLevel, numWorkers);
     nfprof_end(&profile_data, totalRecords);
 
     if (totalPassed == 0) {
@@ -1351,14 +1346,13 @@ int main(int argc, char **argv) {
 
     if (aggregate || print_order) {
         if (wfile) {
-            nffile_t *nffile = OpenNewFile(wfile, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
+            nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
-            SetIdent(nffile, outputParams->ident);
+            // XXX FIX! SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
-                FlushFile(nffile);
-                DisposeFile(nffile);
+                CloseFileV3(nffile);
             } else {
-                DisposeFile(nffile);
+                CloseFileV3(nffile);
                 unlink(wfile);
             }
         } else {

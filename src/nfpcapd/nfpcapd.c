@@ -61,6 +61,7 @@
 #include "backend.h"
 #include "barrier.h"
 #include "bookkeeper.h"
+#include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "config.h"
 #include "daemon.h"
@@ -71,7 +72,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "pcapdump.h"
 #include "pcaproc.h"
@@ -181,7 +182,7 @@ static void WaitDone(void) {
 int main(int argc, char *argv[]) {
     sigset_t signal_set;
     unsigned snaplen, bufflen, do_daemonize, doDedup;
-    unsigned subdir_index, compress, expire, cache_size;
+    unsigned subdir_index, expire, cache_size;
     unsigned activeTimeout, inactiveTimeout, metricInterval;
     int verbose, numWorkers;
     repeater_t *sendHost;
@@ -190,6 +191,8 @@ int main(int argc, char *argv[]) {
     char *Ident, *userid, *groupid, *metricsocket;
     char *time_extension;
 
+    uint32_t compressType = NOT_COMPRESSED;
+    uint32_t compressLevel = LEVEL_0;
     snaplen = 1522U;
     bufflen = 0;
     do_daemonize = 0;
@@ -210,7 +213,6 @@ int main(int argc, char *argv[]) {
     Ident = "none";
     time_extension = "%Y%m%d%H%M";
     subdir_index = 0;
-    compress = NOT_COMPRESSED;
     verbose = -1;
     expire = 0;
     cache_size = 0;
@@ -219,7 +221,7 @@ int main(int argc, char *argv[]) {
     numWorkers = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:yz::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -362,35 +364,19 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'j':
-                if (compress) {
-                    LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
-                    exit(EXIT_FAILURE);
-                }
-                compress = BZ2_COMPRESSED;
-                break;
-            case 'y':
-                if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-                    exit(EXIT_FAILURE);
-                }
-                compress = LZ4_COMPRESSED;
-                break;
             case 'z':
                 CheckArgLen(optarg, 32);
-                if (compress) {
+                if (compressType) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
-                    compress = LZO_COMPRESSED;
+                    compressType = LZO_COMPRESSED;
                 } else {
-                    int ret = ParseCompression(optarg);
-                    if (ret == -1) {
+                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
                         LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                         exit(EXIT_FAILURE);
                     }
-                    compress = (unsigned)ret;
                 }
                 break;
             case 'P':
@@ -462,12 +448,14 @@ int main(int argc, char *argv[]) {
 
     numWorkers = GetNumWorkers(numWorkers);
 
-    flushParam_t flushParam = {0};
+    flushParam_t flushParam = {.extensionFormat = time_extension};
+    flowParam_t flowParam = {
+        .extensionFormat = time_extension,
+        .compressType = compressType,
+        .compressLevel = compressLevel,
+    };
     packetParam_t packetParam = {0};
     readerParam_t readerParam = {0};
-    flowParam_t flowParam = {0};
-    flushParam.extensionFormat = time_extension;
-    flowParam.extensionFormat = time_extension;
     packetParam.doDedup = doDedup;
 
     if (scanOptions(nfpcapdOption, options) == 0) {
@@ -557,7 +545,13 @@ int main(int argc, char *argv[]) {
         }
 
         const nffile_backend_ctx_t nffile_backend_ctx = {
-            .creator = CREATOR_NFPCAPD, .compress = compress, .encryption = NOT_ENCRYPTED, .subdir = subdir_index, .time_extension = time_extension};
+            .creator = CREATOR_NFPCAPD,
+            .compressType = compressType,
+            .compressLevel = compressLevel,
+            .encryption = NOT_ENCRYPTED,
+            .subdir = subdir_index,
+            .time_extension = time_extension,
+        };
 
         if (Init_nffile_backend(fs, &nffile_backend_ctx) != 0) {
             LogError("initialize nffile backend failed.");
@@ -622,7 +616,6 @@ int main(int argc, char *argv[]) {
     flowParam.done = &done;
     flowParam.fs = fs;
     flowParam.t_win = t_win;
-    flowParam.compress = compress;
     flowParam.subdir_index = subdir_index;
     flowParam.parent = pthread_self();
     flowParam.NodeList = NewNodeList();

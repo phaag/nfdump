@@ -34,6 +34,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
@@ -58,12 +59,12 @@
 #include "launch.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "util.h"
 
 typedef struct finaliseArgs_s {
-    nffile_t *nffile;
+    nffileV3_t *nffile;
     uint32_t badPacket;
 } finaliseArgs_t;
 
@@ -78,8 +79,6 @@ static int parse_cidr(const char *cidr, ip128_t *ip, ip128_t *mask);
 static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList);
 
 uint32_t AssignExporterID(void);
-
-#include "nffile_inline.c"
 
 // configures the default flow source.
 // option -w <dataDir>
@@ -376,23 +375,27 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         fs->bad_packets = 0;
 
         // Flush current dataBlock
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
         if (fs->dataBlock == QUEUE_CLOSED) {
             fs->dataBlock = NULL;
             return 0;
         }
 
         // Signaling rote for backend
-        uint8_t *p = GetCursor(fs->dataBlock);
-        SetBlockType(fs->dataBlock, MESSAGE_TYPE_CYCLE);
-        cycle_message_t cycle_message = {.when = t_start, .done = done};
+        msgBlockV3_t *msgBlock = (msgBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+        InitMsgBlock(msgBlock);
+        uint8_t *p = GetCursor(msgBlock);
+        cycle_message_t cycle_message = {.type = MESSAGE_CYCLE, .length = sizeof(cycle_message_t), .when = t_start, .done = done};
+        memcpy(&cycle_message.stat_record, (void *)&fs->stat_record, sizeof(stat_record_t));
         memcpy(p, &cycle_message, sizeof(cycle_message_t));
-        p += sizeof(cycle_message_t);
-        memcpy(p, (void *)&fs->stat_record, sizeof(stat_record_t));
-        fs->dataBlock->size = sizeof(cycle_message_t) + sizeof(stat_record_t);
-        fs->dataBlock->NumRecords = 1;
+
+        msgBlock->rawSize += sizeof(cycle_message_t);
+        msgBlock->numMessages = 1;
         dbg_printf("Signaling backend\n");
-        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+        if (queue_push(fs->blockQueue, msgBlock) == QUEUE_CLOSED) {
+            FreeDataBlock(msgBlock);
+            return 0;
+        }
 
         dbg_printf("%s() - length blockQueue: %zu\n", __func__, queue_length(fs->blockQueue));
 
@@ -403,7 +406,6 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         } else {
             // clear previous stat
             memset((void *)&fs->stat_record, 0, sizeof(stat_record_t));
-            // XXX FIX! REMOVE FlushStdRecords(fs);
         }
     }
 
@@ -412,12 +414,29 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
 
 void FlushExporter(FlowSource_t *fs) {
     dbg_printf("Flush all exporters\n");
+    expBlockV3_t *expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+    InitExpBlock(expBlock);
+
+    // push exporter info to exporter block
+    uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
+    uint8_t *p = GetCursor(expBlock);
     for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
         exporter_info_record_v4_t *info_record = entry->info;
         info_record->flows = entry->flows;
         info_record->packets = entry->packets;
         info_record->sequence_failure = entry->sequence_failure;
-        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)info_record, info_record->header.size);
+        if (available < info_record->size) {
+            queue_push(fs->blockQueue, expBlock);
+            expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+            InitExpBlock(expBlock);
+            p = GetCursor(expBlock);
+            available = BLOCK_SIZE_V3 - expBlock->rawSize;
+        }
+        memcpy(p, (void *)info_record, info_record->size);
+        expBlock->rawSize += info_record->size;
+        expBlock->numExporter++;
+        available -= info_record->size;
+
 #ifdef DEVEL
         printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", info_record->sysID,
                info_record->version, info_record->id, info_record->packets, info_record->flows, info_record->sequence_failure);
@@ -429,91 +448,9 @@ void FlushExporter(FlowSource_t *fs) {
 
 #endif
     }
+    queue_push(fs->blockQueue, expBlock);
 
 }  // End of FlushExporter
-
-int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_v4_t *exporter) {
-    exporter->sysID = AssignExporterID();
-    fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)exporter, exporter->header.size);
-
-#ifdef DEVEL
-    {
-        char ipstr[INET6_ADDRSTRLEN];
-        printf("Flush Exporter: ");
-        static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-        uint8_t *ip = (uint8_t *)&exporter->ip;
-        if (memcmp(ip, prefix, 12) == 0) {
-            inet_ntop(AF_INET, (void *)(exporter->ip + 12), ipstr, sizeof(ipstr));
-            printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter->sysID, ipstr, exporter->version, exporter->id);
-        } else {
-            inet_ntop(AF_INET6, (void *)exporter->ip, ipstr, sizeof(ipstr));
-            printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter->sysID, ipstr, exporter->version, exporter->id);
-        }
-    }
-#endif
-
-    return 1;
-
-}  // End of FlushInfoExporter
-
-void FlushStdRecords(FlowSource_t *fs) {
-    for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
-        exporter_info_record_v4_t *info_record = entry->info;
-        info_record->flows = entry->flows;
-        info_record->packets = entry->packets;
-        info_record->sequence_failure = entry->sequence_failure;
-        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)info_record, info_record->header.size);
-    }
-
-}  // End of FlushStdRecords
-
-void FlushExporterStats(FlowSource_t *fs) {
-    uint32_t numExporters = fs->exporters.count;
-
-    // idle collector ..
-    if (numExporters == 0) return;
-
-    uint32_t size = sizeof(exporter_stats_record_t) + ((numExporters - 1) * sizeof(struct exporter_stat_s));
-    exporter_stats_record_t *exporter_stats = (exporter_stats_record_t *)malloc(size);
-    if (!exporter_stats) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return;
-    }
-    exporter_stats->header.type = ExporterStatRecordType;
-    exporter_stats->header.size = size;
-    exporter_stats->stat_count = numExporters;
-
-#ifdef DEVEL
-    printf("Flush Exporter Stats: %u exporters, size: %u\n", numExporters, size);
-#endif
-
-    unsigned i = 0;
-    for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
-        exporter_stats->stat[i].sysid = entry->info->sysID;
-        exporter_stats->stat[i].sequence_failure = entry->sequence_failure;
-        exporter_stats->stat[i].packets = entry->packets;
-        exporter_stats->stat[i].flows = entry->flows;
-#ifdef DEVEL
-        printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", entry->info->sysID,
-               entry->info->version, entry->info->id, entry->packets, entry->flows, entry->sequence_failure);
-
-#endif
-        // reset counters
-        entry->sequence_failure = 0;
-        entry->packets = 0;
-        entry->flows = 0;
-
-        i++;
-    }
-
-    fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)exporter_stats, size);
-    free(exporter_stats);
-
-    if (i != numExporters) {
-        LogError("ERROR: exporter stats: Expected %u records, but found %u in %s line %d: %s", numExporters, i, __FILE__, __LINE__, strerror(errno));
-    }
-
-}  // End of FlushExporterStats
 
 int ScanExtension(char *extensionList) {
     static char *s = NULL;

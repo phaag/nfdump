@@ -45,7 +45,6 @@
 // #include "exporter.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
 #include "nfxV4.h"
 #include "send_net.h"
 #include "util.h"

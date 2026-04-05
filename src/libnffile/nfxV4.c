@@ -877,6 +877,7 @@ void PrintPipeline(pipeline_t *pipeline) {
 int VerifyV4Record(const recordHeaderV4_t *hdr) {
     if (!hdr) return 0;
 
+    LogInfo("\nVerifyV4 record:");
     if (hdr->type != V4Record) {
         LogError("Verify v4 record: wrong type: %u", hdr->type);
         return 0;
@@ -915,7 +916,7 @@ int VerifyV4Record(const recordHeaderV4_t *hdr) {
             return 0;
         }
 
-        uint32_t offset = *offPtr;
+        uint32_t offset = *offPtr++;
         uint32_t extSize = extensionTable[extID].size;
         uint8_t *extension = recordBase + offset;
 
@@ -923,7 +924,7 @@ int VerifyV4Record(const recordHeaderV4_t *hdr) {
             __builtin_memcpy(&extSize, extension, sizeof(uint32_t));
         }
 
-        LogInfo("Extension: type=%u, offset=%u, size=%u", extID, offset, extSize);
+        LogInfo("Extension: type= %s(%u), offset=%u, size=%u", extensionTable[extID].name, extID, offset, extSize);
 
         // Offset must be within record
         if (recordBase + offset > eor) {
@@ -942,7 +943,6 @@ int VerifyV4Record(const recordHeaderV4_t *hdr) {
             LogError("Verify v4 record: extension %u not 8-byte aligned", extID);
             return 0;
         }
-        offPtr++;
     }
 
     return 1;

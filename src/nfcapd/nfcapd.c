@@ -60,6 +60,7 @@
 #include "backend.h"
 #include "barrier.h"
 #include "collector.h"
+#include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "daemon.h"
 #include "flist.h"
@@ -74,7 +75,7 @@
 #include "netflow_v9.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "pidfile.h"
@@ -324,7 +325,8 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, NULL);
+        InitFlowBlock(fs->dataBlock);
         fs->bad_packets = 0;
     }
 
@@ -429,7 +431,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
+        fs->dataBlock = PushBlockV3(fs->blockQueue, NULL);
         fs->bad_packets = 0;
     }
 
@@ -502,7 +504,7 @@ int main(int argc, char **argv) {
     time_t twin;
     int numWorkers, sampling_rate, spec_time_extension;
     int sock, family, do_daemonize, expire, verbose;
-    unsigned subdir_index, compress;
+    unsigned subdir_index;
     char *pcap_file = NULL;
 #ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
@@ -517,6 +519,8 @@ int main(int argc, char **argv) {
 
     char *yaf_file = NULL;
     char *listenport = DEFAULTLISTENPORT;
+    uint32_t compressType = NOT_COMPRESSED;
+    uint32_t compressLevel = LEVEL_0;
     receive_packet = NULL;
     verbose = -1;
     do_daemonize = 0;
@@ -533,7 +537,6 @@ int main(int argc, char **argv) {
     spec_time_extension = 0;
     expire = 0;
     sampling_rate = 1;
-    compress = NOT_COMPRESSED;
     configFile = NULL;
     Ident = "none";
     dynFlowDir = NULL;
@@ -752,20 +755,18 @@ int main(int argc, char **argv) {
                 exit(EXIT_FAILURE);
                 break;
             case 'z':
-                if (compress) {
+                if (compressType) {
                     LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
-                    compress = LZO_COMPRESSED;
+                    compressType = LZO_COMPRESSED;
                     LogInfo("Deprecated option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
-                    int ret = ParseCompression(optarg);
-                    if (ret == -1) {
+                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
                         LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                         exit(EXIT_FAILURE);
                     }
-                    compress = (unsigned)ret;
                 }
                 break;
             case 'Z':
@@ -931,7 +932,8 @@ int main(int argc, char **argv) {
     }
 
     const nffile_backend_ctx_t nffile_backend_ctx = {.creator = CREATOR_NFCAPD,
-                                                     .compress = compress,
+                                                     .compressType = compressType,
+                                                     .compressLevel = compressLevel,
                                                      .encryption = NOT_ENCRYPTED,
                                                      .subdir = subdir_index,
                                                      .time_extension = time_extension,

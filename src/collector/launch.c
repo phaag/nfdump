@@ -50,9 +50,8 @@
 
 #include "collector.h"
 #include "config.h"
-#include "nfdump.h"
-#include "nffile.h"
 #include "logging.h"
+#include "nfdump.h"
 #include "util.h"
 
 #define LAUNCH_NULL 0
@@ -245,7 +244,7 @@ static char **cmd_parse(char *cmd) {
 
 #ifdef DEVEL
     printf("%s() final argv[%zu] vector\n", __func__, argc);
-    for (int i = 0; i < argc; i++) {
+    for (int i = 0; i < (int)argc; i++) {
         printf(" [%d] %s\n", i, argv[i]);
     }
 #endif

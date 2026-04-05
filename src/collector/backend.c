@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <stdnoreturn.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include "bookkeeper.h"
@@ -44,7 +45,7 @@
 #include "flowsource.h"
 #include "launch.h"
 #include "logging.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "util.h"
 
 static noreturn void *nffile_backend_thread(void *arg);
@@ -60,7 +61,8 @@ int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffil
     }
 
     nffile_ctx->creator = init_nffile_ctx->creator;
-    nffile_ctx->compress = init_nffile_ctx->compress;
+    nffile_ctx->compressType = init_nffile_ctx->compressType;
+    nffile_ctx->compressLevel = init_nffile_ctx->compressLevel;
     nffile_ctx->encryption = init_nffile_ctx->encryption;
     nffile_ctx->time_extension = init_nffile_ctx->time_extension;
     nffile_ctx->msgQueue = init_nffile_ctx->msgQueue;
@@ -94,6 +96,7 @@ int InitBackend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *init_nff
 }  // End of InitBackend
 
 void close_nffile_backend(FlowSource_t *fs, int expire) {
+    (void)expire;
     if (fs->blockQueue) queue_close(fs->blockQueue);
 
     dbg_printf("Join backend thread\n");
@@ -140,11 +143,17 @@ int LaunchBackend(collector_ctx_t *ctx) {
     return 1;
 }  // End of Launch_nffile_backend
 
-static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dataBlock, int pfd, int *done) {
+static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *dataBlock, int pfd, int *done) {
     // periodic file rotation
     dbg_printf("Enter backend RotateCycle. pdf: %d, done: %d\n", pfd, *done);
 
-    nffile_t *nffile = nffile_ctx->nffile;
+    MESSAGEHEADER *msghdr = GetCursor(dataBlock);
+    if (msghdr->type != MESSAGE_CYCLE) {
+        LogError("Received unknown message type: %u", msghdr->type);
+        return 0;
+    }
+
+    nffileV3_t *nffile = nffile_ctx->nffile;
     // not expected
     if (nffile == NULL) return 0;
 
@@ -178,20 +187,18 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
     // if no flows were collected, fs->msecLast is still 0
     // set msecFirst and msecLast and to start of this time slot
     memcpy(nffile->stat_record, cur, sizeof(stat_record_t));
-    SetIdent(nffile, nffile_ctx->Ident);
+    nffile->ident = strdup(nffile_ctx->Ident);
     if (nffile->stat_record->msecLastSeen == 0) {
         nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)cycle_message.when;
         nffile->stat_record->msecLastSeen = nffile->stat_record->msecFirstSeen;
     }
 
-    dbg(PrintStat(nffile->stat_record, nffile->ident));
-
     // Close file
-    FlushFile(nffile);
+    FlushFileV3(nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current
     // file otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppend(nffile->fileName, nfcapd_filename) < 0) {
+    if (RenameAppendV3(nffile->fileName, nfcapd_filename) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", nffile_ctx->Ident, strerror(errno));
 
         // we do not update the books here, as the file failed to rename properly
@@ -215,7 +222,7 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
         }
     }
 
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
     nffile_ctx->nffile = NULL;
 
     if (cycle_message.done) return 1;
@@ -223,7 +230,8 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
     // open new - next file
     int retry = 0;
     do {
-        nffile = OpenNewFile(SetUniqueTmpName(nffile_ctx->tmpFileName), nffile_ctx->creator, nffile_ctx->compress, nffile_ctx->encryption);
+        nffile = OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel,
+                                  nffile_ctx->encryption);
         if (nffile) break;
 
         retry++;
@@ -249,7 +257,8 @@ static noreturn void *nffile_backend_thread(void *arg) {
 
     queue_t *blockQueue = nffile_ctx->blockQueue;  // queue from upstream collector
 
-    nffile_ctx->nffile = OpenNewFile(SetUniqueTmpName(nffile_ctx->tmpFileName), nffile_ctx->creator, nffile_ctx->compress, nffile_ctx->encryption);
+    nffile_ctx->nffile =
+        OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel, nffile_ctx->encryption);
     if (!nffile_ctx->nffile) {
         // closing the queue prevents the upstream collector to push new data blocks
         queue_close(blockQueue);
@@ -259,7 +268,7 @@ static noreturn void *nffile_backend_thread(void *arg) {
     uint32_t cnt = 0;
     int done = 0;
     while (!done) {
-        dataBlock_t *dataBlock = queue_pop(blockQueue);
+        dataBlockV3_t *dataBlock = queue_pop(blockQueue);
         if (dataBlock == QUEUE_CLOSED) {
             dbg_printf("%s() queue closed - exit loop\n", __func__);
             break;
@@ -267,22 +276,21 @@ static noreturn void *nffile_backend_thread(void *arg) {
 
         dbg_printf("%s() receive datablock type %u\n", __func__, dataBlock->type);
         switch (dataBlock->type) {
-            case DATA_BLOCK_TYPE_3:
-            case DATA_BLOCK_TYPE_4: {
+            case BLOCK_TYPE_FLOW:
+            case BLOCK_TYPE_ARRAY: {
                 dbg_printf("%s() process next datablock\n", __func__);
                 queue_push(nffile_ctx->nffile->processQueue, dataBlock);
                 cnt++;
             } break;
-            case MESSAGE_TYPE_CYCLE:
-                dbg_printf("%s() process next rotate cycle\n", __func__);
-                if (!BackendRotateCycle(nffile_ctx, dataBlock, nffile_ctx->pfd, &done)) {
+            case BLOCK_TYPE_MSG: {
+                dbg_printf("%s() process message block\n", __func__);
+                if (!BackendRotateCycle(nffile_ctx, (msgBlockV3_t *)dataBlock, nffile_ctx->pfd, &done)) {
                     LogError("File rotation cycle failed for ident: %s", nffile_ctx->Ident);
                 }
                 FreeDataBlock(dataBlock);
-                break;
-            case MESSAGE_TYPE_SHUTDOWN:
-                done = 1;
-                break;
+            } break;
+            default:
+                LogError("Backend: received unknown block type %u", dataBlock->type);
         }
     }
 
@@ -290,7 +298,7 @@ static noreturn void *nffile_backend_thread(void *arg) {
     (void)cnt;
 
     if (nffile_ctx->nffile) {
-        DeleteFile(nffile_ctx->nffile);
+        DeleteFileV3(nffile_ctx->nffile);
     }
 
     dbg_printf("%s() thread exit\n", __func__);

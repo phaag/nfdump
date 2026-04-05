@@ -35,7 +35,7 @@
 
 #include "config.h"
 #include "ip128.h"
-#include "nffile.h"
+// #include "nffile.h"
 
 /*
  * sampler record for deprecated tags #34, #34, #48 records and mapped records
@@ -116,7 +116,8 @@ typedef struct sampler_s {
  */
 
 typedef struct exporter_info_record_s {
-    record_header_t header;
+    uint16_t type;
+    uint16_t size;
 
     // exporter version
     uint32_t version;
@@ -150,7 +151,8 @@ typedef struct exporter_info_record_s {
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  */
 typedef struct exporter_stats_record_s {
-    record_header_t header;
+    uint16_t type;
+    uint16_t size;
 
     uint32_t stat_count;  // number of stat records
 
@@ -211,10 +213,12 @@ typedef struct sampler_cache_entry_s {
 // v4 exporter information record, which includes all
 // information, such as counter stats and sampler information
 typedef struct exporter_info_record_v4_s {
-    record_header_t header;  // type = ExporterInfoRecordV2
-    uint8_t ip[16];          // exporter IP
-    uint32_t version;        // NetFlow/IPFIX/sflow/nfd version
-    uint32_t id;             // v1:0, v5/v7: engine_tag, v9: sourceID, ipfix: observationID
+    uint16_t type;  // type = ExporterInfoRecordV2
+    uint16_t size;  // size of record
+
+    uint8_t ip[16];    // exporter IP
+    uint32_t version;  // NetFlow/IPFIX/sflow/nfd version
+    uint32_t id;       // v1:0, v5/v7: engine_tag, v9: sourceID, ipfix: observationID
 
     uint32_t sysID;  // internal ID
     // stat counters
@@ -371,7 +375,7 @@ sampler_record_V3_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record);
 
 int AddExporterStat(exporter_stats_record_t *stat_record);
 
-dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock);
+// XXX FIX! dataBlockV3_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock);
 
 exporter_entry_t *GetExporterInfo(uint32_t sysID);
 

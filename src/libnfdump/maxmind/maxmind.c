@@ -48,204 +48,206 @@
 #include "logging.h"
 #include "maxmind.h"
 #include "mmhash.h"
-#include "nffile.h"
-#include "nffileV2.h"
+#include "nffileV3/nffileV3.h"
 #include "util.h"
 
 #define arrayElementSizeCheck(type)                                          \
-    if (arrayHeader->size != sizeof(type##_t)) {                             \
+    if (arrayHeader->rawSize != sizeof(type##_t)) {                          \
         LogError("Size check failed for %s - rebuild nfdump geo DB", #type); \
         return 0;                                                            \
     }
 
-#define PushArrayHeader(dataBlock, arrayType, arraySize)   \
-    (dataBlock)->type = DATA_BLOCK_TYPE_4;                 \
-    void *p = ((void *)(dataBlock) + sizeof(dataBlock_t)); \
-    recordHeader_t *arrayHeader = (recordHeader_t *)p;     \
-    arrayHeader->type = arrayType;                         \
-    arrayHeader->size = arraySize;                         \
-    (dataBlock)->size += sizeof(recordHeader_t);
+static void StoreLocalMap(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
 
-static void StoreLocalMap(nffile_t *nffile) {
-    // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    dataBlock->type = DATA_BLOCK_TYPE_4;
-    void *outBuff = GetCursor(dataBlock);
+    // init new array block
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = LocalInfoElementID;
+    dataBlock->elementSize = sizeof(locationInfo_t);
 
-    // put array header on block
-    PushArrayHeader(dataBlock, LocalInfoElementID, sizeof(locationInfo_t));
-    outBuff = GetCurrentCursor(dataBlock);
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     for (locationInfo_t *locationInfo = NextLocation(FIRSTNODE); locationInfo != NULL; locationInfo = NextLocation(NEXTNODE)) {
-        if (!IsAvailable(dataBlock, sizeof(locationInfo_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(locationInfo_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = LocalInfoElementID;
+            dataBlock->elementSize = sizeof(locationInfo_t);
 
-            // put array header on block
-            PushArrayHeader(dataBlock, LocalInfoElementID, sizeof(locationInfo_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, locationInfo, sizeof(locationInfo_t));
         outBuff += sizeof(locationInfo_t);
-        dataBlock->size += sizeof(locationInfo_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(locationInfo_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of StoreLocalMap
 
-static void StoreIPV4tree(nffile_t *nffile) {
-    // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    dataBlock->type = DATA_BLOCK_TYPE_4;
-    void *outBuff = GetCursor(dataBlock);
+static void StoreIPV4tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
 
-    // put array header on block
-    PushArrayHeader(dataBlock, IPV4treeElementID, sizeof(ipV4Node_t));
-    outBuff = GetCurrentCursor(dataBlock);
+    // init new array block
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = IPV4treeElementID;
+    dataBlock->elementSize = sizeof(ipV4Node_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     for (ipV4Node_t *ipv4Node = NextIPv4Node(FIRSTNODE); ipv4Node != NULL; ipv4Node = NextIPv4Node(NEXTNODE)) {
-        if (!IsAvailable(dataBlock, sizeof(ipV4Node_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(ipV4Node_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, NULL);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = IPV4treeElementID;
+            dataBlock->elementSize = sizeof(ipV4Node_t);
 
-            // put array header on block
-            PushArrayHeader(dataBlock, IPV4treeElementID, sizeof(ipV4Node_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, ipv4Node, sizeof(ipV4Node_t));
         outBuff += sizeof(ipV4Node_t);
-        dataBlock->size += sizeof(ipV4Node_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(ipV4Node_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of StoreIPtree
 
-static void StoreIPV6tree(nffile_t *nffile) {
+static void StoreIPV6tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
     // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    dataBlock->type = DATA_BLOCK_TYPE_4;
-    void *outBuff = GetCursor(dataBlock);
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = IPV6treeElementID;
+    dataBlock->elementSize = sizeof(ipV6Node_t);
 
-    // put array header on block
-    PushArrayHeader(dataBlock, IPV6treeElementID, sizeof(ipV6Node_t));
-    outBuff = GetCurrentCursor(dataBlock);
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     for (ipV6Node_t *ipv6Node = NextIPv6Node(FIRSTNODE); ipv6Node != NULL; ipv6Node = NextIPv6Node(NEXTNODE)) {
-        if (!IsAvailable(dataBlock, sizeof(ipV6Node_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(ipV6Node_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = IPV6treeElementID;
+            dataBlock->elementSize = sizeof(ipV6Node_t);
 
-            // put array header on block
-            PushArrayHeader(dataBlock, IPV6treeElementID, sizeof(ipV6Node_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, ipv6Node, sizeof(ipV6Node_t));
         outBuff += sizeof(ipV6Node_t);
-        dataBlock->size += sizeof(ipV6Node_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(ipV6Node_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of StoreIPtree
 
-static void StoreASV4tree(nffile_t *nffile) {
+static void StoreASV4tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
     // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    void *outBuff = GetCursor(dataBlock);
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = ASV4treeElementID;
+    dataBlock->elementSize = sizeof(asV4Node_t);
 
-    // put array header on block
-    PushArrayHeader(dataBlock, ASV4treeElementID, sizeof(asV4Node_t));
-    outBuff = GetCurrentCursor(dataBlock);
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     for (asV4Node_t *asV4Node = NextasV4Node(FIRSTNODE); asV4Node != NULL; asV4Node = NextasV4Node(NEXTNODE)) {
-        if (!IsAvailable(dataBlock, sizeof(asV4Node_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(asV4Node_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = ASV4treeElementID;
+            dataBlock->elementSize = sizeof(asV4Node_t);
 
-            // put array header on block
-            PushArrayHeader(dataBlock, ASV4treeElementID, sizeof(asV4Node_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, asV4Node, sizeof(asV4Node_t));
         outBuff += sizeof(asV4Node_t);
-        dataBlock->size += sizeof(asV4Node_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(asV4Node_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of StoreASV4tree
 
-static void StoreASV6tree(nffile_t *nffile) {
+static void StoreASV6tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
     // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    dataBlock->type = DATA_BLOCK_TYPE_4;
-    void *outBuff = GetCursor(dataBlock);
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = ASV6treeElementID;
+    dataBlock->elementSize = sizeof(asV6Node_t);
 
-    // put array header on block
-    PushArrayHeader(dataBlock, ASV6treeElementID, sizeof(asV6Node_t));
-    outBuff = GetCurrentCursor(dataBlock);
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     for (asV6Node_t *asV6Node = NextasV6Node(FIRSTNODE); asV6Node != NULL; asV6Node = NextasV6Node(NEXTNODE)) {
-        if (!IsAvailable(dataBlock, sizeof(asV6Node_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(asV6Node_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = ASV6treeElementID;
+            dataBlock->elementSize = sizeof(asV6Node_t);
 
-            // put array header on block
-            PushArrayHeader(dataBlock, ASV6treeElementID, sizeof(asV6Node_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, asV6Node, sizeof(asV6Node_t));
         outBuff += sizeof(asV6Node_t);
-        dataBlock->size += sizeof(asV6Node_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(asV6Node_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of StoreASV6tree
 
-static void StoreASorgtree(nffile_t *nffile) {
+static void StoreASorgtree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
     // get new empty data block
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    void *outBuff = GetCursor(dataBlock);
+    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    InitArrayBlock(dataBlock);
+    dataBlock->elementType = ASOrgtreeElementID;
+    dataBlock->elementSize = sizeof(asOrgNode_t);
 
-    // put array header on block
-    PushArrayHeader(dataBlock, ASOrgtreeElementID, sizeof(asOrgNode_t));
-    outBuff = GetCurrentCursor(dataBlock);
+    uint8_t *outBuff = GetCursor(dataBlock);
 
     for (asOrgNode_t *asOrgNode = NextasOrgNode(FIRSTNODE); asOrgNode != NULL; asOrgNode = NextasOrgNode(NEXTNODE)) {
-        if (!IsAvailable(dataBlock, sizeof(asOrgNode_t))) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(asOrgNode_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
 
-            // put array header on block
-            PushArrayHeader(dataBlock, ASOrgtreeElementID, sizeof(asOrgNode_t));
-            outBuff = GetCurrentCursor(dataBlock);
+            InitArrayBlock(dataBlock);
+            dataBlock->elementType = ASOrgtreeElementID;
+            dataBlock->elementSize = sizeof(ASOrgtreeElementID);
+
+            outBuff = GetCursor(dataBlock);
         }
 
         memcpy(outBuff, asOrgNode, sizeof(asOrgNode_t));
         outBuff += sizeof(asOrgNode_t);
-        dataBlock->size += sizeof(asOrgNode_t);
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += sizeof(asOrgNode_t);
+        dataBlock->numElements++;
     }
     // flush current datablock
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of StoreASorgtree
 
 int SaveMaxMind(char *fileName) {
-    nffile_t *nffile = OpenNewFile(fileName, CREATOR_LOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_GEOLOOKUP, LZ4_COMPRESSED, LEVEL_0, NOT_ENCRYPTED);
     if (!nffile) {
         LogError("OpenNewFile(%s) failed", fileName);
         return 0;
@@ -257,8 +259,8 @@ int SaveMaxMind(char *fileName) {
     StoreASV4tree(nffile);
     StoreASV6tree(nffile);
     StoreASorgtree(nffile);
-    int ret = FlushFile(nffile);
-    DisposeFile(nffile);
+    int ret = FlushFileV3(nffile);
+    CloseFileV3(nffile);
 
     return ret;
 }  // End of SaveMaxMind
@@ -268,71 +270,92 @@ int LoadMaxMind(char *fileName) {
 
     if (!Init_MaxMind()) return 0;
 
-    nffile_t *nffile = OpenFile(fileName);
+    nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
         return 0;
     }
     int done = 0;
-    dataBlock_t *dataBlock = NULL;
+    arrayBlockV3_t *dataBlock = NULL;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
+        dataBlock = ReadBlockV3(nffile);
         if (dataBlock == NULL) {
             done = 1;
             continue;
         }
 
-        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->size);
-        if (dataBlock->type != DATA_BLOCK_TYPE_4) {
+        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->rawSize);
+        if (dataBlock->type != BLOCK_TYPE_ARRAY) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
+            FreeDataBlock(dataBlock);
             continue;
         }
 
-        record_header_t *arrayHeader = GetCursor(dataBlock);
-        void *arrayElement = (void *)arrayHeader + sizeof(record_header_t);
-        size_t expected = (arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
-        if (expected != dataBlock->size) {
-            LogError("Array size calculated: %zu != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
-            return 0;
+        void *arrayElement = GetCursor(dataBlock);
+
+        size_t expected = (dataBlock->elementSize * dataBlock->numElements) + sizeof(arrayBlockV3_t);
+        if (expected != dataBlock->rawSize) {
+            LogError("Bad array block - size error - found: %zu, expected: %u for element: %u", expected, dataBlock->rawSize, dataBlock->elementType);
+            FreeDataBlock(dataBlock);
+            continue;
         }
 
-        switch (arrayHeader->type) {
+        switch (dataBlock->elementType) {
             case LocalInfoElementID: {
                 locationInfo_t *locationInfo = (locationInfo_t *)arrayElement;
-                arrayElementSizeCheck(locationInfo);
-                LoadLocalInfo(locationInfo, dataBlock->NumRecords);
+                if (dataBlock->elementSize != sizeof(locationInfo_t)) {
+                    LogError("Size check failed for location info - rebuild nfdump geo DB");
+                } else {
+                    LoadLocalInfo(locationInfo, dataBlock->numElements);
+                }
             } break;
             case IPV4treeElementID: {
                 ipV4Node_t *ipV4Node = (ipV4Node_t *)arrayElement;
-                arrayElementSizeCheck(ipV4Node);
-                LoadIPv4Tree(ipV4Node, dataBlock->NumRecords);
+                if (dataBlock->elementSize != sizeof(ipV4Node_t)) {
+                    LogError("Size check failed for IPv4 node - rebuild nfdump geo DB");
+                } else {
+                    LoadIPv4Tree(ipV4Node, dataBlock->numElements);
+                }
             } break;
             case IPV6treeElementID: {
                 ipV6Node_t *ipV6Node = (ipV6Node_t *)arrayElement;
-                arrayElementSizeCheck(ipV6Node);
-                LoadIPv6Tree(ipV6Node, dataBlock->NumRecords);
+                if (dataBlock->elementSize != sizeof(ipV6Node_t)) {
+                    LogError("Size check failed for IPv6 node - rebuild nfdump geo DB");
+                } else {
+                    LoadIPv6Tree(ipV6Node, dataBlock->numElements);
+                }
             } break;
             case ASV4treeElementID: {
                 asV4Node_t *asV4Node = (asV4Node_t *)arrayElement;
-                arrayElementSizeCheck(asV4Node);
-                LoadASV4Tree(asV4Node, dataBlock->NumRecords);
+                if (dataBlock->elementSize != sizeof(asV6Node_t)) {
+                    LogError("Size check failed for ASv4 node - rebuild nfdump geo DB");
+                } else {
+                    LoadASV4Tree(asV4Node, dataBlock->numElements);
+                }
             } break;
             case ASV6treeElementID: {
                 asV6Node_t *asV6Node = (asV6Node_t *)arrayElement;
-                arrayElementSizeCheck(asV6Node);
-                LoadASV6Tree(asV6Node, dataBlock->NumRecords);
+                if (dataBlock->elementSize != sizeof(asV6Node_t)) {
+                    LogError("Size check failed for ASv6 node - rebuild nfdump geo DB");
+                } else {
+                    LoadASV6Tree(asV6Node, dataBlock->numElements);
+                }
             } break;
             case ASOrgtreeElementID: {
                 asOrgNode_t *asOrgNode = (asOrgNode_t *)arrayElement;
-                arrayElementSizeCheck(asOrgNode);
-                LoadASorgTree(asOrgNode, dataBlock->NumRecords);
+                if (dataBlock->elementSize != sizeof(asOrgNode_t)) {
+                    LogError("Size check failed for AS org node - rebuild nfdump geo DB");
+                } else {
+                    LoadASorgTree(asOrgNode, dataBlock->numElements);
+                }
             } break;
             default:
-                LogError("Skip unknown array element: %u", arrayHeader->type);
+                LogError("Skip unknown array element: %u", dataBlock->elementType);
         }
+        FreeDataBlock(dataBlock);
     }
     FreeDataBlock(dataBlock);
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
 
     return 1;
 }  // End of LoadMaxMind

@@ -38,7 +38,6 @@
 
 #include "config.h"
 #include "nfdump.h"
-#include "nffile.h"
 
 char *FlagsString(uint16_t flags) {
     static char string[16];

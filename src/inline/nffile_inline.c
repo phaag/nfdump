@@ -139,19 +139,20 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
     return 1;
 }  // End of MapV4RecordHandle
 
-static inline dataBlock_t *AppendToBuffer(queue_t *queue, dataBlock_t *dataBlock, void *record, size_t required) {
-    if (!IsAvailable(dataBlock, required)) {
+static inline dataBlockV3_t *AppendToBuffer(nffileV3_t *nffile, dataBlockV3_t *dataBlock, void *record, size_t required) {
+    if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, required)) {
+        // XXX FIX! remember old block type
         // flush block - get an empty one
-        dataBlock = PushBlock(queue, dataBlock);
+        dataBlock = WriteBlockV3(nffile, dataBlock);
         // map output memory buffer
     }
-    void *cur = GetCurrentCursor(dataBlock);
+    void *cur = GetCursor(dataBlock);
     // enough buffer space available at this point
     memcpy(cur, record, required);
 
     // update stat
-    dataBlock->NumRecords++;
-    dataBlock->size += required;
+    // XXX FIX! block type dataBlock->numRecords++;
+    dataBlock->rawSize += required;
 
     return dataBlock;
 }  // End of AppendToBuffer

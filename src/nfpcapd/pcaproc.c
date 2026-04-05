@@ -68,7 +68,6 @@
 #include "ip_frag.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
 #include "nflog.h"
 #include "pflog.h"
 #include "util.h"
@@ -144,13 +143,13 @@ pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
         pthread_mutex_init(&pcapfile->m_pbuff, NULL);
         pthread_cond_init(&pcapfile->c_pbuff, NULL);
 
-        pcapfile->data_buffer = malloc(BUFFSIZE);
+        pcapfile->data_buffer = malloc(1048576);  // 1MB
         if (!pcapfile->data_buffer) {
             free(pcapfile);
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
-        pcapfile->alternate_buffer = malloc(BUFFSIZE);
+        pcapfile->alternate_buffer = malloc(1048576);  // 1MB
         if (!pcapfile->data_buffer) {
             free(pcapfile->data_buffer);
             free(pcapfile);

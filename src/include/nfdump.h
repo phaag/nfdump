@@ -60,7 +60,11 @@
 #define VERSION_IPFIX 10
 #define VERSION_NFDUMP 250
 
+#define IDENTLEN 128
+
 #include "nfxV4.h"
+
+#define NF_TMPFILE "nfcapd.current"
 
 enum { EXlocal = MAXEXTENSIONS, EXheader, EXinPayloadHandle, EXoutPayloadHandle, MAXLISTSIZE };
 

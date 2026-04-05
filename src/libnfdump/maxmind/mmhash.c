@@ -38,9 +38,9 @@
 
 #include "kbtree.h"
 #include "khash.h"
+#include "logging.h"
 #include "maxmind.h"
 #include "mmhash.h"
-#include "logging.h"
 #include "util.h"
 
 #define kh_hash_func(key) (khint32_t)(key.key)
@@ -161,7 +161,7 @@ int Init_MaxMind(void) {
 }  // End of Init_MaxMind
 
 void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
-    for (int i = 0; i < NumRecords; i++) {
+    for (int i = 0; i < (int)NumRecords; i++) {
         int absent;
         locationKey_t locationKey = {.key = locationInfo->localID};
         khint_t k = kh_put(localMap, mmHandle->localMap, locationKey, &absent);
@@ -177,7 +177,7 @@ void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
 
 void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords) {
     kbtree_t(ipV4Tree) *ipV4Tree = mmHandle->ipV4Tree;
-    for (int i = 0; i < NumRecords; i++) {
+    for (int i = 0; i < (int)NumRecords; i++) {
         ipV4Node_t *node = kb_getp(ipV4Tree, ipV4Tree, ipV4Node);
         if (node) {
             LogError("Duplicate IP node: ip: 0x%x, mask: 0x%x", ipV4Node->network, ipV4Node->netmask);
@@ -191,7 +191,7 @@ void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords) {
 
 void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
     kbtree_t(ipV6Tree) *ipV6Tree = mmHandle->ipV6Tree;
-    for (int i = 0; i < NumRecords; i++) {
+    for (int i = 0; i < (int)NumRecords; i++) {
         ipV6Node_t *node = kb_getp(ipV6Tree, ipV6Tree, ipV6Node);
         if (node) {
             LogError("Duplicate IPV6 node: ip: 0x%" PRIx64 " %" PRIx64 ", mask: 0x%" PRIx64 " %" PRIx64, ipV6Node->network[0], ipV6Node->network[1],
@@ -206,7 +206,7 @@ void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
 
 void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
     kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
-    for (int i = 0; i < NumRecords; i++) {
+    for (int i = 0; i < (int)NumRecords; i++) {
         asV4Node_t *node = kb_getp(asV4Tree, asV4Tree, asV4Node);
         if (node) {
             LogError("Insert: %d Duplicate ASv4 node: ip: 0x%x, mask: 0x%x", i, asV4Node->network, asV4Node->netmask);
@@ -219,7 +219,7 @@ void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
 
 void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
     kbtree_t(asV6Tree) *asV6Tree = mmHandle->asV6Tree;
-    for (int i = 0; i < NumRecords; i++) {
+    for (int i = 0; i < (int)NumRecords; i++) {
         asV6Node_t *node = kb_getp(asV6Tree, asV6Tree, asV6Node);
         if (node) {
             LogError("Insert: %d, Duplicate ASV6 node: ip: 0x%" PRIx64 " %" PRIx64 ", mask: 0x%" PRIx64 " %" PRIx64, i, asV6Node->network[0],
@@ -234,7 +234,7 @@ void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
 
 void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords) {
     kbtree_t(asOrgTree) *asOrgTree = mmHandle->asOrgTree;
-    for (int i = 0; i < NumRecords; i++) {
+    for (int i = 0; i < (int)NumRecords; i++) {
         asOrgNode_t *node = kb_getp(asOrgTree, asOrgTree, asOrgNode);
         if (node) {
             LogError("Insert: %d Duplicate ASorg node: as: %d", i, asOrgNode->as);
@@ -479,7 +479,7 @@ const char *LookupASorg(uint32_t as) {
 void LookupAS(char *asString) {
     long as = strtol(asString, (char **)NULL, 10);
 
-    if (as == 0 || as > 0xFFFFFFFFUL || as < 0) {
+    if (as == 0 || as > 0xFFFFFFFFL || as < 0) {
         printf("Invalid AS number: %s: %s\n", asString, strerror(errno));
     } else {
         const char *asOrg = LookupASorg(as);

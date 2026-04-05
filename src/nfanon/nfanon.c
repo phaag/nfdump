@@ -57,7 +57,7 @@
 #include "nbar.h"
 #include "nfconf.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "panonymizer.h"
 #include "util.h"
@@ -69,7 +69,7 @@ typedef struct worker_param_s {
     int numWorkers;
     int anon_src;
     int anon_dst;
-    dataBlock_t **dataBlock;
+    flowBlockV3_t **dataBlock;
 
     // sync barrier
     pthread_control_barrier_t *barrier;
@@ -107,7 +107,7 @@ static void usage(char *name) {
 } /* usage */
 
 static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record) {
-    if (exporter_record->header.size < sizeof(exporter_info_record_v4_t)) {
+    if (exporter_record->size < sizeof(exporter_info_record_v4_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return;
     }
@@ -294,11 +294,11 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     char *cfile = NULL;
 
     int cnt = 1;
-    nffile_t *nffile_r = NULL;
-    nffile_t *nffile_w = NULL;
+    nffileV3_t *nffile_r = NULL;
+    nffileV3_t *nffile_w = NULL;
 
-    dataBlock_t *nextBlock = NULL;
-    dataBlock_t *dataBlock = NULL;
+    flowBlockV3_t *nextBlock = NULL;
+    flowBlockV3_t *dataBlock = NULL;
     // map datablock for workers - all workers
     // process the same block but different records
     for (int i = 0; i < numWorkers; i++) {
@@ -317,15 +317,15 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         if (dataBlock == NULL) {
             // nffile_w is NULL for 1st entry in while loop
             if (nffile_w) {
-                FlushFile(nffile_w);
-                DisposeFile(nffile_w);
+                FlushFileV3(nffile_w);
+                CloseFileV3(nffile_w);
                 if (wfile == NULL && rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
             }
 
-            DisposeFile(nffile_r);
+            CloseFileV3(nffile_r);
             nffile_r = GetNextFile();
             if (nffile_r == NULL) {
                 done = 1;
@@ -336,7 +336,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             cfile = nffile_r->fileName;
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d", __FILE__, __LINE__);
-                DisposeFile(nffile_r);
+                CloseFileV3(nffile_r);
                 return;
             }
             if (verbose) printf("  %i Processing %s\r", cnt++, cfile);
@@ -351,18 +351,20 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 outFile = wfile;
             }
 
-            nffile_w = OpenNewFile(outFile, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+            uint32_t compressType = nffile_r->compression;
+            uint32_t compressLevel = nffile_r->compressionLevel;
+            nffile_w = OpenNewFileV3(outFile, CREATOR_NFANON, compressType, compressLevel, NOT_ENCRYPTED);
             if (!nffile_w) {
                 // can not create output file
-                DisposeFile(nffile_r);
+                CloseFileV3(nffile_r);
                 return;
             }
 
-            SetIdent(nffile_w, FILE_IDENT(nffile_r));
+            // XXX FIX!! SetIdent(nffile_w, FILE_IDENT(nffile_r));
             __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
             // read first block from next file
-            nextBlock = ReadBlock(nffile_r, NULL);
+            nextBlock = ReadBlockV3(nffile_r);
             continue;
         }
 
@@ -371,25 +373,25 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             blk_count++;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+        if (dataBlock->type != FLOW_BLOCK_TYPE) {
             LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
-            dataBlock = WriteBlock(nffile_w, dataBlock);
-            nextBlock = ReadBlock(nffile_r, NULL);
+            dataBlock = WriteBlockV3(nffile_w, dataBlock);
+            nextBlock = ReadBlockV3(nffile_r);
             continue;
         }
 
-        dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->NumRecords);
+        dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->numRecords);
         // release workers from barrier
         pthread_control_barrier_release(barrier);
 
         // prefetch next block
-        nextBlock = ReadBlock(nffile_r, NULL);
+        nextBlock = ReadBlockV3(nffile_r);
 
         // wait for all workers, work done on previous block
         pthread_controller_wait(barrier);
 
         // write modified block
-        FlushBlock(nffile_w, dataBlock);
+        FlushBlockV3(nffile_w, dataBlock);
 
     }  // while
 
@@ -413,15 +415,15 @@ static void *worker_thread(void *arg) {
     pthread_control_barrier_wait(worker_param->barrier);
 
     while (*(worker_param->dataBlock)) {
-        dataBlock_t *dataBlock = *(worker_param->dataBlock);
+        flowBlockV3_t *dataBlock = *(worker_param->dataBlock);
         dbg_printf("Worker %i working on %p\n", self, dataBlock);
 
         uint32_t recordCount = 0;
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < (int)dataBlock->numRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 goto SKIP;
             }

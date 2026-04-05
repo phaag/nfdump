@@ -55,7 +55,7 @@
 #include "maxmind/maxmind.h"
 #include "memhandle.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output.h"
 #include "util.h"
@@ -390,7 +390,7 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
     assert(newFlags && newCells && newRecords);
 
     // rearrange cells and flags, according to hash and new bit width of hash table
-    for (uint32_t i = 0; i < oldCapacity; i++) {
+    for (int i = 0; i < oldCapacity; i++) {
         if (is_used(oldFlags, i)) {
             uint32_t cell = ___fib_hash(oldCells[i].hash, flowHash->shift);
             while (is_used(newFlags, cell)) {
@@ -1672,8 +1672,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
     }
 
     int max = maxindex;
-    if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
-    for (uint64_t i = 0; i < max; i++) {
+    if (outputParams->topN && outputParams->topN < (int)maxindex) max = outputParams->topN;
+    for (int i = 0; i < max; i++) {
         uint64_t j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
@@ -1794,11 +1794,11 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV4_t *recordHeaderV4
 }  // End of RebuildRecord
 
 // export SortList - apply possible aggregation mask to zero out aggregated fields
-static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
+static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffileV3_t *nffile, int GuessFlowDirection, int ascending) {
     dbg_printf("Enter %s\n", __func__);
 
-    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    dataBlock = ExportExporterList(nffile, dataBlock);
+    // XXX FIX! dataBlock = ExportExporterList(nffile, dataBlock);
+    flowBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
 
     for (uint64_t i = 0; i < maxindex; i++) {
         uint64_t j = ascending ? i : maxindex - 1 - i;
@@ -1812,13 +1812,13 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
             exCntSize = EXcntFlowSize;
         }
 
-        if (!IsAvailable(dataBlock, recordHeaderV4->size + exCntSize)) {
+        if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, recordHeaderV4->size + exCntSize)) {
             // flush block - get an empty one
-            dataBlock = WriteBlock(nffile, dataBlock);
+            dataBlock = WriteBlockV3(nffile, dataBlock);
         }
 
         // write record
-        void *buffPtr = GetCurrentCursor(dataBlock);
+        void *buffPtr = GetCursor(dataBlock);
 
         // prepare record to export into new file
         RebuildRecord(buffPtr, recordHeaderV4, i);
@@ -1837,8 +1837,8 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
             void *extPtr = NULL;
             cntFlow = extPtr;
         }
-        dataBlock->size += recordHeaderV4->size;
-        dataBlock->NumRecords++;
+        dataBlock->rawSize += recordHeaderV4->size;
+        dataBlock->numRecords++;
 
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         if (genericFlow) {
@@ -1867,7 +1867,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         UpdateRawStat(nffile->stat_record, genericFlow, cntFlow);
     }
 
-    FlushBlock(nffile, dataBlock);
+    FlushBlockV3(nffile, dataBlock);
 
 }  // End of ExportSortList
 
@@ -1953,7 +1953,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 
 }  // End of PrintFlowTable
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
+int ExportFlowTable(nffileV3_t *nffile, int aggregate, int bidir, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
 

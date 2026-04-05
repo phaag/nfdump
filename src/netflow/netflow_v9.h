@@ -68,9 +68,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "collector.h"
-#include "nffile.h"
-#include "nfnet.h"
+#include "flowsource.h"
 
 typedef struct v9Header_s {
     uint16_t version;

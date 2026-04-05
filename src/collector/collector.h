@@ -43,7 +43,7 @@
 #include "flist.h"
 #include "flowsource.h"
 #include "ip128.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "util.h"
 
 #define ANYIP NULL
@@ -62,10 +62,13 @@ typedef struct common_flow_header {
     uint16_t count;
 } common_flow_header_t;
 
+#define MESSAGE_NULL 0
+#define MESSAGE_CYCLE 1
 typedef struct cycle_message_s {
-    time_t when;  // timestamp of cycle
-    int done;     // done flag
-    // stat_record of flowsource follows
+    MESSAGEHEADER;
+    time_t when;                // timestamp of cycle
+    int done;                   // done flag
+    stat_record_t stat_record;  // stat_record of flowsource
 } cycle_message_t;
 
 #define UpdateFirstLast(fs, First, Last)                                                     \

@@ -37,7 +37,6 @@
 #include "config.h"
 #include "id.h"
 #include "nfdump_1_6_x.h"
-#include "nffile.h"
 
 // MAX_EXTENSION_MAPS must be a power of 2
 #define MAX_EXTENSION_MAPS 65536

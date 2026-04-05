@@ -99,6 +99,13 @@ enum {
  * type, length and offset relative to start of recordHeaderV4_t
  */
 
+// XXX to be removed
+typedef struct record_header_s {
+    // record header
+    uint16_t type;
+    uint16_t size;
+} record_header_t;
+
 typedef struct recordHeaderV4_s {
     // V4Record
     uint16_t type;           // record type - V4Record

@@ -50,7 +50,7 @@
 #include "logging.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_util.h"
 #include "userio.h"

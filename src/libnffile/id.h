@@ -31,6 +31,21 @@
 #ifndef _ID_H
 #define _ID_H 1
 
+// nffile magic ID
+#define MAGIC 0xA50C
+
+// legacy data block records
+// nfdump 1.5.x data block type
+#define DATA_BLOCK_TYPE_1 1
+// 1.6.x data block type
+#define DATA_BLOCK_TYPE_2 2
+// 1.7.x data block type
+#define DATA_BLOCK_TYPE_3 3
+#define DATA_BLOCK_TYPE_4 4
+
+// 1.8.x data block type
+#define FLOW_BLOCK_TYPE 5
+
 // Legacy records
 #define CommonRecordV0Type 1
 #define ExtensionMapType 2

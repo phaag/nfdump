@@ -55,7 +55,8 @@ typedef struct flowParam_s {
     FlowSource_t *fs;
     char *extensionFormat;
     unsigned subdir_index;
-    unsigned compress;
+    uint32_t compressType;
+    uint32_t compressLevel;
 
     // send flows
     repeater_t *sendHost;

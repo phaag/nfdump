@@ -112,6 +112,7 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
 
 }  // end of InsertNbarAppInfo
 
+/*
 int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     if (NbarAppInfoHash == NULL) {
         NbarAppInfoHash = kh_init(NbarAppInfoHash);
@@ -137,6 +138,7 @@ int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     return 0;
 
 }  // End of AddNbarRecord
+*/
 
 char *GetNbarInfo(uint8_t *id, size_t size) {
     // XXX FIX! remove static
@@ -175,6 +177,7 @@ char *GetNbarInfo(uint8_t *id, size_t size) {
 }  // End of GetNbarInfo
 
 void DumpNbarList(void) {
+    /*
     if (NbarAppInfoHash == NULL) return;
 
     size_t hashSize = kh_size(NbarAppInfoHash);
@@ -206,9 +209,11 @@ void DumpNbarList(void) {
                 printf("<zero length description>\n");
         }
     }
+    */
 
 }  // End of DumpNbarList
 
+/*
 void PrintNbarRecord(arrayRecordHeader_t *nbarRecord) {
     dbg_printf("Nbar record: %u elements\n", nbarRecord->numElements);
     dbg_printf("Nbar Element size: %u\n", nbarRecord->elementSize);
@@ -234,3 +239,4 @@ void PrintNbarRecord(arrayRecordHeader_t *nbarRecord) {
     }
 
 }  // End of PrintNbarRecord
+*/

@@ -48,7 +48,7 @@
 #include "maxmind/maxmind.h"
 #include "maxmind/mmhash.h"
 #include "mmcreate.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "util.h"
 
 static void usage(char *name) {

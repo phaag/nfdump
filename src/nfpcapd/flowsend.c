@@ -55,7 +55,6 @@
 #include "metric.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
-#include "nffile.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"

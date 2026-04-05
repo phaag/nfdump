@@ -48,7 +48,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"
@@ -153,11 +153,13 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_
             }
 
             *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .sysID = AssignExporterID(), .in_use = 1, .info = info};
-            *(e->info) =
-                (exporter_info_record_v4_t){.header = (record_header_t){.type = ExporterInfoRecordV4Type, .size = sizeof(exporter_info_record_v4_t)},
-                                            .version = key.version,
-                                            .id = key.id,
-                                            .sysID = e->sysID};
+            *(e->info) = (exporter_info_record_v4_t){
+                .type = ExporterInfoRecordV4Type,
+                .size = sizeof(exporter_info_record_v4_t),
+                .version = key.version,
+                .id = key.id,
+                .sysID = e->sysID,
+            };
             memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
             e->v1 = (exporter_v1_t){0};
@@ -252,10 +254,11 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // output buffer size check for all expected records
-        uint8_t *outBuff = GetCurrentCursor(fs->dataBlock);
-        if (!IsAvailable(fs->dataBlock, count * exporter->v1.outRecordSize)) {
+        uint8_t *outBuff = GetCursor(fs->dataBlock);
+        if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, count * exporter->v1.outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            InitFlowBlock(fs->dataBlock);
             // map output memory buffer
             outBuff = GetCursor(fs->dataBlock);
         }
@@ -400,8 +403,8 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // update file record size ( -> output buffer size )
-        fs->dataBlock->NumRecords += count;
-        fs->dataBlock->size += outSize;
+        fs->dataBlock->numRecords += count;
+        fs->dataBlock->rawSize += outSize;
 
         // still to go for this many input bytes
         size_left -= NETFLOW_V1_HEADER_LENGTH + count * NETFLOW_V1_RECORD_LENGTH;

@@ -45,6 +45,7 @@
 #include "id.h"
 #include "logging.h"
 #include "nfdump.h"
+#include "nffileV3/nffileV3.h"
 #include "nfxV3.h"
 #include "nfxV4.h"
 #include "util.h"
@@ -102,7 +103,7 @@ int InitExporterList(void) {
 }  // End of InitExporterList
 
 int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
-    if (exporter_record->header.size < sizeof(exporter_info_record_v4_t)) {
+    if (exporter_record->size < sizeof(exporter_info_record_v4_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
@@ -153,12 +154,12 @@ int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
             e->in_use = 1;
             exporter_table.count++;
 
-            e->info = malloc(exporter_record->header.size);
+            e->info = malloc(exporter_record->size);
             if (!e->info) {
                 LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 return 0;
             }
-            memcpy(e->info, exporter_record, exporter_record->header.size);
+            memcpy(e->info, exporter_record, exporter_record->size);
 #ifdef DEVEL
             {
                 char ipstr[INET6_ADDRSTRLEN];
@@ -284,13 +285,13 @@ int AddSamplerRecord(sampler_record_V3_t *sampler_record) {
 }  // End of AddSamplerRecord
 
 int AddExporterStat(exporter_stats_record_t *stat_record) {
-    if (stat_record->header.size < sizeof(exporter_stats_record_t)) {
+    if (stat_record->size < sizeof(exporter_stats_record_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
     size_t required = sizeof(exporter_stats_record_t) + (stat_record->stat_count - 1) * sizeof(struct exporter_stat_s);
-    if ((stat_record->stat_count == 0) || (stat_record->header.size != required)) {
+    if ((stat_record->stat_count == 0) || (stat_record->size != required)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
@@ -328,7 +329,7 @@ exporter_entry_t *GetExporterInfo(uint32_t sysID) {
 
 }  // End of GetExporter
 
-dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
+dataBlockV3_t *ExportExporterList(nffileV3_t *nffile, dataBlockV3_t *dataBlock) {
     if (exporter_table.count == 0) return dataBlock;
 
     for (unsigned i = 0; i < exporter_table.capacity; i++) {
@@ -337,7 +338,7 @@ dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
         if (!e->in_use) continue;
         exporter_info_record_v4_t *exporter_info = e->info;
         dbg_printf("Dump exporter: %u\n", exporter_info->sysID);
-        dataBlock = AppendToBuffer(nffile->processQueue, dataBlock, (void *)exporter_info, exporter_info->header.size);
+        dataBlock = AppendToBuffer(nffile, dataBlock, (void *)exporter_info, exporter_info->size);
     }
 
     return dataBlock;
@@ -351,16 +352,17 @@ void PrintExporters(void) {
 
     printf("Exporters:\n");
 
-    nffile_t *nffile = GetNextFile();
+    nffileV3_t *nffile = GetNextFile();
     if (!nffile) {
         return;
     }
 
-    dataBlock_t *dataBlock = NULL;
+    // XXX FIX! exporter in own block type - use directory
+    dataBlockV3_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
+        dataBlock = ReadBlockV3(nffile);
         if (dataBlock == NULL) {
             done = 1;
             continue;
@@ -368,9 +370,11 @@ void PrintExporters(void) {
 
         if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
             printf("Skip unknown block type: %u\n", dataBlock->type);
+            FreeDataBlock(dataBlock);
             continue;
         }
 
+        /*
         record_header_t *record = GetCursor(dataBlock);
         for (unsigned i = 0; i < dataBlock->NumRecords; i++) {
             switch (record->type) {
@@ -408,10 +412,11 @@ void PrintExporters(void) {
             // Advance pointer by number of bytes for netflow record
             record = (record_header_t *)((void *)record + record->size);
         }
+        */
+        FreeDataBlock(dataBlock);
     }
 
-    FreeDataBlock(dataBlock);
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
 
     if (exporter_table.count == 0) {
         printf("No Exporter records found\n");
