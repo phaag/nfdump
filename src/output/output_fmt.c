@@ -1399,7 +1399,7 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
 static void String_Duration(FILE *stream, recordHandle_t *recordHandle) {
     (void)recordHandle;
     char string[128];
-    ScaleDuration(string, sizeof(string), duration, printPlain, printPlain ? 16 : WIDTH_VAR);
+    ScaleDuration(string, sizeof(string), duration, printPlain, printPlain ? WIDTH_VAR : 16);
     fputs(string, stream);
 }  // End of String_Duration
 

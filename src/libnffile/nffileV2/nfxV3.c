@@ -67,7 +67,7 @@ int VerifyV3Record(recordHeaderV3_t *recordHeader) {
             dbg_printf("VerifyV3 - element length error - left: %u, length: %u\n", rlen, elementHeader->length);
             return 0;
         }
-        if (elementHeader->type >= MAXEXTENSIONS) {
+        if (elementHeader->type >= MAXV3EXTENSIONS) {
             dbg_printf("VerifyV3 - element type error: %u\n", elementHeader->type);
             return 0;
         }

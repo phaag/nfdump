@@ -31,8 +31,12 @@
 #ifndef _NFFILEV2_DEF_H
 #define _NFFILEV2_DEF_H 1
 
+#ifndef IDENTLEN
 #define IDENTLEN 128
+#endif
+#ifndef IDENTNONE
 #define IDENTNONE "none"
+#endif
 
 /*
  * output buffer max size, before writing data to the file
@@ -64,8 +68,15 @@ BUFFSIZE and have potentially more time to flush to disk
 
 #define DATA_BLOCK_MESSAGE 0x0100
 
-#define GetCursor(block) ((void *)(block) + sizeof(dataBlockV2_t))
+#define GetCursorV2(block) ((void *)(block) + sizeof(dataBlockV2_t))
 #define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlockV2_t))
+
+// V2 compression types - do not match V3 types
+#define NOT_COMPRESSED_V2 0
+#define LZO_COMPRESSED_V2 1
+#define BZ2_COMPRESSED_V2 2
+#define LZ4_COMPRESSED_V2 3
+#define ZSTD_COMPRESSED_V2 4
 
 #define DATA_BLOCK_TYPE_3 3
 #define DATA_BLOCK_TYPE_4 4

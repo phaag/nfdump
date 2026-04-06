@@ -148,6 +148,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     // ── Buffer check — single check, no retry loop ──
     if (!IsAvailable(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize, recordSize)) {
         fs->dataBlock = WriteBlockV3(nffile_ctx->nffile, fs->dataBlock);
+        *fs->dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
     }
     uint32_t available = nffile_ctx->nffile->fileHeader->blockSize - fs->dataBlock->rawSize;
     if (available < recordSize) {
@@ -426,6 +427,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         pthread_exit((void *)flowParam);
     }
     fs->dataBlock = WriteBlockV3(nffile_ctx->nffile, fs->dataBlock);
+    *fs->dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
     nffile_ctx->nffile->ident = strdup(fs->Ident);
 
     // init flow source
@@ -442,6 +444,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 dbg_printf("Received signal_node_sync\n");
                 // flush current block and close file
                 fs->dataBlock = WriteBlockV3(nffile_ctx->nffile, fs->dataBlock);
+                *fs->dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
                 CloseFlowFile(flowParam, Node->timestamp);
                 nffile_ctx->nffile = OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType,
                                                       nffile_ctx->compressLevel, nffile_ctx->encryption);

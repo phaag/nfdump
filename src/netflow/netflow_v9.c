@@ -1253,7 +1253,6 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, sizeof(recordHeaderV4_t) + outRecordSize)) {
             // flush block - get an empty one
             fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
-            InitFlowBlock(fs->dataBlock);
         }
 
         int buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
@@ -1305,7 +1304,6 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                     if (fs->dataBlock == NULL) {
                         return;
                     }
-                    InitFlowBlock(fs->dataBlock);
 
                     buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
                     if (buffAvail == 0 || redone) {
@@ -1493,7 +1491,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
             LogError("Buffer size: %u > %u", fs->dataBlock->rawSize, BLOCK_SIZE_V3);
 
             // reset buffer
-            InitFlowBlock(fs->dataBlock);
+            *fs->dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
             fs->dataBlock->numRecords = 0;
             return;
         }
@@ -1623,7 +1621,6 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
     // output buffer size check for all expected records
     if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, total_size)) {
         LogError("Cannot store nbar array - block size error");
-        InitFlowBlock(fs->dataBlock);
         return;
     }
 

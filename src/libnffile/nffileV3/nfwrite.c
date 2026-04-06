@@ -150,9 +150,10 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
     pthread_mutex_unlock(&nffile->wlock);
 
     // write at reserved offset — parallel, no lock needed
-    ssize_t ret = pwrite(nffile->fd, (void *)wptr, wptr->discSize, dstOffset);
+    ssize_t writeSize = wptr->discSize;
+    ssize_t ret = pwrite(nffile->fd, (void *)wptr, writeSize, dstOffset);
     FreeDataBlock(buff);
-    if (ret != (ssize_t)wptr->discSize) {
+    if (ret != writeSize) {
         LogError("pwrite() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
@@ -386,15 +387,14 @@ void *WriteBlockV3(nffileV3_t *nffile, void *blockHeader) {
 // Returns a new empty defult datablock
 flowBlockV3_t *PushBlockV3(queue_t *queue, flowBlockV3_t *blockHeader) {
     if (blockHeader == NULL) {
-        return (flowBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+        return NewFlowBlock(BLOCK_SIZE_V3);
     }
 
     if (blockHeader->rawSize != 0) {
         // empty blocks need not to be written
         dbg_printf("PushBlockV3 - push block with size: %u\n", blockHeader->rawSize);
         queue_push(queue, blockHeader);
-        blockHeader = (flowBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-        InitFlowBlock(blockHeader);
+        blockHeader = NewFlowBlock(BLOCK_SIZE_V3);
     } else {
         dbg_printf("PushBlockV3 - skip push block with size: %u\n", blockHeader->rawSize);
     }

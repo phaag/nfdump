@@ -387,29 +387,17 @@ static void *prepareThread(void *arg) {
 
         switch (dataHandle->dataBlock->type) {
             case BLOCK_TYPE_FLOW:
-                if (PreProcessBlock((flowBlockV3_t *)dataHandle->dataBlock) == 0) {
-                    // corrupt dataBlock
-                    goto SKIP;
-                }
                 // processed blocks
+                recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
                 break;
-            /*
-            case DATA_BLOCK_TYPE_1:
-            LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
-            goto SKIP;
-            break;
-            case DATA_BLOCK_TYPE_2: {
-                flowBlockV3_t *flowBlock = (flowBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-                InitFlowBlock(flowBlock);
-                // XXX FIX! ConvertBlockType2(dataHandle->dataBlock, flowBlock);
-                FreeDataBlock(dataHandle->dataBlock);
-                dataHandle->dataBlock = flowBlock;
-            } break;
-            case DATA_BLOCK_TYPE_4:
-            // silently skipped
-            goto SKIP;
-            break;
-            */
+            case BLOCK_TYPE_ARRAY:
+                break;
+            case BLOCK_TYPE_EXP:
+                break;
+            case BLOCK_TYPE_META:
+                break;
+            case BLOCK_TYPE_IDENT:
+                break;
             default:
                 LogError("Unknown block type %u. Skip block", dataHandle->dataBlock->type);
             SKIP:
@@ -420,7 +408,6 @@ static void *prepareThread(void *arg) {
         }
 
         dataHandle->recordCnt = recordCnt;
-        // XXX FIX!! recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
         queue_push(prepareQueue, (void *)dataHandle);
         dataHandle = NULL;
         done = abortProcessing;
@@ -496,6 +483,13 @@ static void *filterThread(void *arg) {
 
         flowBlockV3_t *dataBlock = dataHandle->dataBlock;
 
+        if (dataHandle->dataBlock->type != BLOCK_TYPE_FLOW) {
+            // skip none flow block and push them to the next stage
+            dbg_printf("Filter thread skip block type: %u\n", dataHandle->dataBlock->type);
+            queue_push(processQueue, dataHandle);
+            continue;
+        }
+
 #ifdef DEVEL
         numBlocks++;
         printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->numRecords);
@@ -509,53 +503,35 @@ static void *filterThread(void *arg) {
             recordCounter++;
 
             // work on our record
-            switch (record_ptr->type) {
-                case CommonRecordType:
-                    printf("Need to convert record type: %u\n", CommonRecordType);
-                    break;
-                case V4Record: {
-                    recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
-                    dataRecords++;
-                    int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
-                    // Time based filter
-                    // if no time filter is given, the result is always true
-                    if (timeWindow && match) {
-                        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-                        if (genericFlow) {
-                            match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
-                        } else {
-                            match = 0;
-                        }
-                    }
-
-                    if (match) {
-                        // filter netflow record with user supplied filter
-                        match = FilterRecord(engine, recordHandle);
-                    }
-                    if (match) {  // record passed all filters
-                        SetFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
-                        passedRecords++;
-                        matched++;
+            if (record_ptr->type == V4Record) {
+                recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
+                dataRecords++;
+                int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
+                // Time based filter
+                // if no time filter is given, the result is always true
+                if (timeWindow && match) {
+                    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                    if (genericFlow) {
+                        match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
                     } else {
-                        ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
+                        match = 0;
                     }
-                    FreeRecordHandle(recordHandle);
-                } break;
-                case ExtensionMapType:
-                case ExporterInfoRecordType:
-                case ExporterStatRecordType:
-                case SamplerRecordType:
-                case SamplerLegacyRecordType:
-                case NbarRecordType:
-                case IfNameRecordType:
-                case VrfNameRecordType:
-                case SlackRecord:
-                    // Silently skip exporter/sampler records
-                    break;
-
-                default: {
-                    LogError("Skip unknown record: %" PRIu64 " type %i", recordCounter, record_ptr->type);
                 }
+
+                if (match) {
+                    // filter netflow record with user supplied filter
+                    match = FilterRecord(engine, recordHandle);
+                }
+                if (match) {  // record passed all filters
+                    SetFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
+                    passedRecords++;
+                    matched++;
+                } else {
+                    ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
+                }
+                FreeRecordHandle(recordHandle);
+            } else {
+                LogError("Skip unknown record: %" PRIu64 " type %i", recordCounter, record_ptr->type);
             }
 
             // Advance pointer by number of bytes for netflow record
@@ -628,7 +604,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     }
 
     nffileV3_t *nffile_w = NULL;
-    dataBlockV3_t *dataBlock_w = NULL;
+    flowBlockV3_t *dataBlock_w = NULL;
     // prepare output file if requested
     if (wfile) {
         nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
@@ -636,7 +612,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             stat_record.msecFirstSeen = 0;
             return stat_record;
         }
-        dataBlock_w = WriteBlockV3(nffile_w, NULL);
+        dataBlock_w = NewFlowBlock(nffile_w->fileHeader->blockSize);
     }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
@@ -662,8 +638,12 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         // successfully read block
         total_bytes += dataBlock->rawSize;
 
-        dbg_printf("processData() Next block: %d, Records: %u\n", numBlocks, dataBlock->numRecords);
+        dbg_printf("processData() Next block: %d, type: %u, size: %u\n", numBlocks, dataBlock->type, dataBlock->rawSize);
 
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
+            dbg_printf("Skip non flow block type: %u\n", dataBlock->type);
+            continue;
+        }
         for (int i = 0; i < (int)dataBlock->numRecords && !abortProcessing; i++) {
             recordCounter++;
             // process records
@@ -706,6 +686,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     FreeRecordHandle(recordHandle);
 
                 } break;
+                /*
                 case ExtensionMapType:
                     printf("ExtensionMap no longer handled here!\n");
                     break;
@@ -753,6 +734,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case CommonRecordV0Type:
                     LogError("Skip lagecy record type: %d", record_ptr->type);
                     break;
+                */
                 default: {
                     LogError("Skip unknown record type %i\n", record_ptr->type);
                 }
@@ -777,7 +759,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     if (nffile_w) {
         // flush current buffer to disc
         FlushBlockV3(nffile_w, dataBlock_w);
-        // XXX FIX! SetIdent(nffile_w, outputParams->ident);
+        SetIdent(nffile_w, outputParams->ident);
 
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
@@ -939,21 +921,21 @@ int main(int argc, char **argv) {
                 outputParams->quiet = 1;
                 break;
             case 'j':
-                if (compressType) {
+                if (compressType != NOT_COMPRESSED) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 compressType = BZ2_COMPRESSED;
                 break;
             case 'y':
-                if (compressType) {
+                if (compressType != NOT_COMPRESSED) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 compressType = LZ4_COMPRESSED;
                 break;
             case 'z':
-                if (compressType) {
+                if (compressType != NOT_COMPRESSED) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }

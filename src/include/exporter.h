@@ -234,21 +234,13 @@ typedef struct exporter_info_record_v4_s {
 // netflow specific exporter data
 // netflow v1
 typedef struct exporter_v1_s {
-    uint32_t outRecordSize;    // fixed output record size
-    uint64_t bitMap;           // precomputed extension bitmap
-    uint16_t numExtensions;    // precomputed extension count
-    uint16_t offsetTableSize;  // precomputed offset table size
-    uint16_t offsets[5];       // precomputed byte offsets for each extension
+    uint32_t outRecordSize;  // fixed output record size
 } exporter_v1_t;
 
 // netflow v5
 typedef struct exporter_v5_s {
-    uint32_t last_count;       // sequence distance
-    uint32_t outRecordSize;    // fixed output record size
-    uint64_t bitMap;           // precomputed extension bitmap
-    uint16_t numExtensions;    // precomputed extension count
-    uint16_t offsetTableSize;  // precomputed offset table size
-    uint16_t offsets[6];       // precomputed byte offsets for each extension
+    uint32_t last_count;     // sequence distance
+    uint32_t outRecordSize;  // fixed output record size
 } exporter_v5_t;
 
 // netflow v9

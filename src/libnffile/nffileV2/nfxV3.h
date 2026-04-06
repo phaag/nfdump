@@ -38,8 +38,12 @@
 #define TYPE_IDENT 0x8001
 #define TYPE_STAT 0x8002
 
+#ifndef IDENTLEN
 #define IDENTLEN 128
+#endif
+#ifndef IDENTNONE
 #define IDENTNONE "none"
+#endif
 
 /*
  * Generic data record
@@ -371,15 +375,19 @@ typedef struct EX3nokiaNatString_s {
 #define EX3ipInfoID 42
 typedef struct EX3ipInfo_s {
     uint8_t fill;
+#ifndef flagMF
 #define flagMF 0x20
+#endif
+#ifndef flagDF
 #define flagDF 0x40
+#endif
     uint8_t fragmentFlags;
     uint8_t minTTL;  // unused for nfpcapd
     uint8_t maxTTL;  // unused for nfpcapd
 } EX3ipInfo_t;
 
-// max possible elements
-#define MAXEXTENSIONS 43
+// max possible V3 elements
+#define MAXV3EXTENSIONS 43
 
 int VerifyV3Record(recordHeaderV3_t *recordHeader);
 

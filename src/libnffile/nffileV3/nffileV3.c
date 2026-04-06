@@ -121,6 +121,22 @@ dataBlockV3_t *NewDataBlock(uint32_t blockSize) {
 
 }  // End of NewDataBlock
 
+flowBlockV3_t *NewFlowBlock(uint32_t blockSize) {
+    dbg_printf("Enter %s\n", __func__);
+    if (blockSize == 0) blockSize = BLOCK_SIZE_V3;
+    flowBlockV3_t *flowBlock = malloc(blockSize);
+    if (!flowBlock) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    *flowBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
+
+    atomic_fetch_add(&blocksInUse, 1);
+    return flowBlock;
+
+}  // End of NewFlowBlock
+
 void FreeDataBlock(void *block) {
     dbg_printf("Enter %s\n", __func__);
 
@@ -150,6 +166,7 @@ nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize) {
         free(nffile);
         return NULL;
     }
+    for (int i = 0; i < num_workers; i++) nffile->worker[i] = 0;
 
     pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
@@ -212,6 +229,14 @@ void TerminateWorkers(nffileV3_t *nffile) {
     queue_close(nffile->processQueue);
     joinWorkers(nffile);
 }  // End of TerminateWorkers
+
+void SetIdent(nffileV3_t *nffile, char *Ident) {
+    if (Ident && strlen(Ident) > 0) {
+        if (nffile->ident) free(nffile->ident);
+        nffile->ident = strdup(Ident);
+    }
+
+}  // End of SetIdent
 
 void DeleteFileV3(nffileV3_t *nffile) {
     if (!nffile) return;

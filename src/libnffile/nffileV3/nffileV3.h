@@ -288,8 +288,6 @@ typedef struct nffileV3_s {
 
 #define DIR_INIT_CAPACITY 256
 
-#define InitFlowBlock(block) (*(block) = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)})
-
 #define InitArrayBlock(block) (*(block) = (arrayBlockV3_t){.type = BLOCK_TYPE_ARRAY, .rawSize = sizeof(arrayBlockV3_t)})
 
 #define InitMsgBlock(block) (*(block) = (msgBlockV3_t){.type = BLOCK_TYPE_MSG, .rawSize = sizeof(msgBlockV3_t)})
@@ -317,6 +315,8 @@ nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize);
 
 dataBlockV3_t *NewDataBlock(uint32_t blockSize);
 
+flowBlockV3_t *NewFlowBlock(uint32_t blockSize);
+
 void FreeDataBlock(void *dataBlock);
 
 int AddBlock(blockListV3_t *blockList, uint32_t type, uint64_t offset, uint32_t diskSize);
@@ -326,6 +326,8 @@ int PreallocateDirectory(blockListV3_t *blockList, uint32_t expectedBlocks);
 void joinWorkers(nffileV3_t *nffile);
 
 void TerminateWorkers(nffileV3_t *nffile);
+
+void SetIdent(nffileV3_t *nffile, char *Ident);
 
 void CloseFileV3(nffileV3_t *nffile);
 

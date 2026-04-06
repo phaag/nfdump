@@ -139,11 +139,14 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
     return 1;
 }  // End of MapV4RecordHandle
 
-static inline dataBlockV3_t *AppendToBuffer(nffileV3_t *nffile, dataBlockV3_t *dataBlock, void *record, size_t required) {
+static inline flowBlockV3_t *AppendToBuffer(nffileV3_t *nffile, flowBlockV3_t *dataBlock, void *record, size_t required) {
     if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, required)) {
-        // XXX FIX! remember old block type
-        // flush block - get an empty one
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
+            printf("BlockType is %u\n", dataBlock->type);
+            //  assert(dataBlock->type == BLOCK_TYPE_FLOW);
+        }
         dataBlock = WriteBlockV3(nffile, dataBlock);
+        *dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
         // map output memory buffer
     }
     void *cur = GetCursor(dataBlock);
@@ -151,7 +154,7 @@ static inline dataBlockV3_t *AppendToBuffer(nffileV3_t *nffile, dataBlockV3_t *d
     memcpy(cur, record, required);
 
     // update stat
-    // XXX FIX! block type dataBlock->numRecords++;
+    dataBlock->numRecords++;
     dataBlock->rawSize += required;
 
     return dataBlock;

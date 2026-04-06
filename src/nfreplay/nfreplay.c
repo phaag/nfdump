@@ -295,7 +295,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
             continue;
         }
 
-        if (dataBlock->type != FLOW_BLOCK_TYPE) {
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
             continue;
         }

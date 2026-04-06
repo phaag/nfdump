@@ -31,36 +31,6 @@
 #ifndef _NFFILEV2_H
 #define _NFFILEV2_H 1
 
-/*
- * output buffer max size, before writing data to the file
- * used to cache flows before writing to disk. size: tradeoff between
- * size and time to flush to disk. Do not delay collector with long I/O
- */
-#define ONEMB 1048576
-#define WRITE_BUFFSIZE (2 * ONEMB)
-/*
- * use this buffer size to allocate memory for the output buffer
- * data other than flow records, such as histograms, may be larger than
-BUFFSIZE and have potentially more time to flush to disk
- */
-#define BUFFSIZE (5 * ONEMB)
-
-/* if the output buffer reaches this limit, it gets flushed. This means,
- * that 0.5MB input data may produce max 1MB data in output buffer, otherwise
- * a buffer overflow may occur, and data does not get processed correctly.
- * However, every Process_vx function checks buffer boundaries.
- */
-
-#define MAXRECORDSIZE 1024
-
-/*
- * In file layout format 1: After the file header an
- * implicit stat record follows, which contains the statistics
- * information about all netflow records in this file.
- */
-
-#define DATA_BLOCK_MESSAGE 0x0100
-
 typedef struct dataBlockV2_s dataBlockV2_t;
 
 int VerifyFileV2(const char *filename, int verbose);

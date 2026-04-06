@@ -141,7 +141,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     printf("Size       : %zu\n", fileSize);
     printf("Version    : %u\n", fileHeader->layoutVersion);
     printf("Block size : %u\n", fileHeader->blockSize);
-    printf("Creator    : %2u: %s\n", fileHeader->creator, nf_creator[fileHeader->creator]);
+    printf("Creator    : %s(%u)\n", nf_creator[fileHeader->creator], fileHeader->creator);
 
     time_t created = (time_t)fileHeader->created;
     struct tm tbuf;
@@ -293,9 +293,14 @@ int VerifyFileV3(const char *filename, int verbose) {
         }
 
         switch (dataBlock->type) {
-            case BLOCK_TYPE_FLOW:
+            case BLOCK_TYPE_FLOW: {
                 flowBlocks++;
-                break;
+                flowBlockV3_t *flowBlock = (flowBlockV3_t *)dataBlock;
+                if (flowBlock->numRecords == 0) {
+                    printf("Block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize, dataBlock->discSize);
+                    blockCheckFailed = 1;
+                }
+            } break;
             case BLOCK_TYPE_ARRAY:
                 arrayBlocks++;
                 break;

@@ -1506,7 +1506,6 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     if (fs->dataBlock == NULL) {
                         return;
                     }
-                    InitFlowBlock(fs->dataBlock);
 
                     buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
                     if (buffAvail == 0 || redone) {
@@ -1681,7 +1680,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             LogError("Buffer size: %u > %u", fs->dataBlock->rawSize, BLOCK_SIZE_V3);
 
             // reset buffer
-            InitFlowBlock(fs->dataBlock);
+            *fs->dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
             return;
         }
     }

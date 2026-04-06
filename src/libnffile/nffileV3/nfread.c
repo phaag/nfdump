@@ -249,6 +249,8 @@ nffileV3_t *mmapFileV3(const char *filename) {
     }
 
     if (fileHeader->layoutVersion == LAYOUT_VERSION_2) {
+        munmap((void *)map, fileSize);
+        close(fd);
         return ConvertFileV2(filename);
     }
     if (fileHeader->layoutVersion != LAYOUT_VERSION_3) {
@@ -391,10 +393,18 @@ nffileV3_t *OpenFileV3(const char *filename) {
     // open and mmap() the file
     nffileV3_t *nffile = mmapFileV3(filename);
     if (!nffile) {
+        dbg_printf("OpenFile mmap failed\n");
         return NULL;
     }
 
+    // V2 conversion already started its own reader thread
+    if (nffile->worker[0]) {
+        dbg_printf("Skip nfreader as worker active\n");
+        return nffile;
+    }
+
     // kick off nfreader
+    dbg_printf("Kick off nfreader\n");
     // there is only 1 reader thread -> slot 0
     pthread_t tid;
     int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);

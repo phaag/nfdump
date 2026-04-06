@@ -132,12 +132,8 @@ typedef struct fileHeaderV2_s {
     time_t created;       // file create time
 
     uint8_t compression;
-// note: v2 compression type do not match v3 types
-#define NOT_COMPRESSED_V2 0
-#define LZO_COMPRESSED_V2 1
-#define BZ2_COMPRESSED_V2 2
-#define LZ4_COMPRESSED_V2 3
-#define ZSTD_COMPRESSED_V2 4
+    // note: v2 compression type do not match v3 types
+    // constants defined in nffileV2_def.h
 
     uint8_t encryption;
 #define NOT_ENCRYPTED 0
@@ -450,7 +446,7 @@ int VerifyFileV2(const char *filename, int verbose) {
             compression = NOT_COMPRESSED_V2;
         }
 
-        void *read_ptr = GetCursor(readBlock);
+        void *read_ptr = GetCursorV2(readBlock);
         ret = read(fd, read_ptr, readBlock->size);
         if (ret < 0) {
             LogError("Error reading block %i: %s", numBlocks, strerror(errno));
@@ -520,7 +516,7 @@ int VerifyFileV2(const char *filename, int verbose) {
             printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, readBlock->type, readBlock->size,
                    readBlock->flags, readBlock->NumRecords);
 
-        read_ptr = GetCursor(readBlock);
+        read_ptr = GetCursorV2(readBlock);
 
         // record counting
         unsigned blockSize = 0;

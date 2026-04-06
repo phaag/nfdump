@@ -296,7 +296,7 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = PushBlockV3(fs->blockQueue, NULL);
+        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
         fs->bad_packets = 0;
     }
 
@@ -401,7 +401,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = PushBlockV3(fs->blockQueue, NULL);
+        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
         fs->bad_packets = 0;
     }
 

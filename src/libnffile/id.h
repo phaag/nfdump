@@ -43,9 +43,6 @@
 #define DATA_BLOCK_TYPE_3 3
 #define DATA_BLOCK_TYPE_4 4
 
-// 1.8.x data block type
-#define FLOW_BLOCK_TYPE 5
-
 // Legacy records
 #define CommonRecordV0Type 1
 #define ExtensionMapType 2

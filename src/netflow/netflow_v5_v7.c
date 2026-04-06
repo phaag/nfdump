@@ -146,7 +146,9 @@ static const uint32_t extensionSize = EXgenericFlowSize + EXipv4FlowSize + EXint
 
 // baseOffset of first extension with max 6 extension.
 // offset table size = 16 - wastes 10bytes max without optional extensions
-static const uint32_t baseOffset = sizeof(recordHeaderV4_t) + ALIGN8(6 * sizeof(uint16_t));
+#define NUMV5EXTENSIONS 6
+static const uint32_t offsetSize = ALIGN8(NUMV5EXTENSIONS * sizeof(uint16_t));
+static const uint32_t baseOffset = sizeof(recordHeaderV4_t) + offsetSize;
 
 // function prototypes
 static exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header);
@@ -251,7 +253,13 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
             }
 
             // create new exporter
-            *e = (exporter_entry_t){.key = key, .sequence = UINT32_MAX, .sysID = AssignExporterID(), .in_use = 1, .info = info};
+            *e = (exporter_entry_t){
+                .key = key,
+                .sequence = UINT32_MAX,
+                .sysID = AssignExporterID(),
+                .in_use = 1,
+                .info = info,
+            };
             tab->count++;
 
             *(e->info) = (exporter_info_record_v4_t){
@@ -285,7 +293,6 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
                 e->v5.outRecordSize = baseOffset + extensionSize + EXipReceivedV4Size;
                 dbg_printf("Process_v5: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
             }
-            e->v5.bitMap = bitMap;
 
             LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s", e->info->sysID, (engine_tag & 0xFF),
                     ((engine_tag >> 8) & 0xFF), ipstr);
@@ -382,14 +389,12 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // set output buffer memory
-        uint8_t *outBuff = GetCursor(fs->dataBlock);
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, count * exporter->v5.outRecordSize)) {
             // flush block - get an empty one
             fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
-            InitFlowBlock(fs->dataBlock);
             // map output memory buffer
-            outBuff = GetCursor(fs->dataBlock);
         }
+        uint8_t *outBuff = GetCursor(fs->dataBlock);
 
         uint32_t seq = ntohl(v5_header->flow_sequence);
         if (exporter->sequence != UINT32_MAX) {
@@ -422,31 +427,38 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         uint32_t outSize = 0;
         for (int i = 0; i < count; i++) {
             // zero entire fixed-size record at once
-            memset(outBuff, 0, exporter->v5.outRecordSize);
+            uint64_t bitMap = 0;
+            BitMapSet(bitMap, EXgenericFlowID);
+            BitMapSet(bitMap, EXipv4FlowID);
             recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)outBuff;
-            recordHeader->type = V4Record;
-            recordHeader->extBitmap = exporter->v5.bitMap;
-            recordHeader->engineType = engineType;
-            recordHeader->engineID = engineID;
-            recordHeader->exporterID = exporter->sysID;
-            recordHeader->nfVersion = 5;
+            *recordHeader = (recordHeaderV4_t){
+                .type = V4Record,
+                .extBitmap = bitMap,
+                .engineType = engineType,
+                .engineID = engineID,
+                .exporterID = exporter->sysID,
+                .nfVersion = VERSION_NETFLOW_V5,
+            };
 
-            // copy precomputed offset table
+            // clear offset table
             uint16_t *offset = (uint16_t *)(outBuff + sizeof(recordHeaderV4_t));
+            memset(offset, 0, offsetSize);
             uint32_t nextOffset = baseOffset;
 
             // fill extensions
             EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(outBuff + nextOffset);
             *offset++ = nextOffset;
             nextOffset += EXgenericFlowSize;
-            genericFlow->msecReceived = msecReceived;
-            genericFlow->inPackets = ntohl(v5_record->dPkts);
-            genericFlow->inBytes = ntohl(v5_record->dOctets);
-            genericFlow->srcPort = ntohs(v5_record->srcPort);
-            genericFlow->dstPort = ntohs(v5_record->dstPort);
-            genericFlow->proto = v5_record->prot;
-            genericFlow->srcTos = v5_record->tos;
-            genericFlow->tcpFlags = v5_record->tcp_flags;
+            *genericFlow = (EXgenericFlow_t){
+                .msecReceived = msecReceived,
+                .inPackets = ntohl(v5_record->dPkts),
+                .inBytes = ntohl(v5_record->dOctets),
+                .srcPort = ntohs(v5_record->srcPort),
+                .dstPort = ntohs(v5_record->dstPort),
+                .proto = v5_record->prot,
+                .srcTos = v5_record->tos,
+                .tcpFlags = v5_record->tcp_flags,
+            };
 
             EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)(outBuff + nextOffset);
             *offset++ = nextOffset;
@@ -478,6 +490,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
                 *offset++ = nextOffset;
                 nextOffset += EXasRoutingV4Size;
                 nexthop->nextHop = ntohl(v5_record->nexthop);
+                nexthop->bgpNextHop = 0;
             }
 
             // post process data
@@ -512,6 +525,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // received-IP extension
             *offset++ = nextOffset;
             if (fs->sa_family == PF_INET6) {
+                BitMapSet(recordHeader->extBitmap, EXipReceivedV6ID);
                 EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)(outBuff + nextOffset);
                 nextOffset += EXipReceivedV6Size;
                 uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
@@ -519,6 +533,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
                 ipReceivedV6->ip[1] = ntohll(ipv6[1]);
                 dbg_printf("Add IPv6 route IP extension\n");
             } else {
+                BitMapSet(recordHeader->extBitmap, EXipReceivedV4ID);
                 EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)(outBuff + nextOffset);
                 nextOffset += EXipReceivedV4Size;
                 uint32_t ip;

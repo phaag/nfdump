@@ -329,19 +329,35 @@ exporter_entry_t *GetExporterInfo(uint32_t sysID) {
 
 }  // End of GetExporter
 
-dataBlockV3_t *ExportExporterList(nffileV3_t *nffile, dataBlockV3_t *dataBlock) {
-    if (exporter_table.count == 0) return dataBlock;
+void ExportExporterList(nffileV3_t *nffile, dataBlockV3_t *dataBlock) {
+    if (exporter_table.count == 0) return;
 
+    dbg_printf("Flush all exporters\n");
+    expBlockV3_t *expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+    InitExpBlock(expBlock);
+
+    // push exporter info to exporter block
+    uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
+    uint8_t *p = GetCursor(expBlock);
     for (unsigned i = 0; i < exporter_table.capacity; i++) {
         // linear check for sysID exporter
         exporter_entry_t *e = &exporter_table.entries[i];
         if (!e->in_use) continue;
         exporter_info_record_v4_t *exporter_info = e->info;
-        dbg_printf("Dump exporter: %u\n", exporter_info->sysID);
-        dataBlock = AppendToBuffer(nffile, dataBlock, (void *)exporter_info, exporter_info->size);
-    }
 
-    return dataBlock;
+        if (available < exporter_info->size) {
+            queue_push(nffile->processQueue, expBlock);
+            expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+            InitExpBlock(expBlock);
+            p = GetCursor(expBlock);
+            available = BLOCK_SIZE_V3 - expBlock->rawSize;
+        }
+        dbg_printf("Dump exporter: %u\n", exporter_info->sysID);
+        memcpy(p, (void *)exporter_info, exporter_info->size);
+        expBlock->rawSize += exporter_info->size;
+        expBlock->numExporter++;
+        available -= exporter_info->size;
+    }
 
 }  // End of ExportExporterList
 

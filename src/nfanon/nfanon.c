@@ -373,7 +373,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             blk_count++;
         }
 
-        if (dataBlock->type != FLOW_BLOCK_TYPE) {
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
             dataBlock = WriteBlockV3(nffile_w, dataBlock);
             nextBlock = ReadBlockV3(nffile_r);
