@@ -302,38 +302,10 @@ static int PreProcessBlock(flowBlockV3_t *dataBlock) {
 
         // work on our record
         switch (record_ptr->type) {
-            case ExporterInfoRecordType:
-                // XXX FIX! handle old exporter
-                break;
             case ExporterInfoRecordV4Type:
                 if (AddExporterInfo((exporter_info_record_v4_t *)record_ptr) == 0) {
                     LogError("Failed to add Exporter Record\n");
                 }
-                break;
-            case ExporterStatRecordType:
-                // XXX FIX! remove AddExporterStat((exporter_stats_record_t *)record_ptr);
-                break;
-            case SamplerLegacyRecordType: {
-                /*
-                sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
-                if (sampler_record != NULL) {
-                    if (AddSamplerRecord(sampler_record) == 0) {
-                        LogError("Failed to add converted Sampler Record\n");
-                    }
-                    free(sampler_record);
-                }
-                */
-            } break;
-            case SamplerRecordType:
-                /*
-                if (AddSamplerRecord((sampler_record_V3_t *)record_ptr) == 0) {
-                    LogError("Failed to add Sampler Record\n");
-                }
-                break;
-                */
-
-                // default:
-                // silently skip all other records
                 break;
         }
 
@@ -406,11 +378,13 @@ static void *prepareThread(void *arg) {
                 break;
             default:
                 LogError("Unknown block type %u. Skip block", dataHandle->dataBlock->type);
-            SKIP:
+                /*
+                XXX FIX! verify if all blocks handled
                 skippedBlocks++;
                 FreeDataBlock(dataHandle->dataBlock);
                 dataHandle->dataBlock = NULL;
                 continue;
+                */
         }
 
         dataHandle->recordCnt = recordCnt;
@@ -697,31 +671,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
                 } break;
                 /*
-                case ExtensionMapType:
-                    printf("ExtensionMap no longer handled here!\n");
-                    break;
-                case ExporterInfoRecordType: {
-                    if (nffile_w) {
-                        dbg_printf("Dump ExporterInfo Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
-                    }
-                } break;
-                case ExporterStatRecordType:
-                    break;
-                case SamplerLegacyRecordType:
-                    if (nffile_w) {
-                        sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
-                        dbg_printf("Dump converted Sampler Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)sampler_record, sampler_record->size);
-                        free(sampler_record);
-                    }
-                    break;
-                case SamplerRecordType:
-                    if (nffile_w) {
-                        dbg_printf("Dump Sampler Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
-                    }
-                    break;
                 case NbarRecordType: {
                     // XXX FIX!! arrayRecordHeader_t *nbarRecord = (arrayRecordHeader_t *)record_ptr;
 #ifdef DEVEL

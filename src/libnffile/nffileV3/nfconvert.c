@@ -90,7 +90,6 @@ typedef struct convertCtx_s {
     uint32_t numBlocks;           // number of data blocks (not appendix)
     uint8_t compression;          // V2 compression type
     uint32_t blockSize;           // max uncompressed block size
-    expBlockV3_t *exporterBlock;  // converted exporter block
     nffileV3_t *nffile;           // output V3 handle (for processQueue)
 } convertCtx_t;
 
@@ -209,11 +208,11 @@ static int AddV2ExporterStat(exporter_stats_record_t *stat_record) {
         exporter_entry_t *e = exporter_array.entries[sysID];
         if (e) {
             e->sequence_failure += stat_record->stat[i].sequence_failure;
+            e->info->sequence_failure += stat_record->stat[i].sequence_failure;
             e->packets += stat_record->stat[i].packets;
             e->info->packets += stat_record->stat[i].packets;
             e->flows += stat_record->stat[i].flows;
             e->info->flows += stat_record->stat[i].flows;
-            e->flows += stat_record->stat[i].flows;
             dbg_printf("Update exporter stat for SysID: %i: Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n", sysID,
                        e->sequence_failure, e->packets, e->flows);
         } else {
@@ -289,16 +288,17 @@ static int AddV2ExporterInfo(exporter_info_record_t *exporter_record) {
             };
             memcpy(e->info->ip, exporter_record->ip, sizeof(exporter_record->ip));
 
-            if (exporter_array.capacity < exporter_record->sysid) {
+            if (exporter_array.capacity <= exporter_record->sysid) {
                 uint32_t newCapacity = exporter_array.capacity + EXPORTER_BLOCK_SIZE;
                 // exporter_record->sysid with uint16_t - max 65535
-                while (newCapacity < exporter_record->sysid) exporter_array.capacity += EXPORTER_BLOCK_SIZE;
+                while (newCapacity <= exporter_record->sysid) newCapacity += EXPORTER_BLOCK_SIZE;
 
                 exporter_entry_t **tmp = realloc(exporter_array.entries, newCapacity * sizeof(exporter_entry_t *));
                 if (!tmp) {
                     LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return 0;
                 }
+                memset(tmp + exporter_array.capacity, 0, (newCapacity - exporter_array.capacity) * sizeof(exporter_entry_t *));
                 exporter_array.entries = tmp;
                 exporter_array.capacity = newCapacity;
             }
@@ -350,7 +350,7 @@ static int AddV2SamplerRecord(sampler_record_V3_t *sampler_record) {
         e->info->samplers[slot] = (sampler_record_v4_t){
             .inUse = 1,
             .algorithm = sampler_record->algorithm,
-            .packetInterval = sampler_record->spaceInterval,
+            .packetInterval = sampler_record->packetInterval,
             .spaceInterval = sampler_record->spaceInterval,
             .selectorID = sampler_record->id,
         };
@@ -383,6 +383,7 @@ static void AppendExporterBlock(nffileV3_t *nffile) {
         }
         dbg_printf("Dump exporter: %u\n", exporter_info->sysID);
         memcpy(p, (void *)exporter_info, exporter_info->size);
+        p += exporter_info->size;
         expBlock->rawSize += exporter_info->size;
         expBlock->numExporter++;
         available -= exporter_info->size;
