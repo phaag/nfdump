@@ -296,13 +296,18 @@ typedef struct nffileV3_s {
 
 #define InitCursor(block, type) ((void *)((uint8_t *)block + sizeof(type)))
 
+#define ResetCursor(ptr)                                                       \
+    _Generic((ptr),                                                            \
+        dataBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(dataBlockV3_t)),   \
+        flowBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(flowBlockV3_t)),   \
+        arrayBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(arrayBlockV3_t)), \
+        msgBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(msgBlockV3_t)),     \
+        expBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(expBlockV3_t)),     \
+        const expBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(expBlockV3_t)))
+
 #define GetCursor(block) ((void *)block + ((dataBlockV3_t *)block)->rawSize)
 
 #define IsAvailable(block, blockSize, requested) (((block)->rawSize + (requested)) < (blockSize))
-
-// #define FlowBlockAvailable(block, required) ((block)->size + (required) < BLOCK_SIZE - sizeof(flowBlockV3_t))
-
-// #define ArrayBlockAvailable(block, required) ((block)->size + (required) < BLOCK_SIZE - sizeof(arrayBlockV3_t))
 
 // shared functions — nffileV3.c
 int Init_nffile(uint32_t workers, queue_t *fileList);
@@ -343,6 +348,8 @@ nffileV3_t *mmapFileV3(const char *filename);
 nffileV3_t *OpenFileV3(const char *filename);
 
 void *ReadBlockV3(nffileV3_t *nffile);
+
+const expBlockV3_t *getNextExporter(nffileV3_t *nffile, uint32_t *nextOffset);
 
 // nfwrite.c
 nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compression, uint16_t compressionLevel, uint32_t encryption);

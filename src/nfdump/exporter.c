@@ -110,22 +110,6 @@ int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
 
     ip128_t ipAddr;
     memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
-    /*
-    XXX FIX! check if still needed
-    if (exporter_record->fill != 0) {
-        // old sa_familiy information and IP address in host byte order
-        uint64_t *u = (uint64_t *)ipAddr.bytes;
-        u[0] = htonll(u[0]);
-        u[1] = htonll(u[1]);
-        if (exporter_record->fill == AF_INET) {
-            ipAddr.bytes[10] = 0xFF;
-            ipAddr.bytes[11] = 0xFF;
-        }
-        // convert to new representation
-        memcpy(exporter_record->ip, ipAddr.bytes, sizeof(ip128_t));
-        exporter_record->fill = 0;
-    }
-    */
 
     // check for exhausted hash
     if ((exporter_table.count * 4) >= (exporter_table.capacity * 3)) {
@@ -215,110 +199,6 @@ int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
 
 }  // End of AddExporterInfo
 
-sampler_record_V3_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record) {
-    if (legacy_record->size != sizeof(samplerV0_record_t)) {
-        LogError("Corrupt legacy sampler record detected in %s line %d", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    sampler_record_V3_t *sampler_record = calloc(1, sizeof(sampler_record_V3_t));
-    if (!sampler_record) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-
-    sampler_record->type = SamplerRecordType;
-    sampler_record->size = sizeof(sampler_record_V3_t);
-    sampler_record->exporter_sysid = legacy_record->exporter_sysid;
-    sampler_record->id = legacy_record->id;
-    sampler_record->algorithm = legacy_record->algorithm;
-    sampler_record->packetInterval = 1;
-    sampler_record->spaceInterval = legacy_record->interval - 1;
-
-    return sampler_record;
-}  // End of ConvertLegacyRecord
-
-int AddSamplerRecord(sampler_record_V3_t *sampler_record) {
-    /*
-    XXX FIX! - handle old sampler record
-    uint32_t sysID = sampler_record->exporter_sysid;
-
-    sampler_chain_t **sampler = NULL;
-    for (unsigned i = 0; i < exporter_table.capacity; i++) {
-        // linear check for sysID exporter
-        exporter_entry_t *e = &exporter_table.entries[i];
-        if (!e->in_use) continue;
-        if (e->info->sysID == sysID) {
-            sampler = &e->sampler;
-        }
-    }
-
-    // no corresponding exporter found
-    if (sampler == NULL) {
-        printf("No exporter with sysID: %u found\n", sysID);
-        return 0;
-    }
-
-    while (*sampler) {
-        if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_v4_t)) == 0) {
-            // Found identical sampler already registered
-            dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n",
-                       sampler_record->exporter_sysid, sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
-            return 2;
-        }
-        sampler = &((*sampler)->next);
-    }
-
-    *sampler = (sampler_chain_t *)malloc(sizeof(sampler_chain_t));
-    if (!*sampler) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
-    (*sampler)->next = NULL;
-
-    memcpy((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_v4_t));
-
-    dbg_printf("Insert sampler record for exporter: %u\n", sysID);
-    */
-
-    return 1;
-}  // End of AddSamplerRecord
-
-int AddExporterStat(exporter_stats_record_t *stat_record) {
-    if (stat_record->size < sizeof(exporter_stats_record_t)) {
-        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
-        return 0;
-    }
-
-    size_t required = sizeof(exporter_stats_record_t) + (stat_record->stat_count - 1) * sizeof(struct exporter_stat_s);
-    if ((stat_record->stat_count == 0) || (stat_record->size != required)) {
-        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
-        return 0;
-    }
-
-    for (unsigned i = 0; i < stat_record->stat_count; i++) {
-        uint32_t sysID = stat_record->stat[i].sysid;
-        if (sysID >= MAX_EXPORTERS || sysID >= exporter_array.capacity) {
-            LogError("exporter ID %u out of range in %s line %d", sysID, __FILE__, __LINE__);
-            return 0;
-        }
-
-        exporter_entry_t *e = exporter_array.entries[sysID];
-        if (e) {
-            e->sequence_failure += stat_record->stat[i].sequence_failure;
-            e->packets += stat_record->stat[i].packets;
-            e->flows += stat_record->stat[i].flows;
-            dbg_printf("Update exporter stat for SysID: %i: Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n", sysID,
-                       e->sequence_failure, e->packets, e->flows);
-        } else {
-            LogError("Exporter SysID: %u not found! - Skip stat record record", sysID);
-        }
-    }
-
-    return 1;
-
-}  // End of AddExporterStat
-
 exporter_entry_t *GetExporterInfo(uint32_t sysID) {
     if (sysID >= exporter_array.capacity) {
         LogError("exporter ID %u out of range in %s line %d", sysID, __FILE__, __LINE__);
@@ -329,7 +209,7 @@ exporter_entry_t *GetExporterInfo(uint32_t sysID) {
 
 }  // End of GetExporter
 
-void ExportExporterList(nffileV3_t *nffile, dataBlockV3_t *dataBlock) {
+void ExportExporterList(nffileV3_t *nffile) {
     if (exporter_table.count == 0) return;
 
     dbg_printf("Flush all exporters\n");
@@ -338,7 +218,7 @@ void ExportExporterList(nffileV3_t *nffile, dataBlockV3_t *dataBlock) {
 
     // push exporter info to exporter block
     uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
-    uint8_t *p = GetCursor(expBlock);
+    uint8_t *p = ResetCursor(expBlock);
     for (unsigned i = 0; i < exporter_table.capacity; i++) {
         // linear check for sysID exporter
         exporter_entry_t *e = &exporter_table.entries[i];
@@ -361,77 +241,30 @@ void ExportExporterList(nffileV3_t *nffile, dataBlockV3_t *dataBlock) {
 
 }  // End of ExportExporterList
 
-void PrintExporters(void) {
+void PrintExporters(const char *fileName) {
     if (!InitExporterList()) {
         exit(EXIT_FAILURE);
     }
 
     printf("Exporters:\n");
 
-    nffileV3_t *nffile = GetNextFile();
+    nffileV3_t *nffile = mmapFileV3(fileName);
     if (!nffile) {
         return;
     }
 
-    // XXX FIX! exporter in own block type - use directory
-    dataBlockV3_t *dataBlock = NULL;
-    int done = 0;
-    while (!done) {
-        // get next data block from file
-        dataBlock = ReadBlockV3(nffile);
-        if (dataBlock == NULL) {
-            done = 1;
-            continue;
-        }
-
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            printf("Skip unknown block type: %u\n", dataBlock->type);
-            FreeDataBlock(dataBlock);
-            continue;
-        }
-
-        /*
-        record_header_t *record = GetCursor(dataBlock);
-        for (unsigned i = 0; i < dataBlock->NumRecords; i++) {
-            switch (record->type) {
-                case LegacyRecordType1:
-                case LegacyRecordType2:
-                    LogError("Legacy record type: %i no longer supported\n", record->type);
-                    break;
-                case ExporterInfoRecordType:
-                    LogInfo("Skip legacy exporter");
-                    // XXX FIX! legacy record
-                    break;
-                case ExporterInfoRecordV4Type:
-                    if (!AddExporterInfo((exporter_info_record_v4_t *)record)) {
-                        LogError("Failed to add exporter record\n");
-                    }
-                    break;
-                case ExporterStatRecordType:
-                    AddExporterStat((exporter_stats_record_t *)record);
-                    break;
-                case SamplerRecordType:
-                    if (!AddSamplerRecord((sampler_record_V3_t *)record)) {
-                        LogError("Failed to add sampler record\n");
-                    }
-                    break;
-                case SamplerLegacyRecordType: {
-                    sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record);
-                    if (sampler_record != NULL) {
-                        if (!AddSamplerRecord(sampler_record)) {
-                            LogError("Failed to add sampler record\n");
-                        }
-                        free(sampler_record);
-                    }
-                } break;
+    uint32_t nextOffset = 0;
+    const expBlockV3_t *dataBlock = getNextExporter(nffile, &nextOffset);
+    while (dataBlock) {
+        exporter_info_record_v4_t *record = ResetCursor(dataBlock);
+        for (int i = 0; i < (int)dataBlock->numExporter; i++) {
+            if (!AddExporterInfo(record)) {
+                LogError("Failed to add exporter record\n");
             }
-            // Advance pointer by number of bytes for netflow record
-            record = (record_header_t *)((void *)record + record->size);
+            record++;
         }
-        */
-        FreeDataBlock(dataBlock);
+        dataBlock = getNextExporter(nffile, &nextOffset);
     }
-
     CloseFileV3(nffile);
 
     if (exporter_table.count == 0) {

@@ -545,7 +545,7 @@ int main(int argc, char **argv) {
     numWorkers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:u:v:VW:w:x:X:Y:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:J:l:m:M:n:p:P:R:s:S:t:u:v:VW:w:x:X:Y:z::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -745,16 +745,8 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'j':
-                LogError("Option -j is deprecated. Use -z=bz2");
-                exit(EXIT_FAILURE);
-                break;
-            case 'y':
-                LogError("Option -y is deprecated. Use -z=lz4");
-                exit(EXIT_FAILURE);
-                break;
             case 'z':
-                if (compressType) {
+                if (compressType != NOT_COMPRESSED) {
                     LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
                 }

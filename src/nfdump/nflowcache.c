@@ -1796,9 +1796,10 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV4_t *recordHeaderV4
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffileV3_t *nffile, int GuessFlowDirection, int ascending) {
     dbg_printf("Enter %s\n", __func__);
+    uint32_t blockSize = nffile->fileHeader->blockSize;
 
-    // XXX FIX! dataBlock = ExportExporterList(nffile, dataBlock);
-    flowBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    ExportExporterList(nffile);
+    flowBlockV3_t *dataBlock = NewFlowBlock(blockSize);
 
     for (uint64_t i = 0; i < maxindex; i++) {
         uint64_t j = ascending ? i : maxindex - 1 - i;
@@ -1812,7 +1813,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
             exCntSize = EXcntFlowSize;
         }
 
-        if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, recordHeaderV4->size + exCntSize)) {
+        if (!IsAvailable(dataBlock, blockSize, recordHeaderV4->size + exCntSize)) {
             // flush block - get an empty one
             dataBlock = WriteBlockV3(nffile, dataBlock);
         }

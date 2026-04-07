@@ -147,9 +147,10 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
     // periodic file rotation
     dbg_printf("Enter backend RotateCycle. pdf: %d, done: %d\n", pfd, *done);
 
-    MESSAGEHEADER *msghdr = GetCursor(dataBlock);
-    if (msghdr->type != MESSAGE_CYCLE) {
-        LogError("Received unknown message type: %u", msghdr->type);
+    uint32_t available = dataBlock->rawSize - sizeof(msgBlockV3_t);
+    cycle_message_t *msghdr = ResetCursor(dataBlock);
+    if (msghdr->type != MESSAGE_CYCLE || available < sizeof(cycle_message_t)) {
+        LogError("Received bad or unknown message type: %u, length: %u", msghdr->type, available);
         return 0;
     }
 
@@ -161,14 +162,15 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
     queue_close(nffile->processQueue);
 
     cycle_message_t cycle_message = {0};
-    void *cur = GetCursor(dataBlock);
-    memcpy(&cycle_message, cur, sizeof(cycle_message_t));
-    cur += sizeof(cycle_message_t);
+    memcpy(&cycle_message, msghdr, sizeof(cycle_message_t));
     *done = cycle_message.done;
 
     struct tm local_tm = {0};
     struct tm *now = localtime_r(&cycle_message.when, &local_tm);
-
+    if (now == NULL) {
+        LogError("Received bad message: %s", strerror(errno));
+        return 0;
+    }
     char isoExtension[32];
     strftime(isoExtension, sizeof(isoExtension), nffile_ctx->time_extension, now);
 
@@ -186,7 +188,7 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
     // update stat record
     // if no flows were collected, fs->msecLast is still 0
     // set msecFirst and msecLast and to start of this time slot
-    memcpy(nffile->stat_record, cur, sizeof(stat_record_t));
+    memcpy(nffile->stat_record, &cycle_message.stat_record, sizeof(stat_record_t));
     nffile->ident = strdup(nffile_ctx->Ident);
     if (nffile->stat_record->msecLastSeen == 0) {
         nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)cycle_message.when;
@@ -277,7 +279,8 @@ static noreturn void *nffile_backend_thread(void *arg) {
         dbg_printf("%s() receive datablock type %u\n", __func__, dataBlock->type);
         switch (dataBlock->type) {
             case BLOCK_TYPE_FLOW:
-            case BLOCK_TYPE_ARRAY: {
+            case BLOCK_TYPE_ARRAY:
+            case BLOCK_TYPE_EXP: {
                 dbg_printf("%s() process next datablock\n", __func__);
                 queue_push(nffile_ctx->nffile->processQueue, dataBlock);
                 cnt++;

@@ -65,6 +65,7 @@
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "nfdump_1_6_x.h"
+#include "nffileV3/nfconvert.h"
 #include "nffileV3/nffileV3.h"
 #include "nflowcache.h"
 #include "nfnet.h"
@@ -310,9 +311,10 @@ static int PreProcessBlock(flowBlockV3_t *dataBlock) {
                 }
                 break;
             case ExporterStatRecordType:
-                AddExporterStat((exporter_stats_record_t *)record_ptr);
+                // XXX FIX! remove AddExporterStat((exporter_stats_record_t *)record_ptr);
                 break;
             case SamplerLegacyRecordType: {
+                /*
                 sampler_record_V3_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
                 if (sampler_record != NULL) {
                     if (AddSamplerRecord(sampler_record) == 0) {
@@ -320,15 +322,19 @@ static int PreProcessBlock(flowBlockV3_t *dataBlock) {
                     }
                     free(sampler_record);
                 }
+                */
             } break;
             case SamplerRecordType:
+                /*
                 if (AddSamplerRecord((sampler_record_V3_t *)record_ptr) == 0) {
                     LogError("Failed to add Sampler Record\n");
                 }
                 break;
+                */
 
                 // default:
                 // silently skip all other records
+                break;
         }
 
         // Advance pointer by number of bytes for netflow record
@@ -475,6 +481,13 @@ static void *filterThread(void *arg) {
         if (dataHandle == QUEUE_CLOSED)  // no more blocks
             break;
 
+        if (dataHandle->dataBlock->type != BLOCK_TYPE_FLOW) {
+            // skip none flow block and push them to the next stage
+            dbg_printf("Filter thread skip block type: %u\n", dataHandle->dataBlock->type);
+            queue_push(processQueue, dataHandle);
+            continue;
+        }
+
         // sequential record counter from input
         // set with new block
         uint64_t recordCounter = dataHandle->recordCnt;
@@ -483,19 +496,12 @@ static void *filterThread(void *arg) {
 
         flowBlockV3_t *dataBlock = dataHandle->dataBlock;
 
-        if (dataHandle->dataBlock->type != BLOCK_TYPE_FLOW) {
-            // skip none flow block and push them to the next stage
-            dbg_printf("Filter thread skip block type: %u\n", dataHandle->dataBlock->type);
-            queue_push(processQueue, dataHandle);
-            continue;
-        }
-
 #ifdef DEVEL
         numBlocks++;
         printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->numRecords);
 #endif
 
-        record_header_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
+        recordHeader_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
         uint32_t matched = 0;
         uint32_t dataRecords = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
@@ -535,7 +541,7 @@ static void *filterThread(void *arg) {
             }
 
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+            record_ptr = (recordHeader_t *)((void *)record_ptr + record_ptr->size);
         }
 
         if (matched || dataBlock->numRecords > dataRecords) {
@@ -629,7 +635,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         dbg(numBlocks++);
         flowBlockV3_t *dataBlock = dataHandle->dataBlock;
-        record_header_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
+        recordHeader_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
 
         uint64_t recordCounter = dataHandle->recordCnt;
         if (outputParams->ident) free(outputParams->ident);
@@ -641,7 +647,11 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         dbg_printf("processData() Next block: %d, type: %u, size: %u\n", numBlocks, dataBlock->type, dataBlock->rawSize);
 
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
-            dbg_printf("Skip non flow block type: %u\n", dataBlock->type);
+            if (wfile) {
+                dbg_printf("Flush non flow block type: %u\n", dataBlock->type);
+                WriteBlockV3(nffile_w, dataBlock);
+            }
+
             continue;
         }
         for (int i = 0; i < (int)dataBlock->numRecords && !abortProcessing; i++) {
@@ -741,7 +751,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             }
         NEXT:
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+            record_ptr = (recordHeader_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 
@@ -891,10 +901,7 @@ int main(int argc, char **argv) {
                 break;
             case 'E': {
                 CheckArgLen(optarg, MAXPATHLEN);
-                flist.single_file = strdup(optarg);
-                queue_t *fileList = SetupInputFileSequence(&flist);
-                if (!fileList || !Init_nffile(1, fileList)) exit(EXIT_FAILURE);
-                PrintExporters();
+                if (CheckPath(optarg, S_IFREG)) PrintExporters(optarg);
                 exit(EXIT_SUCCESS);
             } break;
             case 'g':

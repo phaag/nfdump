@@ -418,3 +418,31 @@ nffileV3_t *OpenFileV3(const char *filename) {
     return nffile;
 
 }  // End of OpenFileV3
+
+const expBlockV3_t *getNextExporter(nffileV3_t *nffile, uint32_t *nextOffset) {
+    blockDirectoryV3_t *blockDirectory = nffile->blockDirectory;
+    if (!blockDirectory) return NULL;
+
+    for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
+        const directoryEntryV3_t *entry = &blockDirectory->entries[i];
+        if (entry->offset < *nextOffset || entry->type != BLOCK_TYPE_EXP) continue;
+
+        // exporter block found
+        *nextOffset = entry->offset + 1;  // next search need to be at least +1
+
+        // bounds check: entry must fit inside the data region
+        if (entry->offset + entry->size > nffile->mapSize) {
+            LogError("Exporter block out of range");
+            return NULL;
+        }
+
+        const expBlockV3_t *expBlock = (const expBlockV3_t *)nfread(nffile, entry);
+        if (!expBlock) {
+            LogError("nfread: failed to read block %u at offset %" PRIu64, i, entry->offset);
+        }
+
+        return expBlock;
+    }
+
+    return NULL;
+}  // End of getNextExporter

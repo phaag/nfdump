@@ -99,7 +99,7 @@ static int FlushBuffer(int confirm);
 
 static void Close_nfd_output(send_peer_t *peer);
 
-static int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer);
+static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer);
 
 /* Functions */
 
@@ -154,7 +154,7 @@ void Close_nfd_output(send_peer_t *peer) {
 
 }  // End of Close_nfd_output
 
-int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
+int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer) {
 #ifdef DEVEL
     size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
     printf("Buffer size: %zu, Record count: %u\n", len, recordCnt);
@@ -302,10 +302,10 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
         // cnt is the number of blocks, which matched the filter
         // and added to the output buffer
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        recordHeader_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(record_header_t))) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(EXIT_FAILURE);
             }
@@ -425,7 +425,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         NEXT:
             FreeRecordHandle(recordHandle);
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((ptrdiff_t)record_ptr + record_ptr->size);
+            record_ptr = (recordHeader_t *)((ptrdiff_t)record_ptr + record_ptr->size);
         }
     }  // while
 

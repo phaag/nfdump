@@ -268,6 +268,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     uint32_t totalBlocks = 0;
     uint32_t flowBlocks = 0, arrayBlocks = 0, statsBlocks = 0;
     uint32_t identBlocks = 0, metaBlocks = 0, unknownBlocks = 0;
+    uint32_t exporterBlocks = 0;
 
     off_t scanEnd = fileHeader->offDirectory ? (off_t)fileHeader->offDirectory : fileSize;
     off_t nextOffset = sizeof(fileHeaderV3_t);
@@ -312,6 +313,8 @@ int VerifyFileV3(const char *filename, int verbose) {
                 break;
             case BLOCK_TYPE_META:
                 metaBlocks++;
+            case BLOCK_TYPE_EXP:
+                exporterBlocks++;
                 break;
             default:
                 printf("Block %u: unknown type %u at offset %lld\n", totalBlocks, dataBlock->type, nextOffset);
@@ -368,17 +371,18 @@ int VerifyFileV3(const char *filename, int verbose) {
     // --- Summary ---
     printf("\nSummary:\n");
     if (blockCheckFailed) {
-        printf("  Total blocks : block check failed\n");
+        printf("  Total blocks    : block check failed\n");
     } else {
-        printf("  Total blocks : %u\n", totalBlocks);
-        if (flowBlocks) printf("  Flow blocks  : %u\n", flowBlocks);
-        if (arrayBlocks) printf("  Array blocks : %u\n", arrayBlocks);
-        if (statsBlocks) printf("  Stats blocks : %u\n", statsBlocks);
-        if (identBlocks) printf("  Ident blocks : %u\n", identBlocks);
-        if (metaBlocks) printf("  Meta blocks  : %u\n", metaBlocks);
+        printf("  Total blocks    : %u\n", totalBlocks);
+        if (flowBlocks) printf("  Flow blocks     : %u\n", flowBlocks);
+        if (arrayBlocks) printf("  Array blocks    : %u\n", arrayBlocks);
+        if (statsBlocks) printf("  Stats blocks    : %u\n", statsBlocks);
+        if (identBlocks) printf("  Ident blocks    : %u\n", identBlocks);
+        if (metaBlocks) printf("  Meta blocks     : %u\n", metaBlocks);
+        if (exporterBlocks) printf("  Exporter blocks : %u\n", exporterBlocks);
         if (unknownBlocks) printf("  Unknown      : %u\n", unknownBlocks);
     }
-    printf("  Directory    : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");
+    printf("  Directory       : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");
 
     free(blockList.entries);
     msync(map, fileSize, MS_SYNC);

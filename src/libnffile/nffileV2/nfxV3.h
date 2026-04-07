@@ -46,16 +46,6 @@
 #endif
 
 /*
- * Generic data record
- * Contains any type of data, specified by type
- */
-typedef struct recordHeader_s {
-    // record header
-    uint16_t type;  // type of data
-    uint16_t size;  // size of record including this header
-} recordHeader_t;
-
-/*
  * Extension element header
  */
 typedef struct elementHeader_s {

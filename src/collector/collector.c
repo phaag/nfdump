@@ -363,9 +363,6 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         dbg_printf("Periodic cycle for ident: %s\n", fs->Ident);
 
-        // Flush Exporter to file
-        FlushExporter(fs);
-
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
                 fs->Ident, fs->stat_record.numflows, fs->stat_record.numpackets, fs->stat_record.numbytes, fs->stat_record.sequence_failure,
@@ -380,6 +377,9 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
             fs->dataBlock = NULL;
             return 0;
         }
+
+        // Flush Exporter to file
+        FlushExporter(fs);
 
         // Signaling rote for backend
         msgBlockV3_t *msgBlock = (msgBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);

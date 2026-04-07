@@ -39,10 +39,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "exporter.h"
 #include "id.h"
 #include "logging.h"
 #include "nffileV2/nffileV2.h"
@@ -73,13 +75,23 @@ typedef struct fileHeaderV2_s {
 // but kept local to avoid type confusion with the V2 file's local typedef
 typedef stat_record_t statRecordV2_t;
 
+#define MAX_EXPORTERS 65535
+static exporter_table_t exporter_table = {0};
+static struct exporter_array_s {
+#define EXPORTER_BLOCK_SIZE 8
+    uint32_t count;
+    uint32_t capacity;
+    exporter_entry_t **entries;
+} exporter_array = {0};
+
 // Context passed to nfreaderV2 thread
 typedef struct convertCtx_s {
-    int fd;               // file descriptor (positioned after header)
-    uint32_t numBlocks;   // number of data blocks (not appendix)
-    uint8_t compression;  // V2 compression type
-    uint32_t blockSize;   // max uncompressed block size
-    nffileV3_t *nffile;   // output V3 handle (for processQueue)
+    int fd;                       // file descriptor (positioned after header)
+    uint32_t numBlocks;           // number of data blocks (not appendix)
+    uint8_t compression;          // V2 compression type
+    uint32_t blockSize;           // max uncompressed block size
+    expBlockV3_t *exporterBlock;  // converted exporter block
+    nffileV3_t *nffile;           // output V3 handle (for processQueue)
 } convertCtx_t;
 
 /*
@@ -142,6 +154,242 @@ static const uint8_t mapV3toV4[MAXV3EXTENSIONS] = {
     [EX3nokiaNatStringID] = EXnokiaNatStringID,  // 41 → 37
     [EX3ipInfoID] = EXipInfoID,                  // 42 → 38
 };
+
+static void expand_exporter_table(exporter_table_t *tab) {
+    uint32_t old_cap = tab->capacity;
+    exporter_entry_t *old_entries = tab->entries;
+
+    uint32_t new_cap = old_cap == 0 ? 8 : old_cap * 2;
+    exporter_entry_t *new_entries = calloc(new_cap, sizeof(exporter_entry_t));
+    if (!new_entries) {
+        LogError("expand_exporter_table: calloc failed");
+        return;
+    }
+
+    tab->entries = new_entries;
+    tab->capacity = new_cap;
+    tab->count = 0;
+
+    for (uint32_t i = 0; i < old_cap; i++) {
+        exporter_entry_t *e = &old_entries[i];
+        if (!e->in_use) continue;
+
+        uint32_t h = EXPORTERHASH(e->key);
+        uint32_t mask = new_cap - 1;
+        uint32_t j = h & mask;
+
+        while (new_entries[j].in_use) j = (j + 1) & mask;
+
+        new_entries[j] = *e;
+        tab->count++;
+    }
+
+    if (old_entries) free(old_entries);
+}  // End of expand_exporter_table
+
+static int AddV2ExporterStat(exporter_stats_record_t *stat_record) {
+    if (stat_record->size < sizeof(exporter_stats_record_t)) {
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
+        return 0;
+    }
+
+    size_t expectedSize = sizeof(exporter_stats_record_t) + (stat_record->stat_count - 1) * sizeof(struct exporter_stat_s);
+    if ((stat_record->stat_count == 0) || (stat_record->size != expectedSize)) {
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
+        return 0;
+    }
+
+    for (unsigned i = 0; i < stat_record->stat_count; i++) {
+        uint32_t sysID = stat_record->stat[i].sysid;
+        if (sysID >= MAX_EXPORTERS || sysID >= exporter_array.capacity) {
+            LogError("exporter ID %u out of range in %s line %d", sysID, __FILE__, __LINE__);
+            return 0;
+        }
+
+        exporter_entry_t *e = exporter_array.entries[sysID];
+        if (e) {
+            e->sequence_failure += stat_record->stat[i].sequence_failure;
+            e->packets += stat_record->stat[i].packets;
+            e->info->packets += stat_record->stat[i].packets;
+            e->flows += stat_record->stat[i].flows;
+            e->info->flows += stat_record->stat[i].flows;
+            e->flows += stat_record->stat[i].flows;
+            dbg_printf("Update exporter stat for SysID: %i: Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n", sysID,
+                       e->sequence_failure, e->packets, e->flows);
+        } else {
+            LogError("Exporter SysID: %u not found! - Skip stat record record", sysID);
+        }
+    }
+
+    return 1;
+
+}  // End of AddV2ExporterStat
+
+static int AddV2ExporterInfo(exporter_info_record_t *exporter_record) {
+    if (exporter_record->size != sizeof(exporter_info_record_t)) {
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
+        return 0;
+    }
+
+    ip128_t ipAddr;
+    memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
+
+    if (exporter_record->fill != 0) {
+        // old sa_familiy information and IP address in host byte order
+        uint64_t *u = (uint64_t *)ipAddr.bytes;
+        u[0] = htonll(u[0]);
+        u[1] = htonll(u[1]);
+        if (exporter_record->fill == AF_INET) {
+            ipAddr.bytes[10] = 0xFF;
+            ipAddr.bytes[11] = 0xFF;
+        }
+        // convert to new representation
+        memcpy(exporter_record->ip, ipAddr.bytes, sizeof(ip128_t));
+        exporter_record->fill = 0;
+    }
+
+    // check for exhausted hash
+    if ((exporter_table.count * 4) >= (exporter_table.capacity * 3)) {
+        // expand exporter index
+        expand_exporter_table(&exporter_table);
+    }
+
+    const exporter_key_t key = {.version = exporter_record->version, .id = exporter_record->id, .ip = ipAddr};
+
+    uint32_t hash = EXPORTERHASH(key);
+    uint32_t mask = exporter_table.capacity - 1;
+    uint32_t i = hash & mask;
+
+    for (;;) {
+        // check for key
+        exporter_entry_t *e = &exporter_table.entries[i];
+        // key does not exists - insert new exporter
+        if (!e->in_use) {
+            // insert new exporter
+            e->key = key;
+            e->packets = 0;
+            e->flows = 0;
+            e->sequence_failure = 0;
+            e->sequence = UINT32_MAX;
+            e->in_use = 1;
+            exporter_table.count++;
+
+            uint32_t recordSize = sizeof(exporter_info_record_v4_t);
+            e->info = malloc(recordSize);
+            if (!e->info) {
+                LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                return 0;
+            }
+            *(e->info) = (exporter_info_record_v4_t){
+                .type = ExporterInfoRecordV4Type,
+                .size = recordSize,
+                .id = exporter_record->id,
+                .sysID = exporter_record->sysid,
+                .version = exporter_record->version,
+            };
+            memcpy(e->info->ip, exporter_record->ip, sizeof(exporter_record->ip));
+
+            if (exporter_array.capacity < exporter_record->sysid) {
+                uint32_t newCapacity = exporter_array.capacity + EXPORTER_BLOCK_SIZE;
+                // exporter_record->sysid with uint16_t - max 65535
+                while (newCapacity < exporter_record->sysid) exporter_array.capacity += EXPORTER_BLOCK_SIZE;
+
+                exporter_entry_t **tmp = realloc(exporter_array.entries, newCapacity * sizeof(exporter_entry_t *));
+                if (!tmp) {
+                    LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    return 0;
+                }
+                exporter_array.entries = tmp;
+                exporter_array.capacity = newCapacity;
+            }
+            exporter_array.entries[exporter_record->sysid] = e;
+
+            return 1;
+        }
+        // slot already occupied - same exporter
+        if (EXPORTER_KEY_EQUAL(e->key, key)) {
+            // same exporter - skip
+            dbg_printf("Insert same exporter with sysID %u skipped\n", exporter_record->sysid);
+            return 1;
+        }
+
+        dbg_assert(exporter_table.count < exporter_table.capacity);
+        i = (i + 1) & mask;
+    }
+
+    // unreached
+    return 1;
+
+}  // End of AddV2ExporterInfo
+
+static int AddV2SamplerRecord(sampler_record_V3_t *sampler_record) {
+    uint16_t sysID = sampler_record->exporter_sysid;
+
+    if (sysID >= exporter_array.capacity) {
+        LogError("exporter ID %u out of range in %s line %d", sysID, __FILE__, __LINE__);
+        return 0;
+    }
+
+    exporter_entry_t *e = exporter_array.entries[sysID];
+    if (e) {
+        if ((e->info->sampler_count + 1) > e->info->sampler_capacity) {
+            // expand info record
+            uint32_t numSampler = e->info->sampler_capacity == 0 ? 8 : 2 * e->info->sampler_capacity;
+            size_t recordSize = sizeof(exporter_info_record_v4_t) + (numSampler * sizeof(sampler_record_v4_t));
+
+            exporter_info_record_v4_t *newInfo = realloc(e->info, recordSize);
+            if (!newInfo) {
+                LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                return 0;
+            }
+            newInfo->sampler_capacity = numSampler;
+            e->info = newInfo;
+            e->info->size = recordSize;
+        }
+        uint32_t slot = e->info->sampler_count++;
+        e->info->samplers[slot] = (sampler_record_v4_t){
+            .inUse = 1,
+            .algorithm = sampler_record->algorithm,
+            .packetInterval = sampler_record->spaceInterval,
+            .spaceInterval = sampler_record->spaceInterval,
+            .selectorID = sampler_record->id,
+        };
+    }
+
+    return 1;
+}  // End of AddV2SamplerRecord
+
+static void AppendExporterBlock(nffileV3_t *nffile) {
+    dbg_printf("Flush all exporters\n");
+    if (exporter_table.count == 0) return;
+    expBlockV3_t *expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+    InitExpBlock(expBlock);
+
+    // push exporter info to exporter block
+    uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
+    uint8_t *p = ResetCursor(expBlock);
+    for (unsigned i = 0; i < exporter_table.capacity; i++) {
+        // linear check for sysID exporter
+        exporter_entry_t *e = &exporter_table.entries[i];
+        if (!e->in_use) continue;
+        exporter_info_record_v4_t *exporter_info = e->info;
+
+        if (available < exporter_info->size) {
+            queue_push(nffile->processQueue, expBlock);
+            expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+            InitExpBlock(expBlock);
+            p = ResetCursor(expBlock);
+            available = BLOCK_SIZE_V3 - expBlock->rawSize;
+        }
+        dbg_printf("Dump exporter: %u\n", exporter_info->sysID);
+        memcpy(p, (void *)exporter_info, exporter_info->size);
+        expBlock->rawSize += exporter_info->size;
+        expBlock->numExporter++;
+        available -= exporter_info->size;
+    }
+    queue_push(nffile->processQueue, expBlock);
+
+}  // End of AppendExporterBlock
 
 // Convert a single V3 record to V4 format.  Writes into 'out' buffer.
 // Returns pointer past the end of the written V4 record, or NULL on error.
@@ -590,7 +838,7 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
 
 // Convert an entire V2 data block (DATA_BLOCK_TYPE_3) of V3 records
 // into a V3-format dataBlockV3_t filled with V4 records.
-static flowBlockV3_t *convertV2V3(dataBlockV2_t *blockV2, uint32_t outBlockSize) {
+static flowBlockV3_t *convertV2V3(convertCtx_t *ctx, dataBlockV2_t *blockV2, uint32_t outBlockSize) {
     // Initialize as flow block
     flowBlockV3_t *outBlock = NewFlowBlock(outBlockSize);
     if (!outBlock) return NULL;
@@ -606,31 +854,44 @@ static flowBlockV3_t *convertV2V3(dataBlockV2_t *blockV2, uint32_t outBlockSize)
     uint32_t numRecords = 0;
 
     while (inPtr < inEnd) {
-        recordHeader_t *rh = (recordHeader_t *)inPtr;
+        recordHeader_t *recordHeader = (recordHeader_t *)inPtr;
 
-        if (rh->size < sizeof(recordHeader_t) || inPtr + rh->size > inEnd) break;
+        if (recordHeader->size < sizeof(recordHeader_t) || inPtr + recordHeader->size > inEnd) break;
 
-        if (rh->type == V3Record) {
-            recordHeaderV3_t *v3rec = (recordHeaderV3_t *)inPtr;
+        switch (recordHeader->type) {
+            case V3Record: {
+                recordHeaderV3_t *v3rec = (recordHeaderV3_t *)inPtr;
 
-            // Worst case: V4 record can be ~2x V3 due to alignment + offset table.
-            // Check conservative bound before converting.
-            size_t maxV4Size = v3rec->size * 2 + 256;
-            if (outPtr + maxV4Size > outEnd) {
-                // Output block full — should not happen with adequate blockSize
-                LogError("convertV2V3: output block overflow, skipping remaining records");
+                // Worst case: V4 record can be ~2x V3 due to alignment + offset table.
+                // Check conservative bound before converting.
+                size_t maxV4Size = v3rec->size * 2 + 256;
+                if (outPtr + maxV4Size > outEnd) {
+                    // Output block full — should not happen with adequate blockSize
+                    LogError("convertV2V3: output block overflow, skipping remaining records");
+                    break;
+                }
+
+                uint8_t *next = ConvertRecordV3toV4(outPtr, v3rec);
+                if (next) {
+                    outPtr = next;
+                    numRecords++;
+                }
+            } break;
+            case ExporterInfoRecordType:
+                AddV2ExporterInfo((exporter_info_record_t *)recordHeader);
                 break;
-            }
-
-            uint8_t *next = ConvertRecordV3toV4(outPtr, v3rec);
-            if (next) {
-                outPtr = next;
-                numRecords++;
-            }
+            case ExporterStatRecordType:
+                AddV2ExporterStat((exporter_stats_record_t *)recordHeader);
+                break;
+            case SamplerRecordType:
+                AddV2SamplerRecord((sampler_record_V3_t *)recordHeader);
+                break;
+            default:
+                LogInfo("convertV2V3: skip record type: %u", recordHeader->type);
         }
         // Skip non-V3Record types (ident, stat, slack — already handled in appendix)
 
-        inPtr += rh->size;
+        inPtr += recordHeader->size;
     }
 
     // Finalize block header
@@ -740,11 +1001,11 @@ static int ReadAppendixV2(int fd, fileHeaderV2_t *hdr, stat_record_t *stat_recor
         uint8_t *ptr = (uint8_t *)block + sizeof(dataBlockV2_t);
         size_t processed = 0;
         for (uint32_t j = 0; j < block->NumRecords; j++) {
-            recordHeader_t *rh = (recordHeader_t *)ptr;
+            recordHeader_t *recordHeader = (recordHeader_t *)ptr;
             uint8_t *data = ptr + sizeof(recordHeader_t);
-            uint16_t dataSize = rh->size - sizeof(recordHeader_t);
+            uint16_t dataSize = recordHeader->size - sizeof(recordHeader_t);
 
-            switch (rh->type) {
+            switch (recordHeader->type) {
                 case TYPE_IDENT:
                     if (*ident) free(*ident);
                     if (dataSize < IDENTLEN) {
@@ -759,8 +1020,8 @@ static int ReadAppendixV2(int fd, fileHeaderV2_t *hdr, stat_record_t *stat_recor
                 default:
                     break;
             }
-            processed += rh->size;
-            ptr += rh->size;
+            processed += recordHeader->size;
+            ptr += recordHeader->size;
             if (processed > block->size) break;
         }
         free(block);
@@ -800,7 +1061,7 @@ static void *nfreaderV2(void *arg) {
             continue;
         }
 
-        flowBlockV3_t *v3block = convertV2V3(v2block, outBlockSize);
+        flowBlockV3_t *v3block = convertV2V3(ctx, v2block, outBlockSize);
         free(v2block);
 
         if (!v3block) {
@@ -825,6 +1086,10 @@ static void *nfreaderV2(void *arg) {
     close(ctx->fd);
     free(ctx);
 
+    if (exporter_table.count > 0) {
+        // send exporter block
+        AppendExporterBlock(nffile);
+    }
     queue_close(nffile->processQueue);
 
     dbg_printf("nfreaderV2 done - converted %u blocks\n", blockCount);

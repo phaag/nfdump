@@ -390,10 +390,10 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             uint32_t exporterIdent = MetricExpporterID(recordHeader);
             UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
+            dbg(VerifyV4Record(recordHeader));
             if (printRecord) {
                 flow_record_short(stdout, recordHeader);
             }
-            dbg(VerifyV4Record(recordHeader));
 
             // advance output buffer
             outBuff += recordHeader->size;

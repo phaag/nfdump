@@ -420,10 +420,10 @@ static void *worker_thread(void *arg) {
 
         uint32_t recordCount = 0;
 
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        recordHeader_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(record_header_t))) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 goto SKIP;
             }
@@ -448,7 +448,7 @@ static void *worker_thread(void *arg) {
                 }
             }
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+            record_ptr = (recordHeader_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 

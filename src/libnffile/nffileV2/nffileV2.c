@@ -91,6 +91,16 @@ static const char *nf_creator[MAX_CREATOR] = {
     [CREATOR_FT2NFDUMP] = "ft2nfdump", [CREATOR_TORLOOKUP] = "torlookup",
 };
 
+/*
+ * Generic data record
+ * Contains any type of data, specified by type
+ */
+typedef struct recordHeader_s {
+    // record header
+    uint16_t type;  // type of data
+    uint16_t size;  // size of record including this header
+} recordHeader_t;
+
 // stat_record know to v2
 typedef struct stat_record_s {
     // overall stat

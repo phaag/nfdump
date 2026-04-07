@@ -85,6 +85,16 @@ enum {
 };
 
 /*
+ * Generic data record
+ * Contains any type of data, specified by type
+ */
+typedef struct recordHeader_s {
+    // record header
+    uint16_t type;  // type of data
+    uint16_t size;  // size of record including this header
+} recordHeader_t;
+
+/*
  * A v4 flow record consists of a V4Record header, followed by the extension directory
  * followed by the extensions. All parts of a record must be 8byte aligned.
  *
@@ -98,13 +108,6 @@ enum {
  * The extension directory is a list of numextensions of extEntry_t which identifies
  * type, length and offset relative to start of recordHeaderV4_t
  */
-
-// XXX to be removed
-typedef struct record_header_s {
-    // record header
-    uint16_t type;
-    uint16_t size;
-} record_header_t;
 
 typedef struct recordHeaderV4_s {
     // V4Record

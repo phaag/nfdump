@@ -713,7 +713,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'z':
-                if (compressLevel) {
+                if (compressLevel != NOT_COMPRESSED) {
                     LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
                 }

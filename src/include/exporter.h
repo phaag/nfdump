@@ -35,7 +35,7 @@
 
 #include "config.h"
 #include "ip128.h"
-// #include "nffile.h"
+#include "nffileV3/nffileV3.h"
 
 /*
  * sampler record for deprecated tags #34, #34, #48 records and mapped records
@@ -99,71 +99,6 @@ typedef struct sampler_s {
     struct sampler_s *next;
     sampler_record_V3_t record;  // sampler record nffile
 } sampler_chain_t;
-
-/*
- *
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  0 |       record type == 7      |             size            |                          version                          |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  1 |                                                                                                                       |
- * +----+--------------+--------------+--------------+----------  ip   ------------+--------------+--------------+--------------+
- * |  2 |                                                                                                                       |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  3 |          sa_family          |            sysid            |                             id                            |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- */
-
-typedef struct exporter_info_record_s {
-    uint16_t type;
-    uint16_t size;
-
-    // exporter version
-    uint32_t version;
-#define SFLOW_VERSION 9999
-
-    // IP address
-    uint8_t ip[16];
-    uint16_t fill;
-
-    // internal assigned ID
-    uint16_t sysid;
-
-    // exporter ID/Domain ID/Observation Domain ID assigned by the device
-    uint32_t id;
-
-} exporter_info_record_t;
-
-/*
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  0 |       record type == 8      |             size            |                         stat_count                        |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  1 |                           sysid[0]                        |                      sequence_failure[0]                  |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  2 |                                                        packets[0]                                                     |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  3 |                                                         flows[0]                                                      |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * ... more stat records [x], one for each exporter
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- */
-typedef struct exporter_stats_record_s {
-    uint16_t type;
-    uint16_t size;
-
-    uint32_t stat_count;  // number of stat records
-
-    struct exporter_stat_s {
-        uint32_t sysid;             // identifies the exporter
-        uint32_t sequence_failure;  // number of sequence failures
-        uint64_t packets;           // number of packets sent by this exporter
-        uint64_t flows;             // number of flow records sent by this exporter
-    } stat[1];
-
-} exporter_stats_record_t;
 
 // key into exporter hash
 typedef struct exporter_key_s {
@@ -361,16 +296,12 @@ int InitExporterList(void);
 
 int AddExporterInfo(exporter_info_record_v4_t *exporter_record);
 
-int AddSamplerRecord(sampler_record_V3_t *sampler_record);
-
 sampler_record_V3_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record);
 
-int AddExporterStat(exporter_stats_record_t *stat_record);
-
-// XXX FIX! dataBlockV3_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock);
+void ExportExporterList(nffileV3_t *nffile);
 
 exporter_entry_t *GetExporterInfo(uint32_t sysID);
 
-void PrintExporters(void);
+void PrintExporters(const char *fileName);
 
 #endif  //_EXPORTER_H

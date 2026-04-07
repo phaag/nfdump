@@ -99,7 +99,7 @@ static int nfalloc_Init(uint32_t memBlockSize) {
 static void nfalloc_free(void) {
     if (!MemHandler) return;
 
-    for (int i = 0; i < MemHandler->NumBlocks; i++) {
+    for (int i = 0; i < (int)MemHandler->NumBlocks; i++) {
         free(MemHandler->memblock[i]);
     }
     MemHandler->NumBlocks = 0;
@@ -131,7 +131,7 @@ static inline void *nfmalloc(size_t size) {
     // not enough space - allocate a new memblock
 
     MemHandler->CurrentBlock++;
-    if (MemHandler->CurrentBlock >= MemHandler->MaxBlocks) {
+    if (MemHandler->CurrentBlock >= (int)MemHandler->MaxBlocks) {
         // we run out in memblock array - re-allocate memblock array
         MemHandler->MaxBlocks += MaxMemBlocks;
         MemHandler->memblock = (void **)realloc(MemHandler->memblock, MemHandler->MaxBlocks * sizeof(void *));
