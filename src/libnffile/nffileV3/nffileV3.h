@@ -288,20 +288,13 @@ typedef struct nffileV3_s {
 
 #define DIR_INIT_CAPACITY 256
 
-#define InitDataBlock(ptr, size)                                              \
-    (ptr) = NewGenericDataBlock(size,                                         \
-                                _Generic((ptr),                               \
-                                    dataBlockV3_t *: BLOCK_TYPE_NULL,         \
-                                    flowBlockV3_t *: BLOCK_TYPE_FLOW,         \
-                                    arrayBlockV3_t *: BLOCK_TYPE_ARRAY,       \
-                                    msgBlockV3_t *: BLOCK_TYPE_MSG,           \
-                                    expBlockV3_t *: BLOCK_TYPE_EXP),          \
-                                _Generic((ptr),                               \
-                                    dataBlockV3_t *: sizeof(dataBlockV3_t),   \
-                                    flowBlockV3_t *: sizeof(flowBlockV3_t),   \
-                                    arrayBlockV3_t *: sizeof(arrayBlockV3_t), \
-                                    msgBlockV3_t *: sizeof(msgBlockV3_t),     \
-                                    expBlockV3_t *: sizeof(expBlockV3_t)));
+#define InitDataBlock(ptr, size)                                                                \
+    ((ptr) = _Generic((ptr),                                                                    \
+         dataBlockV3_t *: NewGenericDataBlock(size, BLOCK_TYPE_NULL, sizeof(dataBlockV3_t)),    \
+         flowBlockV3_t *: NewGenericDataBlock(size, BLOCK_TYPE_FLOW, sizeof(flowBlockV3_t)),    \
+         arrayBlockV3_t *: NewGenericDataBlock(size, BLOCK_TYPE_ARRAY, sizeof(arrayBlockV3_t)), \
+         msgBlockV3_t *: NewGenericDataBlock(size, BLOCK_TYPE_MSG, sizeof(msgBlockV3_t)),       \
+         expBlockV3_t *: NewGenericDataBlock(size, BLOCK_TYPE_EXP, sizeof(expBlockV3_t))))
 
 #define ResetCursor(ptr)                                                       \
     _Generic((ptr),                                                            \

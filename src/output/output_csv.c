@@ -1080,7 +1080,8 @@ static char *String_nbarName(char *streamPtr, recordHandle_t *recordHandle) {
     }
 
     uint32_t nbarAppIDlen = nbar->length;
-    char *name = GetNbarInfo(nbar->id, nbarAppIDlen);
+    char nameBuff[256];
+    char *name = GetNbarInfo(nbar->id, nbarAppIDlen, nameBuff);
     if (name == NULL) {
         AddString("no-info");
     } else {

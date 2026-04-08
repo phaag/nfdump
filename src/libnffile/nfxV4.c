@@ -623,13 +623,20 @@ L_COPY_N: {
 }
 
 L_COPY_VAR: {
-    if (unlikely(inPtr + 1 > inEnd)) return PIP_ERR_SHORT_INPUT;
+    uint16_t lenBytes = 0;
+    uint32_t inLength;
 
-    uint16_t lenBytes;
-    uint32_t inLength = ReadVarLength(inPtr, &lenBytes);
-    if (unlikely(inPtr + lenBytes + inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
-
-    inPtr += lenBytes;
+    if (inst->inLength == VARLENGTH) {
+        // variable-length encoding with length prefix
+        if (unlikely(inPtr + 1 > inEnd)) return PIP_ERR_SHORT_INPUT;
+        inLength = ReadVarLength(inPtr, &lenBytes);
+        if (unlikely(inPtr + lenBytes + inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
+        inPtr += lenBytes;
+    } else {
+        // if field element is defined as varlength, but announced fix length
+        inLength = inst->inLength;
+        if (unlikely(inPtr + inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
+    }
 
     uint32_t copyLength = (inst->outLength == VARLENGTH) ? inLength : inst->outLength;
     // dynamic extension have only one part with dyn length

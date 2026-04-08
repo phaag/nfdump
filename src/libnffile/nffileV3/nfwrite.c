@@ -372,7 +372,7 @@ void WriteBlockV3(nffileV3_t *nffile, void *blockHeader) {
     dataBlockV3_t *dataBlock = (dataBlockV3_t *)blockHeader;
     if (dataBlock->rawSize != 0) {
         // empty blocks need not to be written
-        dbg_printf("WriteBlock - push block with size: %u\n", dataBlock->rawSize);
+        dbg_printf("WriteBlock - push block type: %u, with size: %u\n", dataBlock->type, dataBlock->rawSize);
         queue_push(nffile->processQueue, dataBlock);
     }
 
@@ -387,7 +387,7 @@ void PushBlockV3(queue_t *queue, void *blockHeader) {
     dataBlockV3_t *dataBlockV3 = (dataBlockV3_t *)blockHeader;
     if (dataBlockV3->rawSize != 0) {
         // empty blocks need not to be written
-        dbg_printf("PushBlockV3 - push block with size: %u\n", dataBlockV3->rawSize);
+        dbg_printf("PushBlockV3 - push block type: %u, with size: %u\n", dataBlockV3->type, dataBlockV3->rawSize);
         queue_push(queue, blockHeader);
     }
 

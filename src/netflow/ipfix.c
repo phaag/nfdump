@@ -1894,7 +1894,6 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
             dbg_printf("Push ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
             PushBlockV3(fs->blockQueue, arrayBlock);
             arrayBlock = NULL;
-            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
         }
     }
     FreeDataBlock(arrayBlock);
@@ -2024,7 +2023,6 @@ static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSour
             dbg_printf("Push ifvrf ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
             PushBlockV3(fs->blockQueue, arrayBlock);
             arrayBlock = NULL;
-            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
         }
     }
     FreeDataBlock(arrayBlock);

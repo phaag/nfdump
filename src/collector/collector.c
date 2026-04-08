@@ -372,6 +372,7 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         fs->bad_packets = 0;
 
         // Flush current dataBlock
+        dbg_printf("Periodic - push block - type: %u, size: %u\n", fs->dataBlock->type, fs->dataBlock->rawSize);
         PushBlockV3(fs->blockQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);

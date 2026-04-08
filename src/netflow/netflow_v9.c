@@ -1251,6 +1251,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
     const uint8_t *inBuff = data_flowset + 4;  // skip flowset header
 
     dbg_printf("[%u] Process data flowset size: %u\n", exporter_entry->info->id, size_left);
+    dbg_printf("Datablock type: %u, size: %u\n", fs->dataBlock->type, fs->dataBlock->rawSize);
 
     // general runtime parameters for pipiling processor, common for all flows
     pipelineRuntime_t runtime = {.SysUptime = exporter_v9->sysUptime,
@@ -1722,7 +1723,6 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
             dbg_printf("Push ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
             PushBlockV3(fs->blockQueue, arrayBlock);
             arrayBlock = NULL;
-            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
         }
     }
     FreeDataBlock(arrayBlock);
@@ -1852,7 +1852,6 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
             dbg_printf("Push ifvrf ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
             PushBlockV3(fs->blockQueue, arrayBlock);
             arrayBlock = NULL;
-            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
         }
     }
     FreeDataBlock(arrayBlock);

@@ -282,6 +282,7 @@ static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, uint8_
 }  // End of stringsEXipv6Flow
 
 static void stringsEXinterface(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord) {
+    (void)recordHandle;
     EXinterface_t *interface = (EXinterface_t *)extensionRecord;
 
     char ifInName[128];
@@ -672,7 +673,8 @@ static void stringsEXnbarApp(FILE *stream, uint8_t *extensionRecord) {
         uint32_t val32;
     } pen;
 
-    char *name = GetNbarInfo(nbar->id, nbarAppIDlen);
+    char nameBuff[256];
+    char *name = GetNbarInfo(nbar->id, nbarAppIDlen, nameBuff);
     if (name == NULL) {
         name = "<no info>";
     }

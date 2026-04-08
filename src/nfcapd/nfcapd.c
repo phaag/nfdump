@@ -286,7 +286,6 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
     }
 
     fs->received = tv;
-
     /* Process data - have a look at the common header */
     uint16_t version = ntohs(nf_header->version);
     switch (version) {
@@ -315,6 +314,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             return;
         } break;
     }
+
 }  // End of process_packet
 
 // live network mode
@@ -325,7 +325,8 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
+        fs->dataBlock = NULL;
+        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
         fs->bad_packets = 0;
     }
 
@@ -430,7 +431,8 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
+        fs->dataBlock = NULL;
+        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
         fs->bad_packets = 0;
     }
 

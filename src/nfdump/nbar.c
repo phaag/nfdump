@@ -92,29 +92,47 @@ static void InsertNbarAppInfo(uint8_t *nbarData) {
         return;
     }
 
-    AppInfoHash_t AppInfoHash;
-    memset((void *)&AppInfoHash, 0, sizeof(AppInfoHash_t));
-    AppInfoHash.app_id_length = idLen;
-    AppInfoHash.data = nbarData;
-
-    int ret;
-    khiter_t k;
-    k = kh_put(NbarAppInfoHash, NbarAppInfoHash, AppInfoHash, &ret);
-    if (ret == 0) {  // existing entry
-        dbg_printf("KHASH existing entry: %u %d\n", k, ret);
-        if (kh_key(NbarAppInfoHash, k).data) free(kh_key(NbarAppInfoHash, k).data);
-    } else {
-        dbg_printf("KHASH new entry: %u\n", k);
-    }
+    // Allocate and copy data BEFORE hash lookup to avoid use-after-free
     uint8_t *data = malloc(dataSize);
     if (!data) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     memcpy(data, nbarData, dataSize);
-    kh_key(NbarAppInfoHash, k).app_name_length = nameLen;
-    kh_key(NbarAppInfoHash, k).app_desc_length = descLen;
-    kh_key(NbarAppInfoHash, k).data = data;
+
+#ifdef DEVEL
+    printf("NBAR: id - len: %u 0x", idLen);
+    for (int i = 0; i < (int)idLen; i++) printf("%x ", nbarData[i]);
+    if (nameLen)
+        printf(" name - len: %u '%s'", nameLen, (char *)(nbarData + idLen));
+    else
+        printf(" name - len: 0 NULL");
+    if (descLen)
+        printf(" desc - len: %u '%s'\n", descLen, (char *)(nbarData + idLen + nameLen));
+    else
+        printf(" desc - len: 0 NULL\n");
+#endif
+
+    AppInfoHash_t AppInfoHash = {
+        .app_id_length = idLen,
+        .app_name_length = nameLen,
+        .app_desc_length = descLen,
+        .data = data,  // Use newly allocated copy for hash lookup
+    };
+
+    int ret;
+    khiter_t k;
+    k = kh_put(NbarAppInfoHash, NbarAppInfoHash, AppInfoHash, &ret);
+    if (ret == 0) {  // existing entry
+        dbg_printf("KHASH existing entry: %u %d\n", k, ret);
+        // Save old pointer, update key, then free old data
+        uint8_t *oldData = kh_key(NbarAppInfoHash, k).data;
+        kh_key(NbarAppInfoHash, k) = AppInfoHash;
+        free(oldData);
+    } else {
+        dbg_printf("KHASH new entry: %u\n", k);
+        // kh_put already set the key for new entries
+    }
 
 }  // end of InsertNbarAppInfo
 
@@ -138,10 +156,7 @@ int AddNbarRecords(arrayBlockV3_t *arrayBlock) {
     return 1;
 }  // End of AddNbarRecord
 
-char *GetNbarInfo(uint8_t *id, size_t size) {
-    // XXX FIX! remove static
-    static char name[255];
-
+char *GetNbarInfo(uint8_t *id, size_t size, char *name) {
     AppInfoHash_t AppInfoHash = {0};
     AppInfoHash.app_id_length = size;
     AppInfoHash.data = id;
@@ -154,13 +169,13 @@ char *GetNbarInfo(uint8_t *id, size_t size) {
     k = kh_get(NbarAppInfoHash, NbarAppInfoHash, AppInfoHash);
     if (k == kh_end(NbarAppInfoHash)) {
         // not found
-        return 0;
+        return NULL;
     }
 
     name[0] = '\0';
     if ((kh_key(NbarAppInfoHash, k).app_name_length + kh_key(NbarAppInfoHash, k).app_desc_length) > 253) {
         LogError("Error nbar lookup in %s line %d: string length error", __FILE__, __LINE__);
-        return "";
+        return NULL;
     }
     if (kh_key(NbarAppInfoHash, k).app_name_length) {
         snprintf(name, 255, "%s", kh_key(NbarAppInfoHash, k).data + kh_key(NbarAppInfoHash, k).app_id_length);

@@ -114,7 +114,7 @@ void *NewGenericDataBlock(uint32_t blockSize, uint32_t blockType, uint32_t heade
     }
 
     memset(dataBlock, 0, headerSize);
-    dataBlock->discSize = headerSize;
+    dataBlock->rawSize = headerSize;
     dataBlock->type = blockType;
 
     atomic_fetch_add(&blocksInUse, 1);
