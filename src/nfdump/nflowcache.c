@@ -1815,7 +1815,9 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
 
         if (!IsAvailable(dataBlock, blockSize, recordHeaderV4->size + exCntSize)) {
             // flush block - get an empty one
-            dataBlock = WriteBlockV3(nffile, dataBlock);
+            WriteBlockV3(nffile, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
         }
 
         // write record

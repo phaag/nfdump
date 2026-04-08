@@ -373,8 +373,8 @@ static int AddV2SamplerRecord(sampler_record_V3_t *sampler_record) {
 static void AppendExporterBlock(nffileV3_t *nffile) {
     dbg_printf("Flush all exporters\n");
     if (exporter_table.count == 0) return;
-    expBlockV3_t *expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-    InitExpBlock(expBlock);
+    expBlockV3_t *expBlock = NULL;
+    InitDataBlock(expBlock, BLOCK_SIZE_V3);
 
     // push exporter info to exporter block
     uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
@@ -387,8 +387,8 @@ static void AppendExporterBlock(nffileV3_t *nffile) {
 
         if (available < exporter_info->size) {
             queue_push(nffile->processQueue, expBlock);
-            expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-            InitExpBlock(expBlock);
+            expBlock = NULL;
+            InitDataBlock(expBlock, BLOCK_SIZE_V3);
             p = ResetCursor(expBlock);
             available = BLOCK_SIZE_V3 - expBlock->rawSize;
         }

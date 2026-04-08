@@ -391,7 +391,9 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // set output buffer memory
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, count * exporter->v5.outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            PushBlockV3(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = NULL;
+            InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
             // map output memory buffer
         }
         uint8_t *outBuff = GetCursor(fs->dataBlock);

@@ -213,8 +213,8 @@ void ExportExporterList(nffileV3_t *nffile) {
     if (exporter_table.count == 0) return;
 
     dbg_printf("Flush all exporters\n");
-    expBlockV3_t *expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-    InitExpBlock(expBlock);
+    expBlockV3_t *expBlock = NULL;
+    InitDataBlock(expBlock, BLOCK_SIZE_V3);
 
     // push exporter info to exporter block
     uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
@@ -227,8 +227,8 @@ void ExportExporterList(nffileV3_t *nffile) {
 
         if (available < exporter_info->size) {
             queue_push(nffile->processQueue, expBlock);
-            expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-            InitExpBlock(expBlock);
+            expBlock = NULL;
+            InitDataBlock(expBlock, BLOCK_SIZE_V3);
             p = GetCursor(expBlock);
             available = BLOCK_SIZE_V3 - expBlock->rawSize;
         }

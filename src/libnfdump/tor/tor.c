@@ -179,8 +179,8 @@ int SaveTorTree(char *fileName) {
     uint32_t blockSize = nffile->fileHeader->blockSize;
 
     // get new empty data block
-    arrayBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
-    InitArrayBlock(dataBlock);
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
     dataBlock->elementType = TorTreeElementID;
     dataBlock->elementSize = sizeof(torNode_t);
 
@@ -193,8 +193,9 @@ int SaveTorTree(char *fileName) {
         dbg_printf("ip: %u, first: %ld, last: %ld\n", torNode->ipaddr, torNode->interval[0].firstSeen, torNode->interval[0].lastSeen);
         if (!IsAvailable(dataBlock, blockSize, sizeof(torNode_t))) {
             // flush block - get an empty one
-            dataBlock = WriteBlockV3(nffile, dataBlock);
-            InitArrayBlock(dataBlock);
+            WriteBlockV3(nffile, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = TorTreeElementID;
             dataBlock->elementSize = sizeof(torNode_t);
 

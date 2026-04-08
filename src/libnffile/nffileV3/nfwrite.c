@@ -366,39 +366,30 @@ nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t com
 //
 // WriteBlockV3 — pushes a block onto the processQueue of nffileV3
 // Returns a new empty defult datablock
-void *WriteBlockV3(nffileV3_t *nffile, void *blockHeader) {
-    if (blockHeader == NULL) {
-        return NewDataBlock(nffile->fileHeader->blockSize);
-    }
+void WriteBlockV3(nffileV3_t *nffile, void *blockHeader) {
+    if (blockHeader == NULL) return;
 
     dataBlockV3_t *dataBlock = (dataBlockV3_t *)blockHeader;
     if (dataBlock->rawSize != 0) {
         // empty blocks need not to be written
         dbg_printf("WriteBlock - push block with size: %u\n", dataBlock->rawSize);
         queue_push(nffile->processQueue, dataBlock);
-        dataBlock = NewDataBlock(nffile->fileHeader->blockSize);
     }
-    return dataBlock;
 
 }  // End of WriteBlockV3
 
 //
-// WriteBlockV3 — pushes a block onto the processQueue of nffileV3
+// PushBlockV3 — pushes a block onto the processQueue of nffileV3
 // Returns a new empty defult datablock
-flowBlockV3_t *PushBlockV3(queue_t *queue, flowBlockV3_t *blockHeader) {
-    if (blockHeader == NULL) {
-        return NewFlowBlock(BLOCK_SIZE_V3);
-    }
+void PushBlockV3(queue_t *queue, void *blockHeader) {
+    if (blockHeader == NULL) return;
 
-    if (blockHeader->rawSize != 0) {
+    dataBlockV3_t *dataBlockV3 = (dataBlockV3_t *)blockHeader;
+    if (dataBlockV3->rawSize != 0) {
         // empty blocks need not to be written
-        dbg_printf("PushBlockV3 - push block with size: %u\n", blockHeader->rawSize);
+        dbg_printf("PushBlockV3 - push block with size: %u\n", dataBlockV3->rawSize);
         queue_push(queue, blockHeader);
-        blockHeader = NewFlowBlock(BLOCK_SIZE_V3);
-    } else {
-        dbg_printf("PushBlockV3 - skip push block with size: %u\n", blockHeader->rawSize);
     }
-    return blockHeader;
 
 }  // End of PushBlockV3
 

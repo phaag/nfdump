@@ -974,254 +974,271 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
 static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry, const uint8_t *option_template_flowset, FlowSource_t *fs) {
     uint32_t size_left = GET_FLOWSET_LENGTH(option_template_flowset) - 4;  // -4 for flowset header -> id and length
     const uint8_t *option_template = option_template_flowset + 4;
-    uint16_t tableID = GET_OPTION_TEMPLATE_ID(option_template);
-    uint16_t scope_length = GET_OPTION_TEMPLATE_FIELD_COUNT(option_template);
-    uint16_t option_length = GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(option_template);
 
-    if (scope_length & 0x3) {
-        LogError("Process_v9: [%u] scope length error: length %u not multiple of 4", exporter_entry->info->id, scope_length);
-        return;
-    }
+    // process all option templates in flowset
+    while (size_left >= 6) {  // minimum option template header: id(2) + scope_length(2) + option_length(2)
+        uint16_t tableID = GET_OPTION_TEMPLATE_ID(option_template);
+        uint16_t scope_length = GET_OPTION_TEMPLATE_FIELD_COUNT(option_template);
+        uint16_t option_length = GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(option_template);
 
-    if (option_length & 0x3) {
-        LogError("Process_v9: [%u] option length error: length %u not multiple of 4", exporter_entry->info->id, option_length);
-        return;
-    }
+        // size consumed by this option template: 6 byte header + scope fields + option fields
+        uint32_t template_size = 6 + scope_length + option_length;
 
-    if ((scope_length + option_length) > size_left) {
-        LogError(
-            "Process_v9: [%u] option template length error: size left %u too small for %u scopes "
-            "length and %u options length",
-            exporter_entry->info->id, size_left, scope_length, option_length);
-        return;
-    }
-
-    uint32_t nr_scopes = scope_length >> 2;
-    uint32_t nr_options = option_length >> 2;
-
-    dbg_printf("\n[%u] Option Template ID: %u\n", exporter_entry->info->id, tableID);
-    dbg_printf("Scope length: %u Option length: %u\n", scope_length, option_length);
-
-    optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
-    if (!optionTemplate) {
-        LogError("Error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
-        return;
-    }
-
-    const uint8_t *p = option_template + 6;  // start of length/type data
-
-    struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
-    struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
-    struct nameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
-    struct nameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
-
-    uint16_t scopeSize = 0;
-    uint16_t offset = 0;
-    for (int i = 0; i < (int)(nr_scopes + nr_options); i++) {
-        uint16_t type = Get_val16(p);
-        p = p + 2;
-        uint16_t length = Get_val16(p);
-        p = p + 2;
-        if (i < (int)nr_scopes) {
-            scopeSize += length;
-            dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
-        } else {
-            dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
-        }
-
-        switch (type) {
-            // Old std sampling tags
-            case NF9_SAMPLING_INTERVAL:  // #34
-                samplerOption->spaceInterval.length = length;
-                samplerOption->spaceInterval.offset = offset;
-                SetFlag(optionTemplate->flags, STDSAMPLING34);
-                dbg_printf(" Sampling tag #34 option found\n");
-                break;
-            case NF9_SAMPLING_ALGORITHM:  // #35
-                samplerOption->algorithm.length = length;
-                samplerOption->algorithm.offset = offset;
-                SetFlag(optionTemplate->flags, STDSAMPLING35);
-                dbg_printf(" Sampling #35 found\n");
-                break;
-
-            // New std sampling, individual sammplers (sampling ID)
-            // Map old individual samplers
-            case NF9_FLOW_SAMPLER_ID:  // #48 deprecated - fall through
-                dbg_printf(" Sampling #48 found\n");
-            case SELECTOR_ID:  // #302
-                samplerOption->id.length = length;
-                samplerOption->id.offset = offset;
-                SetFlag(optionTemplate->flags, SAMPLER302);
-                dbg_printf(" Sampling #302 found\n");
-                break;
-            case NF9_FLOW_SAMPLER_MODE:  // #49 deprecated - fall through
-                dbg_printf(" Sampling #49 found\n");
-            case SELECTOR_ALGORITHM:  // #304
-                samplerOption->algorithm.length = length;
-                samplerOption->algorithm.offset = offset;
-                SetFlag(optionTemplate->flags, SAMPLER304);
-                dbg_printf(" Sampling #304 found\n");
-                break;
-            case SAMPLING_PACKET_INTERVAL:  // #305
-                samplerOption->packetInterval.length = length;
-                samplerOption->packetInterval.offset = offset;
-                SetFlag(optionTemplate->flags, SAMPLER305);
-                dbg_printf(" Sampling #305 found\n");
-                break;
-            case NF9_FLOW_SAMPLER_RANDOM_INTERVAL:  // #50 deprecated - fall through
-                dbg_printf(" Sampling #50 found\n");
-            case SAMPLING_SPACE_INTERVAL:  // #306
-                samplerOption->spaceInterval.length = length;
-                samplerOption->spaceInterval.offset = offset;
-                SetFlag(optionTemplate->flags, SAMPLER306);
-                dbg_printf(" Sampling #306 found\n");
-                break;
-
-            // nbar application information
-            case NBAR_APPLICATION_DESC:
-                nbarOption->desc.length = length;
-                nbarOption->desc.offset = offset;
-                SetFlag(optionTemplate->flags, NBAROPTIONS);
-                dbg_printf(" Nbar option found\n");
-                break;
-            case NBAR_APPLICATION_ID:
-                nbarOption->id.length = length;
-                nbarOption->id.offset = offset;
-                SetFlag(optionTemplate->flags, NBAROPTIONS);
-                dbg_printf(" Nbar option found\n");
-                break;
-            case NBAR_APPLICATION_NAME:
-                nbarOption->name.length = length;
-                nbarOption->name.offset = offset;
-                SetFlag(optionTemplate->flags, NBAROPTIONS);
-                dbg_printf(" Nbar option found\n");
-                break;
-
-            // ifname
-            case NF9_INPUT_SNMP:
-                ifnameOptionList->ingress.length = length;
-                ifnameOptionList->ingress.offset = offset;
-                SetFlag(optionTemplate->flags, IFNAMEOPTION);
-                dbg_printf(" Ifname ingress option found\n");
-                break;
-            case NF9_INTERFACEDESCRIPTION:
-                ifnameOptionList->name.length = length;
-                ifnameOptionList->name.offset = offset;
-                SetFlag(optionTemplate->flags, IFNAMEOPTION);
-                dbg_printf(" Ifname name option found\n");
-                break;
-
-            // vrfname
-            case NF_N_INGRESS_VRFID:
-                vrfnameOptionList->ingress.length = length;
-                vrfnameOptionList->ingress.offset = offset;
-                SetFlag(optionTemplate->flags, VRFNAMEOPTION);
-                dbg_printf(" Vrfname ingress option found\n");
-                break;
-            case NF_N_VRFNAME:
-                vrfnameOptionList->name.length = length;
-                vrfnameOptionList->name.offset = offset;
-                SetFlag(optionTemplate->flags, VRFNAMEOPTION);
-                dbg_printf(" Vrfname name option found\n");
-                break;
-
-            // SysUpTime information
-            case SystemInitTimeMiliseconds:
-                optionTemplate->SysUpOption.length = length;
-                optionTemplate->SysUpOption.offset = offset;
-                SetFlag(optionTemplate->flags, SYSUPOPTION);
-                dbg_printf(" SysUpTime option found\n");
-                break;
-
-            default:
-                dbg_printf(" Skip this type: %u, length %u\n", type, length);
-        }
-        offset += length;
-    }
-    optionTemplate->optionSize = offset;
-
-    dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter_entry->info->id, optionTemplate->optionSize, optionTemplate->flags);
-    if (optionTemplate->flags) {
-        template_t *template = getTemplate(exporter_entry, tableID);
-        if (template) {
-            // clean existing template
-            if (template->data) free(template->data);
-            dbg_printf("Update/refresh option template ID: %u\n", tableID);
-        } else {
-            template = newTemplate(&(exporter_entry->v9), tableID);
-            dbg_printf("New template ID: %u\n", tableID);
-        }
-
-        if (!template) {
-            LogError("Process_ipfix: Failed option template add: %s line %d", __FILE__, __LINE__);
-            free(optionTemplate);
+        if (scope_length & 0x3) {
+            LogError("Process_v9: [%u] scope length error: length %u not multiple of 4", exporter_entry->info->id, scope_length);
             return;
         }
-        template->updated = time(NULL);
-        template->data = optionTemplate;
 
-        if ((optionTemplate->flags & SAMPLERFLAGS) == SAMPLERFLAGS) {
-            dbg_printf("[%u] New Sampler information found\n", exporter_entry->info->id);
-            SetFlag(template->type, SAMPLER_TEMPLATE);
-        } else if ((optionTemplate->flags & SAMPLERSTDFLAGS) == SAMPLERSTDFLAGS) {
-            dbg_printf("[%u] New std sampling information found\n", exporter_entry->info->id);
-            SetFlag(template->type, SAMPLER_TEMPLATE);
-        } else if ((optionTemplate->flags & STDMASK) == STDFLAGS) {
-            dbg_printf("[%u] Old std sampling information found\n", exporter_entry->info->id);
-            SetFlag(template->type, SAMPLER_TEMPLATE);
-        } else if ((optionTemplate->flags & STDSAMPLING34) == STDSAMPLING34) {
-            dbg_printf("[%u] Old std sampling information found - missing algorithm\n", exporter_entry->info->id);
-            samplerOption->algorithm.length = 0;
-            samplerOption->algorithm.offset = 0;
-            SetFlag(template->type, SAMPLER_TEMPLATE);
-        } else {
-            dbg_printf("[%u] No Sampling information found\n", exporter_entry->info->id);
+        if (option_length & 0x3) {
+            LogError("Process_v9: [%u] option length error: length %u not multiple of 4", exporter_entry->info->id, option_length);
+            return;
         }
 
-        if (TestFlag(optionTemplate->flags, NBAROPTIONS)) {
-            dbg_printf("[%u] found nbar option\n", exporter_entry->info->id);
-            dbg_printf("[%u] id   length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.id.length);
-            dbg_printf("[%u] name length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.name.length);
-            dbg_printf("[%u] desc length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.desc.length);
-            optionTemplate->nbarOption.scopeSize = scopeSize;
-            SetFlag(template->type, NBAR_TEMPLATE);
-        } else {
-            dbg_printf("[%u] No nbar information found\n", exporter_entry->info->id);
+        if (template_size > size_left) {
+            LogError(
+                "Process_v9: [%u] option template length error: size left %u too small for %u scopes "
+                "length and %u options length",
+                exporter_entry->info->id, size_left, scope_length, option_length);
+            return;
         }
 
-        if (TestFlag(optionTemplate->flags, IFNAMEOPTION)) {
-            dbg_printf("[%u] found ifname option\n", exporter_entry->info->id);
-            dbg_printf("[%u] ingess length: %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.ingress.length);
-            dbg_printf("[%u] name length  : %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.name.length);
-            optionTemplate->ifnameOption.scopeSize = scopeSize;
-            SetFlag(template->type, IFNAME_TEMPLATE);
-        } else {
-            dbg_printf("[%u] No ifname information found\n", exporter_entry->info->id);
+        uint32_t nr_scopes = scope_length >> 2;
+        uint32_t nr_options = option_length >> 2;
+
+        dbg_printf("\n[%u] Option Template ID: %u\n", exporter_entry->info->id, tableID);
+        dbg_printf("Scope length: %u Option length: %u\n", scope_length, option_length);
+
+        optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
+        if (!optionTemplate) {
+            LogError("Error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
+            return;
         }
 
-        if (TestFlag(optionTemplate->flags, VRFNAMEOPTION)) {
-            dbg_printf("[%u] found vrfname option\n", exporter_entry->info->id);
-            dbg_printf("[%u] ingess length: %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.ingress.length);
-            dbg_printf("[%u] name length  : %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.name.length);
-            optionTemplate->vrfnameOption.scopeSize = scopeSize;
-            SetFlag(template->type, VRFNAME_TEMPLATE);
+        const uint8_t *p = option_template + 6;  // start of length/type data
+
+        struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
+        struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
+        struct nameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
+        struct nameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
+
+        uint16_t scopeSize = 0;
+        uint16_t offset = 0;
+        for (int i = 0; i < (int)(nr_scopes + nr_options); i++) {
+            uint16_t type = Get_val16(p);
+            p = p + 2;
+            uint16_t length = Get_val16(p);
+            p = p + 2;
+            if (i < (int)nr_scopes) {
+                scopeSize += length;
+                dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
+            } else {
+                dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
+            }
+
+            switch (type) {
+                // Old std sampling tags
+                case NF9_SAMPLING_INTERVAL:  // #34
+                    samplerOption->spaceInterval.length = length;
+                    samplerOption->spaceInterval.offset = offset;
+                    SetFlag(optionTemplate->flags, STDSAMPLING34);
+                    dbg_printf(" Sampling tag #34 option found\n");
+                    break;
+                case NF9_SAMPLING_ALGORITHM:  // #35
+                    samplerOption->algorithm.length = length;
+                    samplerOption->algorithm.offset = offset;
+                    SetFlag(optionTemplate->flags, STDSAMPLING35);
+                    dbg_printf(" Sampling #35 found\n");
+                    break;
+
+                // New std sampling, individual sammplers (sampling ID)
+                // Map old individual samplers
+                case NF9_FLOW_SAMPLER_ID:  // #48 deprecated - fall through
+                    dbg_printf(" Sampling #48 found\n");
+                case SELECTOR_ID:  // #302
+                    samplerOption->id.length = length;
+                    samplerOption->id.offset = offset;
+                    SetFlag(optionTemplate->flags, SAMPLER302);
+                    dbg_printf(" Sampling #302 found\n");
+                    break;
+                case NF9_FLOW_SAMPLER_MODE:  // #49 deprecated - fall through
+                    dbg_printf(" Sampling #49 found\n");
+                case SELECTOR_ALGORITHM:  // #304
+                    samplerOption->algorithm.length = length;
+                    samplerOption->algorithm.offset = offset;
+                    SetFlag(optionTemplate->flags, SAMPLER304);
+                    dbg_printf(" Sampling #304 found\n");
+                    break;
+                case SAMPLING_PACKET_INTERVAL:  // #305
+                    samplerOption->packetInterval.length = length;
+                    samplerOption->packetInterval.offset = offset;
+                    SetFlag(optionTemplate->flags, SAMPLER305);
+                    dbg_printf(" Sampling #305 found\n");
+                    break;
+                case NF9_FLOW_SAMPLER_RANDOM_INTERVAL:  // #50 deprecated - fall through
+                    dbg_printf(" Sampling #50 found\n");
+                case SAMPLING_SPACE_INTERVAL:  // #306
+                    samplerOption->spaceInterval.length = length;
+                    samplerOption->spaceInterval.offset = offset;
+                    SetFlag(optionTemplate->flags, SAMPLER306);
+                    dbg_printf(" Sampling #306 found\n");
+                    break;
+
+                // nbar application information
+                case NBAR_APPLICATION_DESC:
+                    nbarOption->desc.length = length;
+                    nbarOption->desc.offset = offset;
+                    SetFlag(optionTemplate->flags, NBAROPTIONS);
+                    dbg_printf(" Nbar option found\n");
+                    break;
+                case NBAR_APPLICATION_ID:
+                    nbarOption->id.length = length;
+                    nbarOption->id.offset = offset;
+                    SetFlag(optionTemplate->flags, NBAROPTIONS);
+                    dbg_printf(" Nbar option found\n");
+                    break;
+                case NBAR_APPLICATION_NAME:
+                    nbarOption->name.length = length;
+                    nbarOption->name.offset = offset;
+                    SetFlag(optionTemplate->flags, NBAROPTIONS);
+                    dbg_printf(" Nbar option found\n");
+                    break;
+
+                // ifname
+                case NF9_INPUT_SNMP:
+                    ifnameOptionList->ingress.length = length;
+                    ifnameOptionList->ingress.offset = offset;
+                    SetFlag(optionTemplate->flags, IFNAMEOPTION);
+                    dbg_printf(" Ifname ingress option found\n");
+                    break;
+                case NF9_INTERFACEDESCRIPTION:
+                    ifnameOptionList->name.length = length;
+                    ifnameOptionList->name.offset = offset;
+                    SetFlag(optionTemplate->flags, IFNAMEOPTION);
+                    dbg_printf(" Ifname name option found\n");
+                    break;
+
+                // vrfname
+                case NF_N_INGRESS_VRFID:
+                    vrfnameOptionList->ingress.length = length;
+                    vrfnameOptionList->ingress.offset = offset;
+                    SetFlag(optionTemplate->flags, VRFNAMEOPTION);
+                    dbg_printf(" Vrfname ingress option found\n");
+                    break;
+                case NF_N_VRFNAME:
+                    vrfnameOptionList->name.length = length;
+                    vrfnameOptionList->name.offset = offset;
+                    SetFlag(optionTemplate->flags, VRFNAMEOPTION);
+                    dbg_printf(" Vrfname name option found\n");
+                    break;
+
+                // SysUpTime information
+                case SystemInitTimeMiliseconds:
+                    optionTemplate->SysUpOption.length = length;
+                    optionTemplate->SysUpOption.offset = offset;
+                    SetFlag(optionTemplate->flags, SYSUPOPTION);
+                    dbg_printf(" SysUpTime option found\n");
+                    break;
+
+                default:
+                    dbg_printf(" Skip this type: %u, length %u\n", type, length);
+            }
+            offset += length;
+        }
+        optionTemplate->optionSize = offset;
+
+        dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter_entry->info->id, optionTemplate->optionSize,
+                   optionTemplate->flags);
+        if (optionTemplate->flags) {
+            template_t *template = getTemplate(exporter_entry, tableID);
+            if (template) {
+                // clean existing template
+                if (template->data) free(template->data);
+                dbg_printf("Update/refresh option template ID: %u\n", tableID);
+            } else {
+                template = newTemplate(&(exporter_entry->v9), tableID);
+                dbg_printf("New template ID: %u\n", tableID);
+            }
+
+            if (!template) {
+                LogError("Process_ipfix: Failed option template add: %s line %d", __FILE__, __LINE__);
+                free(optionTemplate);
+                return;
+            }
+            template->updated = time(NULL);
+            template->data = optionTemplate;
+
+            if ((optionTemplate->flags & SAMPLERFLAGS) == SAMPLERFLAGS) {
+                dbg_printf("[%u] New Sampler information found\n", exporter_entry->info->id);
+                SetFlag(template->type, SAMPLER_TEMPLATE);
+            } else if ((optionTemplate->flags & SAMPLERSTDFLAGS) == SAMPLERSTDFLAGS) {
+                dbg_printf("[%u] New std sampling information found\n", exporter_entry->info->id);
+                SetFlag(template->type, SAMPLER_TEMPLATE);
+            } else if ((optionTemplate->flags & STDMASK) == STDFLAGS) {
+                dbg_printf("[%u] Old std sampling information found\n", exporter_entry->info->id);
+                SetFlag(template->type, SAMPLER_TEMPLATE);
+            } else if ((optionTemplate->flags & STDSAMPLING34) == STDSAMPLING34) {
+                dbg_printf("[%u] Old std sampling information found - missing algorithm\n", exporter_entry->info->id);
+                samplerOption->algorithm.length = 0;
+                samplerOption->algorithm.offset = 0;
+                SetFlag(template->type, SAMPLER_TEMPLATE);
+            } else {
+                dbg_printf("[%u] No Sampling information found\n", exporter_entry->info->id);
+            }
+
+            if (TestFlag(optionTemplate->flags, NBAROPTIONS)) {
+                if (nbarOption->id.length == 0) {
+                    LogError("Process_v9: [%u] nbar option missing mandatory ID field - skip", exporter_entry->info->id);
+                    ClearFlag(optionTemplate->flags, NBAROPTIONS);
+                } else {
+                    dbg_printf("[%u] found nbar option\n", exporter_entry->info->id);
+                    dbg_printf("[%u] id   length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.id.length);
+                    dbg_printf("[%u] name length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.name.length);
+                    dbg_printf("[%u] desc length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.desc.length);
+                    optionTemplate->nbarOption.scopeSize = scopeSize;
+                    SetFlag(template->type, NBAR_TEMPLATE);
+                }
+            } else {
+                dbg_printf("[%u] No nbar information found\n", exporter_entry->info->id);
+            }
+
+            if (TestFlag(optionTemplate->flags, IFNAMEOPTION)) {
+                dbg_printf("[%u] found ifname option\n", exporter_entry->info->id);
+                dbg_printf("[%u] ingess length: %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.ingress.length);
+                dbg_printf("[%u] name length  : %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.name.length);
+                optionTemplate->ifnameOption.scopeSize = scopeSize;
+                SetFlag(template->type, IFNAME_TEMPLATE);
+            } else {
+                dbg_printf("[%u] No ifname information found\n", exporter_entry->info->id);
+            }
+
+            if (TestFlag(optionTemplate->flags, VRFNAMEOPTION)) {
+                dbg_printf("[%u] found vrfname option\n", exporter_entry->info->id);
+                dbg_printf("[%u] ingess length: %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.ingress.length);
+                dbg_printf("[%u] name length  : %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.name.length);
+                optionTemplate->vrfnameOption.scopeSize = scopeSize;
+                SetFlag(template->type, VRFNAME_TEMPLATE);
+            } else {
+                dbg_printf("[%u] No vrfname information found\n", exporter_entry->info->id);
+            }
+
+            if (TestFlag(optionTemplate->flags, SYSUPOPTION)) {
+                dbg_printf("[%u] SysUp information found. length: %u\n", exporter_entry->info->id, optionTemplate->SysUpOption.length);
+                SetFlag(template->type, SYSUPTIME_TEMPLATE);
+            } else {
+                dbg_printf("[%u] No SysUp information found\n", exporter_entry->info->id);
+            }
+
         } else {
-            dbg_printf("[%u] No vrfname information found\n", exporter_entry->info->id);
+            free(optionTemplate);
+            dbg_printf("[%u] Skip option template\n", exporter_entry->info->id);
         }
 
-        if (TestFlag(optionTemplate->flags, SYSUPOPTION)) {
-            dbg_printf("[%u] SysUp information found. length: %u\n", exporter_entry->info->id, optionTemplate->SysUpOption.length);
-            SetFlag(template->type, SYSUPTIME_TEMPLATE);
-        } else {
-            dbg_printf("[%u] No SysUp information found\n", exporter_entry->info->id);
-        }
+        processed_records++;
 
-    } else {
-        free(optionTemplate);
-        dbg_printf("[%u] Skip option template\n", exporter_entry->info->id);
-    }
-
-    processed_records++;
+        // advance to next option template in flowset
+        size_left -= template_size;
+        option_template += template_size;
+    }  // End of while size_left
 
 }  // End of Process_v9_option_templates
 
@@ -1252,7 +1269,9 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
         uint32_t outRecordSize = pipeline->recordSize == VARLENGTH ? 1024 : pipeline->recordSize;
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, sizeof(recordHeaderV4_t) + outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            PushBlockV3(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = NULL;
+            InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
         }
 
         int buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
@@ -1300,7 +1319,9 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
 
                     LogVerbose("Process v9: PipelinRun() resize output buffer");
                     // request new and empty buffer
-                    fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+                    PushBlockV3(fs->blockQueue, fs->dataBlock);
+                    fs->dataBlock = NULL;
+                    InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
                     if (fs->dataBlock == NULL) {
                         return;
                     }
@@ -1577,7 +1598,6 @@ static inline void Process_v9_sampler_option_data(exporter_entry_t *exporter_ent
 
 }  // End of Process_v9_sampler_option_data
 
-// XXX FIX!
 static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, template_t *template, const uint8_t *data_flowset) {
     uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
     dbg_printf("[%u] Process nbar option data flowset size: %u\n", exporter_entry->info->id, size_left);
@@ -1600,97 +1620,117 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
         return;
     }
 
-    size_t elementSize = data_size;
-    size_t align = elementSize & 0x3;
-    if (align) {
-        elementSize += 4 - align;
-    }
-
-    // write array block
-    fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
-    arrayBlockV3_t *arrayBlock = (arrayBlockV3_t *)fs->dataBlock;
-    InitArrayBlock(arrayBlock);
-    arrayBlock->elementType = NbarRecordType;
-    arrayBlock->elementSize = elementSize;
-    arrayBlock->numElements = numRecords;
-
-    size_t total_size = sizeof(arrayBlockV3_t) + numRecords * elementSize;
-    arrayBlock->rawSize = total_size;
-    dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
-
-    // output buffer size check for all expected records
-    if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, total_size)) {
-        LogError("Cannot store nbar array - block size error");
+    // validate field offsets/lengths fit within option record
+    if (!CHECK_OPTION_DATA(option_size, nbarOption->id) || !CHECK_OPTION_DATA(option_size, nbarOption->name) ||
+        !CHECK_OPTION_DATA(option_size, nbarOption->desc)) {
+        LogError("Process_nbar_option: field offset/length exceeds option record size");
         return;
     }
 
-    uint8_t *outBuff = GetCursor(fs->dataBlock);
-    NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)outBuff;
-
-    // info record for each element in array
-    NbarInfo->app_id_length = nbarOption->id.length;
-    NbarInfo->app_name_length = nbarOption->name.length;
-    NbarInfo->app_desc_length = nbarOption->desc.length;
-
-    /*
-    dbg(int cnt = 0);
-    uint8_t *p = outBuff;
-    while (size_left >= option_size) {
-        // copy data
-        // id octet array
-        memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
-        p += nbarOption->id.length;
-
-        // name string
-        memcpy(p, inBuff + nbarOption->name.offset, nbarOption->name.length);
-        uint32_t state = UTF8_ACCEPT;
-        int err = 0;
-        if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
-            LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
-            err = 1;
-        }
-        p[nbarOption->name.length - 1] = '\0';
-        p += nbarOption->name.length;
-
-        // description string
-        memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
-        state = UTF8_ACCEPT;
-        if (validate_utf8(&state, (char *)p, nbarOption->desc.length) == UTF8_REJECT) {
-            LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
-            err = 1;
-        }
-        p[nbarOption->desc.length - 1] = '\0';
-
-#ifdef DEVEL
-        cnt++;
-        if (err == 0) {
-            printf("nbar record: %d, name: %s, desc: %s\n", cnt, p - nbarOption->name.length, p);
-        } else {
-            printf("Invalid nbar information - skip record\n");
-        }
-#endif
-
-        // in case of an err we do not store this record
-        if (err != 0) {
-            // XXX FIX!     nbarHeader->numElements--;
-            // XXX FIX!     nbarHeader->size -= elementSize;
-        }
-        inBuff += option_size;
-        size_left -= option_size;
+    if (data_size == 0) {
+        LogError("Process_nbar_option: all nbar field lengths are 0");
+        return;
     }
 
-    // update data block header
-    // XXX FIX!fs->dataBlock->size += nbarHeader->size;
-    // XXX FIX!fs->dataBlock->NumRecords++;
+    // final element size in array block
+    size_t elementSize = ALIGN8(data_size + 3);  // add 3 length bytes
+    // number of elements per block
+    uint32_t numElements = (BLOCK_SIZE_V3 - sizeof(arrayBlockV3_t)) / elementSize;
+    if (numElements == 0) {
+        LogError("Process_nbar_option: nbar element too large for block");
+        return;
+    }
+    // number of blocks needed
+    uint32_t numBlocks = (numRecords / numElements) + 1;
+
+    dbg_printf("Nbar dump: numRecords: %u, numElements: %u, elementSize: %zu, numBLocks: %u\n", numRecords, numElements, elementSize, numBlocks);
+
+    // write these number of array blocks
+    arrayBlockV3_t *arrayBlock = NULL;
+    for (int nb = 0; nb < (int)numBlocks; nb++) {
+        arrayBlock = (arrayBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+        *arrayBlock = (arrayBlockV3_t){
+            .type = BLOCK_TYPE_ARRAY,
+            .rawSize = sizeof(arrayBlockV3_t),
+            .elementType = NbarRecordType,
+            .elementSize = elementSize,
+        };
+
+        int cnt = 0;
+        uint8_t *outBuff = GetCursor(arrayBlock);
+        while ((cnt++ < (int)numElements) && (size_left >= option_size)) {
+            uint8_t *p = outBuff;
+            p[0] = nbarOption->id.length;
+            p[1] = nbarOption->name.length;
+            p[2] = nbarOption->desc.length;
+            p += 3;
+
+            // copy data
+            // id octet array
+            if (nbarOption->id.length) {
+                memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
+                p += nbarOption->id.length;
+            }
+
+            // name string
+            int err = 0;
+            if (nbarOption->name.length) {
+                memcpy(p, inBuff + nbarOption->name.offset, nbarOption->name.length);
+                uint32_t state = UTF8_ACCEPT;
+                if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
+                    LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
+                    err++;
+                }
+                p[nbarOption->name.length - 1] = '\0';
+                p += nbarOption->name.length;
+            }
+
+            // description string
+            if (nbarOption->desc.length) {
+                memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
+                uint32_t state = UTF8_ACCEPT;
+                if (validate_utf8(&state, (char *)p, nbarOption->desc.length) == UTF8_REJECT) {
+                    LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
+                    err++;
+                }
+                p[nbarOption->desc.length - 1] = '\0';
+            }
+
+#ifdef DEVEL
+            if (err == 0) {
+                printf("nbar record: %d, idLen: %u, nameLen: %u, descLen: %u\n", cnt, outBuff[0], outBuff[1], outBuff[2]);
+                printf("nbar record: %d, name: %s, desc: %s\n", cnt, nbarOption->name.length ? (char *)(p - nbarOption->name.length) : "NULL",
+                       nbarOption->desc.length ? (char *)p : "NULL");
+            } else {
+                printf("Invalid nbar information - skip record\n");
+            }
+#endif
+
+            // in case of an err we do not store this record
+            if (err == 0) {
+                // valid record - advance output
+                outBuff += elementSize;
+                arrayBlock->numElements++;
+                arrayBlock->rawSize += elementSize;
+            }
+            inBuff += option_size;
+            size_left -= option_size;
+        }
+
+        // write array block only if it contains elements
+        if (arrayBlock->numElements > 0) {
+            dbg_printf("Push ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
+            PushBlockV3(fs->blockQueue, arrayBlock);
+            arrayBlock = NULL;
+            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
+        }
+    }
+    FreeDataBlock(arrayBlock);
 
     if (size_left > 7) {
         LogVerbose("Process nbar data record - %u extra bytes", size_left);
     }
     processed_records++;
-
-    dbg_printf("nbar processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nbarHeader->size,
-    nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
-    */
 
 }  // End of Process_v9_nbar_option_data
 
@@ -1723,8 +1763,6 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
 
     // map input buffer as a byte array
     uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
-    // data size
-    size_t data_size = nameOption->name.length + sizeof(uint32_t);
     // size of record
     size_t option_size = optionTemplate->optionSize;
     // number of records in data
@@ -1732,92 +1770,97 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
 
     if (numRecords == 0 || option_size == 0 || option_size > size_left) {
-        LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+        LogError("Process_ifvrf_option: option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
 
-    size_t elementSize = data_size;
-    size_t align = elementSize & 0x3;
-    if (align) {
-        elementSize += 4 - align;
-    }
-    /* XXX FIX!!
-    size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
-    dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
-
-    // output buffer size check for all expected records
-    if (!IsAvailable(fs->dataBlock, total_size)) {
-        // flush block - get an empty one
-        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+    // validate field offsets/lengths fit within option record
+    if (!CHECK_OPTION_DATA(option_size, nameOption->ingress) || !CHECK_OPTION_DATA(option_size, nameOption->name)) {
+        LogError("Process_ifvrf_option: field offset/length exceeds option record size");
+        return;
     }
 
-    void *outBuff = GetCurrentCursor(fs->dataBlock);
+    if (nameOption->name.length == 0) {
+        LogError("Process_ifvrf_option: name field length is 0");
+        return;
+    }
 
-    // push nbar header
-    AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
+    // element: uint32_t id + char name[name.length]
+    size_t data_size = sizeof(uint32_t) + nameOption->name.length;
+    size_t elementSize = ALIGN8(data_size);
+    // number of elements per block
+    uint32_t numElements = (BLOCK_SIZE_V3 - sizeof(arrayBlockV3_t)) / elementSize;
+    if (numElements == 0) {
+        LogError("Process_ifvrf_option: element too large for block");
+        return;
+    }
+    // number of blocks needed
+    uint32_t numBlocks = (numRecords / numElements) + 1;
 
-    // put array info descriptor next
-    uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
-    nameHeader->size += sizeof(uint32_t);
+    dbg_printf("ifvrf dump: numRecords: %u, numElements: %u, elementSize: %zu, numBlocks: %u\n", numRecords, numElements, elementSize, numBlocks);
 
-    // info record for each element in array
-    *nameSize = nameOption->name.length;
-
-    dbg(int cnt = 0);
-    while (size_left >= option_size) {
-        // push nbar app info record
-        uint8_t *p;
-        PushArrayNextElement(nameHeader, p, uint8_t);
-
-        // copy data
-        // ingress ID
-        uint32_t val = 0;
-        for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + *((uint8_t *)(inBuff + nameOption->ingress.offset + i));
-
-        uint32_t *ingress = (uint32_t *)p;
-        *ingress = val;
-        p += sizeof(uint32_t);
-
-        // name string
-        memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
-        uint32_t state = UTF8_ACCEPT;
-        int err = 0;
-        if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
-            LogError("Process_name_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
-            err = 1;
+    // write array blocks
+    arrayBlockV3_t *arrayBlock = NULL;
+    for (int nb = 0; nb < (int)numBlocks; nb++) {
+        arrayBlock = NewArrayBlock(recordType, elementSize);
+        if (!arrayBlock) {
+            LogError("Process_ifvrf_option: NewArrayBlock() failed");
+            return;
         }
-        p[nameOption->name.length - 1] = '\0';
+
+        int cnt = 0;
+        uint8_t *outBuff = GetCursor(arrayBlock);
+        while ((cnt++ < (int)numElements) && (size_left >= option_size)) {
+            uint8_t *p = outBuff;
+
+            // ingress/vrf ID - variable length input -> uint32_t
+            uint32_t val = 0;
+            memcpy(&val, inBuff + nameOption->ingress.offset, sizeof(uint32_t));
+            *((uint32_t *)p) = ntohl(val);
+            p += sizeof(uint32_t);
+
+            // name string
+            int err = 0;
+            memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
+            uint32_t state = UTF8_ACCEPT;
+            if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
+                LogError("Process_ifvrf_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
+                err = 1;
+            }
+            p[nameOption->name.length - 1] = '\0';
+
 #ifdef DEVEL
-        if (err == 0) {
-            printf("name record: %d: ingress: %d, %s\n", cnt, val, p);
-        } else {
-            printf("Invalid name information - skip record\n");
-        }
-        cnt++;
+            if (err == 0) {
+                printf("name record: %d: ingress: %u, %s\n", cnt, val, (char *)(outBuff + sizeof(uint32_t)));
+            } else {
+                printf("Invalid name information - skip record\n");
+            }
 #endif
-        p += nameOption->name.length;
 
-        // in case of an err we do no store this record
-        if (err != 0) {
-            nameHeader->numElements--;
-            nameHeader->size -= elementSize;
+            // in case of an err we do not store this record
+            if (err == 0) {
+                outBuff += elementSize;
+                arrayBlock->numElements++;
+                arrayBlock->rawSize += elementSize;
+            }
+            inBuff += option_size;
+            size_left -= option_size;
         }
-        inBuff += option_size;
-        size_left -= option_size;
-    }
 
-    // update data block header
-    fs->dataBlock->size += nameHeader->size;
-    fs->dataBlock->NumRecords++;
+        // write array block only if it contains elements
+        if (arrayBlock->numElements > 0) {
+            dbg_printf("Push ifvrf ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
+            PushBlockV3(fs->blockQueue, arrayBlock);
+            arrayBlock = NULL;
+            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
+        }
+    }
+    FreeDataBlock(arrayBlock);
 
     if (size_left > 7) {
         LogVerbose("Process ifvrf data record - %u extra bytes", size_left);
     }
     processed_records++;
-
-    dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
-               nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
-    */
 
 }  // End of Process_v9_ifvrf_option_data
 

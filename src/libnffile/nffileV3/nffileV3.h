@@ -288,13 +288,20 @@ typedef struct nffileV3_s {
 
 #define DIR_INIT_CAPACITY 256
 
-#define InitArrayBlock(block) (*(block) = (arrayBlockV3_t){.type = BLOCK_TYPE_ARRAY, .rawSize = sizeof(arrayBlockV3_t)})
-
-#define InitMsgBlock(block) (*(block) = (msgBlockV3_t){.type = BLOCK_TYPE_MSG, .rawSize = sizeof(msgBlockV3_t)})
-
-#define InitExpBlock(block) (*(block) = (expBlockV3_t){.type = BLOCK_TYPE_EXP, .rawSize = sizeof(expBlockV3_t)})
-
-#define InitCursor(block, type) ((void *)((uint8_t *)block + sizeof(type)))
+#define InitDataBlock(ptr, size)                                              \
+    (ptr) = NewGenericDataBlock(size,                                         \
+                                _Generic((ptr),                               \
+                                    dataBlockV3_t *: BLOCK_TYPE_NULL,         \
+                                    flowBlockV3_t *: BLOCK_TYPE_FLOW,         \
+                                    arrayBlockV3_t *: BLOCK_TYPE_ARRAY,       \
+                                    msgBlockV3_t *: BLOCK_TYPE_MSG,           \
+                                    expBlockV3_t *: BLOCK_TYPE_EXP),          \
+                                _Generic((ptr),                               \
+                                    dataBlockV3_t *: sizeof(dataBlockV3_t),   \
+                                    flowBlockV3_t *: sizeof(flowBlockV3_t),   \
+                                    arrayBlockV3_t *: sizeof(arrayBlockV3_t), \
+                                    msgBlockV3_t *: sizeof(msgBlockV3_t),     \
+                                    expBlockV3_t *: sizeof(expBlockV3_t)));
 
 #define ResetCursor(ptr)                                                       \
     _Generic((ptr),                                                            \
@@ -317,6 +324,8 @@ nffileV3_t *GetNextFile(void);
 int ReportBlocks(void);
 
 nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize);
+
+void *NewGenericDataBlock(uint32_t blockSize, uint32_t blockType, uint32_t headerSize);
 
 dataBlockV3_t *NewDataBlock(uint32_t blockSize);
 
@@ -356,9 +365,9 @@ nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compr
 
 nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t compression, uint16_t compressionLevel, uint32_t encryption);
 
-void *WriteBlockV3(nffileV3_t *nffile, void *blockHeader);
+void WriteBlockV3(nffileV3_t *nffile, void *blockHeader);
 
-flowBlockV3_t *PushBlockV3(queue_t *queue, flowBlockV3_t *blockHeader);
+void PushBlockV3(queue_t *queue, void *blockHeader);
 
 void FlushBlockV3(nffileV3_t *nffile, void *blockHeader);
 

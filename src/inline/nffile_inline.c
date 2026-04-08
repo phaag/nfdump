@@ -145,8 +145,9 @@ static inline flowBlockV3_t *AppendToBuffer(nffileV3_t *nffile, flowBlockV3_t *d
             printf("BlockType is %u\n", dataBlock->type);
             //  assert(dataBlock->type == BLOCK_TYPE_FLOW);
         }
-        dataBlock = WriteBlockV3(nffile, dataBlock);
-        *dataBlock = (flowBlockV3_t){.type = BLOCK_TYPE_FLOW, .rawSize = sizeof(flowBlockV3_t)};
+        WriteBlockV3(nffile, dataBlock);
+        dataBlock = NULL;
+        InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
         // map output memory buffer
     }
     void *cur = GetCursor(dataBlock);

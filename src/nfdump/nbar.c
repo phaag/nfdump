@@ -80,15 +80,21 @@ static kh_inline khint_t __HashFunc(const AppInfoHash_t record) {
 KHASH_INIT(NbarAppInfoHash, AppInfoHash_t, char, 0, __HashFunc, __HashEqual)
 static khash_t(NbarAppInfoHash) *NbarAppInfoHash = NULL;
 
-static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
-    size_t dataSize = nbarAppInfo->app_id_length + nbarAppInfo->app_name_length + nbarAppInfo->app_desc_length;
+static void InsertNbarAppInfo(uint8_t *nbarData) {
+    uint32_t idLen = nbarData[0];
+    uint32_t nameLen = nbarData[1];
+    uint32_t descLen = nbarData[2];
+    nbarData += 3;
+
+    size_t dataSize = idLen + nameLen + descLen;
     if (dataSize == 0 || dataSize > 4096) {
         LogError("InsertNbarAppInfo(): in %s line %d: data size error %zu", __FILE__, __LINE__, dataSize);
         return;
     }
+
     AppInfoHash_t AppInfoHash;
     memset((void *)&AppInfoHash, 0, sizeof(AppInfoHash_t));
-    AppInfoHash.app_id_length = nbarAppInfo->app_id_length;
+    AppInfoHash.app_id_length = idLen;
     AppInfoHash.data = nbarData;
 
     int ret;
@@ -106,14 +112,13 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
         return;
     }
     memcpy(data, nbarData, dataSize);
-    kh_key(NbarAppInfoHash, k).app_name_length = nbarAppInfo->app_name_length;
-    kh_key(NbarAppInfoHash, k).app_desc_length = nbarAppInfo->app_desc_length;
+    kh_key(NbarAppInfoHash, k).app_name_length = nameLen;
+    kh_key(NbarAppInfoHash, k).app_desc_length = descLen;
     kh_key(NbarAppInfoHash, k).data = data;
 
 }  // end of InsertNbarAppInfo
 
-/*
-int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
+int AddNbarRecords(arrayBlockV3_t *arrayBlock) {
     if (NbarAppInfoHash == NULL) {
         NbarAppInfoHash = kh_init(NbarAppInfoHash);
         if (!NbarAppInfoHash) {
@@ -122,23 +127,16 @@ int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
         }
     }
 
-    // old buggy nbarRecord
-    if (nbarRecord->elementSize == 0) {
-        LogError("Skip legacy nbar record");
-        return 0;
-    }
-
-    NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
-    uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
-    for (int i = 0; i < nbarRecord->numElements; i++) {
-        InsertNbarAppInfo(NbarAppInfo, nbarData);
-        nbarData += nbarRecord->elementSize;
+    uint8_t *nbarData = ResetCursor(arrayBlock);
+    for (int i = 0; i < (int)arrayBlock->numElements; i++) {
+        InsertNbarAppInfo(nbarData);
+        nbarData += arrayBlock->elementSize;
     }
 
     return 0;
 
+    return 1;
 }  // End of AddNbarRecord
-*/
 
 char *GetNbarInfo(uint8_t *id, size_t size) {
     // XXX FIX! remove static

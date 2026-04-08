@@ -1380,12 +1380,17 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
         }
 
         if (TestFlag(optionTemplate->flags, NBAROPTIONS)) {
-            dbg_printf("[%u] found nbar options\n", exporter_entry->info->id);
-            dbg_printf("[%u] id   length: %u, offset: %u\n", exporter_entry->info->id, nbarOption->id.length, nbarOption->id.offset);
-            dbg_printf("[%u] name length: %u, offset: %u\n", exporter_entry->info->id, nbarOption->name.length, nbarOption->name.offset);
-            dbg_printf("[%u] desc length: %u, offset: %u\n", exporter_entry->info->id, nbarOption->desc.length, nbarOption->desc.offset);
-            optionTemplate->nbarOption.scopeSize = scopeSize;
-            SetFlag(template->type, NBAR_TEMPLATE);
+            if (nbarOption->id.length == 0) {
+                LogError("Process_ipfix: [%u] nbar option missing mandatory ID field - skip", exporter_entry->info->id);
+                ClearFlag(optionTemplate->flags, NBAROPTIONS);
+            } else {
+                dbg_printf("[%u] found nbar options\n", exporter_entry->info->id);
+                dbg_printf("[%u] id   length: %u, offset: %u\n", exporter_entry->info->id, nbarOption->id.length, nbarOption->id.offset);
+                dbg_printf("[%u] name length: %u, offset: %u\n", exporter_entry->info->id, nbarOption->name.length, nbarOption->name.offset);
+                dbg_printf("[%u] desc length: %u, offset: %u\n", exporter_entry->info->id, nbarOption->desc.length, nbarOption->desc.offset);
+                optionTemplate->nbarOption.scopeSize = scopeSize;
+                SetFlag(template->type, NBAR_TEMPLATE);
+            }
         } else {
             dbg_printf("[%u] No nbar information found\n", exporter_entry->info->id);
         }
@@ -1454,7 +1459,9 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         uint32_t outRecordSize = pipeline->recordSize == VARLENGTH ? 1024 : pipeline->recordSize;
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, sizeof(recordHeaderV4_t) + outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            PushBlockV3(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = NULL;
+            InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
         }
 
         unsigned buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
@@ -1502,7 +1509,9 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
 
                     LogVerbose("Process ipfix: PipelinRun() resize output buffer");
                     // request new and empty buffer
-                    fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+                    PushBlockV3(fs->blockQueue, fs->dataBlock);
+                    fs->dataBlock = NULL;
+                    InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
                     if (fs->dataBlock == NULL) {
                         return;
                     }
@@ -1763,10 +1772,7 @@ static inline void Process_ipfix_sampler_option_data(exporter_entry_t *exporter_
 
 }  // End of Process_ipfix_sampler_option_data
 
-// XXX FIX!
-
 static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, template_t *template, const uint8_t *data_flowset) {
-    /*
     uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
     dbg_printf("[%u] Process nbar option data flowset size: %u\n", exporter_entry->info->id, size_left);
 
@@ -1774,248 +1780,259 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
     struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
 
     // map input buffer as a byte array
-    const uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
+    uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
     // data size
     size_t data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
     // size of record
     size_t option_size = optionTemplate->optionSize;
     // number of records in data
-    unsigned numRecords = size_left / option_size;
+    int numRecords = size_left / option_size;
     dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
 
     if (numRecords == 0 || option_size == 0 || option_size > size_left) {
         LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
-    if (nbarOption->name.length == 0 && nbarOption->desc.length == 0) {
-        LogInfo("Process_nbar_option: nbar name and description length 0 - skip data");
+
+    // validate field offsets/lengths fit within option record
+    if (!CHECK_OPTION_DATA(option_size, nbarOption->id) || !CHECK_OPTION_DATA(option_size, nbarOption->name) ||
+        !CHECK_OPTION_DATA(option_size, nbarOption->desc)) {
+        LogError("Process_nbar_option: field offset/length exceeds option record size");
         return;
     }
 
-    size_t elementSize = data_size;
-    size_t align = elementSize & 0x3;
-    if (align) {
-        elementSize += 4 - align;
-    }
-    size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(NbarAppInfo_t) + numRecords * elementSize;
-    dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
-
-    // output buffer size check for all expected records
-    if (!IsAvailable(fs->dataBlock, total_size)) {
-        // flush block - get an empty one
-        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+    if (data_size == 0) {
+        LogError("Process_nbar_option: all nbar field lengths are 0");
+        return;
     }
 
-    void *outBuff = GetCursor(fs->dataBlock);
-    // push nbar header
-    AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
-
-    // put array info descriptor next
-    NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)(outBuff + sizeof(arrayRecordHeader_t));
-    nbarHeader->size += sizeof(NbarAppInfo_t);
-
-    // info record for each element in array
-    NbarInfo->app_id_length = nbarOption->id.length;
-    NbarInfo->app_name_length = nbarOption->name.length;
-    NbarInfo->app_desc_length = nbarOption->desc.length;
-    dbg_printf("NBAR idLength: %u, nameLength: %u, descLength: %u\n", nbarOption->id.length, nbarOption->name.length, nbarOption->desc.length);
-
-    dbg(int cnt = 0);
-    while (size_left >= option_size) {
-        // push nbar app info record
-        uint8_t *p;
-        PushArrayNextElement(nbarHeader, p, uint8_t);
-        // copy data
-        // id octet array
-        memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
-        p += nbarOption->id.length;
-
-        // name string
-        memcpy(p, inBuff + nbarOption->name.offset, nbarOption->name.length);
-        uint32_t state = UTF8_ACCEPT;
-        int err = 0;
-        if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
-            LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
-            err = 1;
-        }
-        if (nbarOption->name.length) p[nbarOption->name.length - 1] = '\0';
-        p += nbarOption->name.length;
-
-        // description string
-        memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
-        state = UTF8_ACCEPT;
-        if (validate_utf8(&state, (char *)p, nbarOption->desc.length) == UTF8_REJECT) {
-            LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
-            err = 1;
-        }
-        if (nbarOption->desc.length) p[nbarOption->desc.length - 1] = '\0';
-#ifdef DEVEL
-        cnt++;
-        if (err == 0) {
-            printf("nbar record: %d, ", cnt);
-            uint8_t *u = (uint8_t *)(p - nbarOption->name.length - nbarOption->id.length);
-            for (int i = 0; i < nbarOption->id.length; i++) printf("%02X ", *((uint8_t *)u++));
-
-            printf("nbar record: %d, ", cnt);
-            if (nbarOption->name.length)
-                printf("name: %s, ", p - nbarOption->name.length);
-            else
-                printf("name: <empty>");
-            if (nbarOption->desc.length)
-                printf("desc: %s\n", p);
-            else
-                printf("desc: <empty>\n");
-        } else {
-            printf("Invalid nbar information - skip record\n");
-        }
-#endif
-
-        // in case of an err we do no store this record
-        if (err != 0) {
-            nbarHeader->numElements--;
-            nbarHeader->size -= elementSize;
-        }
-        inBuff += option_size;
-        size_left -= option_size;
+    // final element size in array block
+    size_t elementSize = ALIGN8(data_size + 3);  // add 3 length bytes
+    // number of elements per block
+    uint32_t numElements = (BLOCK_SIZE_V3 - sizeof(arrayBlockV3_t)) / elementSize;
+    if (numElements == 0) {
+        LogError("Process_nbar_option: nbar element too large for block");
+        return;
     }
+    // number of blocks needed
+    uint32_t numBlocks = (numRecords / numElements) + 1;
 
-    // update data block header
-    fs->dataBlock->size += nbarHeader->size;
-    fs->dataBlock->NumRecords++;
+    dbg_printf("Nbar dump: numRecords: %u, numElements: %u, elementSize: %zu, numBLocks: %u\n", numRecords, numElements, elementSize, numBlocks);
 
-    if (size_left > 7) {
-        LogInfo("Process nbar data record - %u extra bytes", size_left);
-    }
-    processed_records++;
-
-    dbg_printf("nbar processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nbarHeader->size,
-               nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
-    */
-}  // End of Process_ipfix_nbar_option_data
-
-static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, int type, template_t *template,
-                                      const uint8_t *data_flowset) {
-    /*
-        uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
-        dbg_printf("[%u] Process ifvrf option data flowset size: %u\n", exporter_entry->info->id, size_left);
-
-        uint32_t recordType = 0;
-        optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
-        struct nameOptionList_s *nameOption = NULL;
-        switch (type) {
-            case IFNAME_TEMPLATE:
-                nameOption = &(optionTemplate->ifnameOption);
-                recordType = IfNameRecordType;
-                dbg_printf("[%u] Process if name option data flowset size: %u\n", exporter_entry->info->id, size_left);
-                break;
-            case VRFNAME_TEMPLATE:
-                nameOption = &(optionTemplate->vrfnameOption);
-                recordType = VrfNameRecordType;
-                dbg_printf("[%u] Process vrf name option data flowset size: %u\n", exporter_entry->info->id, size_left);
-                break;
-            default:
-                LogError("Unknown array record type: %d", type);
-                return;
-
-                // unreached
-                break;
-        }
-
-        // map input buffer as a byte array
-        const uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
-        // data size
-        size_t data_size = nameOption->name.length + sizeof(uint32_t);
-        // size of record
-        size_t option_size = optionTemplate->optionSize;
-        // number of records in data
-        unsigned numRecords = size_left / option_size;
-        dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
-
-        if (numRecords == 0 || option_size == 0 || option_size > size_left) {
-            LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+    // write these number of array blocks
+    arrayBlockV3_t *arrayBlock = NULL;
+    for (int nb = 0; nb < (int)numBlocks; nb++) {
+        arrayBlock = NewArrayBlock(NbarRecordType, elementSize);
+        if (!arrayBlock) {
+            LogError("Process_nbar_option: NewArrayBlock() failed");
             return;
         }
 
-        size_t elementSize = data_size;
-        size_t align = elementSize & 0x3;
-        if (align) {
-            elementSize += 4 - align;
-        }
-        size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
-        dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
-
-        // output buffer size check for all expected records
-        if (!IsAvailable(fs->dataBlock, total_size)) {
-            // flush block - get an empty one
-            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
-        }
-
-        void *outBuff = GetCursor(fs->dataBlock);
-        // push nbar header
-        AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
-
-        // put array info descriptor next
-        uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
-        nameHeader->size += sizeof(uint32_t);
-
-        // info record for each element in array
-        *nameSize = nameOption->name.length;
-
-        dbg(unsigned cnt = 0);
-        while (size_left >= option_size) {
-            // push nbar app info record
-            uint8_t *p;
-            PushArrayNextElement(nameHeader, p, uint8_t);
+        int cnt = 0;
+        uint8_t *outBuff = GetCursor(arrayBlock);
+        while ((cnt++ < (int)numElements) && (size_left >= option_size)) {
+            uint8_t *p = outBuff;
+            p[0] = nbarOption->id.length;
+            p[1] = nbarOption->name.length;
+            p[2] = nbarOption->desc.length;
+            p += 3;
 
             // copy data
-            // ingress ID
-            uint32_t val = 0;
-            for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + *((uint8_t *)(inBuff + nameOption->ingress.offset + i));
-
-            uint32_t *ingress = (uint32_t *)p;
-            *ingress = val;
-            p += sizeof(uint32_t);
+            // id octet array
+            if (nbarOption->id.length) {
+                memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
+                p += nbarOption->id.length;
+            }
 
             // name string
-            memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
-            uint32_t state = UTF8_ACCEPT;
             int err = 0;
-            if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
-                LogError("Process_name_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
-                err = 1;
+            if (nbarOption->name.length) {
+                memcpy(p, inBuff + nbarOption->name.offset, nbarOption->name.length);
+                uint32_t state = UTF8_ACCEPT;
+                if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
+                    LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
+                    err++;
+                }
+                p[nbarOption->name.length - 1] = '\0';
+                p += nbarOption->name.length;
             }
-            p[nameOption->name.length - 1] = '\0';
-    #ifdef DEVEL
-            if (err == 0) {
-                printf("name record: %u: ingress: %d, %s\n", cnt, val, p);
-            } else {
-                printf("Invalid name information - skip record\n");
-            }
-            cnt++;
-    #endif
-            p += nameOption->name.length;
 
-            // in case of an err we do no store this record
-            if (err != 0) {
-                nameHeader->numElements--;
-                nameHeader->size -= elementSize;
+            // description string
+            if (nbarOption->desc.length) {
+                memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
+                uint32_t state = UTF8_ACCEPT;
+                if (validate_utf8(&state, (char *)p, nbarOption->desc.length) == UTF8_REJECT) {
+                    LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
+                    err++;
+                }
+                p[nbarOption->desc.length - 1] = '\0';
+            }
+
+#ifdef DEVEL
+            if (err == 0) {
+                printf("nbar record: %d, idLen: %u, nameLen: %u, descLen: %u\n", cnt, outBuff[0], outBuff[1], outBuff[2]);
+                printf("nbar record: %d, name: %s, desc: %s\n", cnt, nbarOption->name.length ? (char *)(p - nbarOption->name.length) : "NULL",
+                       nbarOption->desc.length ? (char *)p : "NULL");
+            } else {
+                printf("Invalid nbar information - skip record\n");
+            }
+#endif
+
+            // in case of an err we do not store this record
+            if (err == 0) {
+                // valid record - advance output
+                outBuff += elementSize;
+                arrayBlock->numElements++;
+                arrayBlock->rawSize += elementSize;
             }
             inBuff += option_size;
             size_left -= option_size;
         }
 
-        // update data block header
-        fs->dataBlock->size += nameHeader->size;
-        fs->dataBlock->NumRecords++;
-
-        if (size_left > 7) {
-            LogInfo("Process ifvrf data record - %u extra bytes", size_left);
+        // write array block only if it contains elements
+        if (arrayBlock->numElements > 0) {
+            dbg_printf("Push ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
+            PushBlockV3(fs->blockQueue, arrayBlock);
+            arrayBlock = NULL;
+            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
         }
-        processed_records++;
+    }
+    FreeDataBlock(arrayBlock);
 
-        dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
-                   nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
-        */
+    if (size_left > 7) {
+        LogVerbose("Process nbar data record - %u extra bytes", size_left);
+    }
+    processed_records++;
+
+}  // End of Process_ipfix_nbar_option_data
+
+static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSource_t *fs, int type, template_t *template,
+                                      const uint8_t *data_flowset) {
+    uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
+    dbg_printf("[%u] Process ifvrf option data flowset size: %u\n", exporter_entry->info->id, size_left);
+
+    uint32_t recordType = 0;
+    optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
+    struct nameOptionList_s *nameOption = NULL;
+    switch (type) {
+        case IFNAME_TEMPLATE:
+            nameOption = &(optionTemplate->ifnameOption);
+            recordType = IfNameRecordType;
+            dbg_printf("[%u] Process if name option data flowset size: %u\n", exporter_entry->info->id, size_left);
+            break;
+        case VRFNAME_TEMPLATE:
+            nameOption = &(optionTemplate->vrfnameOption);
+            recordType = VrfNameRecordType;
+            dbg_printf("[%u] Process vrf name option data flowset size: %u\n", exporter_entry->info->id, size_left);
+            break;
+        default:
+            LogError("Unknown array record type: %d", type);
+            return;
+
+            // unreached
+            break;
+    }
+
+    // map input buffer as a byte array
+    uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
+    // size of record
+    size_t option_size = optionTemplate->optionSize;
+    // number of records in data
+    int numRecords = size_left / option_size;
+    dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
+
+    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+        LogError("Process_ifvrf_option: option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
+
+    // validate field offsets/lengths fit within option record
+    if (!CHECK_OPTION_DATA(option_size, nameOption->ingress) || !CHECK_OPTION_DATA(option_size, nameOption->name)) {
+        LogError("Process_ifvrf_option: field offset/length exceeds option record size");
+        return;
+    }
+
+    if (nameOption->name.length == 0) {
+        LogError("Process_ifvrf_option: name field length is 0");
+        return;
+    }
+
+    // element: uint32_t id + char name[name.length]
+    size_t data_size = sizeof(uint32_t) + nameOption->name.length;
+    size_t elementSize = ALIGN8(data_size);
+    // number of elements per block
+    uint32_t numElements = (BLOCK_SIZE_V3 - sizeof(arrayBlockV3_t)) / elementSize;
+    if (numElements == 0) {
+        LogError("Process_ifvrf_option: element too large for block");
+        return;
+    }
+    // number of blocks needed
+    uint32_t numBlocks = (numRecords / numElements) + 1;
+
+    dbg_printf("ifvrf dump: numRecords: %u, numElements: %u, elementSize: %zu, numBlocks: %u\n", numRecords, numElements, elementSize, numBlocks);
+
+    // write array blocks
+    arrayBlockV3_t *arrayBlock = NULL;
+    for (int nb = 0; nb < (int)numBlocks; nb++) {
+        arrayBlock = NewArrayBlock(recordType, elementSize);
+        if (!arrayBlock) {
+            LogError("Process_ifvrf_option: NewArrayBlock() failed");
+            return;
+        }
+
+        int cnt = 0;
+        uint8_t *outBuff = GetCursor(arrayBlock);
+        while ((cnt++ < (int)numElements) && (size_left >= option_size)) {
+            uint8_t *p = outBuff;
+
+            // ingress/vrf ID - variable length input -> uint32_t
+            uint32_t val = 0;
+            for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + inBuff[nameOption->ingress.offset + i];
+            *((uint32_t *)p) = val;
+            p += sizeof(uint32_t);
+
+            // name string
+            int err = 0;
+            memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
+            uint32_t state = UTF8_ACCEPT;
+            if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
+                LogError("Process_ifvrf_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
+                err = 1;
+            }
+            p[nameOption->name.length - 1] = '\0';
+
+#ifdef DEVEL
+            if (err == 0) {
+                printf("name record: %d: ingress: %u, %s\n", cnt, val, (char *)(outBuff + sizeof(uint32_t)));
+            } else {
+                printf("Invalid name information - skip record\n");
+            }
+#endif
+
+            // in case of an err we do not store this record
+            if (err == 0) {
+                outBuff += elementSize;
+                arrayBlock->numElements++;
+                arrayBlock->rawSize += elementSize;
+            }
+            inBuff += option_size;
+            size_left -= option_size;
+        }
+
+        // write array block only if it contains elements
+        if (arrayBlock->numElements > 0) {
+            dbg_printf("Push ifvrf ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
+            PushBlockV3(fs->blockQueue, arrayBlock);
+            arrayBlock = NULL;
+            InitDataBlock(arrayBlock, BLOCK_SIZE_V3);
+        }
+    }
+    FreeDataBlock(arrayBlock);
+
+    if (size_left > 7) {
+        LogVerbose("Process ifvrf data record - %u extra bytes", size_left);
+    }
+    processed_records++;
 
 }  // End of Process_ifvrf_option_data
 

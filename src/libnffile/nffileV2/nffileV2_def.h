@@ -81,10 +81,10 @@ BUFFSIZE and have potentially more time to flush to disk
 #define DATA_BLOCK_TYPE_3 3
 #define DATA_BLOCK_TYPE_4 4
 
-#define InitDataBlock(a) \
-    (a)->NumRecords = 0; \
-    (a)->size = 0;       \
-    (a)->flags = 0;      \
+#define InitV2DataBlock(a) \
+    (a)->NumRecords = 0;   \
+    (a)->size = 0;         \
+    (a)->flags = 0;        \
     (a)->type = DATA_BLOCK_TYPE_3;
 
 typedef struct dataBlockV2_s {

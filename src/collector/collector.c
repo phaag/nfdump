@@ -372,7 +372,9 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         fs->bad_packets = 0;
 
         // Flush current dataBlock
-        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+        PushBlockV3(fs->blockQueue, fs->dataBlock);
+        fs->dataBlock = NULL;
+        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
         if (fs->dataBlock == QUEUE_CLOSED) {
             fs->dataBlock = NULL;
             return 0;
@@ -382,8 +384,8 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         FlushExporter(fs);
 
         // Signaling rote for backend
-        msgBlockV3_t *msgBlock = (msgBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-        InitMsgBlock(msgBlock);
+        msgBlockV3_t *msgBlock = NULL;
+        InitDataBlock(msgBlock, BLOCK_SIZE_V3);
         uint8_t *p = GetCursor(msgBlock);
         cycle_message_t cycle_message = {.type = MESSAGE_CYCLE, .length = sizeof(cycle_message_t), .when = t_start, .done = done};
         memcpy(&cycle_message.stat_record, (void *)&fs->stat_record, sizeof(stat_record_t));
@@ -414,8 +416,8 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
 
 void FlushExporter(FlowSource_t *fs) {
     dbg_printf("Flush all exporters\n");
-    expBlockV3_t *expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-    InitExpBlock(expBlock);
+    expBlockV3_t *expBlock = NULL;
+    InitDataBlock(expBlock, BLOCK_SIZE_V3);
 
     // push exporter info to exporter block
     uint32_t available = BLOCK_SIZE_V3 - expBlock->rawSize;
@@ -427,8 +429,8 @@ void FlushExporter(FlowSource_t *fs) {
         info_record->sequence_failure = entry->sequence_failure;
         if (available < info_record->size) {
             queue_push(fs->blockQueue, expBlock);
-            expBlock = (expBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-            InitExpBlock(expBlock);
+            expBlock = NULL;
+            InitDataBlock(expBlock, BLOCK_SIZE_V3);
             p = GetCursor(expBlock);
             available = BLOCK_SIZE_V3 - expBlock->rawSize;
         }

@@ -44,7 +44,7 @@ typedef struct NbarAppInfo_s {
     uint16_t app_desc_length;
 } NbarAppInfo_t;
 
-int AddNbarRecord(arrayBlockV3_t *arraBlock);
+int AddNbarRecords(arrayBlockV3_t *arrayBlock);
 
 char *GetNbarInfo(uint8_t *id, size_t size);
 

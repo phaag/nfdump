@@ -104,7 +104,27 @@ int ReportBlocks(void) {
     return inUse;
 }  // End of ReportBlocks
 
+void *NewGenericDataBlock(uint32_t blockSize, uint32_t blockType, uint32_t headerSize) {
+    dbg_printf("Enter %s\n", __func__);
+    if (blockSize == 0) blockSize = BLOCK_SIZE_V3;
+    dataBlockV3_t *dataBlock = malloc(blockSize);
+    if (!dataBlock) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    memset(dataBlock, 0, headerSize);
+    dataBlock->discSize = headerSize;
+    dataBlock->type = blockType;
+
+    atomic_fetch_add(&blocksInUse, 1);
+    return (void *)dataBlock;
+}  // End of NewGenericDataBlock
+
 dataBlockV3_t *NewDataBlock(uint32_t blockSize) {
+    arrayBlockV3_t *a = NULL;
+    InitDataBlock(a, blockSize);
+
     dbg_printf("Enter %s\n", __func__);
     if (blockSize == 0) blockSize = BLOCK_SIZE_V3;
     dataBlockV3_t *dataBlock = malloc(blockSize);
@@ -367,8 +387,8 @@ int RenameAppendV3(const char *oldName, const char *newName) {
     size_t srcCopySize = (size_t)(src->fileHeader->offDirectory - sizeof(fileHeaderV3_t));
     uint64_t srcFirstOffset = sizeof(fileHeaderV3_t);
 
-    // -2 skip dst STATS/IDENT, -2 skip src STATS/IDENT, +2 new merged STATS/IDENT
-    uint32_t totalEntries = dstDir->numEntries + srcDir->numEntries - 2;
+    // worst case - numEntries, if none of the files has STATS/IDENT
+    uint32_t totalEntries = dstDir->numEntries + srcDir->numEntries + 2;
 
     // allocate merged directory
     directoryEntryV3_t *mergedEntries = malloc(totalEntries * sizeof(directoryEntryV3_t));

@@ -272,7 +272,9 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, outputSize)) {
             // flush block - get an empty one
-            fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+            PushBlockV3(fs->blockQueue, fs->dataBlock);
+            fs->dataBlock = NULL;
+            InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
         }
 
         void *buffPtr = GetCursor(fs->dataBlock);

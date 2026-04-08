@@ -243,7 +243,7 @@ static dataBlockV2_t *NewDataBlockV2(void) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    InitDataBlock(dataBlock);
+    InitV2DataBlock(dataBlock);
     return dataBlock;
 
 }  // End of NewDataBlockV2

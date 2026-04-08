@@ -49,8 +49,8 @@ typedef struct template_s {
 #define IFNAME_TEMPLATE 8
 #define VRFNAME_TEMPLATE 16
 #define SYSUPTIME_TEMPLATE 32
-    uint16_t type;           // template type
-    void *data;              // pipeline sequencer or option template
+    uint16_t type;  // template type
+    void *data;     // pipeline sequencer or option template
 } template_t;
 
 typedef struct optionTag_s {
@@ -137,5 +137,18 @@ typedef struct optionTemplate_s {
 #define CHECK_OPTION_DATA(avail, tag) ((tag.length > 0) && (tag.offset + tag.length) <= avail)
 
 #define DYN_FIELD_LENGTH 65535
+
+static inline arrayBlockV3_t *NewArrayBlock(uint16_t elementType, uint16_t elementSize) {
+    arrayBlockV3_t *block = (arrayBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
+    if (block) {
+        *block = (arrayBlockV3_t){
+            .type = BLOCK_TYPE_ARRAY,
+            .rawSize = sizeof(arrayBlockV3_t),
+            .elementType = elementType,
+            .elementSize = elementSize,
+        };
+    }
+    return block;
+}
 
 #endif

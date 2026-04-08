@@ -342,7 +342,9 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 
     if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, recordSize)) {
         // flush block - get an empty one
-        fs->dataBlock = PushBlockV3(fs->blockQueue, fs->dataBlock);
+        PushBlockV3(fs->blockQueue, fs->dataBlock);
+        fs->dataBlock = NULL;
+        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
     }
 
     uint8_t *buffPtr = GetCursor(fs->dataBlock);

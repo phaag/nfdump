@@ -290,7 +290,7 @@ static void FreeRecordHandle(recordHandle_t *handle) {
 // preprocess block - check of block is valid and
 // add exporter records
 static int PreProcessBlock(flowBlockV3_t *dataBlock) {
-    recordHeaderV4_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
+    recordHeaderV4_t *record_ptr = ResetCursor(dataBlock);
     uint32_t sumSize = 0;
     unsigned i;
     for (i = 0; i < dataBlock->numRecords; i++) {
@@ -368,8 +368,14 @@ static void *prepareThread(void *arg) {
                 // processed blocks
                 recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
                 break;
-            case BLOCK_TYPE_ARRAY:
-                break;
+            case BLOCK_TYPE_ARRAY: {
+                arrayBlockV3_t *arrayBlock = (arrayBlockV3_t *)dataHandle->dataBlock;
+                dbg_printf("ARRAY block, type: %u, size: %u, numElements: %u, elementSize: %u\n", arrayBlock->elementType, arrayBlock->rawSize,
+                           arrayBlock->numElements, arrayBlock->elementSize);
+                if (arrayBlock->elementType == NbarRecordType) {
+                    AddNbarRecords(arrayBlock);
+                }
+            } break;
             case BLOCK_TYPE_EXP:
                 break;
             case BLOCK_TYPE_META:
@@ -475,7 +481,7 @@ static void *filterThread(void *arg) {
         printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->numRecords);
 #endif
 
-        recordHeader_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
+        recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t matched = 0;
         uint32_t dataRecords = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
@@ -609,7 +615,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         dbg(numBlocks++);
         flowBlockV3_t *dataBlock = dataHandle->dataBlock;
-        recordHeader_t *record_ptr = InitCursor(dataBlock, flowBlockV3_t);
+        recordHeader_t *record_ptr = ResetCursor(dataBlock);
 
         uint64_t recordCounter = dataHandle->recordCnt;
         if (outputParams->ident) free(outputParams->ident);
