@@ -86,11 +86,11 @@ static struct exporter_array_s {
 
 // Context passed to nfreaderV2 thread
 typedef struct convertCtx_s {
-    int fd;                       // file descriptor (positioned after header)
-    uint32_t numBlocks;           // number of data blocks (not appendix)
-    uint8_t compression;          // V2 compression type
-    uint32_t blockSize;           // max uncompressed block size
-    nffileV3_t *nffile;           // output V3 handle (for processQueue)
+    int fd;               // file descriptor (positioned after header)
+    uint32_t numBlocks;   // number of data blocks (not appendix)
+    uint8_t compression;  // V2 compression type
+    uint32_t blockSize;   // max uncompressed block size
+    nffileV3_t *nffile;   // output V3 handle (for processQueue)
 } convertCtx_t;
 
 /*
@@ -153,6 +153,17 @@ static const uint8_t mapV3toV4[MAXV3EXTENSIONS] = {
     [EX3nokiaNatStringID] = EXnokiaNatStringID,  // 41 → 37
     [EX3ipInfoID] = EXipInfoID,                  // 42 → 38
 };
+
+static void freeTables(void) {
+    if (exporter_array.entries) {
+        free(exporter_array.entries);
+        exporter_array = (struct exporter_array_s){0};
+    }
+    if (exporter_table.entries) {
+        free(exporter_table.entries);
+        exporter_table = (exporter_table_t){0};
+    }
+}  // End of freeTables
 
 static void expand_exporter_table(exporter_table_t *tab) {
     uint32_t old_cap = tab->capacity;
@@ -1090,6 +1101,7 @@ static void *nfreaderV2(void *arg) {
     if (exporter_table.count > 0) {
         // send exporter block
         AppendExporterBlock(nffile);
+        freeTables();
     }
     queue_close(nffile->processQueue);
 
