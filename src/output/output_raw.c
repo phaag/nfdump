@@ -147,77 +147,71 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
 
 }  // End of EXgenericFlowID
 
-static void stringEXtunIPv4(FILE *stream, EXtunnel_t *tunnel, EXgenericFlow_t *genericFlow) {
+static void stringEXtunIPv4(FILE *stream, EXtunnelV4_t *tunnel, EXgenericFlow_t *genericFlow) {
     char srcIPstr[INET_ADDRSTRLEN], dstIPstr[INET_ADDRSTRLEN];
 
     uint32_t ip;
-    uint32_t srcIP;
-    memcpy(&srcIP, tunnel->tunSrcAddr + 12, sizeof(uint32_t));
-    ip = htonl(srcIP);
+    ip = htonl(tunnel->srcAddr);
     inet_ntop(AF_INET, &ip, srcIPstr, sizeof(srcIPstr));
 
-    uint32_t dstIP;
-    memcpy(&dstIP, tunnel->tunDstAddr + 12, sizeof(uint32_t));
-    ip = htonl(dstIP);
+    ip = htonl(tunnel->dstAddr);
     inet_ntop(AF_INET, &ip, dstIPstr, sizeof(dstIPstr));
 
     char sloc[128], dloc[128], stor[4], dtor[4];
     stor[0] = dtor[0] = '\0';
     if (genericFlow) {
-        if (LookupV4Tor(srcIP, genericFlow->msecFirst, genericFlow->msecLast, stor + 1)) stor[0] = ' ';
-        if (LookupV4Tor(dstIP, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1)) dtor[0] = ' ';
+        if (LookupV4Tor(tunnel->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1)) stor[0] = ' ';
+        if (LookupV4Tor(tunnel->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1)) dtor[0] = ' ';
     }
-    LookupV4Location(srcIP, sloc, 128);
-    LookupV4Location(dstIP, dloc, 128);
+    LookupV4Location(tunnel->srcAddr, sloc, 128);
+    LookupV4Location(tunnel->dstAddr, dloc, 128);
     fprintf(stream,
             "  tun proto    =                %3u %s\n"
             "  tun src addr =   %16s%s%s%s\n"
             "  tun dst addr =   %16s%s%s%s\n",
-            tunnel->tunProto, ProtoString(tunnel->tunProto, 0), srcIPstr, strlen(sloc) ? ": " : "", sloc, stor, dstIPstr, strlen(dloc) ? ": " : "",
-            dloc, dtor);
+            tunnel->proto, ProtoString(tunnel->proto, 0), srcIPstr, strlen(sloc) ? ": " : "", sloc, stor, dstIPstr, strlen(dloc) ? ": " : "", dloc,
+            dtor);
 
 }  // End of stringEXtunIPv4
 
-static void stringEXtunIPv6(FILE *stream, EXtunnel_t *tunnel, EXgenericFlow_t *genericFlow) {
+static void stringEXtunIPv6(FILE *stream, EXtunnelV6_t *tunnel, EXgenericFlow_t *genericFlow) {
     char srcIPstr[INET6_ADDRSTRLEN], dstIPstr[INET6_ADDRSTRLEN];
 
     uint64_t srcIP[2], dstIP[2];
-    srcIP[0] = htonll(tunnel->tunSrcAddr[0]);
-    srcIP[1] = htonll(tunnel->tunSrcAddr[1]);
-    dstIP[0] = htonll(tunnel->tunDstAddr[0]);
-    dstIP[1] = htonll(tunnel->tunDstAddr[1]);
+    srcIP[0] = htonll(tunnel->srcAddr[0]);
+    srcIP[1] = htonll(tunnel->srcAddr[1]);
+    dstIP[0] = htonll(tunnel->dstAddr[0]);
+    dstIP[1] = htonll(tunnel->dstAddr[1]);
     inet_ntop(AF_INET6, &srcIP, srcIPstr, sizeof(srcIPstr));
     inet_ntop(AF_INET6, &dstIP, dstIPstr, sizeof(dstIPstr));
 
     char sloc[128], dloc[128], stor[4], dtor[4];
     stor[0] = dtor[0] = '\0';
     if (genericFlow) {
-        if (LookupV6Tor((uint64_t *)tunnel->tunSrcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1)) stor[0] = ' ';
-        if (LookupV6Tor((uint64_t *)tunnel->tunDstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1)) dtor[0] = ' ';
+        if (LookupV6Tor((uint64_t *)tunnel->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1)) stor[0] = ' ';
+        if (LookupV6Tor((uint64_t *)tunnel->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1)) dtor[0] = ' ';
     }
-    LookupV6Location((uint64_t *)tunnel->tunSrcAddr, sloc, 128);
-    LookupV6Location((uint64_t *)tunnel->tunDstAddr, dloc, 128);
+    LookupV6Location((uint64_t *)tunnel->srcAddr, sloc, 128);
+    LookupV6Location((uint64_t *)tunnel->dstAddr, dloc, 128);
     fprintf(stream,
             "  tun proto    =                %3u %s\n"
             "  tun src addr =   %16s%s%s%s\n"
             "  tun dst addr =   %16s%s%s%s\n",
-            tunnel->tunProto, ProtoString(tunnel->tunProto, 0), srcIPstr, strlen(sloc) ? ": " : "", sloc, stor, dstIPstr, strlen(dloc) ? ": " : "",
-            dloc, dtor);
+            tunnel->proto, ProtoString(tunnel->proto, 0), srcIPstr, strlen(sloc) ? ": " : "", sloc, stor, dstIPstr, strlen(dloc) ? ": " : "", dloc,
+            dtor);
 
 }  // End of stringEXtunIPv6
 
 static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionRecord;
-    EXtunnel_t *tunnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
+    EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
+    EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (tunnel) {
-        const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-        if (memcmp(tunnel->tunSrcAddr, prefix, 12) == 0) {
-            stringEXtunIPv4(stream, tunnel, genericFlow);
-        } else {
-            stringEXtunIPv6(stream, tunnel, genericFlow);
-        }
+    if (tunV4) {
+        stringEXtunIPv4(stream, tunV4, genericFlow);
+    } else if (tunV6) {
+        stringEXtunIPv6(stream, tunV6, genericFlow);
     }
 
     uint32_t src = htonl(ipv4Flow->srcAddr);
@@ -244,16 +238,14 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, uint8_
 
 static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord) {
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionRecord;
-    EXtunnel_t *tunnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
+    EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
+    EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (tunnel) {
-        const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-        if (memcmp(tunnel->tunSrcAddr, prefix, 12) == 0) {
-            stringEXtunIPv4(stream, tunnel, genericFlow);
-        } else {
-            stringEXtunIPv6(stream, tunnel, genericFlow);
-        }
+    if (tunV4) {
+        stringEXtunIPv4(stream, tunV4, genericFlow);
+    } else if (tunV6) {
+        stringEXtunIPv6(stream, tunV6, genericFlow);
     }
 
     uint64_t src[2], dst[2];
@@ -1068,7 +1060,8 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
             case EXoutPayloadID:
                 doOutputPayload = 1;
                 break;
-            case EXtunnelID:
+            case EXtunnelV4ID:
+            case EXtunnelV6ID:
                 break;
             case EXpfinfoID:
                 stringsEXpfinfo(stream, extension);

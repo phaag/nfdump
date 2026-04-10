@@ -70,7 +70,8 @@ enum {
     EXnbarAppID,
     EXinPayloadID,
     EXoutPayloadID,
-    EXtunnelID,
+    EXtunnelV4ID,
+    EXtunnelV6ID,
     EXobservationID,
     EXinmonMetaID,
     EXinmonFrameID,
@@ -519,21 +520,33 @@ typedef EXPayload_t EXoutPayload_t;
 #define EXinPayloadSize VARLENGTH
 #define EXoutPayloadSize VARLENGTH
 
-// unified extension for IPv4/IPv6
-// ::ffff:IPv4 or IPv6
-typedef struct EXtunnel_s {
-    uint8_t tunSrcAddr[16];
-    uint8_t tunDstAddr[16];
-    uint32_t tunProto;
+typedef struct EXtunnelV4_s {
+    uint32_t srcAddr;
+    uint32_t dstAddr;
+    uint32_t proto;
     uint32_t align;
-#define OFFtunSrcAddr offsetof(EXtunnel_t, tunSrcAddr)
-#define SIZEtunSrcAddr MemberSize(EXtunnel_t, tunSrcAddr)
-#define OFFtunDstAddr offsetof(EXtunnel_t, tunDstAddr)
-#define SIZEtunDstAddr MemberSize(EXtunnel_t, tunDstAddr)
-#define OFFtunProto offsetof(EXtunnel_t, tunProto)
-#define SIZEtunProto MemberSize(EXtunnel_t, tunProto)
-} EXtunnel_t;
-#define EXtunnelSize sizeof(EXtunnel_t)
+#define OFFtunSrcAddrV4 offsetof(EXtunnelV4_t, srcAddr)
+#define SIZEtunSrcAddrV4 MemberSize(EXtunnelV4_t, srcAddr)
+#define OFFtunDstAddrV4 offsetof(EXtunnelV4_t, dstAddr)
+#define SIZEtunDstAddrV4 MemberSize(EXtunnelV4_t, dstAddr)
+#define OFFtunProtoV4 offsetof(EXtunnelV4_t, proto)
+#define SIZEtunProtoV4 MemberSize(EXtunnelV4_t, proto)
+} EXtunnelV4_t;
+#define EXtunnelV4Size sizeof(EXtunnelV4_t)
+
+typedef struct EXtunnelV6_s {
+    uint64_t srcAddr[2];
+    uint64_t dstAddr[2];
+    uint32_t proto;
+    uint32_t align;
+#define OFFtunSrcAddr offsetof(EXtunnelV6_t, srcAddr)
+#define SIZEtunSrcAddr MemberSize(EXtunnelV6_t, srcAddr)
+#define OFFtunDstAddr offsetof(EXtunnelV6_t, dstAddr)
+#define SIZEtunDstAddr MemberSize(EXtunnelV6_t, dstAddr)
+#define OFFtunProtoV6 offsetof(EXtunnelV6_t, proto)
+#define SIZEtunProtoV6 MemberSize(EXtunnelV6_t, proto)
+} EXtunnelV6_t;
+#define EXtunnelV6Size sizeof(EXtunnelV6_t)
 
 typedef struct EXobservation_s {
     uint64_t pointID;
@@ -735,16 +748,16 @@ static const struct extensionTable_s {
     uint32_t id;    // id number
     uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
     char *name;     // name of extension
-} extensionTable[] = {{0, 0, "EXnull"},          EXTENSION(EXgenericFlow),    EXTENSION(EXipv4Flow),    EXTENSION(EXipv6Flow),
-                      EXTENSION(EXinterface),    EXTENSION(EXflowMisc),       EXTENSION(EXcntFlow),     EXTENSION(EXvLan),
-                      EXTENSION(EXasInfo),       EXTENSION(EXasRoutingV4),    EXTENSION(EXasRoutingV6), EXTENSION(EXipReceivedV4),
-                      EXTENSION(EXipReceivedV6), EXTENSION(EXmpls),           EXTENSION(EXinMacAddr),   EXTENSION(EXoutMacAddr),
-                      EXTENSION(EXasAdjacent),   EXTENSION(EXlatency),        EXTENSION(EXnatXlateV4),  EXTENSION(EXnatXlateV6),
-                      EXTENSION(EXnatXlatePort), EXTENSION(EXnselCommon),     EXTENSION(EXnselAcl),     EXTENSION(EXnselUser),
-                      EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),        EXTENSION(EXinPayload),   EXTENSION(EXoutPayload),
-                      EXTENSION(EXtunnel),       EXTENSION(EXobservation),    EXTENSION(EXinmonMeta),   EXTENSION(EXinmonFrame),
-                      EXTENSION(EXvrf),          EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),      EXTENSION(EXflowId),
-                      EXTENSION(EXnokiaNat),     EXTENSION(EXnokiaNatString), EXTENSION(EXipInfo)};
+} extensionTable[] = {{0, 0, "EXnull"},          EXTENSION(EXgenericFlow), EXTENSION(EXipv4Flow),       EXTENSION(EXipv6Flow),
+                      EXTENSION(EXinterface),    EXTENSION(EXflowMisc),    EXTENSION(EXcntFlow),        EXTENSION(EXvLan),
+                      EXTENSION(EXasInfo),       EXTENSION(EXasRoutingV4), EXTENSION(EXasRoutingV6),    EXTENSION(EXipReceivedV4),
+                      EXTENSION(EXipReceivedV6), EXTENSION(EXmpls),        EXTENSION(EXinMacAddr),      EXTENSION(EXoutMacAddr),
+                      EXTENSION(EXasAdjacent),   EXTENSION(EXlatency),     EXTENSION(EXnatXlateV4),     EXTENSION(EXnatXlateV6),
+                      EXTENSION(EXnatXlatePort), EXTENSION(EXnselCommon),  EXTENSION(EXnselAcl),        EXTENSION(EXnselUser),
+                      EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),     EXTENSION(EXinPayload),      EXTENSION(EXoutPayload),
+                      EXTENSION(EXtunnelV4),     EXTENSION(EXtunnelV6),    EXTENSION(EXobservation),    EXTENSION(EXinmonMeta),
+                      EXTENSION(EXinmonFrame),   EXTENSION(EXvrf),         EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),
+                      EXTENSION(EXflowId),       EXTENSION(EXnokiaNat),    EXTENSION(EXnokiaNatString), EXTENSION(EXipInfo)};
 
 // pipeline example
 #define MAX_SUB_DEPTH 8

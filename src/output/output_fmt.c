@@ -46,6 +46,7 @@
 #include <time.h>
 
 #include "dns/dns.h"
+#include "id.h"
 #include "ifvrf.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
@@ -617,44 +618,85 @@ static void ListOutputFormats(void) {
 
 }  // End of ListOutputFormats
 
+static recordHeaderV4_t *dummyV4Record(int isIPv6, EXgenericFlow_t *generic) {
+    // - V4 header
+    // - Offset table (2 extensions = 2 * sizeof(uint16_t))
+    // - EXgenericFlow
+    // - EXipv4Flow or EXipv6Flow
+    size_t numExtensions = 2;
+    size_t ipExtSize = isIPv6 ? EXipv6FlowSize : EXipv4FlowSize;
+    size_t offsetTableSize = ALIGN8(numExtensions * sizeof(uint16_t));
+    size_t requiredSize = sizeof(recordHeaderV4_t) + offsetTableSize + EXgenericFlowSize + ipExtSize;
+
+    uint8_t *buffer = malloc(requiredSize);
+    if (!buffer) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    // Initialize header
+    recordHeaderV4_t *hdr = AddV4Header(buffer);
+
+    // Set the extension bitmap BEFORE adding extensions
+    // Extensions must be added in ID order in the bitmap
+    BitMapSet(hdr->extBitmap, EXgenericFlowID);
+    if (isIPv6) {
+        BitMapSet(hdr->extBitmap, EXipv6FlowID);
+    } else {
+        BitMapSet(hdr->extBitmap, EXipv4FlowID);
+    }
+    hdr->numExtensions = numExtensions;
+
+    // Account for offset table size in record size
+    hdr->size += offsetTableSize;
+
+    // Offset where extensions start (after header + offset table)
+    uint16_t nextOffset = sizeof(recordHeaderV4_t) + offsetTableSize;
+
+    // Add EXgenericFlow extension
+    EXgenericFlow_t *genericFlow = AddV4Extension(hdr, nextOffset, EXgenericFlow);
+    memcpy(genericFlow, generic, sizeof(EXgenericFlow_t));
+
+    // Add IPv4 or IPv6 flow extension
+    if (isIPv6) {
+        AddV4Extension(hdr, nextOffset, EXipv6Flow);
+    } else {
+        AddV4Extension(hdr, nextOffset, EXipv4Flow);
+    }
+
+    return hdr;
+}  // End of dummyV4Record
+
 void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXtunnel_t *tunnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
+    EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
+    EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
 
     // if this flow is a tunnel, add a flow line with the tunnel IPs
-    if (genericFlow && tunnel) {
-        /* XXX FIX!
-        size_t len = V4HeaderRecordSize + EXgenericFlowSize + EXipv6FlowSize;
-        void *p = malloc(len);
-        if (!p) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        AddV4Header(p, V4TunHeader);
-        PushExtension(V4TunHeader, EXgenericFlow, tunGenericFlow);
-        memcpy((void *)tunGenericFlow, (void *)genericFlow, sizeof(EXgenericFlow_t));
-        tunGenericFlow->srcPort = 0;
-        tunGenericFlow->dstPort = 0;
+    if (genericFlow && (tunV4 || tunV6)) {
+        recordHeaderV4_t *tunnelRecord = dummyV4Record(tunV6 != NULL, genericFlow);
+        if (!tunnelRecord) return;
+        EXgenericFlow_t *tunGenericFlow = GetExtension(tunnelRecord, EXgenericFlow);
+
         recordHandle_t tunRecordHandle = {
-            .recordHeaderV4 = V4TunHeader, .extensionList[EXgenericFlowID] = tunGenericFlow, .flowCount = recordHandle->flowCount};
-            if (tunIPv4) {
-                tunGenericFlow->proto = tunIPv4->tunProto;
-                PushExtension(V4TunHeader, EXipv4Flow, tunIPv4Flow);
-                tunIPv4Flow->srcAddr = tunIPv4->tunSrcAddr;
-                tunIPv4Flow->dstAddr = tunIPv4->tunDstAddr;
-                tunRecordHandle.extensionList[EXipv4FlowID] = tunIPv4Flow;
-            } else {
-                tunGenericFlow->proto = tunIPv6->tunProto;
-                PushExtension(V4TunHeader, EXipv6Flow, tunIPv6Flow);
-                tunIPv6Flow->srcAddr[0] = tunIPv6->tunSrcAddr[0];
-                tunIPv6Flow->srcAddr[1] = tunIPv6->tunSrcAddr[1];
-                tunIPv6Flow->dstAddr[0] = tunIPv6->tunDstAddr[0];
-                tunIPv6Flow->dstAddr[1] = tunIPv6->tunDstAddr[1];
-                tunRecordHandle.extensionList[EXipv6FlowID] = tunIPv6Flow;
-            }
-            fmt_record(stream, &tunRecordHandle, outputParam);
-            free(p);
-        */
+            .recordHeaderV4 = tunnelRecord, .extensionList[EXgenericFlowID] = tunGenericFlow, .flowCount = recordHandle->flowCount};
+        if (tunV4) {
+            tunGenericFlow->proto = tunV4->proto;
+            EXipv4Flow_t *tunIPv4Flow = GetExtension(tunnelRecord, EXipv4Flow);
+            tunIPv4Flow->srcAddr = tunV4->srcAddr;
+            tunIPv4Flow->dstAddr = tunV4->dstAddr;
+            tunRecordHandle.extensionList[EXipv4FlowID] = tunIPv4Flow;
+        } else {
+            tunGenericFlow->proto = tunV6->proto;
+            EXipv6Flow_t *tunIPv6Flow = GetExtension(tunnelRecord, EXipv6Flow);
+            tunIPv6Flow->srcAddr[0] = tunV6->srcAddr[0];
+            tunIPv6Flow->srcAddr[1] = tunV6->srcAddr[1];
+            tunIPv6Flow->dstAddr[0] = tunV6->dstAddr[0];
+            tunIPv6Flow->dstAddr[1] = tunV6->dstAddr[1];
+            tunRecordHandle.extensionList[EXipv6FlowID] = tunIPv6Flow;
+        }
+        fmt_record(stream, &tunRecordHandle, outputParam);
+        free(tunnelRecord);
     }
 
     ident = outputParam->ident;

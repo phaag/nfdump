@@ -589,39 +589,43 @@ static char *string_Payload(char *streamPtr, recordHandle_t *recordHandle, uint8
     return string_payload(streamPtr, payloadHandle, payload->payload, payloadSize, prefix);
 }  // End of string_Payload
 
-static char *stringEXtunnel(char *streamPtr, uint8_t *extensionRecord) {
-    EXtunnel_t *tunnel = (EXtunnel_t *)extensionRecord;
+static char *stringEXtunnelV4(char *streamPtr, uint8_t *extensionRecord) {
+    EXtunnelV4_t *tunnel = (EXtunnelV4_t *)extensionRecord;
 
-    AddElementU32("tun_proto", tunnel->tunProto);
+    AddElementU32("tun_proto", tunnel->proto);
 
     char ipStr[INET_ADDRSTRLEN];
-    const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-    if (memcmp(tunnel->tunSrcAddr, prefix, 12) == 0) {
-        uint32_t ip;
-        memcpy(&ip, tunnel->tunSrcAddr + 12, sizeof(uint32_t));
-        ip = htonl(ip);
-        inet_ntop(AF_INET, &ip, ipStr, sizeof(ipStr));
-        AddElementString("src_tun_ip", ipStr);
+    uint32_t ip;
+    ip = htonl(tunnel->srcAddr);
+    inet_ntop(AF_INET, &ip, ipStr, sizeof(ipStr));
+    AddElementString("src_tun_ip", ipStr);
 
-        memcpy(&ip, tunnel->tunDstAddr + 12, sizeof(uint32_t));
-        ip = htonl(ip);
-        inet_ntop(AF_INET, &ip, ipStr, sizeof(ipStr));
-        AddElementString("dst_tun_ip", ipStr);
-    } else {
-        uint64_t ip[2];
-        ip[0] = htonll(tunnel->tunSrcAddr[0]);
-        ip[1] = htonll(tunnel->tunSrcAddr[1]);
-        inet_ntop(AF_INET6, ip, ipStr, sizeof(ipStr));
-        AddElementString("src_tun_ip", ipStr);
-
-        ip[0] = htonll(tunnel->tunDstAddr[0]);
-        ip[1] = htonll(tunnel->tunDstAddr[1]);
-        inet_ntop(AF_INET6, ip, ipStr, sizeof(ipStr));
-        AddElementString("dst_tun_ip", ipStr);
-    }
+    ip = htonl(tunnel->dstAddr);
+    inet_ntop(AF_INET, &ip, ipStr, sizeof(ipStr));
+    AddElementString("dst_tun_ip", ipStr);
 
     return streamPtr;
-}  // End of stringEXtunnel
+}  // End of stringEXtunnelV4
+
+static char *stringEXtunnelV6(char *streamPtr, uint8_t *extensionRecord) {
+    EXtunnelV6_t *tunnel = (EXtunnelV6_t *)extensionRecord;
+
+    AddElementU32("tun_proto", tunnel->proto);
+
+    char ipStr[INET6_ADDRSTRLEN];
+    uint64_t ip[2];
+    ip[0] = htonll(tunnel->srcAddr[0]);
+    ip[1] = htonll(tunnel->srcAddr[1]);
+    inet_ntop(AF_INET6, ip, ipStr, sizeof(ipStr));
+    AddElementString("src_tun_ip", ipStr);
+
+    ip[0] = htonll(tunnel->dstAddr[0]);
+    ip[1] = htonll(tunnel->dstAddr[1]);
+    inet_ntop(AF_INET6, ip, ipStr, sizeof(ipStr));
+    AddElementString("dst_tun_ip", ipStr);
+
+    return streamPtr;
+}  // End of stringEXtunnelV6
 
 static char *stringEXobservation(char *streamPtr, uint8_t *extensionRecord) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
@@ -916,8 +920,11 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, outputParam
             case EXoutPayloadID:
                 streamPtr = string_Payload(streamPtr, recordHandle, extension, "out");
                 break;
-            case EXtunnelID:
-                streamPtr = stringEXtunnel(streamPtr, extension);
+            case EXtunnelV4ID:
+                streamPtr = stringEXtunnelV4(streamPtr, extension);
+                break;
+            case EXtunnelV6ID:
+                streamPtr = stringEXtunnelV6(streamPtr, extension);
                 break;
             case EXobservationID:
                 streamPtr = stringEXobservation(streamPtr, extension);

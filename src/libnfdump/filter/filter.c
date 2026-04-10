@@ -271,9 +271,6 @@ static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, r
     // if no match above, trick filter to fail with an invalid mpls label value
     return 0xFF000000;
 
-    uint32_t offset = data.dataVal;
-    return mpls->label[offset] >> 4;
-
 }  // End of mpls_any_function
 
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
@@ -516,24 +513,22 @@ static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHa
             }
         } break;
         case DIR_SRC_TUN: {
-            EXtunnel_t *tunnnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
-            /* XXX FIX! lookup
-            if (tunIPv4) {
-                LookupV4Country(tunIPv4->tunSrcAddr, geoChar);
-            } else if (tunIPv6) {
-                LookupV6Country(tunIPv6->tunSrcAddr, geoChar);
+            EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
+            EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
+            if (tunV4) {
+                LookupV4Country(tunV4->srcAddr, geoChar);
+            } else if (tunV6) {
+                LookupV6Country(tunV6->srcAddr, geoChar);
             }
-            */
         } break;
         case DIR_DST_TUN: {
-            EXtunnel_t *tunnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
-            /*
-            if (tunIPv4) {
-                LookupV4Country(tunIPv4->tunDstAddr, geoChar);
-            } else if (tunIPv6) {
-                LookupV6Country(tunIPv6->tunDstAddr, geoChar);
+            EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
+            EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
+            if (tunV4) {
+                LookupV4Country(tunV4->dstAddr, geoChar);
+            } else if (tunV6) {
+                LookupV6Country(tunV6->dstAddr, geoChar);
             }
-            */
         } break;
     }
     return *((uint16_t *)(geoChar));
@@ -708,8 +703,9 @@ static void UpdateList(uint32_t a, uint32_t b) {
 static void ClearFilter(void) {
     NumBlocks = 1;
     Extended = 0;
-    memset((void *)FilterTree, 0, MAXBLOCKS * sizeof(filterElement_t));
-} /* End of ClearFilter */
+    size_t total = memblocks * MAXBLOCKS;
+    memset(FilterTree, 0, total * sizeof(filterElement_t));
+}  // End of ClearFilter
 
 static void InitFilter(void) {
     memblocks = 1;
@@ -731,7 +727,7 @@ void *FilterCloneEngine(void *engine) {
     FilterEngine_t *filterEngine = malloc(sizeof(FilterEngine_t));
     if (!filterEngine) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(EXIT_FAILURE);
+        return NULL;
     }
     memcpy((void *)filterEngine, engine, sizeof(FilterEngine_t));
     if (filterEngine->ident) filterEngine->ident = strdup(filterEngine->ident);
@@ -842,6 +838,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                     break;
                 case 8:
                     inVal = *((uint64_t *)inPtr);
+                    break;
                 case 3:
                 case 5:
                 case 7:
@@ -982,7 +979,7 @@ char *ReadFilter(char *filename) {
     if (ret < 0) {
         LogError("Error reading filter file %s: %s", filename, strerror(errno));
         close(ffd);
-        exit(EXIT_FAILURE);
+        return NULL;
     }
     filter[stat_buff.st_size] = 0;
     close(ffd);
@@ -1004,7 +1001,7 @@ void *CompileFilter(char *FilterSyntax) {
     FilterEngine_t *engine = malloc(sizeof(FilterEngine_t));
     if (!engine) {
         LogError("Memory allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(255);
+        return NULL;
     }
 
     *engine = (FilterEngine_t){
@@ -1050,7 +1047,7 @@ void DumpEngine(void *arg) {
                 engine->filter[i].comp, engine->filter[i].fname, engine->filter[i].label ? engine->filter[i].label : "<none>");
         if (engine->filter[i].OnTrue > (memblocks * MAXBLOCKS) || engine->filter[i].OnFalse > (memblocks * MAXBLOCKS)) {
             fprintf(stderr, "Tree pointer out of range for index %u. *** ABORT ***\n", i);
-            exit(255);
+            return;
         }
         if (engine->filter[i].data.dataPtr) {
             if (engine->filter[i].comp == CMP_IPLIST) {

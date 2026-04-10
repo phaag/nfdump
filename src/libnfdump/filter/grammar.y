@@ -600,9 +600,9 @@ static char ebuf[EBUFFSIZE];
 
 static void yyerror(char *msg) {
 	if ( FilterFilename ) {
-		printf("File '%s' line %d: %s at '%s'\n", FilterFilename, lineno, msg, yytext);
+		fprintf(stderr, "File '%s' line %d: %s at '%s'\n", FilterFilename, lineno, msg, yytext);
 	} else {
-		printf("Line %d: %s at '%s'\n", lineno, msg, yytext);
+		fprintf(stderr, "Line %d: %s at '%s'\n", lineno, msg, yytext);
 	}
 } /* End of     */
 
@@ -630,20 +630,12 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 			case DIR_DST_NAT:
 				block = NewElement(EXnatXlateV4ID, OFFxlateDstAddrV4, SIZExlateDstAddrV4, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
-			case DIR_SRC_TUN: {
-				uint64_t ip128[2] = {[0] = 0, [1] = (((uint64_t)htonl(ipStack->ipaddr[1])) << 32 | 0xFFFF0000) };
-				block = Connect_AND(
-					NewElement(EXtunnelID, OFFtunSrcAddr, sizeof(uint64_t), ip128[0], comp, FUNC_NONE, data[0]),
-					NewElement(EXtunnelID, OFFtunSrcAddr + sizeof(uint64_t), sizeof(uint64_t), ip128[1], comp, FUNC_NONE, data[0]) 
-				);
-			  } break;
-			case DIR_DST_TUN:{
-				uint64_t ip128[2] = {[0] = 0, [1] = (((uint64_t)htonl(ipStack->ipaddr[1])) << 32 | 0xFFFF0000) };
-				block = Connect_AND(
-					NewElement(EXtunnelID, OFFtunDstAddr, sizeof(uint64_t), ip128[0], comp, FUNC_NONE, data[0]),
-					NewElement(EXtunnelID, OFFtunDstAddr + sizeof(uint64_t), sizeof(uint64_t), ip128[1], comp, FUNC_NONE, data[0]) 
-				);
-			  } break; 
+			case DIR_SRC_TUN:
+				block = NewElement(EXtunnelV4ID, OFFtunSrcAddrV4, SIZEtunSrcAddrV4, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]);
+				break;
+			case DIR_DST_TUN:
+				block = NewElement(EXtunnelV4ID, OFFtunDstAddrV4, SIZEtunDstAddrV4, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]);
+				break; 
 			case DIR_NEXT:
 				block = NewElement(EXasRoutingV4ID, OFFnextHopIPV4, SIZEnextHopIPV4, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
@@ -676,12 +668,12 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				v6_2 = NewElement(EXnatXlateV6ID, OFFxlateDstAddrV6 + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_SRC_TUN:
-				v6_1 = NewElement(EXtunnelID, OFFtunSrcAddr, sizeof(uint64_t), htonll(ipStack->ipaddr[0]), comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXtunnelID, OFFtunSrcAddr + sizeof(uint64_t), sizeof(uint64_t), htonll(ipStack->ipaddr[1]), comp, FUNC_NONE, data[1]);
+				v6_1 = NewElement(EXtunnelV6ID, OFFtunSrcAddr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXtunnelV6ID, OFFtunSrcAddr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_DST_TUN:
-				v6_1 = NewElement(EXtunnelID, OFFtunDstAddr, sizeof(uint64_t), htonll(ipStack->ipaddr[0]), comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXtunnelID, OFFtunDstAddr + sizeof(uint64_t), sizeof(uint64_t), htonll(ipStack->ipaddr[1]), comp, FUNC_NONE, data[1]);
+				v6_1 = NewElement(EXtunnelV6ID, OFFtunDstAddr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXtunnelV6ID, OFFtunDstAddr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_NEXT:
 				v6_1 = NewElement(EXasRoutingV6ID, OFFnextHopIPV6, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
@@ -765,7 +757,10 @@ static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 	if ( direction == DIR_UNSPEC ) {
 		return NewElement(EXgenericFlowID, OFFproto, SIZEproto, protoNum, CMP_EQ, FUNC_NONE, NULLPtr); 
 	} else if ( direction == DIR_UNSPEC_TUN ) {
-		return NewElement(EXtunnelID, OFFtunProto, SIZEtunProto, protoNum, CMP_EQ, FUNC_NONE, NULLPtr);
+		return Connect_OR(
+			NewElement(EXtunnelV4ID, OFFtunProtoV4, SIZEtunProtoV4, protoNum, CMP_EQ, FUNC_NONE, NULLPtr),
+			NewElement(EXtunnelV6ID, OFFtunProtoV6, SIZEtunProtoV6, protoNum, CMP_EQ, FUNC_NONE, NULLPtr)
+		);
 	} else {
 	  	yyprintf("Unknown protocol specifier");
 			return -1;
@@ -1305,7 +1300,7 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 	}
 
 	return NewElement(EXnatPortBlockID, offset, SIZEnelblockStart, number, comp, FUNC_NONE, NULLPtr);
-	return -1;
+
 } // End of AddNatPortBlocks
 
 static int AddPayloadDNS(direction_t direction, char *arg, char *opt) {
@@ -1888,7 +1883,7 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			break;
 		case DIR_SRC_NAT:
 			ret = Connect_OR(
-				NewElement(EXnatXlateV4ID, OFFxlateSrcAddrV4, SIZExlateSrcAddrV6, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnatXlateV4ID, OFFxlateSrcAddrV4, SIZExlateSrcAddrV4, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
 				NewElement(EXnatXlateV6ID, OFFxlateSrcAddrV6, SIZExlateSrcAddrV6, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
 			break;
@@ -1899,10 +1894,16 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			);
 			break;
 		case DIR_SRC_TUN:
-			ret = -1; // NewElement(EXtunnelID, OFFtunSrcAddr, SIZEtunSrcAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData);
+			ret = Connect_OR(
+				NewElement(EXtunnelV4ID, OFFtunSrcAddrV4, SIZEtunSrcAddrV4, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXtunnelV6ID, OFFtunSrcAddr, SIZEtunSrcAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
 			break;
 		case DIR_DST_TUN:
-			ret = -1; // NewElement(EXtunnelID, OFFtunDstAddr, SIZEtunDstAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData);
+			ret = Connect_OR(
+				NewElement(EXtunnelV4ID, OFFtunDstAddrV4, SIZEtunDstAddrV4, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXtunnelV6ID, OFFtunDstAddr, SIZEtunDstAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
 			break;
 		case DIR_NEXT:
 			ret = Connect_OR(
@@ -1933,13 +1934,15 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			ret = Connect_OR(v4, v6);
 		} break;
 		case DIR_UNSPEC_TUN: {
-			ret = -1;
-			/*
-			return Connect_OR(
-				NewElement(EXtunnelID, OFFtunSrcAddr, SIZEtunSrcAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
-				NewElement(EXtunnelID, OFFtunDstAddr, SIZEtunDstAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			int v4 = Connect_OR(
+				NewElement(EXtunnelV4ID, OFFtunSrcAddrV4, SIZEtunSrcAddrV4, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXtunnelV4ID, OFFtunDstAddrV4, SIZEtunDstAddrV4, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
-			*/
+			int v6 = Connect_OR(
+				NewElement(EXtunnelV6ID, OFFtunSrcAddr, SIZEtunSrcAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXtunnelV6ID, OFFtunDstAddr, SIZEtunDstAddr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			ret = Connect_OR(v4, v6);
 		} break;
 		default:
 			yyprintf("Unknown direction for IP list");

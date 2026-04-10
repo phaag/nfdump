@@ -1295,29 +1295,21 @@ static void runTest(void) {
     // Phase 23: Tunnel addresses
     // ================================================================
     {
-        uint32_t ext[] = {EXgenericFlowID, EXipv4FlowID, EXtunnelID};
+        // IPv4 tunnel test
+        uint32_t ext[] = {EXgenericFlowID, EXipv4FlowID, EXtunnelV4ID};
         BuildV4Record(recBuf, ext, 3);
         h = (recordHeaderV4_t *)recBuf;
         MapV4RecordHandle(recordHandle, h, 1);
 
-        EXtunnel_t *tunnel = GetExtension(h, EXtunnel);
+        EXtunnelV4_t *tunV4 = GetExtension(h, EXtunnelV4);
 
         uint32_t v4 = 0;
-        uint64_t v6[2];
 
-        // Store IPv4 in ::ffff:IPv4 format (as V4 uses unified EXtunnel)
         inet_pton(PF_INET, "192.168.170.170", &v4);
-        // Clear and set as IPv4-mapped IPv6
-        memset(tunnel->tunSrcAddr, 0, 16);
-        tunnel->tunSrcAddr[10] = 0xff;
-        tunnel->tunSrcAddr[11] = 0xff;
-        memcpy(&tunnel->tunSrcAddr[12], &v4, 4);
+        tunV4->srcAddr = ntohl(v4);
 
         inet_pton(PF_INET, "172.16.19.20", &v4);
-        memset(tunnel->tunDstAddr, 0, 16);
-        tunnel->tunDstAddr[10] = 0xff;
-        tunnel->tunDstAddr[11] = 0xff;
-        memcpy(&tunnel->tunDstAddr[12], &v4, 4);
+        tunV4->dstAddr = ntohl(v4);
 
         CheckFilter("src tun ip 192.168.170.170", recordHandle, 1);
         CheckFilter("src tun ip 192.168.170.169", recordHandle, 0);
@@ -1329,19 +1321,35 @@ static void runTest(void) {
         CheckFilter("tun ip 192.168.170.169", recordHandle, 0);
         CheckFilter("tun ip 172.16.19.19", recordHandle, 0);
 
-        tunnel->tunProto = IPPROTO_IPIP;
+        tunV4->proto = IPPROTO_IPIP;
         CheckFilter("tun proto ipip", recordHandle, 1);
         CheckFilter("tun proto 4", recordHandle, 1);
         CheckFilter("tun proto 5", recordHandle, 0);
 
-        // XXX FIX! CheckFilter("tun ip in [172.16.19.20]", recordHandle, 1);
-        // XXX FIX! CheckFilter("tun ip in [192.168.170.170]", recordHandle, 1);
+        CheckFilter("tun ip in [172.16.19.20]", recordHandle, 1);
+        CheckFilter("tun ip in [192.168.170.170]", recordHandle, 1);
+    }
+
+    // ================================================================
+    // Phase 23b: IPv6 Tunnel addresses
+    // ================================================================
+    {
+        uint32_t ext[] = {EXgenericFlowID, EXipv4FlowID, EXtunnelV6ID};
+        BuildV4Record(recBuf, ext, 3);
+        h = (recordHeaderV4_t *)recBuf;
+        MapV4RecordHandle(recordHandle, h, 1);
+
+        EXtunnelV6_t *tunV6 = GetExtension(h, EXtunnelV6);
+
+        uint64_t v6[2];
 
         // IPv6 tunnel addresses
         inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", v6);
-        memcpy(tunnel->tunSrcAddr, v6, 16);
+        tunV6->srcAddr[0] = ntohll(v6[0]);
+        tunV6->srcAddr[1] = ntohll(v6[1]);
         inet_pton(PF_INET6, "fe80::2110:abcd:1235:fffe", v6);
-        memcpy(tunnel->tunDstAddr, v6, 16);
+        tunV6->dstAddr[0] = ntohll(v6[0]);
+        tunV6->dstAddr[1] = ntohll(v6[1]);
 
         CheckFilter("src tun ip fe80::2110:abcd:1235:ffff", recordHandle, 1);
         CheckFilter("src tun ip fe80::2110:abcd:1235:fffe", recordHandle, 0);
@@ -1350,6 +1358,11 @@ static void runTest(void) {
         CheckFilter("dst tun ip fe80::2110:abcd:1235:fffe", recordHandle, 1);
         CheckFilter("dst tun ip fe80::2110:abcd:1235:fffc", recordHandle, 0);
         CheckFilter("tun ip fe80::2110:abcd:1235:fffe", recordHandle, 1);
+
+        tunV6->proto = IPPROTO_IPIP;
+        CheckFilter("tun proto ipip", recordHandle, 1);
+        CheckFilter("tun proto 4", recordHandle, 1);
+        CheckFilter("tun proto 5", recordHandle, 0);
     }
 
     // ================================================================

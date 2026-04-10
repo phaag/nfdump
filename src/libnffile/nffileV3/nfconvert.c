@@ -101,7 +101,6 @@ typedef struct convertCtx_s {
  *   EX3bgpNextHopV4ID(8) + EX3ipNextHopV4ID(10) → EXasRoutingV4ID
  *   EX3bgpNextHopV6ID(9) + EX3ipNextHopV6ID(11) → EXasRoutingV6ID
  *   EX3nselCommonID(19)  + EX3natCommonID(25)    → EXnselCommonID
- *   EX3tunIPv4ID(31)     + EX3tunIPv6ID(32)      → EXtunnelID
  *   EX3macAddrID(15) → EXinMacAddrID + EXoutMacAddrID (split)
  *
  * Notable drops:
@@ -140,18 +139,18 @@ static const uint8_t mapV3toV4[MAXV3EXTENSIONS] = {
     [28] = 0,                                    // unused
     [EX3inPayloadID] = EXinPayloadID,            // 29 → 26
     [EX3outPayloadID] = EXoutPayloadID,          // 30 → 27
-    [EX3tunIPv4ID] = EXtunnelID,                 // 31 → 28 (merged)
-    [EX3tunIPv6ID] = EXtunnelID,                 // 32 → 28 (merged)
-    [EX3observationID] = EXobservationID,        // 33 → 29
-    [EX3inmonMetaID] = EXinmonMetaID,            // 34 → 30
-    [EX3inmonFrameID] = EXinmonFrameID,          // 35 → 31
-    [EX3vrfID] = EXvrfID,                        // 36 → 32
-    [EX3pfinfoID] = EXpfinfoID,                  // 37 → 33
-    [EX3layer2ID] = EXlayer2ID,                  // 38 → 34
-    [EX3flowIdID] = EXflowIdID,                  // 39 → 35
-    [EX3nokiaNatID] = EXnokiaNatID,              // 40 → 36
-    [EX3nokiaNatStringID] = EXnokiaNatStringID,  // 41 → 37
-    [EX3ipInfoID] = EXipInfoID,                  // 42 → 38
+    [EX3tunIPv4ID] = EXtunnelV4ID,               // 31 → 28 (merged)
+    [EX3tunIPv6ID] = EXtunnelV6ID,               // 32 → 29 (merged)
+    [EX3observationID] = EXobservationID,        // 33 → 30
+    [EX3inmonMetaID] = EXinmonMetaID,            // 34 → 31
+    [EX3inmonFrameID] = EXinmonFrameID,          // 35 → 32
+    [EX3vrfID] = EXvrfID,                        // 36 → 33
+    [EX3pfinfoID] = EXpfinfoID,                  // 37 → 34
+    [EX3layer2ID] = EXlayer2ID,                  // 38 → 35
+    [EX3flowIdID] = EXflowIdID,                  // 39 → 36
+    [EX3nokiaNatID] = EXnokiaNatID,              // 40 → 37
+    [EX3nokiaNatStringID] = EXnokiaNatStringID,  // 41 → 38
+    [EX3ipInfoID] = EXipInfoID,                  // 42 → 39
 };
 
 static void freeTables(void) {
@@ -721,31 +720,34 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                         h->size += extSize;
                         break;
                     }
-                    case EXtunnelID: {
-                        EXtunnel_t *t = (EXtunnel_t *)((uint8_t *)h + nextOffset);
+                    case EXtunnelV4ID: {
+                        EXtunnelV4_t *t = (EXtunnelV4_t *)((uint8_t *)h + nextOffset);
                         if (offsets[slot] != nextOffset) {
-                            t = (EXtunnel_t *)((uint8_t *)h + offsets[slot]);
+                            t = (EXtunnelV4_t *)((uint8_t *)h + offsets[slot]);
                         } else {
                             memset(t, 0, sizeof(*t));
                             nextOffset += sizeof(*t);
                             h->size += sizeof(*t);
                         }
-                        if (id == EX3tunIPv4ID) {
-                            EX3tunIPv4_t *t3 = (EX3tunIPv4_t *)edata;
-                            // IPv4-mapped IPv6: ::ffff:x.x.x.x
-                            t->tunSrcAddr[10] = 0xff;
-                            t->tunSrcAddr[11] = 0xff;
-                            memcpy(&t->tunSrcAddr[12], &t3->tunSrcAddr, 4);
-                            t->tunDstAddr[10] = 0xff;
-                            t->tunDstAddr[11] = 0xff;
-                            memcpy(&t->tunDstAddr[12], &t3->tunDstAddr, 4);
-                            t->tunProto = t3->tunProto;
+                        EX3tunIPv4_t *t3 = (EX3tunIPv4_t *)edata;
+                        t->srcAddr = t3->tunSrcAddr;
+                        t->dstAddr = t3->tunDstAddr;
+                        t->proto = t3->tunProto;
+                        break;
+                    }
+                    case EXtunnelV6ID: {
+                        EXtunnelV6_t *t = (EXtunnelV6_t *)((uint8_t *)h + nextOffset);
+                        if (offsets[slot] != nextOffset) {
+                            t = (EXtunnelV6_t *)((uint8_t *)h + offsets[slot]);
                         } else {
-                            EX3tunIPv6_t *t3 = (EX3tunIPv6_t *)edata;
-                            memcpy(t->tunSrcAddr, t3->tunSrcAddr, 16);
-                            memcpy(t->tunDstAddr, t3->tunDstAddr, 16);
-                            t->tunProto = t3->tunProto;
+                            memset(t, 0, sizeof(*t));
+                            nextOffset += sizeof(*t);
+                            h->size += sizeof(*t);
                         }
+                        EX3tunIPv6_t *t3 = (EX3tunIPv6_t *)edata;
+                        memcpy(t->srcAddr, t3->tunSrcAddr, 16);
+                        memcpy(t->dstAddr, t3->tunDstAddr, 16);
+                        t->proto = t3->tunProto;
                         break;
                     }
                     case EXobservationID: {

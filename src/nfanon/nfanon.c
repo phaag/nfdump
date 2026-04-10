@@ -253,34 +253,31 @@ static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon
                     natXlateIPv6->xlateDstAddr[1] = ntohll(tmp[1]);
                 }
             } break;
-            case EXtunnelID: {
-                EXtunnel_t *tunnel = (EXtunnel_t *)extension;
-
-                int is_mapped_v4 = memcmp(tunnel->tunSrcAddr, prefix, sizeof(prefix)) == 0;
-                // anonymizing an IPv4/IPv6 combind record is more complicated,
-                // the the anonimizer expects host order bytes and has seperate
-                // functions for IPv4 and IPv6
-                if (is_mapped_v4) {
-                    // anonymise IPv4
-                    uint32_t ipv4;
-                    __builtin_memcpy(&ipv4, tunnel->tunSrcAddr + 12, sizeof(uint32_t));
-                    ipv4 = anonymize(ntohl(ipv4));
-                    ipv4 = htonl(ipv4);
-                    __builtin_memcpy(tunnel->tunSrcAddr + 12, &ipv4, sizeof(uint32_t));
-
-                    __builtin_memcpy(&ipv4, tunnel->tunDstAddr + 12, sizeof(uint32_t));
-                    ipv4 = anonymize(ntohl(ipv4));
-                    ipv4 = htonl(ipv4);
-                    __builtin_memcpy(tunnel->tunDstAddr + 12, &ipv4, sizeof(uint32_t));
-
-                } else {
-                    // anonymise IPv6
-                    uint8_t anon_ip[16];
-                    anonymize_v6(tunnel->tunSrcAddr, anon_ip);
-                    memcpy(tunnel->tunSrcAddr, anon_ip, 16);
-
-                    anonymize_v6(tunnel->tunDstAddr, anon_ip);
-                    memcpy(tunnel->tunDstAddr, anon_ip, 16);
+            case EXtunnelV4ID: {
+                EXtunnelV4_t *tunnel = (EXtunnelV4_t *)extension;
+                if (anon_src) {
+                    tunnel->srcAddr = anonymize(tunnel->srcAddr);
+                }
+                if (anon_dst) {
+                    tunnel->dstAddr = anonymize(tunnel->dstAddr);
+                }
+            } break;
+            case EXtunnelV6ID: {
+                EXtunnelV6_t *tunnel = (EXtunnelV6_t *)extension;
+                uint8_t anon_ip[16];
+                if (anon_src) {
+                    uint64_t tmp[2] = {htonll(tunnel->srcAddr[0]), htonll(tunnel->srcAddr[1])};
+                    anonymize_v6((uint8_t *)tmp, anon_ip);
+                    __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                    tunnel->srcAddr[0] = ntohll(tmp[0]);
+                    tunnel->srcAddr[1] = ntohll(tmp[1]);
+                }
+                if (anon_dst) {
+                    uint64_t tmp[2] = {htonll(tunnel->dstAddr[0]), htonll(tunnel->dstAddr[1])};
+                    anonymize_v6((uint8_t *)tmp, anon_ip);
+                    __builtin_memcpy(tmp, anon_ip, sizeof(tmp));
+                    tunnel->dstAddr[0] = ntohll(tmp[0]);
+                    tunnel->dstAddr[1] = ntohll(tmp[1]);
                 }
             } break;
         }

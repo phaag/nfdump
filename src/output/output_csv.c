@@ -597,10 +597,11 @@ static void ListOutputFormats(void) {
 
 void csv_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXtunnel_t *tunnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
+    EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
+    EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
 
     // if this flow is a tunnel, add a flow line with the tunnel IPs
-    if (genericFlow && tunnel) {
+    if (genericFlow && (tunV4 || tunV6)) {
         /* XXX FIX!
         size_t len = V4HeaderRecordSize + EXgenericFlowSize + EXipv6FlowSize;
         void *p = malloc(len);

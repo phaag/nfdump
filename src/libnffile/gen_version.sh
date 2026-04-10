@@ -30,7 +30,7 @@ echo Creating vcs_track.h
 f="vcs_track.h"
 
 if [ "x$1" != "x" ]; then
-  nfdv=$(echo 0xF${1}00 | sed -e 's/\./0/g')
+  nfdv=$(echo 0xD${1}00 | sed -e 's/\./0/g')
 fi
 
 if [ -d ../../.git ]; then

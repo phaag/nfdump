@@ -134,10 +134,16 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         extensionSize += payloadAligned;
     }
 
-    // EXtunnelID = 28 (unified, replaces EXtunIPv4/EXtunIPv6)
+    // EXtunnelV4ID / EXtunnelV6ID (split IPv4/IPv6)
+    int tunIsV6 = (Node->coldNode.tun_ip_version == AF_INET6);
     if (Node->coldNode.tun_ip_version) {
-        BitMapSet(bitMap, EXtunnelID);
-        extensionSize += EXtunnelSize;
+        if (tunIsV6) {
+            BitMapSet(bitMap, EXtunnelV6ID);
+            extensionSize += EXtunnelV6Size;
+        } else {
+            BitMapSet(bitMap, EXtunnelV4ID);
+            extensionSize += EXtunnelV4Size;
+        }
     }
 
     uint32_t numExtensions = __builtin_popcountll(bitMap);
@@ -273,15 +279,31 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         nextOffset += payloadAligned;
     }
 
-    // EXtunnel (ID=28, unified IPv4/IPv6)
-    if (bitMap & (1ULL << EXtunnelID)) {
+    // EXtunnelV4 / EXtunnelV6 (split IPv4/IPv6)
+    if (bitMap & (1ULL << EXtunnelV4ID)) {
         *offset++ = nextOffset;
-        EXtunnel_t *tunnel = (EXtunnel_t *)(buffPtr + nextOffset);
-        nextOffset += EXtunnelSize;
-        // ip128_t bytes are already stored as ::ffff:IPv4 or IPv6
-        memcpy(tunnel->tunSrcAddr, Node->coldNode.tun_src_addr.bytes, 16);
-        memcpy(tunnel->tunDstAddr, Node->coldNode.tun_dst_addr.bytes, 16);
-        tunnel->tunProto = Node->coldNode.tun_proto;
+        EXtunnelV4_t *tunnel = (EXtunnelV4_t *)(buffPtr + nextOffset);
+        nextOffset += EXtunnelV4Size;
+        uint32_t ipv4;
+        memcpy(&ipv4, Node->coldNode.tun_src_addr.bytes + 12, 4);
+        tunnel->srcAddr = ntohl(ipv4);
+        memcpy(&ipv4, Node->coldNode.tun_dst_addr.bytes + 12, 4);
+        tunnel->dstAddr = ntohl(ipv4);
+        tunnel->proto = Node->coldNode.tun_proto;
+        tunnel->align = 0;
+    }
+    if (bitMap & (1ULL << EXtunnelV6ID)) {
+        *offset++ = nextOffset;
+        EXtunnelV6_t *tunnel = (EXtunnelV6_t *)(buffPtr + nextOffset);
+        nextOffset += EXtunnelV6Size;
+        uint64_t ip6[2];
+        memcpy(ip6, Node->coldNode.tun_src_addr.bytes, 16);
+        tunnel->srcAddr[0] = ntohll(ip6[0]);
+        tunnel->srcAddr[1] = ntohll(ip6[1]);
+        memcpy(ip6, Node->coldNode.tun_dst_addr.bytes, 16);
+        tunnel->dstAddr[0] = ntohll(ip6[0]);
+        tunnel->dstAddr[1] = ntohll(ip6[1]);
+        tunnel->proto = Node->coldNode.tun_proto;
         tunnel->align = 0;
     }
 

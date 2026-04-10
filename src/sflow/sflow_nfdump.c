@@ -328,9 +328,12 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     // Tunnels
     int tun_isV4 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V4;
     int tun_isV6 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V6;
-    if ((tun_isV4 || tun_isV6) && ExtensionsEnabled[EXtunnelID]) {
-        BitMapSet(bitMap, EXtunnelID);
-        extensionSize += EXtunnelSize;
+    if (tun_isV4 && ExtensionsEnabled[EXtunnelV4ID]) {
+        BitMapSet(bitMap, EXtunnelV4ID);
+        extensionSize += EXtunnelV4Size;
+    } else if (tun_isV6 && ExtensionsEnabled[EXtunnelV6ID]) {
+        BitMapSet(bitMap, EXtunnelV6ID);
+        extensionSize += EXtunnelV6Size;
     }
 
     dbg_printf("Tunnel: IPv4: %u, IPv6: %u\n", tun_isV4, tun_isV6);
@@ -494,23 +497,24 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
                 ipReceived->ip[1] = ntohll(ip6[1]);
                 dbg_printf("Add IPv6 router IP extension\n");
             } break;
-            case EXtunnelID: {
-                EXtunnel_t *tunnel = (EXtunnel_t *)extension;
-                if (tun_isV4) {
-                    dbg_printf("Add IPv4 tunnel extension\n");
-                    memset(tunnel->tunSrcAddr, 0, 10);
-                    memset(tunnel->tunDstAddr, 0, 10);
-                    tunnel->tunSrcAddr[10] = 0xff;
-                    tunnel->tunSrcAddr[11] = 0xff;
-                    tunnel->tunDstAddr[10] = 0xff;
-                    tunnel->tunDstAddr[11] = 0xff;
-                    memcpy(tunnel->tunSrcAddr + 12, &sample->tun_ipsrc.address.ip_v4.addr, 4);
-                    memcpy(tunnel->tunDstAddr + 12, &sample->tun_ipdst.address.ip_v4.addr, 4);
-                } else if (tun_isV6) {
-                    memcpy(tunnel->tunSrcAddr, sample->tun_ipsrc.address.ip_v6.addr, 16);
-                    memcpy(tunnel->tunDstAddr, sample->tun_ipdst.address.ip_v6.addr, 16);
-                }
-                tunnel->tunProto = sample->tun_proto;
+            case EXtunnelV4ID: {
+                EXtunnelV4_t *tunnel = (EXtunnelV4_t *)extension;
+                dbg_printf("Add IPv4 tunnel extension\n");
+                tunnel->srcAddr = ntohl(sample->tun_ipsrc.address.ip_v4.addr);
+                tunnel->dstAddr = ntohl(sample->tun_ipdst.address.ip_v4.addr);
+                tunnel->proto = sample->tun_proto;
+            } break;
+            case EXtunnelV6ID: {
+                EXtunnelV6_t *tunnel = (EXtunnelV6_t *)extension;
+                dbg_printf("Add IPv6 tunnel extension\n");
+                uint64_t ip6[2];
+                memcpy(ip6, sample->tun_ipsrc.address.ip_v6.addr, 16);
+                tunnel->srcAddr[0] = ntohll(ip6[0]);
+                tunnel->srcAddr[1] = ntohll(ip6[1]);
+                memcpy(ip6, sample->tun_ipdst.address.ip_v6.addr, 16);
+                tunnel->dstAddr[0] = ntohll(ip6[0]);
+                tunnel->dstAddr[1] = ntohll(ip6[1]);
+                tunnel->proto = sample->tun_proto;
             } break;
         }
     }
