@@ -35,13 +35,13 @@ export TZ
 
 # Check for correct output
 rm -f test.*
-./nfgen
+./nfgen4
 
 # prevent any default geolookup for testing
 NFDUMP="../nfdump/nfdump -G none"
 
 # verify test
-$NFDUMP -v dummy_flows.nf
+$NFDUMP -v check -r dummy_flows.nf
 
 # read test
 rm -f test1.out

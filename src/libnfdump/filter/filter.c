@@ -497,45 +497,44 @@ static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHa
                 LookupV6Country(ipv6Flow->dstAddr, geoChar);
             }
         } break;
+        case DIR_SRC_NAT: {
+            EXnatXlateV4_t *natXlateV4 = (EXnatXlateV4_t *)recordHandle->extensionList[EXnatXlateV4ID];
+            EXnatXlateV6_t *natXlateIPv6 = (EXnatXlateV6_t *)recordHandle->extensionList[EXnatXlateV6ID];
+            if (natXlateV4) {
+                LookupV4Country(natXlateV4->xlateSrcAddr, geoChar);
+            } else if (natXlateIPv6) {
+                LookupV6Country(natXlateIPv6->xlateSrcAddr, geoChar);
+            }
+        } break;
+        case DIR_DST_NAT: {
+            EXnatXlateV4_t *natXlateV4 = (EXnatXlateV4_t *)recordHandle->extensionList[EXnatXlateV4ID];
+            EXnatXlateV6_t *natXlateV6 = (EXnatXlateV6_t *)recordHandle->extensionList[EXnatXlateV6ID];
+            if (natXlateV4) {
+                LookupV4Country(natXlateV4->xlateDstAddr, geoChar);
+            } else if (natXlateV6) {
+                LookupV6Country(natXlateV6->xlateDstAddr, geoChar);
+            }
+        } break;
+        case DIR_SRC_TUN: {
+            EXtunnel_t *tunnnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
+            /* XXX FIX! lookup
+            if (tunIPv4) {
+                LookupV4Country(tunIPv4->tunSrcAddr, geoChar);
+            } else if (tunIPv6) {
+                LookupV6Country(tunIPv6->tunSrcAddr, geoChar);
+            }
+            */
+        } break;
+        case DIR_DST_TUN: {
+            EXtunnel_t *tunnel = (EXtunnel_t *)recordHandle->extensionList[EXtunnelID];
             /*
-            case DIR_SRC_NAT: {
-                EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
-                EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
-                if (natXlateIPv4) {
-                    LookupV4Country(natXlateIPv4->xlateSrcAddr, geoChar);
-                } else if (natXlateIPv6) {
-                    LookupV6Country(natXlateIPv6->xlateSrcAddr, geoChar);
-                }
-            } break;
-                 XXX FIX!
-                 case DIR_DST_NAT: {
-                    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
-                    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
-                    if (natXlateIPv4) {
-                        LookupV4Country(natXlateIPv4->xlateDstAddr, geoChar);
-                    } else if (natXlateIPv6) {
-                        LookupV6Country(natXlateIPv6->xlateDstAddr, geoChar);
-                    }
-                } break;
-                case DIR_SRC_TUN: {
-                    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
-                    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
-                    if (tunIPv4) {
-                        LookupV4Country(tunIPv4->tunSrcAddr, geoChar);
-                    } else if (tunIPv6) {
-                        LookupV6Country(tunIPv6->tunSrcAddr, geoChar);
-                    }
-                } break;
-                case DIR_DST_TUN: {
-                    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
-                    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
-                    if (tunIPv4) {
-                        LookupV4Country(tunIPv4->tunDstAddr, geoChar);
-                    } else if (tunIPv6) {
-                        LookupV6Country(tunIPv6->tunDstAddr, geoChar);
-                    }
-                } break;
-                */
+            if (tunIPv4) {
+                LookupV4Country(tunIPv4->tunDstAddr, geoChar);
+            } else if (tunIPv6) {
+                LookupV6Country(tunIPv6->tunDstAddr, geoChar);
+            }
+            */
+        } break;
     }
     return *((uint16_t *)(geoChar));
 
@@ -555,7 +554,7 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
             exit(255);
         }
     }
-    dbg_printf("New element: extID: %u, offset: %u, length: %u, value: %" PRIu64 "\n", extID, offset, length, value);
+    dbg_printf("New element: extID: %u, offset: %u, length: %u, value: %" PRIu64 " 0x%" PRIx64 "\n", extID, offset, length, value, value);
 
     FilterTree[n] = (filterElement_t){
         .extID = extID,
@@ -783,7 +782,7 @@ static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle) {
                 memcpy((void *)&inVal, inPtr, engine->filter[index].length);
         }
 
-        // printf("Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
+        dbg_printf("Filter compare: Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
         evaluate = inVal == engine->filter[index].value;
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
     }

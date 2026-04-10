@@ -125,7 +125,8 @@ static flowBlockV3_t *StoreV4Record(uint8_t *buf, nffileV3_t *nffile, flowBlockV
     uint32_t required = h->size;
 
     if (!IsAvailable(block, BLOCK_SIZE_V3, required)) {
-        block = PushBlockV3(nffile->processQueue, block);
+        WriteBlockV3(nffile, block);
+        InitDataBlock(block, nffile->fileHeader->blockSize);
     }
 
     VerifyV4Record(h);
@@ -271,8 +272,8 @@ int main(int argc, char **argv) {
     }
     nffile->stat_record->msecFirstSeen = 0x7fffffffffffffffLL;
 
-    flowBlockV3_t *block = (flowBlockV3_t *)NewDataBlock(BLOCK_SIZE_V3);
-    InitFlowBlock(block);
+    flowBlockV3_t *block = NULL;
+    InitDataBlock(block, nffile->fileHeader->blockSize);
 
     uint8_t buf[RECBUF_SIZE];
     recordHeaderV4_t *h;

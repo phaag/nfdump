@@ -1039,7 +1039,10 @@ int main(int argc, char **argv) {
     if (!filter || strlen(filter) == 0) filter = "any";
 
     void *engine = CompileFilter(filter);
-    if (!engine) exit(254);
+    if (!engine) {
+        LogError("Compile filter failed!");
+        exit(EXIT_FAILURE);
+    }
 
     if (postFilter) {
         outputParams->postFilter = CompileFilter(postFilter);
