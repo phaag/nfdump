@@ -36,9 +36,9 @@
 
 #include "nffileV3/nffileV3.h"
 
-int AddIfNameRecord(arrayBlockV3_t *arrayBlock);
+int AddIfNameRecords(arrayBlockV3_t *arrayBlock);
 
-int AddVrfNameRecord(arrayBlockV3_t *arrayBlock);
+int AddVrfNameRecords(arrayBlockV3_t *arrayBlock);
 
 char *GetIfName(uint32_t ingress, char *name, size_t len);
 

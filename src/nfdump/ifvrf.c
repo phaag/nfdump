@@ -55,8 +55,7 @@ KBTREE_INIT(vrfTree, nameNode_t, nodeCMP)
 static kbtree_t(ifTree) *ifTree = NULL;
 static kbtree_t(vrfTree) *vrfTree = NULL;
 
-/*
-int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
+int AddIfNameRecords(arrayBlockV3_t *arrayBlock) {
     if (ifTree == NULL) {
         ifTree = kb_init(ifTree, KB_DEFAULT_SIZE);
         if (!ifTree) {
@@ -65,11 +64,11 @@ int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
         }
     }
 
-    dbg_printf("If name array, type: %u, size: %u, elemSize: %u, numElem: %u\n", arrayRecordHeader->type, arrayRecordHeader->size,
-               arrayRecordHeader->elementSize, arrayRecordHeader->numElements);
-    uint32_t *val = ((void *)arrayRecordHeader + sizeof(arrayRecordHeader_t));
-    void *p = (void *)((void *)val + 4);
-    for (int i = 0; i < arrayRecordHeader->numElements; i++) {
+    dbg_printf("If name array, type: %u, size: %u, elemSize: %u, numElem: %u\n", arrayBlock->type, arrayBlock->rawSize, arrayBlock->elementSize,
+               arrayBlock->numElements);
+
+    void *p = ResetCursor(arrayBlock);
+    for (int i = 0; i < (int)arrayBlock->numElements; i++) {
         uint32_t *ingress = (uint32_t *)p;
         char *name = (char *)(p + 4);
         nameNode_t nameNode = {.ingress = *ingress, .name = NULL};
@@ -82,14 +81,13 @@ int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
             kb_putp(ifTree, ifTree, &nameNode);
         }
 
-        p += arrayRecordHeader->elementSize;
+        p += arrayBlock->elementSize;
     }
-
     return 0;
 
 }  // End of AddIfNameRecord
 
-int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
+int AddVrfNameRecords(arrayBlockV3_t *arrayBlock) {
     if (vrfTree == NULL) {
         vrfTree = kb_init(vrfTree, KB_DEFAULT_SIZE);
         if (!vrfTree) {
@@ -98,11 +96,11 @@ int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
         }
     }
 
-    dbg_printf("Vrf name array, type: %u, size: %u, elemSize: %u, numElem: %u\n", arrayRecordHeader->type, arrayRecordHeader->size,
-               arrayRecordHeader->elementSize, arrayRecordHeader->numElements);
-    uint32_t *val = ((void *)arrayRecordHeader + sizeof(arrayRecordHeader_t));
-    void *p = (void *)((void *)val + 4);
-    for (int i = 0; i < arrayRecordHeader->numElements; i++) {
+    dbg_printf("Vrf name array, type: %u, size: %u, elemSize: %u, numElem: %u\n", arrayBlock->type, arrayBlock->rawSize, arrayBlock->elementSize,
+               arrayBlock->numElements);
+
+    void *p = ResetCursor(arrayBlock);
+    for (int i = 0; i < (int)arrayBlock->numElements; i++) {
         uint32_t *ingress = (uint32_t *)p;
         char *name = (char *)(p + 4);
         nameNode_t nameNode = {.ingress = *ingress, .name = NULL};
@@ -115,13 +113,12 @@ int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
             kb_putp(vrfTree, vrfTree, &nameNode);
         }
 
-        p += arrayRecordHeader->elementSize;
+        p += arrayBlock->elementSize;
     }
 
     return 0;
 
 }  // End of AddVrfNameRecord
-*/
 
 char *GetIfName(uint32_t ingress, char *name, size_t len) {
     name[0] = '\0';
@@ -141,7 +138,7 @@ char *GetIfName(uint32_t ingress, char *name, size_t len) {
         name[0] = '\0';
     }
     return name;
-}
+}  // End of GetIfName
 
 char *GetVrfName(uint32_t ingress, char *name, size_t len) {
     name[0] = '\0';
@@ -161,4 +158,4 @@ char *GetVrfName(uint32_t ingress, char *name, size_t len) {
         name[0] = '\0';
     }
     return name;
-}
+}  // End of GetVrfName

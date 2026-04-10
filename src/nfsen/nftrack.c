@@ -55,7 +55,7 @@
 #include "logging.h"
 #include "nbar.h"
 #include "nfdump.h"
-#include "nffile.h"
+#include "nffileV3/nffileV3.h"
 #include "nftrack_rrd.h"
 #include "nfxV4.h"
 #include "util.h"
@@ -149,7 +149,7 @@ static int CheckRunningOnce(char *pidfile) {
 }  // End of CheckRunningOnce
 
 static data_row *process(void *engine) {
-    nffile_t *nffile = GetNextFile();
+    nffileV3_t *nffile = GetNextFile();
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -173,13 +173,13 @@ static data_row *process(void *engine) {
         return NULL;
     }
 
-    dataBlock_t *dataBlock = NULL;
+    flowBlockV3_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
+        dataBlock = ReadBlockV3(nffile);
         if (dataBlock == NULL) {
-            DisposeFile(nffile);
+            CloseFileV3(nffile);
             nffile = GetNextFile();
             if (nffile == NULL) {
                 done = 1;
@@ -189,15 +189,16 @@ static data_row *process(void *engine) {
             continue;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Can't process block type %u\n", dataBlock->type);
+            FreeDataBlock(dataBlock);
             continue;
         }
 
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < (int)dataBlock->numRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
@@ -211,7 +212,7 @@ static data_row *process(void *engine) {
 
                     if (ret == 0) {  // record failed to pass the filter
                         // increment pointer by number of bytes for netflow record
-                        record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+                        record_ptr = (recordHeader_t *)((void *)record_ptr + record_ptr->size);
                         // go to next record
                         continue;
                     }
@@ -230,24 +231,19 @@ static data_row *process(void *engine) {
                         }
                     }
                 } break;
-                case ExporterInfoRecordType:
-                case ExporterStatRecordType:
-                case SamplerRecordType:
-                case NbarRecordType:
-                    // Silently skip exporter records
-                    break;
                 default: {
                     LogError("Skip unknown record type %i\n", record_ptr->type);
                 }
             }
 
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+            record_ptr = (recordHeader_t *)((void *)record_ptr + record_ptr->size);
         }
+        FreeDataBlock(dataBlock);
+
     }  // while
 
-    FreeDataBlock(dataBlock);
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
 
     return port_table;
 

@@ -45,6 +45,7 @@
 #include <unistd.h>
 
 #include "barrier.h"
+#include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "filter/filter.h"
 #include "flist.h"
@@ -154,14 +155,14 @@ static void *worker_thread(void *arg) {
     pthread_control_barrier_wait(worker_param->barrier);
 
     while (*(worker_param->dataBlock)) {
-        dataBlock_t *dataBlock = *(worker_param->dataBlock);
+        flowBlockV3_t *dataBlock = *(worker_param->dataBlock);
         dbg_printf("Worker %i working on %p\n", self, dataBlock);
         uint32_t recordCount = 0;
 
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < (int)dataBlock->numRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
@@ -191,55 +192,19 @@ static void *worker_thread(void *arg) {
                         // check if we need to flush the output buffer
                         if (channels[j].nffile != NULL) {
                             // write record to output buffer
-                            channels[j].dataBlock =
-                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
 
                     }  // End of for all channels
 
                     FreeRecordHandle(recordHandle);
                     break;
-                case ExporterInfoRecordType: {
-                    for (int j = self; j < (int)numChannels; j += numWorkers) {
-                        if (channels[j].nffile != NULL) {
-                            // flush new exporter
-                            channels[j].dataBlock =
-                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
-                        }
-                    }
-                } break;
-                case SamplerLegacyRecordType:
-                case SamplerRecordType: {
-                    for (int j = self; j < (int)numChannels; j += numWorkers) {
-                        if (channels[j].nffile != NULL) {
-                            // flush new map
-                            channels[j].dataBlock =
-                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
-                        }
-                    }
-                } break;
-                case NbarRecordType:
-                case IfNameRecordType:
-                case VrfNameRecordType:
-                    for (int j = self; j < (int)numChannels; j += numWorkers) {
-                        if (channels[j].nffile != NULL) {
-                            // flush new map
-                            channels[j].dataBlock =
-                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
-                        }
-                    }
-                    break;
-                case LegacyRecordType1:
-                case LegacyRecordType2:
-                case ExporterStatRecordType:
-                    // Silently skip exporter records
-                    break;
                 default: {
                     LogError("Skip unknown record type %i", record_ptr->type);
                 }
             }
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((ptrdiff_t)record_ptr + record_ptr->size);
+            record_ptr = (recordHeader_t *)((ptrdiff_t)record_ptr + record_ptr->size);
 
         }  // End of for all umRecords
 
@@ -284,8 +249,8 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_con
 
 static void process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
                          pthread_control_barrier_t *barrier, int hasGeoDB) {
-    dataBlock_t *nextBlock = NULL;
-    dataBlock_t *dataBlock = NULL;
+    flowBlockV3_t *nextBlock = NULL;
+    flowBlockV3_t *dataBlock = NULL;
     // map datablock for workers - all workers
     // process the same block but different channels
     for (int i = 0; i < numWorkers; i++) {
@@ -296,7 +261,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
     // wait for workers ready to start
     pthread_controller_wait(barrier);
 
-    nffile_t *nffile = NULL;
+    nffileV3_t *nffile = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
@@ -313,28 +278,28 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
                 FilterSetParam(engine, nffile->ident, hasGeoDB);
             }
             // read first block and continue
-            nextBlock = ReadBlock(nffile, NULL);
+            nextBlock = ReadBlockV3(nffile);
             continue;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Skip block", dataBlock->type);
-            nextBlock = ReadBlock(nffile, NULL);
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
+            // Skip non - flowBlocks
+            nextBlock = ReadBlockV3(nffile);
             continue;
         }
 
-        dbg_printf("Next block: Records: %u\n", dataBlock->NumRecords);
+        dbg_printf("Next block: Records: %u\n", dataBlock->numRecords);
         // release workers from barrier
         pthread_control_barrier_release(barrier);
 
         // get next block while worker are processing the previous one
-        nextBlock = ReadBlock(nffile, NULL);
+        nextBlock = ReadBlockV3(nffile);
 
         // wait for all workers, work done on this block
         pthread_controller_wait(barrier);
 
         if (nextBlock == NULL) {
-            DisposeFile(nffile);
+            CloseFileV3(nffile);
         }
 
         // free processed block
@@ -346,17 +311,17 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
     dataBlock = NULL;
     pthread_control_barrier_release(barrier);
 
-    DisposeFile(nffile);
-
     // do we need to write data to new file - shadow profiles do not have files.
     // write all used blocks first, then close the files
     for (int j = 0; j < (int)numChannels; j++) {
         if (channels[j].nffile != NULL) {
             // flush output buffer
-            FlushBlock(channels[j].nffile, channels[j].dataBlock);
+            if (channels[j].dataBlock->numRecords) {
+                WriteBlockV3(channels[j].nffile, channels[j].dataBlock);
+            }
             *channels[j].nffile->stat_record = channels[j].stat_record;
-            FlushFile(channels[j].nffile);
-            DisposeFile(channels[j].nffile);
+            FlushFileV3(channels[j].nffile);
+            CloseFileV3(channels[j].nffile);
         }
     }
 
@@ -536,7 +501,7 @@ static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
 }  // End of WaitWorkersDone
 
 int main(int argc, char **argv) {
-    unsigned int numChannels, compress;
+    unsigned int numChannels;
     profile_param_info_t *profile_list;
     char *ffile, *filename, *syslog_facility;
     char *profile_datadir, *profile_statdir;
@@ -544,13 +509,14 @@ int main(int argc, char **argv) {
     time_t tslot;
     flist_t flist;
 
+    uint32_t compressType = 0;
+    uint32_t compressLevel = 0;
     int numWorkers = 0;
     memset((void *)&flist, 0, sizeof(flist));
     profile_datadir = NULL;
     profile_statdir = NULL;
     tslot = 0;
     syntax_only = 0;
-    compress = NOT_COMPRESSED;
     subdir_index = 0;
     profile_list = NULL;
     stdin_profile_params = 0;
@@ -607,33 +573,31 @@ int main(int argc, char **argv) {
                 flist.single_file = strdup(optarg);
                 break;
             case 'j':
-                if (compress) {
+                if (compressType != UNDEF_COMPRESSED) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(255);
                 }
-                compress = BZ2_COMPRESSED;
+                compressType = BZ2_COMPRESSED;
                 break;
             case 'y':
-                if (compress) {
+                if (compressType != UNDEF_COMPRESSED) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(255);
                 }
-                compress = LZ4_COMPRESSED;
+                compressType = LZ4_COMPRESSED;
                 break;
             case 'z':
-                if (compress) {
+                if (compressType != UNDEF_COMPRESSED) {
                     LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
-                    compress = LZO_COMPRESSED;
+                    compressType = LZO_COMPRESSED;
                 } else {
-                    int ret = ParseCompression(optarg);
-                    if (ret == -1) {
+                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
                         LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                         exit(EXIT_FAILURE);
                     }
-                    compress = ret;
                 }
                 break;
 #ifdef HAVE_INFLUXDB
@@ -743,7 +707,8 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(numWorkers, fileList)) exit(254);
 
-    numChannels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
+    numChannels =
+        InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compressType, compressLevel);
 
     // nothing to do
     if (numChannels == 0) {

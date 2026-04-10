@@ -154,8 +154,7 @@ static void usage(char *name) {
         "\t\tand ordered by <order>: packets, bytes, flows, bps pps and bpp.\n"
         "-q\t\tQuiet: Do not print the header and bottom stat lines.\n"
         "-i <ident>\tChange Ident to <ident> in file given by -r.\n"
-        "-J <num>\tModify file compression: 0: uncompressed - 1: LZO - 2: BZ2 - 3: LZ4 - 4: ZSTD"
-        "compressed.\n"
+        "-J=<comp>\tModify file compression to comp. comp identical with -z.\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
@@ -192,7 +191,6 @@ static void usage(char *name) {
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
         "-v <file>\tverify netflow data file. Print version and blocks.\n"
         "-W <num>\tOptionally set the number of workers to compress flows\n"
-        "-x <file>\tverify extension records in netflow data file.\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-t <time>\ttime window for filtering packets\n"
@@ -287,35 +285,26 @@ static void FreeRecordHandle(recordHandle_t *handle) {
     }
 }  // End of FreeRecordHandle
 
-// preprocess block - check of block is valid and
-// add exporter records
-static int PreProcessBlock(flowBlockV3_t *dataBlock) {
-    recordHeaderV4_t *record_ptr = ResetCursor(dataBlock);
-    uint32_t sumSize = 0;
-    unsigned i;
-    for (i = 0; i < dataBlock->numRecords; i++) {
-        if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeaderV4_t))) {
-            LogError("Bad flow block. Inconsistent block size in %s line %d", __FILE__, __LINE__);
-            return 0;
-        }
-        sumSize += record_ptr->size;
+static void ProcessArrayBlock(arrayBlockV3_t *arrayBlock) {
+    dbg_printf("ARRAY block, type: %u, size: %u, numElements: %u, elementSize: %u\n", arrayBlock->elementType, arrayBlock->rawSize,
+               arrayBlock->numElements, arrayBlock->elementSize);
 
-        // work on our record
-        switch (record_ptr->type) {
-            case ExporterInfoRecordV4Type:
-                if (AddExporterInfo((exporter_info_record_v4_t *)record_ptr) == 0) {
-                    LogError("Failed to add Exporter Record\n");
-                }
-                break;
-        }
-
-        // Advance pointer by number of bytes for netflow record
-        record_ptr = (recordHeaderV4_t *)((uint8_t *)record_ptr + record_ptr->size);
+    switch (arrayBlock->elementType) {
+        case NbarRecordType:
+            AddNbarRecords(arrayBlock);
+            break;
+        case VrfNameRecordType:
+            AddVrfNameRecords(arrayBlock);
+            break;
+        case IfNameRecordType:
+            AddIfNameRecords(arrayBlock);
+            break;
+        default:
+            LogError("Skip unknow arrayblock, type: %u, elementSize: %u, numElements: %u", arrayBlock->type, arrayBlock->elementSize,
+                     arrayBlock->numElements);
     }
-    dbg_printf("PreProcess datablock: count: %u, size: %u. Found: %u, size: %u\n", dataBlock->numRecords, dataBlock->rawSize, i, sumSize);
 
-    return 1;
-}  // End of PreProcessBlock
+}  // End of ProcessArrayBlock
 
 static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
@@ -368,29 +357,23 @@ static void *prepareThread(void *arg) {
                 // processed blocks
                 recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
                 break;
-            case BLOCK_TYPE_ARRAY: {
-                arrayBlockV3_t *arrayBlock = (arrayBlockV3_t *)dataHandle->dataBlock;
-                dbg_printf("ARRAY block, type: %u, size: %u, numElements: %u, elementSize: %u\n", arrayBlock->elementType, arrayBlock->rawSize,
-                           arrayBlock->numElements, arrayBlock->elementSize);
-                if (arrayBlock->elementType == NbarRecordType) {
-                    AddNbarRecords(arrayBlock);
-                }
-            } break;
+            case BLOCK_TYPE_ARRAY:
+                ProcessArrayBlock((arrayBlockV3_t *)dataHandle->dataBlock);
+                break;
             case BLOCK_TYPE_EXP:
+                dbg_printf("prepareThread - Skip exporter block\n");
                 break;
             case BLOCK_TYPE_META:
                 break;
             case BLOCK_TYPE_IDENT:
+                dbg_printf("prepareThread - Skip ident block\n");
                 break;
             default:
                 LogError("Unknown block type %u. Skip block", dataHandle->dataBlock->type);
-                /*
-                XXX FIX! verify if all blocks handled
                 skippedBlocks++;
                 FreeDataBlock(dataHandle->dataBlock);
                 dataHandle->dataBlock = NULL;
                 continue;
-                */
         }
 
         dataHandle->recordCnt = recordCnt;
@@ -676,30 +659,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     FreeRecordHandle(recordHandle);
 
                 } break;
-                /*
-                case NbarRecordType: {
-                    // XXX FIX!! arrayRecordHeader_t *nbarRecord = (arrayRecordHeader_t *)record_ptr;
-#ifdef DEVEL
-                    // XXX FIX! printf("Found nbar record: %u elements\n", nbarRecord->numElements);
-                    // XXX FIX! PrintNbarRecord(nbarRecord);
-#endif
-                    // XXX FIX!! AddNbarRecord(nbarRecord);
-                } break;
-                case IfNameRecordType: {
-                    // XXX FIX!! arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
-                    // XXX FIX!! AddIfNameRecord(arrayRecordHeader);
-                } break;
-
-                case VrfNameRecordType: {
-                    // XXX FIX!  arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
-                    // XXX FIX!  AddVrfNameRecord(arrayRecordHeader);
-                } break;
-                case LegacyRecordType1:
-                case LegacyRecordType2:
-                case CommonRecordV0Type:
-                    LogError("Skip lagecy record type: %d", record_ptr->type);
-                    break;
-                */
                 default: {
                     LogError("Skip unknown record type %i\n", record_ptr->type);
                 }
@@ -761,7 +720,7 @@ int main(int argc, char **argv) {
     nfprof_t profile_data;
     char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *print_format;
-    char *print_order, *query_file, *configFile, *aggr_fmt;
+    char *print_order, *query_type, *configFile, *aggr_fmt;
     int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, numWorkers;
@@ -792,7 +751,7 @@ int main(int argc, char **argv) {
     print_format = NULL;
     print_record = NULL;
     print_order = NULL;
-    query_file = NULL;
+    query_type = NULL;
     ModifyCompress = 0;
     aggr_fmt = NULL;
 
@@ -811,7 +770,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:x:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -1011,27 +970,14 @@ int main(int argc, char **argv) {
                 break;
             case 'J':
                 if (!ParseCompression(optarg, &compressType, &compressLevel)) {
-                    LogError("Expected -J <arg>, 0 for uncompressed, 1, LZO, 2, BZ2, 3, LZ4");
+                    LogError("Expected -J=<comp>, See arguments for -z");
                     exit(EXIT_FAILURE);
                 }
                 ModifyCompress = 1;
                 break;
-            case 'x': {
-                CheckArgLen(optarg, MAXPATHLEN);
-                // XXX FIX! - old 1.6.x extension map   InitExtensionMaps(NO_EXTENSION_LIST);
-                flist.single_file = strdup(optarg);
-                queue_t *fileList = SetupInputFileSequence(&flist);
-                if (!fileList || !Init_nffile(1, fileList)) exit(EXIT_FAILURE);
-                // XXX FIX! - old 1.6.x extension map  DumpExMaps();
-                exit(EXIT_SUCCESS);
-            } break;
             case 'v':
-                CheckArgLen(optarg, MAXPATHLEN);
-                query_file = optarg;
-                if (!VerifyFileV3(query_file, fdump))
-                    exit(EXIT_FAILURE);
-                else
-                    exit(EXIT_SUCCESS);
+                CheckArgLen(optarg, 16);
+                query_type = optarg;
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
@@ -1070,6 +1016,16 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
+    if (query_type) {
+        if (strcmp(query_type, "check") == 0) {
+            VerifyFileV3(flist.single_file, 0);
+        } else if (strcmp(query_type, "repair") == 0) {
+            ReWriteV3(flist.single_file);
+        } else {
+            LogError("Unknown mode to verify file: %s. Use -v check, or -v repair", query_type);
+        }
+        exit(EXIT_SUCCESS);
+    }
     if (!filter && ffile) {
         filter = ReadFilter(ffile);
         if (filter == NULL) {

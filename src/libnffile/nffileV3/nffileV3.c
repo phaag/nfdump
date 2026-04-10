@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -186,7 +187,7 @@ nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize) {
         free(nffile);
         return NULL;
     }
-    for (int i = 0; i < num_workers; i++) nffile->worker[i] = 0;
+    for (int i = 0; i < (int)num_workers; i++) nffile->worker[i] = 0;
 
     pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
@@ -624,11 +625,92 @@ int RenameAppendV3(const char *oldName, const char *newName) {
 
 }  // End of RenameAppendV3
 
+// Check if all data blocks in file already have target compression
+static int FileHasCompression(nffileV3_t *nffile, uint32_t compressType) {
+    if (!nffile->blockDirectory || !nffile->map) return 0;
+
+    for (uint32_t i = 0; i < nffile->blockDirectory->numEntries; i++) {
+        const directoryEntryV3_t *e = &nffile->blockDirectory->entries[i];
+        // Only check data blocks (FLOW/ARRAY), skip metadata (STATS, IDENT, etc.)
+        if (e->type != BLOCK_TYPE_FLOW && e->type != BLOCK_TYPE_ARRAY) continue;
+
+        // bounds check
+        if (e->offset + sizeof(dataBlockV3_t) > nffile->mapSize) continue;
+
+        const dataBlockV3_t *blk = (const dataBlockV3_t *)(nffile->map + e->offset);
+        if (blk->compression == compressType) return 1;
+    }
+    return 0;
+}
+
 void ModifyCompressFile(uint32_t compressType, uint32_t compressLevel) {
     while (1) {
         nffileV3_t *nffile_r = GetNextFile();
 
-        // XXX FIX! implement modify compression
+        // last file
+        if (nffile_r == NULL) break;
+
+        // skip files where all data blocks already have target compression
+        if (FileHasCompression(nffile_r, compressType)) {
+            printf("File %s already at target compression, skipped\n", nffile_r->fileName);
+            CloseFileV3(nffile_r);
+            continue;
+        }
+
+        // save fileName before closing (CloseFileV3 frees it)
+        char srcFile[MAXPATHLEN];
+        strncpy(srcFile, nffile_r->fileName, MAXPATHLEN - 1);
+        srcFile[MAXPATHLEN - 1] = '\0';
+
+        // tmp filename for new output file
+        char outfile[MAXPATHLEN];
+        snprintf(outfile, MAXPATHLEN, "%s.XXXXXXX", srcFile);
+        outfile[MAXPATHLEN - 1] = '\0';
+
+        // allocate output file
+        nffileV3_t *nffile_w = OpenNewFileTmpV3(outfile, nffile_r->fileHeader->creator, compressType, compressLevel, NOT_ENCRYPTED);
+        if (!nffile_w) {
+            CloseFileV3(nffile_r);
+            break;
+        }
+
+        SetIdent(nffile_w, nffile_r->ident);
+
+        // swap stat records :)
+        stat_record_t *_s = nffile_r->stat_record;
+        nffile_r->stat_record = nffile_w->stat_record;
+        nffile_w->stat_record = _s;
+
+        // push blocks to new file
+        while (1) {
+            dataBlockV3_t *block_header = queue_pop(nffile_r->processQueue);
+            if (block_header == QUEUE_CLOSED)  // EOF
+                break;
+            // keep BLOCK_TYPE_STATS and BLOCK_TYPE_IDENT uncompressed
+            if (block_header->type != BLOCK_TYPE_STATS && block_header->type != BLOCK_TYPE_IDENT) {
+                // compression is base on block level - UNDEF_COMPRESSED uses default file compression
+                block_header->compression = UNDEF_COMPRESSED;
+            }
+            queue_push(nffile_w->processQueue, block_header);
+        }
+
+        CloseFileV3(nffile_r);
+
+        if (FlushFileV3(nffile_w)) {
+            printf("File %s compression changed\n", srcFile);
+            char *fileName = strdup(nffile_w->fileName);
+            CloseFileV3(nffile_w);
+            if (unlink(srcFile)) {
+                LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            } else if (rename(fileName, srcFile)) {
+                LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            }
+            free(fileName);
+        } else {
+            printf("Failed to change file compression for: %s\n", srcFile);
+            CloseFileV3(nffile_w);
+            unlink(outfile);
+        }
     }
 
 }  // End of ModifyCompressFile

@@ -191,14 +191,17 @@ typedef struct dataBlockV3_s {
 } dataBlockV3_t;
 _Static_assert((sizeof(dataBlockV3_t) & 7) == 0, "dataBlockV3_t for 8 byte aligned");
 
-#define BLOCK_TYPE_NULL 0   // unused - undefined
-#define BLOCK_TYPE_FLOW 1   // V4 flow records (heterogeneous sizes)
-#define BLOCK_TYPE_ARRAY 2  // homogeneous fixed-size elements
-#define BLOCK_TYPE_STATS 3  // stat_record_t
-#define BLOCK_TYPE_IDENT 4  // source identifier
-#define BLOCK_TYPE_META 5   // metadata (schema, exporter table, etc.)
-#define BLOCK_TYPE_MSG 6    // message block
-#define BLOCK_TYPE_EXP 7    // exporter meta data
+enum {
+    BLOCK_TYPE_NULL = 0,  // unused - undefined
+    BLOCK_TYPE_FLOW,      // V4 flow records (heterogeneous sizes)
+    BLOCK_TYPE_ARRAY,     // homogeneous fixed-size elements
+    BLOCK_TYPE_STATS,     // stat_record_t
+    BLOCK_TYPE_IDENT,     // source identifier
+    BLOCK_TYPE_META,      // metadata (schema, exporter table, etc.)
+    BLOCK_TYPE_MSG,       // message block
+    BLOCK_TYPE_EXP,       // exporter meta data
+    BLOCK_MAX_TYPES       // max + 1 block types
+};
 
 /*
  * generic data record.
@@ -284,7 +287,7 @@ typedef struct nffileV3_s {
 #define DefaultQueueSize 8
 
 #define ONE_MB 1048576
-#define BLOCK_SIZE_V3 ONE_MB  // 1MB total allocation
+#define BLOCK_SIZE_V3 4 * ONE_MB  // 1MB total allocation
 
 #define DIR_INIT_CAPACITY 256
 

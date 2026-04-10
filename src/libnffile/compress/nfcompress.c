@@ -356,6 +356,12 @@ int ParseCompression(char *arg, uint32_t *compressType, uint32_t *compressLevel)
 
     if (strcmp(arg, "0") == 0) {
         *compressType = NOT_COMPRESSED;
+        *compressLevel = 0;
+        return 1;
+    }
+    if (strcmp(arg, "none") == 0 || strcmp(arg, "null") == 0) {
+        *compressType = NOT_COMPRESSED;
+        *compressLevel = 0;
         return 1;
     }
     if (strcmp(arg, "lzo") == 0 || strcmp(arg, "1") == 0) {

@@ -138,7 +138,9 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, uint32_t compressType, u
         LogError("OpenNewFile() failed.");
         return 1;
     }
-    flowBlockV3_t *dataBlock = WriteBlockV3(nffile, NULL);
+    SetIdent(nffile, ident);
+    flowBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
 
     ftio_get_ver(ftio, &ftv);
     memset((void *)&fo, 0xFF, sizeof(fo));
@@ -162,7 +164,8 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, uint32_t compressType, u
         dbg_printf("FT record %u\n", cnt);
         if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, recordSize)) {
             // flush block - get an empty one
-            dataBlock = WriteBlockV3(nffile, dataBlock);
+            WriteBlockV3(nffile, dataBlock);
+            InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
         }
 
         void *buffPtr = GetCursor(dataBlock);

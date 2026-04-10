@@ -64,7 +64,7 @@ typedef struct profile_channel_info_s {
 profile_channel_info_t *GetProfiles(void);
 
 unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_list, char *filterfile, char *filename,
-                          int subdir_index, int veryfy_only, int compress);
+                          int subdir_index, int verify_only, uint32_t compressType, uint32_t compressLevel);
 
 profile_channel_info_t *GetChannelInfoList(void);
 

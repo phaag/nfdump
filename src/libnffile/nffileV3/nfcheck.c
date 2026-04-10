@@ -56,6 +56,15 @@
 #define LAYOUT_VERSION_1 1
 #define LAYOUT_VERSION_2 2
 
+static const char *CompressionType(uint32_t compression) {
+    return compression == NOT_COMPRESSED    ? "not compressed"
+           : compression == LZO_COMPRESSED  ? "lzo compressed"
+           : compression == LZ4_COMPRESSED  ? "lz4 compressed"
+           : compression == ZSTD_COMPRESSED ? "zstd compressed"
+           : compression == BZ2_COMPRESSED  ? "bz2 compressed"
+                                            : "unknown compression";
+}  // End of CompressionType
+
 // =========================================================================
 //  4. VERIFY FILE CONSISTENCY
 // =========================================================================
@@ -263,12 +272,15 @@ int VerifyFileV3(const char *filename, int verbose) {
     // === Phase 2: Sequential block scan ===
     printf("\nScanning blocks:\n");
 
+    struct {
+        uint32_t numBlocks;
+        uint32_t compression;
+    } blockStat[BLOCK_MAX_TYPES] = {0};
+
     uint32_t blockSizeFound = 0;
     int blockCheckFailed = 0;
     uint32_t totalBlocks = 0;
-    uint32_t flowBlocks = 0, arrayBlocks = 0, statsBlocks = 0;
-    uint32_t identBlocks = 0, metaBlocks = 0, unknownBlocks = 0;
-    uint32_t exporterBlocks = 0;
+    uint32_t unknownBlocks = 0;
 
     off_t scanEnd = fileHeader->offDirectory ? (off_t)fileHeader->offDirectory : fileSize;
     off_t nextOffset = sizeof(fileHeaderV3_t);
@@ -293,9 +305,14 @@ int VerifyFileV3(const char *filename, int verbose) {
             blockSizeFound = dataBlock->rawSize;
         }
 
+        if (verbose)
+            printf("Checkblock: type: %u, rawSize: %u, discSize: %u, compression: %u\n", dataBlock->type, dataBlock->rawSize, dataBlock->discSize,
+                   dataBlock->compression);
+
         switch (dataBlock->type) {
             case BLOCK_TYPE_FLOW: {
-                flowBlocks++;
+                blockStat[BLOCK_TYPE_FLOW].numBlocks++;
+                blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
                 flowBlockV3_t *flowBlock = (flowBlockV3_t *)dataBlock;
                 if (flowBlock->numRecords == 0) {
                     printf("Block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize, dataBlock->discSize);
@@ -303,18 +320,23 @@ int VerifyFileV3(const char *filename, int verbose) {
                 }
             } break;
             case BLOCK_TYPE_ARRAY:
-                arrayBlocks++;
+                blockStat[BLOCK_TYPE_ARRAY].numBlocks++;
+                blockStat[BLOCK_TYPE_ARRAY].compression = dataBlock->compression;
                 break;
             case BLOCK_TYPE_STATS:
-                statsBlocks++;
+                blockStat[BLOCK_TYPE_STATS].numBlocks++;
+                blockStat[BLOCK_TYPE_STATS].compression = dataBlock->compression;
                 break;
             case BLOCK_TYPE_IDENT:
-                identBlocks++;
+                blockStat[BLOCK_TYPE_IDENT].numBlocks++;
+                blockStat[BLOCK_TYPE_IDENT].compression = dataBlock->compression;
                 break;
             case BLOCK_TYPE_META:
-                metaBlocks++;
+                blockStat[BLOCK_TYPE_META].numBlocks++;
+                blockStat[BLOCK_TYPE_META].compression = dataBlock->compression;
             case BLOCK_TYPE_EXP:
-                exporterBlocks++;
+                blockStat[BLOCK_TYPE_EXP].numBlocks++;
+                blockStat[BLOCK_TYPE_EXP].compression = dataBlock->compression;
                 break;
             default:
                 printf("Block %u: unknown type %u at offset %lld\n", totalBlocks, dataBlock->type, nextOffset);
@@ -374,12 +396,18 @@ int VerifyFileV3(const char *filename, int verbose) {
         printf("  Total blocks    : block check failed\n");
     } else {
         printf("  Total blocks    : %u\n", totalBlocks);
-        if (flowBlocks) printf("  Flow blocks     : %u\n", flowBlocks);
-        if (arrayBlocks) printf("  Array blocks    : %u\n", arrayBlocks);
-        if (statsBlocks) printf("  Stats blocks    : %u\n", statsBlocks);
-        if (identBlocks) printf("  Ident blocks    : %u\n", identBlocks);
-        if (metaBlocks) printf("  Meta blocks     : %u\n", metaBlocks);
-        if (exporterBlocks) printf("  Exporter blocks : %u\n", exporterBlocks);
+        if (blockStat[BLOCK_TYPE_FLOW].numBlocks)
+            printf("  Flow blocks     : %u - %s\n", blockStat[BLOCK_TYPE_FLOW].numBlocks, CompressionType(blockStat[BLOCK_TYPE_FLOW].compression));
+        if (blockStat[BLOCK_TYPE_ARRAY].numBlocks)
+            printf("  Array blocks    : %u - %s\n", blockStat[BLOCK_TYPE_ARRAY].numBlocks, CompressionType(blockStat[BLOCK_TYPE_ARRAY].compression));
+        if (blockStat[BLOCK_TYPE_STATS].numBlocks)
+            printf("  Stats blocks    : %u - %s\n", blockStat[BLOCK_TYPE_STATS].numBlocks, CompressionType(blockStat[BLOCK_TYPE_STATS].compression));
+        if (blockStat[BLOCK_TYPE_IDENT].numBlocks)
+            printf("  Ident blocks    : %u - %s\n", blockStat[BLOCK_TYPE_IDENT].numBlocks, CompressionType(blockStat[BLOCK_TYPE_IDENT].compression));
+        if (blockStat[BLOCK_TYPE_META].numBlocks)
+            printf("  Meta blocks     : %u - %s\n", blockStat[BLOCK_TYPE_META].numBlocks, CompressionType(blockStat[BLOCK_TYPE_META].compression));
+        if (blockStat[BLOCK_TYPE_EXP].numBlocks)
+            printf("  Exporter blocks : %u - %s\n", blockStat[BLOCK_TYPE_EXP].numBlocks, CompressionType(blockStat[BLOCK_TYPE_EXP].compression));
         if (unknownBlocks) printf("  Unknown      : %u\n", unknownBlocks);
     }
     printf("  Directory       : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");

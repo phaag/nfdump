@@ -190,7 +190,6 @@ char *GetNbarInfo(uint8_t *id, size_t size, char *name) {
 }  // End of GetNbarInfo
 
 void DumpNbarList(void) {
-    /*
     if (NbarAppInfoHash == NULL) return;
 
     size_t hashSize = kh_size(NbarAppInfoHash);
@@ -222,7 +221,6 @@ void DumpNbarList(void) {
                 printf("<zero length description>\n");
         }
     }
-    */
 
 }  // End of DumpNbarList
 

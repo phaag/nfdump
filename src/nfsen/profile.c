@@ -77,7 +77,7 @@ static unsigned int num_channels;
 static int AppendString(char *stack, char *string, size_t *buff_size);
 
 static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_param, int subdir_index,
-                                 char *filterfile, char *filename, int verify_only, int compress);
+                                 char *filterfile, char *filename, int verify_only, uint32_t compressType, uint32_t compressLevel);
 
 profile_channel_info_t *GetChannelInfoList(void) { return profile_channels; }  // End of GetProfiles
 
@@ -97,7 +97,7 @@ static int AppendString(char *stack, char *string, size_t *buff_size) {
 }  // End of AppendString
 
 unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_list, char *filterfile, char *filename,
-                          int subdir_index, int verify_only, int compress) {
+                          int subdir_index, int verify_only, uint32_t compressType, uint32_t compressLevel) {
     profile_param_info_t *profile_param;
 
     num_channels = 0;
@@ -106,7 +106,8 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
         LogInfo("Setup channel '%s' in profile '%s' group '%s', channellist '%s' for file '%s'", profile_param->channelname,
                 profile_param->profilename, profile_param->profilegroup, profile_param->channel_sourcelist, filename);
 
-        SetupProfileChannels(profile_datadir, profile_statdir, profile_param, subdir_index, filterfile, filename, verify_only, compress);
+        SetupProfileChannels(profile_datadir, profile_statdir, profile_param, subdir_index, filterfile, filename, verify_only, compressType,
+                             compressLevel);
 
         profile_param = profile_param->next;
     }
@@ -115,7 +116,7 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
 }  // End of InitChannels
 
 static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_param, int subdir_index,
-                                 char *filterfile, char *filename, int verify_only, int compress) {
+                                 char *filterfile, char *filename, int verify_only, uint32_t compressType, uint32_t compressLevel) {
     /*
      * Compile the complete filter:
      * this consists of the source list and the filter stored in the file
@@ -251,8 +252,8 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     // check for subdir hierarchy
     char *ofile = NULL;
     char *wfile = NULL;
-    nffile_t *nffile = NULL;
-    dataBlock_t *dataBlock = NULL;
+    nffileV3_t *nffile = NULL;
+    flowBlockV3_t *dataBlock = NULL;
     if ((profile_param->profiletype & 4) == 0) {  // no shadow profile
         // int is_alert = (profile_param->profiletype & 8) == 8;
         if (strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
@@ -278,12 +279,12 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
         ofile = strdup(path);
 
-        nffile = OpenNewFile(path, CREATOR_NFPROFILE, compress, NOT_ENCRYPTED);
+        nffile = OpenNewFileV3(path, CREATOR_NFPROFILE, compressType, compressLevel, NOT_ENCRYPTED);
         if (!nffile) {
             return;
         }
         SetIdent(nffile, profile_param->channelname);
-        dataBlock = WriteBlock(nffile, NULL);
+        InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
     }
 
     snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s.rrd", profile_statdir, profile_param->profilegroup, profile_param->profilename,
@@ -358,7 +359,7 @@ void UpdateChannels(time_t tslot) {
 void VerifyFiles(void) {
     for (unsigned num = 0; num < num_channels; num++) {
         if (profile_channels[num].wfile) {
-            int err = QueryFile(profile_channels[num].wfile, 1);
+            int err = VerifyFileV3(profile_channels[num].wfile, 1);
             LogError("Verified %s: err: %d\n", profile_channels[num].wfile, err);
         }
     }
