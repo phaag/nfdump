@@ -269,9 +269,6 @@ static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, r
     // if no match above, trick filter to fail with an invalid mpls label value
     return 0xFF000000;
 
-    uint32_t offset = data.dataVal;
-    return mplsLabel->mplsLabel[offset] >> 4;
-
 }  // End of mpls_any_function
 
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
@@ -704,8 +701,9 @@ static void UpdateList(uint32_t a, uint32_t b) {
 static void ClearFilter(void) {
     NumBlocks = 1;
     Extended = 0;
-    memset((void *)FilterTree, 0, MAXBLOCKS * sizeof(filterElement_t));
-} /* End of ClearFilter */
+    size_t total = memblocks * MAXBLOCKS;
+    memset(FilterTree, 0, total * sizeof(filterElement_t));
+}  // End of ClearFilter
 
 static void InitFilter(void) {
     memblocks = 1;
@@ -838,6 +836,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                     break;
                 case 8:
                     inVal = *((uint64_t *)inPtr);
+                    break;
                 case 3:
                 case 5:
                 case 7:
