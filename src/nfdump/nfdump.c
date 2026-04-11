@@ -355,7 +355,6 @@ static void *prepareThread(void *arg) {
         switch (dataHandle->dataBlock->type) {
             case BLOCK_TYPE_FLOW:
                 // processed blocks
-                recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
                 break;
             case BLOCK_TYPE_ARRAY:
                 ProcessArrayBlock((arrayBlockV3_t *)dataHandle->dataBlock);
@@ -377,6 +376,7 @@ static void *prepareThread(void *arg) {
         }
 
         dataHandle->recordCnt = recordCnt;
+        recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
         queue_push(prepareQueue, (void *)dataHandle);
         dataHandle = NULL;
         done = abortProcessing;
@@ -1017,6 +1017,10 @@ int main(int argc, char **argv) {
     }
 
     if (query_type) {
+        if (flist.single_file == NULL) {
+            LogError("Missing file to %s. Add -r <file>", query_type);
+            exit(EXIT_FAILURE);
+        }
         if (strcmp(query_type, "check") == 0) {
             VerifyFileV3(flist.single_file, 0);
         } else if (strcmp(query_type, "repair") == 0) {

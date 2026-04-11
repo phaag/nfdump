@@ -118,8 +118,8 @@ static const struct ipfixTranslationMap_s {
     AddElement(IPFIX_DestinationIPv6Address, SIZEdst6Addr, MOVE_IPV6, EXipv6FlowID, OFFdst6Addr, "IPv6 dst addr"),
     AddElement(IPFIX_SourceIPv6PrefixLength, SIZEsrcMask, MOVE_NUMBER, EXflowMiscID, OFFsrcMask, "src mask bits"),
     AddElement(IPFIX_DestinationIPv6PrefixLength, SIZEdstMask, MOVE_NUMBER, EXflowMiscID, OFFdstMask, "dst mask bits"),
-    AddElement(IPFIX_icmpTypeCodeIPv4, SIZEdstPort, MOVE_NUMBER, EXgenericFlowID, OFFdstPort, "icmp type/code"),
-    AddElement(IPFIX_icmpTypeCodeIPv6, SIZEdstPort, MOVE_NUMBER, EXgenericFlowID, OFFdstPort, "icmp v6 type/code"),
+    AddElement(IPFIX_icmpTypeCodeIPv4, SIZEdstPort, REGISTER_1, EXgenericFlowID, OFFdstPort, "icmp type/code"),
+    AddElement(IPFIX_icmpTypeCodeIPv6, SIZEdstPort, REGISTER_1, EXgenericFlowID, OFFdstPort, "icmp v6 type/code"),
     AddElement(IPFIX_icmpTypeV4, SIZEicmpType, REGISTER_0, EXgenericFlowID, OFFicmpType, "icmp type"),
     AddElement(IPFIX_icmpCodeV4, SIZEicmpCode, REGISTER_1, EXgenericFlowID, OFFicmpCode, "icmp code"),
     AddElement(IPFIX_icmpTypeV6, SIZEicmpType, REGISTER_0, EXgenericFlowID, OFFicmpType, "icmp type"),
@@ -1618,8 +1618,13 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     fs->stat_record.numpackets_icmp += genericFlow->inPackets;
                     fs->stat_record.numbytes_icmp += genericFlow->inBytes;
                     if (runtime.rtRegister[0] != 0 || runtime.rtRegister[1] != 0) {
-                        // icmp type and code elements #176 #177 #178 #179
-                        genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
+                        if (runtime.rtRegister[1] > 256) {
+                            // icmp #032 #139
+                            genericFlow->dstPort = runtime.rtRegister[1];
+                        } else {
+                            // icmp type and code elements #176 #177 #178 #179
+                            genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
+                        }
                     }
                     break;
                 case IPPROTO_TCP:

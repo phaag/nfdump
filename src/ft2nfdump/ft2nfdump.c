@@ -274,7 +274,6 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, uint32_t compressType, u
 
     } /* while */
 
-    // XXX FIX! SetIdent(nffile, ident);
     FlushBlockV3(nffile, dataBlock);
     FlushFileV3(nffile);
     CloseFileV3(nffile);

@@ -65,7 +65,7 @@ static void dns_print_answer(FILE *stream, char const *tag, dns_answer_t *pans, 
     char ipaddr[INET6_ADDRSTRLEN];
 
     dbg_assert(tag != NULL);
-    dbg_assert(cnt > 0 && pans != NULL);
+    dbg_assert(cnt == 0 || (cnt > 0 && pans != NULL));
 
     for (size_t i = 0; i < cnt; i++) {
         fprintf(stream, "%s : %2zd: ", tag, i);

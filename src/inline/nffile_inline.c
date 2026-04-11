@@ -143,7 +143,7 @@ static inline flowBlockV3_t *AppendToBuffer(nffileV3_t *nffile, flowBlockV3_t *d
     if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, required)) {
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
             printf("BlockType is %u\n", dataBlock->type);
-            //  assert(dataBlock->type == BLOCK_TYPE_FLOW);
+            dbg_assert(dataBlock->type == BLOCK_TYPE_FLOW);
         }
         WriteBlockV3(nffile, dataBlock);
         InitDataBlock(dataBlock, nffile->fileHeader->blockSize);

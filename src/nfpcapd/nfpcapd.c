@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
     char *Ident, *userid, *groupid, *metricsocket;
     char *time_extension;
 
-    uint32_t compressType = NOT_COMPRESSED;
+    uint32_t compressType = UNDEF_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
     snaplen = 1522U;
     bufflen = 0;
@@ -366,7 +366,7 @@ int main(int argc, char *argv[]) {
                 break;
             case 'z':
                 CheckArgLen(optarg, 32);
-                if (compressType) {
+                if (compressType != UNDEF_COMPRESSED) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }

@@ -778,7 +778,7 @@ static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle) {
                 memcpy((void *)&inVal, inPtr, engine->filter[index].length);
         }
 
-        dbg_printf("Filter compare: Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
+        // dbg_printf("Filter compare: Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
         evaluate = inVal == engine->filter[index].value;
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
     }

@@ -219,8 +219,8 @@ static void stringsEXasInfo(FILE *stream, uint8_t *extension) {
 
     EXasInfo_t *asInfo = (EXasInfo_t *)extension;
     fprintf(stream,
-            "  src as       =              %5u\n"
-            "  dst as       =              %5u\n",
+            "  src as       =             %6u\n"
+            "  dst as       =             %6u\n",
             asInfo->srcAS, asInfo->dstAS);
 
 }  // End of stringsEXasInfo

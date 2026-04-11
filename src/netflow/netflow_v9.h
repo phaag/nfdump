@@ -166,7 +166,7 @@ typedef struct common_header_s {
 #define NF9_IPV6_DST_MASK 30
 
 #define NF9_IPV6_FLOW_LABEL 31
-#define NF9_ICMP 32
+#define NF9_ICMP_TYPECODE_V4 32
 
 #define NF9_SAMPLING_INTERVAL 34
 #define NF9_SAMPLING_ALGORITHM 35
@@ -224,6 +224,7 @@ typedef struct common_header_s {
 // IPFIX elements in v9 ( # > 127 )
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
+#define NF9_ICMP_TYPECODE_V6 139
 #define NF_F_flowStartSeconds 150
 #define NF_F_flowEndSeconds 151
 #define NF_F_flowEndReason 136

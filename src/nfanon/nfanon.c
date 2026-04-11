@@ -357,7 +357,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 return;
             }
 
-            // XXX FIX!! SetIdent(nffile_w, FILE_IDENT(nffile_r));
+            SetIdent(nffile_w, nffile_r->ident);
             __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
             // read first block from next file
@@ -373,7 +373,6 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
             WriteBlockV3(nffile_w, dataBlock);
-            dataBlock = NULL;
             InitDataBlock(dataBlock, nffile_w->fileHeader->blockSize);
             nextBlock = ReadBlockV3(nffile_r);
             continue;
@@ -390,7 +389,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         pthread_controller_wait(barrier);
 
         // write modified block
-        FlushBlockV3(nffile_w, dataBlock);
+        WriteBlockV3(nffile_w, dataBlock);
 
     }  // while
 

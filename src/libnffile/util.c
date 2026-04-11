@@ -573,6 +573,10 @@ static char *FormatNumber(char *string, size_t len, const scale_steps_t *scale, 
     }
     for (int i = 0; scale[i].scale != NULL; ++i) {
         if (f >= scale[i].factor) {
+            // Skip k/K scaling for values < 10000 (print 4-digit numbers as-is)
+            if (scale[i].factor < 10000.0 && scale[i].factor > 1.0 && num < 10000) {
+                continue;
+            }
             if (scale[i].factor > 1.0) {
                 snprintf(string, len, "%*.1f%s", width, f / scale[i].factor, scale[i].scale);
             } else {

@@ -34,6 +34,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -696,7 +697,31 @@ static void stringsEXnbarApp(FILE *stream, uint8_t *extensionRecord) {
 
 }  // End of stringsEXnbarApp
 
-static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, uint8_t *payload, uint32_t length, char *prefix);
+static double entropy_shannon(const uint8_t *data, size_t len) {
+    if (!data || len == 0) return 0.0;
+
+    uint32_t hist[256] = {0};
+
+    // Build histogram
+    for (size_t i = 0; i < len; i++) {
+        hist[data[i]]++;
+    }
+
+    double entropy = 0.0;
+    double inv_len = 1.0 / (double)len;
+
+    for (int i = 0; i < 256; i++) {
+        if (hist[i] == 0) continue;
+
+        double p = hist[i] * inv_len;
+        entropy -= p * log2(p);
+    }
+
+    return entropy;  // bits per byte (0–8)
+}  // End of entropy_shannon
+
+static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, const uint8_t *payload, uint32_t length,
+                         char *prefix);
 
 static void stringsEXinPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord) {
     EXinPayload_t *inPayload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
@@ -736,7 +761,7 @@ static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, uint
     inoutPayload(stream, recordHandle, payloadHandle, outPayload->payload, payloadLength, "out");
 }  // end of stringsExoutPayload
 
-static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, uint8_t *payload, uint32_t payloadLength,
+static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, const uint8_t *payload, uint32_t payloadLength,
                          char *prefix) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
@@ -780,6 +805,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
             ssl = sslProcess(payload, payloadLength);
             payloadHandle->ssl = ssl;
             if (ssl == NULL) {
+                if (payloadLength >= 32) fprintf(stream, "Entropy: %2.1f\n", entropy_shannon(payload, payloadLength));
                 DumpHex(stream, payload, payloadLength);
                 return;
             }
@@ -831,6 +857,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
         }
     }
 
+    if (payloadLength >= 32) fprintf(stream, "Entropy: %2.1f\n", entropy_shannon(payload, payloadLength));
     DumpHex(stream, payload, payloadLength);
 }  // End of inoutPayload
 

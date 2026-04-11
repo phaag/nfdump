@@ -115,7 +115,8 @@ static const struct v9TranslationMap_s {
     AddElement(NF9_IPV6_DST_ADDR, SIZEdst6Addr, MOVE_IPV6, EXipv6FlowID, OFFdst6Addr, "IPv6 dst addr"),
     AddElement(NF9_IPV6_SRC_MASK, SIZEsrcMask, MOVE_NUMBER, EXflowMiscID, OFFsrcMask, "src mask bits"),
     AddElement(NF9_IPV6_DST_MASK, SIZEdstMask, MOVE_NUMBER, EXflowMiscID, OFFdstMask, "dst mask bits"),
-    AddElement(NF9_ICMP, SIZEdstPort, MOVE_NUMBER, EXgenericFlowID, OFFdstPort, "icmp type/code"),
+    AddElement(NF9_ICMP_TYPECODE_V4, SIZEdstPort, REGISTER_1, EXgenericFlowID, OFFdstPort, "icmp type/code V4"),
+    AddElement(NF9_ICMP_TYPECODE_V6, SIZEdstPort, REGISTER_1, EXgenericFlowID, OFFdstPort, "icmp type/code V6"),
     AddElement(NF9_MIN_TTL, SIZEminTTL, MOVE_NUMBER, EXipInfoID, OFFminTTL, "flow min TTL"),
     AddElement(NF9_MAX_TTL, SIZEmaxTTL, MOVE_NUMBER, EXipInfoID, OFFmaxTTL, "flow max TTL"),
     AddElement(NF9_DST_TOS, SIZEdstTos, MOVE_NUMBER, EXflowMiscID, OFFdstTos, "post IP class of Service"),
@@ -258,8 +259,6 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
                                          const uint8_t *data_flowset);
 
 static void Process_v9_SysUpTime_option_data(exporter_entry_t *exporter_entry, template_t *template, const uint8_t *data_flowset);
-
-// XXXX #include "nffile_inline.c"
 
 int Init_v9(int verbose, int32_t sampling, char *extensionList) {
     printRecord = verbose > 2;
@@ -1437,8 +1436,13 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                     // srcPort is always 0
                     genericFlow->srcPort = 0;
                     if (runtime.rtRegister[0] != 0 || runtime.rtRegister[1] != 0) {
-                        // icmp type and code elements #176 #177 #178 #179
-                        genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
+                        if (runtime.rtRegister[1] > 256) {
+                            // icmp #032 #139
+                            genericFlow->dstPort = runtime.rtRegister[1];
+                        } else {
+                            // icmp type and code elements #176 #177 #178 #179
+                            genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
+                        }
                     }
                     break;
                 case IPPROTO_TCP:
