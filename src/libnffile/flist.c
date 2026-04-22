@@ -127,7 +127,7 @@
  *	-R /path/to/source1 -R /path/to/source2 [-R ...]
  *
  *
- * Hierarchical file organinisation:
+ * Hierarchical file organisation:
  * For performance reasons, files may be store in various sub directories instead of a
  * single directory. These sub directories are assumed to be created in alphabetical order.
  * For example daily sub directories: 2006/04/01 .. 2006/04/30 as created by nfcapd with

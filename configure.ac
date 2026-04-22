@@ -1,6 +1,6 @@
 
 AC_PREREQ([2.71])
-AC_INIT([nfdump], [1.7.7], [peter@people.ops-trust.net])
+AC_INIT([nfdump], [1.7.8], [peter@people.ops-trust.net])
 
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([subdir-objects])

@@ -212,7 +212,7 @@ static const struct v9TranslationMap_s {
 
     // Nprobe latency
     {NF_NPROBE_CLIENT_NW_DELAY_USEC, SIZEusecClientNwDelay, NumberCopy, EXlatencyID, OFFusecClientNwDelay, STACK_NONE, "nprobe client latency usec"},
-    {NF_NPROBE_SERVER_NW_DELAY_USEC, SIZEusecServerNwDelay, NumberCopy, EXlatencyID, OFFusecServerNwDelay, STACK_NONE, "nprobe client latency usec"},
+    {NF_NPROBE_SERVER_NW_DELAY_USEC, SIZEusecServerNwDelay, NumberCopy, EXlatencyID, OFFusecServerNwDelay, STACK_NONE, "nprobe server latency usec"},
     {NF_NPROBE_APPL_LATENCY_USEC, SIZEusecApplLatency, NumberCopy, EXlatencyID, OFFusecApplLatency, STACK_NONE, "nprobe application latency usec"},
     {NF_NPROBE_CLIENT_NW_DELAY_SEC, Stack_ONLY, NumberCopy, EXlatencyID, 0, STACK_CLIENT_USEC, "nprobe client latency sec"},
     {NF_NPROBE_SERVER_NW_DELAY_SEC, Stack_ONLY, NumberCopy, EXlatencyID, 0, STACK_SERVER_USEC, "nprobe server latency sec"},
@@ -1191,7 +1191,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
             }
 
             UpdateFirstLast(fs->nffile, genericFlow->msecFirst, genericFlow->msecLast);
-            dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
+            dbg_printf("msecFirst: %" PRIu64 "\n", genericFlow->msecFirst);
             dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
             dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);
             dbg_printf("bytes : %" PRIu64 "\n", genericFlow->inBytes);
@@ -1297,7 +1297,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
             SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
             dbg_printf("Nat event time: %" PRIu64 "\n", natCommon->msecEvent);
         }
-        dbg_printf("Final msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
+        dbg_printf("Final msecFirst: %" PRIu64 "\n", genericFlow->msecFirst);
         dbg_printf("Final msecLast : %" PRIu64 "\n", genericFlow->msecLast);
 
         // nprobe latency
@@ -1424,10 +1424,14 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
     // size of record
     size_t option_size = optionTemplate->optionSize;
     // number of records in data
+    if (option_size == 0 || option_size > size_left) {
+        LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
     int numRecords = size_left / option_size;
     dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter_entry->info.id, numRecords, option_size);
 
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+    if (numRecords == 0) {
         LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
@@ -1478,7 +1482,7 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
             err = 1;
         }
-        p[nbarOption->name.length - 1] = '\0';
+        if (nbarOption->name.length) p[nbarOption->name.length - 1] = '\0';
         p += nbarOption->name.length;
 
         // description string
@@ -1488,7 +1492,7 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
             err = 1;
         }
-        p[nbarOption->desc.length - 1] = '\0';
+        if (nbarOption->desc.length) p[nbarOption->desc.length - 1] = '\0';
 
 #ifdef DEVEL
         cnt++;
@@ -1555,10 +1559,14 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     // size of record
     size_t option_size = optionTemplate->optionSize;
     // number of records in data
+    if (option_size == 0 || option_size > size_left) {
+        LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
     int numRecords = size_left / option_size;
     dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info.id, numRecords, option_size);
 
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+    if (numRecords == 0) {
         LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
@@ -1612,7 +1620,7 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
             LogError("Process_name_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
             err = 1;
         }
-        p[nameOption->name.length - 1] = '\0';
+        if (nameOption->name.length) p[nameOption->name.length - 1] = '\0';
 #ifdef DEVEL
         if (err == 0) {
             printf("name record: %d: ingress: %d, %s\n", cnt, val, p);

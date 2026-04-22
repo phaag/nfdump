@@ -353,7 +353,7 @@ static flowHash_t *flowHash_init(uint32_t bitSize) {
     flowHash->flags = calloc(flowHash->capacity, sizeof(uint8_t));
     flowHash->cells = calloc(flowHash->capacity, sizeof(hashValue_t));
     flowHash->records = calloc(flowHash->capacity, sizeof(FlowHashRecord_t));
-    return flowHash->cells != NULL && flowHash->flags != NULL ? flowHash : NULL;
+    return flowHash->cells != NULL && flowHash->flags != NULL && flowHash->records != NULL ? flowHash : NULL;
 
 }  // End of flowHash_init
 
@@ -978,7 +978,7 @@ void ListFlowPrintOrder(void) {
         printf(" %-9s", order_mode[i].string);
     }
     printf("\n See also nfdump(1)\n");
-}  // End of istFlowPrintOrder
+}  // End of ListFlowPrintOrder
 
 // Parse flow cache print order -O
 int Parse_PrintOrder(char *order) {
@@ -1197,14 +1197,14 @@ char *ParseAggregateMask(char *print_format, char *arg) {
             } else if (*n == '6') {
                 // IPv6
                 if (subnet < 1 || subnet > 128) {
-                    LogError("Subnet mask length '%d' out of range for IPv4", subnet);
+                    LogError("Subnet mask length '%d' out of range for IPv6", subnet);
                     free(aggrStr);
                     return NULL;
                 }
 
                 if (subnet > 64) {
                     v6Mask[0] = 0xffffffffffffffffLL;
-                    v6Mask[1] = 0xffffffffffffffffLL << (64 - subnet);
+                    v6Mask[1] = 0xffffffffffffffffLL << (128 - subnet);
                 } else {
                     v6Mask[0] = 0xffffffffffffffffLL << (64 - subnet);
                     v6Mask[1] = 0;
@@ -1377,7 +1377,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     uint64_t aggrFlows = 1;
     if (cntFlow) {
         outPackets = cntFlow->outPackets;
-        outBytes = cntFlow->outPackets;
+        outBytes = cntFlow->outBytes;
         aggrFlows = cntFlow->flows;
     }
 

@@ -151,7 +151,7 @@ pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
             return NULL;
         }
         pcapfile->alternate_buffer = malloc(BUFFSIZE);
-        if (!pcapfile->data_buffer) {
+        if (!pcapfile->alternate_buffer) {
             free(pcapfile->data_buffer);
             free(pcapfile);
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -239,9 +239,9 @@ static inline void SetServer_latency(struct FlowNode *node) {
 
     node->coldNode.latency.server = latency;
     Client_node->coldNode.latency.server = latency;
-    // set flag, to calc app latency with nex packet from server
+    // set flag, to calc app latency with next packet from server
     node->coldNode.latency.flag = 2;
-    // set flag, to calc client latency with nex packet from client
+    // set flag, to calc client latency with next packet from client
     Client_node->coldNode.latency.flag = 1;
     dbg_printf("Server latency: %llu\n", (long long unsigned)latency);
 
@@ -275,7 +275,7 @@ static inline void SetApplication_latency(struct FlowNode *node, const struct ti
     clientNode->coldNode.latency.application = latency;
     // reset flag
     node->coldNode.latency.flag = 0;
-    // set flag, to calc application latency with nex packet from server
+    // set flag, to calc application latency with next packet from server
     clientNode->coldNode.latency.flag = 0;
     dbg_printf("Application latency: %llu\n", (long long unsigned)latency);
 

@@ -936,7 +936,7 @@ int main(int argc, char **argv) {
         .encryption = NOT_ENCRYPTED,
     };
 
-    if (Lauch_postprocessor(post_args) == 0) {
+    if (Launch_postprocessor(post_args) == 0) {
         close(sock);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);

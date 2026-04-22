@@ -164,7 +164,7 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
     }
 
     if (sockfd < 0) {
-        // serach for interface to bind
+        // search for interface to bind
         sockfd = search_socket(bindhost, listenport, &family);
         if (sockfd < 0) {
             LogError("Could not bind to %s:%s. No interface found", bindhost ? bindhost : "any", listenport);
@@ -183,7 +183,6 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
     }
 
     // ready
-    listen(sockfd, LISTEN_QUEUE);
 
     return sockfd;
 }
@@ -535,6 +534,7 @@ int LookupHost(char *hostname, char *port, struct sockaddr_in *addr) {
         LogError("getaddrinfo() error: %s", gai_strerror(error));
         return -1;
     }
+    struct addrinfo *resSave = res;
     while (res) {
         if (res->ai_family == AF_INET) {
             struct sockaddr_in *sa = (struct sockaddr_in *)res->ai_addr;
@@ -543,5 +543,7 @@ int LookupHost(char *hostname, char *port, struct sockaddr_in *addr) {
         }
         res = res->ai_next;
     }
-    return res ? 0 : -1;
+    int retVal = res ? 0 : -1;
+    freeaddrinfo(resSave);
+    return retVal;
 }  // End of LookupHost

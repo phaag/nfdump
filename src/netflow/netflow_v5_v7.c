@@ -160,7 +160,7 @@ int Init_v5_v7(int verbose, int32_t sampling) {
 
     return 1;
 
-}  // End of Init_v5_input
+}  // End of Init_v5_v7
 
 static inline sampler_t *getSampler(netflow_v5_header_t *header) {
     int32_t type = 0;

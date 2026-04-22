@@ -287,7 +287,7 @@ static int ZSTD_initialize(void) {
 #ifdef HAVE_ZSTD
     size_t const cBuffSize = ZSTD_compressBound(WRITE_BUFFSIZE);
     if (cBuffSize > (BUFFSIZE - sizeof(dataBlock_t))) {
-        LogError("LZSTD_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
+        LogError("ZSTD_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
         return 0;
     }
     return 1;
@@ -311,7 +311,7 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
 
     if (r != LZO_E_OK) {
-        LogError("Compress_Block_LZO() error compression failed in %s line %d: LZ0 : %d", __FILE__, __LINE__, r);
+        LogError("Compress_Block_LZO() error compression failed in %s line %d: LZO : %d", __FILE__, __LINE__, r);
         return -1;
     }
 
@@ -388,11 +388,11 @@ static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, s
 
     int out_len = LZ4_decompress_safe(in, out, in_len, block_size);
     if (out_len == 0) {
-        LogError("LZ4_decompress_safe() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
+        LogError("LZ4_decompress_safe() error decompression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
         return -1;
     }
     if (out_len < 0) {
-        LogError("LZ4_decompress_safe() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, out_len);
+        LogError("LZ4_decompress_safe() error decompression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, out_len);
         return -1;
     }
 
@@ -419,7 +419,7 @@ static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, siz
         int r = BZ2_bzCompress(&bs, BZ_FINISH);
         if (r == BZ_FINISH_OK) continue;
         if (r != BZ_STREAM_END) {
-            LogError("Compress_Block_BZ2() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, r);
+            LogError("Compress_Block_BZ2() error compression failed in %s line %d: BZ2 : %d", __FILE__, __LINE__, r);
             return -1;
         }
         break;
@@ -483,7 +483,7 @@ static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, si
     int out_len = ZSTD_compress(out, block_size, in, in_len, level);
 
     if (ZSTD_isError(out_len)) {
-        LogError("Compress_Block_ZSTD() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
+        LogError("Compress_Block_ZSTD() error compression aborted in %s line %d: ZSTD : buffer too small", __FILE__, __LINE__);
         return -1;
     }
 
@@ -506,7 +506,7 @@ static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, 
 
     size_t out_len = ZSTD_decompress(out, block_size, in, in_len);
     if (ZSTD_isError(out_len)) {
-        LogError("LZ4_decompress_safe() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
+        LogError("ZSTD_decompress() error decompression aborted in %s line %d: ZSTD : %s", __FILE__, __LINE__, ZSTD_getErrorName(out_len));
         return -1;
     }
 
@@ -626,7 +626,7 @@ static int WriteAppendix(nffile_t *nffile) {
         return 0;
     }
 
-    // set appendx info
+    // set appendix info
     nffile->file_header->offAppendix = currentPos;
     nffile->file_header->appendixBlocks = 1;
 
@@ -698,14 +698,14 @@ static nffile_t *NewFile(uint32_t num_workers) {
     if (!nffile->file_header) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         free(nffile);
-        return NULL;
+        return NULL; // file_header allocation failed; nffile itself is freed
     }
 
     nffile->stat_record = calloc(1, sizeof(stat_record_t));
     if (!nffile->stat_record) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(nffile);
         free(nffile->file_header);
+        free(nffile);
         return NULL;
     }
 
@@ -715,9 +715,9 @@ static nffile_t *NewFile(uint32_t num_workers) {
     //
     nffile->processQueue = queue_init(QueueSize);
     if (!nffile->processQueue) {
-        free(nffile);
         free(nffile->file_header);
         free(nffile->stat_record);
+        free(nffile);
         return NULL;
     }
 
@@ -862,14 +862,14 @@ nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress,
 
 #ifndef HAVE_ZSTD
     if ((compress & 0xFFFF) == ZSTD_COMPRESSED) {
-        LogError("OpenNewfiles: ZSTD compression not compiled in");
+        LogError("OpenNewFile: ZSTD compression not compiled in");
         return NULL;
     }
 #endif
 
 #ifndef HAVE_BZ2
     if ((compress & 0xFFFF) == BZ2_COMPRESSED) {
-        LogError("OpenNewfiles: BZIP2 compression not compiled in");
+        LogError("OpenNewFile: BZIP2 compression not compiled in");
         return NULL;
     }
 #endif
@@ -1909,7 +1909,7 @@ int QueryFile(char *filename, int verbose) {
                         }
                     }
                     if (recordHeader->type == SlackRecord) {
-                        printf(" slac record");
+                        printf(" slack record");
                     }
 
                     printf("\n");
@@ -2116,6 +2116,6 @@ void PrintGNUplotSumStat(nffile_t *nffile) {
         printf("%s,%llu,%llu,%llu\n", datestr, (long long unsigned)nffile->stat_record->numflows, (long long unsigned)nffile->stat_record->numpackets,
                (long long unsigned)nffile->stat_record->numbytes);
     } else {
-        printf("No datstring\n");
+        printf("No datestring\n");
     }
 }  // End of PrintGNUplotSumStat

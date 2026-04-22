@@ -115,7 +115,7 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int ScanExtension(char *extensionList);
 
-int Lauch_postprocessor(post_args_t *post_args);
+int Launch_postprocessor(post_args_t *post_args);
 
 void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args);
 

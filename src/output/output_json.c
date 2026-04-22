@@ -328,8 +328,18 @@ static char *stringEXasRouting(char *streamPtr, recordHandle_t *recordHandle, vo
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    if (asRouting->srcAS == 0) asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
-    if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
+    if (asRouting->srcAS == 0) {
+        if (ipv4Flow)
+            asRouting->srcAS = LookupV4AS(ipv4Flow->srcAddr);
+        else if (ipv6Flow)
+            asRouting->srcAS = LookupV6AS(ipv6Flow->srcAddr);
+    }
+    if (asRouting->dstAS == 0) {
+        if (ipv4Flow)
+            asRouting->dstAS = LookupV4AS(ipv4Flow->dstAddr);
+        else if (ipv6Flow)
+            asRouting->dstAS = LookupV6AS(ipv6Flow->dstAddr);
+    }
 
     AddElementU32("src_as", asRouting->srcAS);
     AddElementU32("dst_as", asRouting->dstAS);
@@ -580,7 +590,7 @@ static char *string_inPayload(char *streamPtr, recordHandle_t *recordHandle, voi
     const uint8_t *payload = (const uint8_t *)extensionRecord;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (genericFlow->proto != IPPROTO_TCP) {
+    if (genericFlow == NULL || genericFlow->proto != IPPROTO_TCP) {
         return streamPtr;
     }
 
@@ -604,7 +614,7 @@ static char *string_outPayload(char *streamPtr, recordHandle_t *recordHandle, vo
     const uint8_t *payload = (const uint8_t *)extensionRecord;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (genericFlow->proto != IPPROTO_TCP) {
+    if (genericFlow == NULL || genericFlow->proto != IPPROTO_TCP) {
         return streamPtr;
     }
 
@@ -830,7 +840,7 @@ static char *stringEXnokiaNat(char *streamPtr, void *extensionRecord) {
     EXnokiaNat_t *nokiaNat = (EXnokiaNat_t *)extensionRecord;
 
     AddElementU32("inServiceID", nokiaNat->inServiceID);
-    AddElementU32("inServiceID", nokiaNat->outServiceID);
+    AddElementU32("outServiceID", nokiaNat->outServiceID);
 
     return streamPtr;
 }  // End of String_inServiceID

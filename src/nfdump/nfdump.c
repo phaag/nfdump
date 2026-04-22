@@ -757,7 +757,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case LegacyRecordType1:
                 case LegacyRecordType2:
                 case CommonRecordV0Type:
-                    LogError("Skip lagecy record type: %d", record_ptr->type);
+                    LogError("Skip legacy record type: %d", record_ptr->type);
                     break;
                 case V4Record:
                     LogError("Cannot process new v4 flow record");
@@ -913,7 +913,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'D':
-                LogInfo("Set nameserver option is depricated - using nameserver in resolf.conf instead");
+                LogInfo("Set nameserver option is deprecated - using nameserver in resolv.conf instead");
                 break;
             case 'E': {
                 CheckArgLen(optarg, MAXPATHLEN);

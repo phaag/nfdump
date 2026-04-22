@@ -494,7 +494,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
                 fs->swap_nffile = nffile;
                 SetIdent(fs->swap_nffile, fs->Ident);
             } else {
-                LogError("Ident: %s, Can't re-open empty flow file");
+                LogError("Ident: %s, Can't re-open empty flow file", fs->Ident);
                 fs->swap_nffile = NULL;
                 // unrecoverable error
                 err++;
@@ -693,7 +693,7 @@ static void *post_processor_thread(void *args) {
     pthread_exit(NULL);
 }  // End of post_processor_thread
 
-int Lauch_postprocessor(post_args_t *post_args) {
+int Launch_postprocessor(post_args_t *post_args) {
     int err = pthread_mutex_init(&post_args->mutex, NULL);
     if (err != 0) {
         LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
@@ -712,7 +712,7 @@ int Lauch_postprocessor(post_args_t *post_args) {
     }
 
     return 1;
-}  // End of Lauch_postprocessor
+}  // End of Launch_postprocessor
 
 void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args) {
     // wait for last cycle completed of post processor

@@ -132,7 +132,7 @@ static int AddOldNbarRecord(arrayRecordHeader_t *nbarRecord) {
 
     return 0;
 
-}  // End of AddNbarRecord
+}  // End of AddOldNbarRecord
 
 int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     if (NbarAppInfoHash == NULL) {
@@ -197,7 +197,7 @@ void DumpNbarList(void) {
     if (NbarAppInfoHash == NULL) return;
 
     size_t hashSize = kh_size(NbarAppInfoHash);
-    printf("\n==DUMP==\nnnbar applist info length: %zu\n", hashSize);
+    printf("\n==DUMP==\nnbar applist info length: %zu\n", hashSize);
     for (khiter_t k = kh_begin(NbarAppInfoHash); k != kh_end(NbarAppInfoHash); ++k) {  // traverse
         if (kh_exist(NbarAppInfoHash, k)) {
             AppInfoHash_t *r = &kh_key(NbarAppInfoHash, k);

@@ -319,7 +319,7 @@ void expand_exporter_table(exporter_table_t *tab) {
     exporter_entry_t *old_entries = tab->entries;
 
     uint32_t new_cap = old_cap * 2;
-    dbg_printf("Expand eporter table old: %u -> new: %u\n", old_cap, new_cap);
+    dbg_printf("Expand exporter table old: %u -> new: %u\n", old_cap, new_cap);
     exporter_entry_t *new_entries = calloc(new_cap, sizeof(exporter_entry_t));
     if (!new_entries) {
         LogError("expand_exporter_table: calloc failed");
@@ -446,7 +446,7 @@ static int initFileInfo(FlowSource_t *fs, const char *ident, const char *dataDir
 
     return 1;
 
-}  // End of newFileInfo
+}  // End of initFileInfo
 
 static void expand_source_index(source_index_t *idx) {
     uint32_t old_cap = idx->capacity;

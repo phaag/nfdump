@@ -147,17 +147,19 @@ static char *cmd_expand(char *launch_process, launcher_args_t *launcher_args) {
                     s = NULL;
             }
             if (s) {
-                q = (char *)realloc(q, strlen(q) + strlen(s));
-                if (!q) {
+                char *qtmp = (char *)realloc(q, strlen(q) + strlen(s));
+                if (!qtmp) {
                     LogError("realloc() error in %s:%i: %s", __FILE__, __LINE__, strerror(errno));
+                    free(q);
                     return NULL;
                 }
+                q = qtmp;
                 // sanity check
                 if (strlen(q) > MAXCMDLEN) {
                     LogError("command expand error in %s:%i: cmd line too long", __FILE__, __LINE__);
                     return NULL;
                 }
-                memmove(&q[i] + strlen(s), &q[i + 2], strlen(&q[i + 2]) + 1);  // include trailing '0' in memmove
+                memmove(&q[i] + strlen(s), &q[i + 2], strlen(&q[i + 2]) + 1);  // include trailing '\0' in memmove
                 memcpy(&q[i], s, strlen(s));
             }
         }

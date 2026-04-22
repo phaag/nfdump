@@ -526,10 +526,10 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
                 // found same sampler id - update record if changed
                 if (sampler_record->algorithm != sampler->record.algorithm || sampler_record->packetInterval != sampler->record.packetInterval ||
                     sampler_record->spaceInterval != sampler->record.spaceInterval) {
-                    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
                     sampler->record.algorithm = sampler_record->algorithm;
                     sampler->record.packetInterval = sampler_record->packetInterval;
                     sampler->record.spaceInterval = sampler_record->spaceInterval;
+                    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
                     LogInfo("Update existing sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                             sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                     dbg_printf("Update existing sampler id: %" PRId64 " , algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
@@ -969,7 +969,7 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
     dbg_printf("Decode Option Template. tableID: %u, field count: %u, scope field count: %u\n", tableID, field_count, scope_field_count);
 
     if (scope_field_count == 0) {
-        LogError("Process_ipfx: [%u] scope field count error: length must not be zero", exporter_entry->info.id);
+        LogError("Process_ipfix: [%u] scope field count error: length must not be zero", exporter_entry->info.id);
         dbg_printf("scope field count error: length must not be zero\n");
         return;
     }
@@ -982,11 +982,6 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
             "scopes length and %u options length",
             exporter_entry->info.id, size_left, field_count, scope_field_count);
         dbg_printf("option template length error: size left %u too small for field_count %u\n", size_left, field_count);
-        return;
-    }
-
-    if (scope_field_count == 0) {
-        LogError("Process_ipfxi: [%u] scope field count error: length must not be zero", exporter_entry->info.id);
         return;
     }
 
@@ -1449,7 +1444,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             }
 
             UpdateFirstLast(fs->nffile, genericFlow->msecFirst, genericFlow->msecLast);
-            dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
+            dbg_printf("msecFirst: %" PRIu64 "\n", genericFlow->msecFirst);
             dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
             dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);
             dbg_printf("bytes : %" PRIu64 "\n", genericFlow->inBytes);

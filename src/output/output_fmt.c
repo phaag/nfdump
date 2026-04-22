@@ -513,10 +513,10 @@ static struct format_entry_s {
     // EXnatXlatePortID
     // ASA Firewall
     {"%xsp", 0, "XsPort", String_xlateSrcPort},  // NSEL XLATE src port
-    {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL SLATE dst port
+    {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL XLATE dst port
     // NAT devices
     {"%nsp", 0, "XsPort", String_xlateSrcPort},  // NAT XLATE src port
-    {"%ndp", 0, "XdPort", String_xlateDstPort},  // NAT SLATE dst port
+    {"%ndp", 0, "XdPort", String_xlateDstPort},  // NAT XLATE dst port
 
     // EXnselAclID
     {"%iacl", 0, "Ingress ACL                     ", String_iacl},  // NSEL ingress ACL
@@ -582,7 +582,7 @@ static struct format_entry_s {
     {"%dc", 0, "DC", String_DstCountry},                                // dst IP 2 letter country code
     {"%sloc", 0, "Src IP location info", String_SrcLocation},           // src IP geo location info
     {"%dloc", 0, "Dst IP location info", String_DstLocation},           // dst IP geo location info
-    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organistaion string
+    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organisation string
     {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},      // dst IP AS organisation string
     {"%stor", 0, "STor", String_SrcTor},                                // src IP 2 letter tor node info
     {"%dtor", 0, "DTor", String_DstTor},                                // dst IP 2 letter tor node info
@@ -1175,7 +1175,7 @@ static void String_nbarName(FILE *stream, recordHandle_t *recordHandle) {
 static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
     const uint8_t *payload = (uint8_t *)(recordHandle->extensionList[EXinPayloadID]);
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
-    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+    if (payload == NULL || genericFlow == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "%38s", "no ja3");
         return;
     }
@@ -1217,7 +1217,7 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
 static void String_ja4(FILE *stream, recordHandle_t *recordHandle) {
     const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+    if (payload == NULL || genericFlow == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "%38s", "no ja4");
         return;
     }
@@ -1262,7 +1262,7 @@ static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
 
-    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+    if (payload == NULL || genericFlow == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "   0");
         return;
     }
@@ -1320,7 +1320,7 @@ static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
 
-    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+    if (payload == NULL || genericFlow == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "   0");
         return;
     }
