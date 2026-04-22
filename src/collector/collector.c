@@ -363,6 +363,10 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         dbg_printf("Periodic cycle for ident: %s\n", fs->Ident);
 
+        if (fs->dataBlock->msecFirst < fs->stat_record.msecFirstSeen || fs->stat_record.msecFirstSeen == 0)
+            fs->stat_record.msecFirstSeen = fs->dataBlock->msecFirst;
+        if (fs->dataBlock->msecLast > fs->stat_record.msecLastSeen) fs->stat_record.msecLastSeen = fs->dataBlock->msecLast;
+
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
                 fs->Ident, fs->stat_record.numflows, fs->stat_record.numpackets, fs->stat_record.numbytes, fs->stat_record.sequence_failure,
@@ -372,7 +376,9 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         fs->bad_packets = 0;
 
         // Flush current dataBlock
-        dbg_printf("Periodic - push block - type: %u, size: %u\n", fs->dataBlock->type, fs->dataBlock->rawSize);
+        dbg_printf("Periodic - push block - type: %u, size: %u, first: %s.%llu, last: %s.%llu\n", fs->dataBlock->type, fs->dataBlock->rawSize,
+                   UNIX2ISO(fs->dataBlock->msecFirst / 1000), fs->dataBlock->msecFirst % 1000, UNIX2ISO(fs->dataBlock->msecLast / 1000),
+                   fs->dataBlock->msecLast % 1000);
         PushBlockV3(fs->blockQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);

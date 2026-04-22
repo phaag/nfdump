@@ -1409,7 +1409,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
             //    genericFlow->msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
 
             // update first_seen, last_seen
-            UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
+            UpdateFirstLast(fs->dataBlock, genericFlow->msecFirst, genericFlow->msecLast);
             dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
             dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
             dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);

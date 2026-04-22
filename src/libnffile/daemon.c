@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2023-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without

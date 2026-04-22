@@ -158,9 +158,6 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
     // not expected
     if (nffile == NULL) return 0;
 
-    // early signal the writers, that we are done
-    queue_close(nffile->processQueue);
-
     cycle_message_t cycle_message = {0};
     memcpy(&cycle_message, msghdr, sizeof(cycle_message_t));
     *done = cycle_message.done;

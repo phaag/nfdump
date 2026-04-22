@@ -264,6 +264,50 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
 
 }  // End of SetStat
 
+static void PrintStat(stat_record_t *s, char *ident) {
+    if (s == NULL) return;
+
+    // format info: make compiler happy with conversion to (unsigned long long),
+    // which does not change the size of the parameter
+    printf("Ident: %s\n", ident);
+    printf("Flows: %llu\n", (unsigned long long)s->numflows);
+    printf("Flows_tcp: %llu\n", (unsigned long long)s->numflows_tcp);
+    printf("Flows_udp: %llu\n", (unsigned long long)s->numflows_udp);
+    printf("Flows_icmp: %llu\n", (unsigned long long)s->numflows_icmp);
+    printf("Flows_other: %llu\n", (unsigned long long)s->numflows_other);
+    printf("Packets: %llu\n", (unsigned long long)s->numpackets);
+    printf("Packets_tcp: %llu\n", (unsigned long long)s->numpackets_tcp);
+    printf("Packets_udp: %llu\n", (unsigned long long)s->numpackets_udp);
+    printf("Packets_icmp: %llu\n", (unsigned long long)s->numpackets_icmp);
+    printf("Packets_other: %llu\n", (unsigned long long)s->numpackets_other);
+    printf("Bytes: %llu\n", (unsigned long long)s->numbytes);
+    printf("Bytes_tcp: %llu\n", (unsigned long long)s->numbytes_tcp);
+    printf("Bytes_udp: %llu\n", (unsigned long long)s->numbytes_udp);
+    printf("Bytes_icmp: %llu\n", (unsigned long long)s->numbytes_icmp);
+    printf("Bytes_other: %llu\n", (unsigned long long)s->numbytes_other);
+    printf("First: %llu\n", s->msecFirstSeen / 1000LL);
+    printf("Last: %llu\n", s->msecLastSeen / 1000LL);
+    printf("msec_first: %llu\n", s->msecFirstSeen % 1000LL);
+    printf("msec_last: %llu\n", s->msecLastSeen % 1000LL);
+    printf("Sequence failures: %llu\n", (unsigned long long)s->sequence_failure);
+}  // End of PrintStat
+
+static void PrintGNUplotSumStat(nffileV3_t *nffile) {
+    char *dateString = strstr(nffile->fileName, "nfcapd.");
+    if (dateString) {
+        dateString += 7;
+        time_t when = ISO2UNIX(dateString);
+        struct tm ts;
+        localtime_r(&when, &ts);
+        char datestr[64];
+        strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", &ts);
+        printf("%s,%llu,%llu,%llu\n", datestr, (long long unsigned)nffile->stat_record->numflows, (long long unsigned)nffile->stat_record->numpackets,
+               (long long unsigned)nffile->stat_record->numbytes);
+    } else {
+        printf("No datestring\n");
+    }
+}  // End of PrintGNUplotSumStat
+
 static void FreeRecordHandle(recordHandle_t *handle) {
     payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
     if (payloadHandle) {
@@ -1137,11 +1181,11 @@ int main(int argc, char **argv) {
             ident = strdup(nffile->ident);
         }
         while (nffile != NULL) {
-            // XXX FIX! SumStatRecords(&sum_stat, nffile->stat_record);
+            SumStatRecords(&sum_stat, nffile->stat_record);
             CloseFileV3(nffile);
             nffile = GetNextFile();
         }
-        // XXX FIX! PrintStat(&sum_stat, ident);
+        PrintStat(&sum_stat, ident);
         free(ident);
         exit(EXIT_SUCCESS);
     }
@@ -1206,7 +1250,7 @@ int main(int argc, char **argv) {
         }
         printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
         while (nffile != NULL) {
-            // XXX FIX! PrintGNUplotSumStat(nffile);
+            PrintGNUplotSumStat(nffile);
             CloseFileV3(nffile);
             nffile = GetNextFile();
         }
@@ -1255,7 +1299,7 @@ int main(int argc, char **argv) {
         if (wfile) {
             nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
-            // XXX FIX! SetIdent(nffile, outputParams->ident);
+            SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
                 CloseFileV3(nffile);
             } else {

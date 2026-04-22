@@ -213,8 +213,8 @@ typedef struct flowBlockV3_s {
 
     uint32_t numRecords;       // number of flow records in this block
     uint64_t extensionBitmap;  // or'ed bitmask of extID values present in this block
-    uint64_t minTimestamp;     // earliest record timestamp
-    uint64_t maxTimestamp;     // latest record timestamp
+    uint64_t msecFirst;        // earliest first seen record timestamp
+    uint64_t msecLast;         // latest last seen record timestamp
     uint64_t checksum;         // xxHash64
 } flowBlockV3_t;
 _Static_assert((sizeof(flowBlockV3_t) & 7) == 0, "flowBlockV3_t for 8 byte aligned");
@@ -338,6 +338,8 @@ void joinWorkers(nffileV3_t *nffile);
 void TerminateWorkers(nffileV3_t *nffile);
 
 void SetIdent(nffileV3_t *nffile, char *Ident);
+
+void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 void CloseFileV3(nffileV3_t *nffile);
 

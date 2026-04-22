@@ -328,7 +328,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
             genericFlow->msecFirst = msecStart;
             genericFlow->msecLast = msecEnd;
-            UpdateFirstLast(fs, msecStart, msecEnd);
+            UpdateFirstLast(fs->dataBlock, msecStart, msecEnd);
 
             // received-IP extension
             *offset++ = nextOffset;

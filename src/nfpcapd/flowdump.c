@@ -342,7 +342,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     assert(nextOffset == recordSize);
 
     // update first_seen, last_seen
-    UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
+    UpdateFirstLast(fs->dataBlock, genericFlow->msecFirst, genericFlow->msecLast);
 
     // Update stats
     stat_record_t *stat_record = &fs->stat_record;

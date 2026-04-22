@@ -301,7 +301,7 @@ void CloseFileV3(nffileV3_t *nffile) {
 
 }  // End of CloseFileV3
 
-static void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
+void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
     s1->numflows += s2->numflows;
     s1->numbytes += s2->numbytes;
     s1->numpackets += s2->numpackets;

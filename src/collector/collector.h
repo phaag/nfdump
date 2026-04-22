@@ -71,12 +71,12 @@ typedef struct cycle_message_s {
     stat_record_t stat_record;  // stat_record of flowsource
 } cycle_message_t;
 
-#define UpdateFirstLast(fs, First, Last)                                                     \
-    if ((First) < (fs)->stat_record.msecFirstSeen || (fs)->stat_record.msecFirstSeen == 0) { \
-        (fs)->stat_record.msecFirstSeen = (First);                                           \
-    }                                                                                        \
-    if ((Last) > (fs)->stat_record.msecLastSeen) {                                           \
-        (fs)->stat_record.msecLastSeen = (Last);                                             \
+#define UpdateFirstLast(dataBlock, First, Last)                            \
+    if ((First) < (dataBlock)->msecFirst || (dataBlock)->msecFirst == 0) { \
+        dataBlock->msecFirst = (First);                                    \
+    }                                                                      \
+    if ((Last) > (dataBlock)->msecLast) {                                  \
+        dataBlock->msecLast = (Last);                                      \
     }
 
 int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const char *dataDir, unsigned subDir);
@@ -92,12 +92,6 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done);
 uint32_t AssignExporterID(void);
 
 void FlushExporter(FlowSource_t *fs);
-
-void FlushStdRecords(FlowSource_t *fs);
-
-void FlushExporterStats(FlowSource_t *fs);
-
-int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_v4_t *exporter);
 
 int ScanExtension(char *extensionList);
 
