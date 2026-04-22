@@ -170,6 +170,7 @@ static data_row *process(void *engine) {
     recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(port_table);
         return NULL;
     }
 
@@ -183,6 +184,7 @@ static data_row *process(void *engine) {
             nffile = GetNextFile();
             if (nffile == NULL) {
                 done = 1;
+                continue;
             }
             // else continue with next file
             FilterSetParam(engine, nffile->ident, NOGEODB);

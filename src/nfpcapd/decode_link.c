@@ -165,7 +165,7 @@ static decode_state_t decode_link_layer(decode_ctx_t *ctx) {
                 return DECODE_SKIP;
             }
             protocol = ntohs(protocol);
-            dbg_printf("Linktype: DLT_LINUX_SSL\n");
+            dbg_printf("Linktype: DLT_LINUX_SLL\n");
             break;
 
         case DLT_IEEE802_11:

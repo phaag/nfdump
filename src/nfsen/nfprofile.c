@@ -220,14 +220,14 @@ static void *worker_thread(void *arg) {
     // unreached
 }  // End of worker_thread
 
-static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier, profile_channel_info_t *channels,
-                                     uint32_t numChannels) {
+static worker_param_t **LaunchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier, profile_channel_info_t *channels,
+                                      uint32_t numChannels) {
     worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
-    if (!workerList) NULL;
+    if (!workerList) return NULL;
 
     for (int i = 0; i < numWorkers; i++) {
         worker_param_t *worker_param = calloc(1, sizeof(worker_param_t));
-        if (!worker_param) NULL;
+        if (!worker_param) return NULL;
 
         worker_param->barrier = barrier;
         worker_param->self = i;
@@ -733,7 +733,7 @@ int main(int argc, char **argv) {
     }
 
     dbg_printf("Launch Workers\n");
-    worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier, channels, numChannels);
+    worker_param_t **workerList = LaunchWorkers(tid, numWorkers, barrier, channels, numChannels);
     if (!workerList) {
         LogError("Failed to launch workers");
         exit(EXIT_FAILURE);

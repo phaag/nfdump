@@ -165,7 +165,7 @@ uint32_t anonymize(const uint32_t orig_addr) {
         Rijndael_blockEncrypt(rin_input, 128, rin_output);
 
         // Combination: the bits are combined into a pseudorandom one-time-pad
-        result |= (rin_output[0] >> 7) << (31 - pos);
+        result |= (uint32_t)(rin_output[0] >> 7) << (31 - pos);
     }
     // XOR the original address with the pseudorandom one-time-pad
     return result ^ orig_addr;

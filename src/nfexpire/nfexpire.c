@@ -411,7 +411,7 @@ int main(int argc, char **argv) {
         book_close(current_channel->book_handle);
         if (is_profile)
             // write legacy .nfsts file
-            WriteStatInfo(NULL);
+            WriteStatInfo(current_channel);
 
         current_channel = current_channel->next;
     }

@@ -355,7 +355,15 @@ static flowHash_t *flowHash_init(uint32_t bitSize) {
     flowHash->flags = calloc(flowHash->capacity, sizeof(uint8_t));
     flowHash->cells = calloc(flowHash->capacity, sizeof(hashValue_t));
     flowHash->records = calloc(flowHash->capacity, sizeof(FlowHashRecord_t));
-    return flowHash->cells != NULL && flowHash->flags != NULL && flowHash->records != NULL ? flowHash : NULL;
+
+    if (!flowHash->flags || !flowHash->cells || !flowHash->records) {
+        free(flowHash->flags);
+        free(flowHash->cells);
+        free(flowHash->records);
+        free(flowHash);
+        return NULL;
+    }
+    return flowHash;
 
 }  // End of flowHash_init
 
@@ -1078,6 +1086,10 @@ int SetRecordStat(char *statType, char *optOrder) {
 // return NULL (invalid) if non aggregated elements are used in string
 static char *ParseAggrOutputFormat(char *print_format, char *arg) {
     char *s = strdup(print_format);
+    if (!s) {
+        LogError("strdup() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
 
     // format already checked for fmt: or csv: - advance to token list
     s += 4;

@@ -70,7 +70,7 @@ static struct int_string_map const cm_dns_rcode[] = {
     {RCODE_BADTRUC, "Bad truncation"},
     {RCODE_BADCOOKIE, "Bad/missing server cookie"},
     {RCODE_NO_MEMORY, "No memory"},
-    {RCODE_BAD_STRING, "Bad sring"},
+    {RCODE_BAD_STRING, "Bad string"},
 };
 
 #define RCODE_COUNT (sizeof(cm_dns_rcode) / sizeof(struct int_string_map))

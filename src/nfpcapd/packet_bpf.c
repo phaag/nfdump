@@ -322,7 +322,7 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
             t_packet = hdr->bh_tstamp.tv_sec;
 
             if ((t_packet - t_start) >= t_win) {
-                // Rote dump file - close old - open new
+                // Rotate dump file - close old - open new
                 if (DoPacketDump) {
                     dbg_printf("packet_thread() flush file - buffer: %zu\n", packetBuffer->bufferSize);
                     // Rotate dump file - close old - open new

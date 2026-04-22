@@ -204,8 +204,8 @@ static nffileV2_t *NewFile(uint32_t num_workers) {
     nffile->stat_record = calloc(1, sizeof(stat_record_t));
     if (!nffile->stat_record) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(nffile);
         free(nffile->file_header);
+        free(nffile);
         return NULL;
     }
 
@@ -216,9 +216,9 @@ static nffileV2_t *NewFile(uint32_t num_workers) {
     uint32_t QueueSize = 8;
     nffile->processQueue = queue_init(QueueSize);
     if (!nffile->processQueue) {
-        free(nffile);
         free(nffile->file_header);
         free(nffile->stat_record);
+        free(nffile);
         return NULL;
     }
 

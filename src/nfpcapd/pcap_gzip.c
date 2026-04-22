@@ -160,7 +160,7 @@ int reader_gz_run(readerParam_t *readerParam) {
 
             batch = batch_alloc(batch_size, readerParam->snaplen);
             if (!batch) {
-                LogError("batch_alloc() faile in %s:%", __FILE__, __LINE__);
+                LogError("batch_alloc() failed in %s:%d", __FILE__, __LINE__);
                 return -1;
             }
         }

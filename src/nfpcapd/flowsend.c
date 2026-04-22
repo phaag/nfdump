@@ -72,7 +72,8 @@ static int SendFlow(repeater_t *sendHost, nfd_header_t *pcapd_header) {
     dbg_printf("Sending %u records\n", pcapd_header->numRecord);
     uint32_t length = pcapd_header->length;
     pcapd_header->length = htons(pcapd_header->length);
-    pcapd_header->lastSequence = htonl(sequence++);
+    uint32_t seq = sequence++;
+    pcapd_header->lastSequence = htonl(seq);
     pcapd_header->numRecord = htonl(pcapd_header->numRecord);
     // send buffer
     ssize_t len = sendto(sendHost->sockfd, pcapd_header, length, 0, (struct sockaddr *)&(sendHost->addr), sendHost->addrlen);

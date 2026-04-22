@@ -335,7 +335,7 @@ void *__attribute__((noreturn)) linux_packet_thread(void *args) {
                 t_packet = ts.tv_sec;
                 if ((t_packet - t_start) >= t_win) { /* rotate file */
                     if (DoPacketDump) {
-                        // Rote dump file - close old - open new
+                        // Rotate dump file - close old - open new
                         packetBuffer->timeStamp = t_start;
                         queue_push(packetParam->flushQueue, packetBuffer);
                         packetBuffer = queue_pop(packetParam->bufferQueue);
@@ -366,7 +366,7 @@ void *__attribute__((noreturn)) linux_packet_thread(void *args) {
             t_packet = ppd->tp_sec;
 
             if ((t_packet - t_start) >= t_win) {
-                // Rote dump file - close old - open new
+                // Rotate dump file - close old - open new
                 if (DoPacketDump) {
                     dbg_printf("packet_thread() flush file - buffer: %zu\n", packetBuffer->bufferSize);
                     packetBuffer->timeStamp = t_start;

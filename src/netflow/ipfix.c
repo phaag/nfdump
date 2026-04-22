@@ -1397,7 +1397,7 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
 
         if (TestFlag(optionTemplate->flags, IFNAMEOPTION)) {
             dbg_printf("[%u] found ifname option\n", exporter_entry->info->id);
-            dbg_printf("[%u] ingess length: %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.ingress.length);
+            dbg_printf("[%u] ingress length: %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.ingress.length);
             dbg_printf("[%u] name length  : %u\n", exporter_entry->info->id, optionTemplate->ifnameOption.name.length);
             optionTemplate->ifnameOption.scopeSize = scopeSize;
             SetFlag(template->type, IFNAME_TEMPLATE);
@@ -1407,7 +1407,7 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
 
         if (TestFlag(optionTemplate->flags, VRFNAMEOPTION)) {
             dbg_printf("[%u] found vrfname option\n", exporter_entry->info->id);
-            dbg_printf("[%u] ingess length: %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.ingress.length);
+            dbg_printf("[%u] ingress length: %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.ingress.length);
             dbg_printf("[%u] name length  : %u\n", exporter_entry->info->id, optionTemplate->vrfnameOption.name.length);
             optionTemplate->vrfnameOption.scopeSize = scopeSize;
             SetFlag(template->type, VRFNAME_TEMPLATE);

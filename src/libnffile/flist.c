@@ -381,11 +381,13 @@ static char *SubDirList(char *path) {
                 dirList = strdup(dent->d_name);
             } else {
                 size_t len = strlen(dirList) + strlen(dent->d_name) + 2;
-                dirList = realloc(dirList, len);
-                if (dirList == NULL) {
+                void *tmp = realloc(dirList, len);
+                if (!tmp) {
                     LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    free(dirList);
                     return NULL;
                 }
+                dirList = tmp;
                 strcat(dirList, ":");
                 strcat(dirList, dent->d_name);
             }

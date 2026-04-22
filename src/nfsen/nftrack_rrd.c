@@ -64,7 +64,7 @@
 // temporary RRD file
 #define TMPRRD "ports.rrd"
 
-#define MAXBUFF 15 * 1024;
+#define MAXBUFF (15 * 1024)
 
 /* global const */
 static const char *proto[] = {"tcp", "udp"};

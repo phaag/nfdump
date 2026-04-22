@@ -42,9 +42,9 @@
 #include <unistd.h>
 
 #include "barrier.h"
+#include "logging.h"
 #include "nfconf.h"
 #include "nfdump.h"
-#include "logging.h"
 #include "util.h"
 
 // get decent number of workers depending
@@ -142,7 +142,7 @@ void pthread_control_barrier_wait(pthread_control_barrier_t *barrier) {
         pthread_cond_broadcast(&barrier->controllerCond);
     }
     pthread_cond_wait(&barrier->workerCond, &(barrier->workerMutex));
-    dbg_printf("Worker dbg_awake\n");
+    dbg_printf("Worker awake\n");
     pthread_mutex_unlock(&barrier->workerMutex);
 
 }  // End of pthread_control_barrier_wait

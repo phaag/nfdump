@@ -325,7 +325,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
         // pptp - vpn
         // 2 bytes key payload length, 2 byte call ID
         if (gre_flags & 0x0080 && !cursor_advance(cur, 4)) {
-            LogVerbose("Length error decoding GRE opptional fields");
+            LogVerbose("Length error decoding GRE optional fields");
             return DECODE_SKIP;
         }
 

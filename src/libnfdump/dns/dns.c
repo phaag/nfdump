@@ -37,8 +37,8 @@
 #include <string.h>
 
 #include "codec.h"
-#include "mappings.h"
 #include "logging.h"
+#include "mappings.h"
 #include "util.h"
 
 void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength) {
@@ -70,7 +70,12 @@ void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength) {
             }
             // double memory and try again
             dbg_printf("Expand memory to %zu\n", bufsize);
-            bufresult = (dns_decoded_t *)realloc((void *)bufresult, bufsize);
+            void *tmp = realloc((void *)bufresult, bufsize);
+            if (!tmp) {
+                free(bufresult);
+                return NULL;
+            }
+            bufresult = (dns_decoded_t *)tmp;
             continue;
         } else {
             // other failure to decode dns packet

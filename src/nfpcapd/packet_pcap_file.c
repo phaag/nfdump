@@ -437,7 +437,7 @@ void *__attribute__((noreturn)) pcap_file_packet_thread(void *args) {
             time_t t_packet = hdr->ts.tv_sec;
             if ((t_packet - t_start) >= t_win) {
                 if (DoPacketDump) {
-                    // Rote dump file - close old - open new
+                    // Rotate dump file - close old - open new
                     dbg_printf("packet_thread() flush file - buffer: %zu\n", packetBuffer->bufferSize);
                     packetBuffer->timeStamp = t_start;
                     queue_push(packetParam->flushQueue, packetBuffer);
