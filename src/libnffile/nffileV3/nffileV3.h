@@ -371,6 +371,8 @@ void FlushBlockV3(nffileV3_t *nffile, void *blockHeader);
 
 int FlushFileV3(nffileV3_t *nffile);
 
+int ChangeIdent(const char *filename, const char *ident);
+
 // nfcheck.c
 int VerifyFileV3(const char *filename, int verbose);
 

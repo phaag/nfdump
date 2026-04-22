@@ -532,3 +532,210 @@ int FlushFileV3(nffileV3_t *nffile) {
     return 1;
 
 } /* End of FlushFile */
+
+/*
+ * ChangeIdent — replace the ident string in a closed nffile v3.
+ *
+ * Assumptions (match FlushFileV3 write order):
+ *   - The IDENT block is always the last data block, written immediately
+ *     after the STATS block and immediately before the block directory.
+ *
+ * Algorithm:
+ *   1. Open the file for read/write (no mmap needed — we use pread/pwrite).
+ *   2. Read and validate the file header.
+ *   3. Locate the BLOCK_TYPE_IDENT entry in the directory.
+ *   4. Truncate the file at the ident block's on-disk offset, removing the
+ *      old ident block, directory, and footer in one shot.
+ *   5. Write the new ident block at that offset.
+ *   6. Rebuild and write the directory (with updated IDENT entry) + footer.
+ *   7. Rewrite the file header with the new directory location.
+ *   8. fsync and close.
+ *
+ * Returns 1 on success, 0 on error.
+ */
+int ChangeIdent(const char *filename, const char *ident) {
+    if (!filename || !ident) return 0;
+
+    // --- open file for read/write ---
+    int fd = open(filename, O_RDWR);
+    if (fd < 0) {
+        LogError("ChangeIdent open() '%s': %s", filename, strerror(errno));
+        return 0;
+    }
+
+    struct stat sb;
+    if (fstat(fd, &sb) < 0) {
+        LogError("ChangeIdent fstat() '%s': %s", filename, strerror(errno));
+        close(fd);
+        return 0;
+    }
+    size_t fileSize = (size_t)sb.st_size;
+
+    // --- read and validate file header ---
+    fileHeaderV3_t fileHeader;
+    ssize_t ret = pread(fd, &fileHeader, sizeof(fileHeaderV3_t), 0);
+    if (ret != (ssize_t)sizeof(fileHeaderV3_t)) {
+        LogError("ChangeIdent: failed to read header from '%s'", filename);
+        close(fd);
+        return 0;
+    }
+    if (fileHeader.magic != HEADER_MAGIC_V3 || fileHeader.layoutVersion != LAYOUT_VERSION_3) {
+        LogError("ChangeIdent: bad magic or version in '%s'", filename);
+        close(fd);
+        return 0;
+    }
+    if (fileHeader.offDirectory == 0 || fileHeader.offDirectory >= fileSize) {
+        LogError("ChangeIdent: invalid directory offset in '%s'", filename);
+        close(fd);
+        return 0;
+    }
+
+    // --- read block directory header ---
+    blockDirectoryV3_t dirHdr;
+    ret = pread(fd, &dirHdr, sizeof(blockDirectoryV3_t), (off_t)fileHeader.offDirectory);
+    if (ret != (ssize_t)sizeof(blockDirectoryV3_t) || dirHdr.magic != DIRECTORY_MAGIC) {
+        LogError("ChangeIdent: failed to read directory from '%s'", filename);
+        close(fd);
+        return 0;
+    }
+
+    if (dirHdr.numEntries == 0) {
+        LogError("ChangeIdent: empty directory in '%s'", filename);
+        close(fd);
+        return 0;
+    }
+
+    // --- read directory entries ---
+    size_t entriesSize = dirHdr.numEntries * sizeof(directoryEntryV3_t);
+    directoryEntryV3_t *entries = malloc(entriesSize);
+    if (!entries) {
+        LogError("ChangeIdent: malloc() failed: %s", strerror(errno));
+        close(fd);
+        return 0;
+    }
+
+    ret = pread(fd, entries, entriesSize, (off_t)fileHeader.offDirectory + sizeof(blockDirectoryV3_t));
+    if (ret != (ssize_t)entriesSize) {
+        LogError("ChangeIdent: failed to read directory entries from '%s'", filename);
+        free(entries);
+        close(fd);
+        return 0;
+    }
+
+    // --- locate the IDENT entry (must be last data block) ---
+    // Assumption: ident is last — its offset is the truncation point.
+    int identIdx = -1;
+    for (int i = (int)dirHdr.numEntries - 1; i >= 0; i--) {
+        if (entries[i].type == BLOCK_TYPE_IDENT) {
+            identIdx = i;
+            break;
+        }
+    }
+    if (identIdx < 0) {
+        LogError("ChangeIdent: no IDENT block found in '%s'", filename);
+        free(entries);
+        close(fd);
+        return 0;
+    }
+
+    off_t identOffset = (off_t)entries[identIdx].offset;
+
+    // --- build new ident block ---
+    uint32_t newLen = (uint32_t)strlen(ident) + 1;  // include NUL
+    uint32_t newPadded = (newLen + 7) & ~7u;        // 8-byte aligned
+    uint32_t newBlockSize = (uint32_t)sizeof(dataBlockV3_t) + newPadded;
+
+    // allocate a zero-filled buffer so padding bytes are clean
+    uint8_t *identBuf = calloc(1, newBlockSize);
+    if (!identBuf) {
+        LogError("ChangeIdent: calloc() failed: %s", strerror(errno));
+        free(entries);
+        close(fd);
+        return 0;
+    }
+    dataBlockV3_t *identBlock = (dataBlockV3_t *)identBuf;
+    *identBlock = (dataBlockV3_t){
+        .type = BLOCK_TYPE_IDENT,
+        .discSize = newBlockSize,
+        .rawSize = newBlockSize,
+        .compression = NOT_COMPRESSED,
+        .encryption = NOT_ENCRYPTED,
+    };
+    memcpy(identBuf + sizeof(dataBlockV3_t), ident, newLen);
+
+    // --- truncate file at ident block offset (drops old ident + dir + footer) ---
+    if (ftruncate(fd, identOffset) < 0) {
+        LogError("ChangeIdent: ftruncate() '%s': %s", filename, strerror(errno));
+        free(identBuf);
+        free(entries);
+        close(fd);
+        return 0;
+    }
+
+    // --- write new ident block ---
+    ret = pwrite(fd, identBuf, newBlockSize, identOffset);
+    free(identBuf);
+    if (ret != (ssize_t)newBlockSize) {
+        LogError("ChangeIdent: pwrite() ident block '%s': %s", filename, strerror(errno));
+        free(entries);
+        close(fd);
+        return 0;
+    }
+
+    // --- update the directory entry for IDENT ---
+    entries[identIdx].size = newBlockSize;
+    // offset stays the same; only size may change
+
+    // --- write new directory ---
+    off_t newDirOffset = identOffset + (off_t)newBlockSize;
+
+    ret = pwrite(fd, &dirHdr, sizeof(blockDirectoryV3_t), newDirOffset);
+    if (ret != (ssize_t)sizeof(blockDirectoryV3_t)) {
+        LogError("ChangeIdent: pwrite() directory header '%s': %s", filename, strerror(errno));
+        free(entries);
+        close(fd);
+        return 0;
+    }
+
+    off_t pos = newDirOffset + sizeof(blockDirectoryV3_t);
+    ret = pwrite(fd, entries, entriesSize, pos);
+    free(entries);
+    if (ret != (ssize_t)entriesSize) {
+        LogError("ChangeIdent: pwrite() directory entries '%s': %s", filename, strerror(errno));
+        close(fd);
+        return 0;
+    }
+    pos += (off_t)entriesSize;
+
+    uint32_t newDirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
+
+    // --- write new footer ---
+    fileFooterV3_t footer = {
+        .magic = FOOTER_MAGIC_V3,
+        .dirSize = newDirSize,
+        .offDirectory = (uint64_t)newDirOffset,
+        .checksum = 0,
+    };
+    ret = pwrite(fd, &footer, sizeof(fileFooterV3_t), pos);
+    if (ret != (ssize_t)sizeof(fileFooterV3_t)) {
+        LogError("ChangeIdent: pwrite() footer '%s': %s", filename, strerror(errno));
+        close(fd);
+        return 0;
+    }
+
+    // --- rewrite file header with updated directory location ---
+    fileHeader.offDirectory = (uint64_t)newDirOffset;
+    fileHeader.dirSize = newDirSize;
+    ret = pwrite(fd, &fileHeader, sizeof(fileHeaderV3_t), 0);
+    if (ret != (ssize_t)sizeof(fileHeaderV3_t)) {
+        LogError("ChangeIdent: pwrite() header '%s': %s", filename, strerror(errno));
+        close(fd);
+        return 0;
+    }
+
+    fsync(fd);
+    close(fd);
+
+    return 1;
+
+}  // End of ChangeIdent

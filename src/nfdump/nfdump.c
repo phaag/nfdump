@@ -1159,7 +1159,7 @@ int main(int argc, char **argv) {
 
     // Change Ident only
     if (flist.single_file && strlen(Ident) > 0) {
-        // XXX FIX!! ChangeIdent(flist.single_file, Ident);
+        ChangeIdent(flist.single_file, Ident);
         exit(EXIT_SUCCESS);
     }
 
