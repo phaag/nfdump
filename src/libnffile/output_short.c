@@ -245,7 +245,7 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
         inet_ntop_mask(ipv4Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
     } else if (r->offsetMap[EXipv6FlowID]) {
         // IPv6
-        elementHeader = r->offsetMap[EXipv4FlowID];
+        elementHeader = r->offsetMap[EXipv6FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
         inet6_ntop_mask(ipv6Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
         inet6_ntop_mask(ipv6Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
