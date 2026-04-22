@@ -515,10 +515,10 @@ static struct format_entry_s {
     // EXnatXlatePortID
     // ASA Firewall
     {"%xsp", 0, "XsPort", String_xlateSrcPort},  // NSEL XLATE src port
-    {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL SLATE dst port
+    {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL XLATE dst port
     // NAT devices
     {"%nsp", 0, "XsPort", String_xlateSrcPort},  // NAT XLATE src port
-    {"%ndp", 0, "XdPort", String_xlateDstPort},  // NAT SLATE dst port
+    {"%ndp", 0, "XdPort", String_xlateDstPort},  // NAT XLATE dst port
 
     // EXnselAclID
     {"%iacl", 0, "Ingress ACL                     ", String_iacl},  // NSEL ingress ACL
@@ -584,7 +584,7 @@ static struct format_entry_s {
     {"%dc", 0, "DC", String_DstCountry},                                // dst IP 2 letter country code
     {"%sloc", 0, "Src IP location info", String_SrcLocation},           // src IP geo location info
     {"%dloc", 0, "Dst IP location info", String_DstLocation},           // dst IP geo location info
-    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organistaion string
+    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organisation string
     {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},      // dst IP AS organisation string
     {"%stor", 0, "STor", String_SrcTor},                                // src IP 2 letter tor node info
     {"%dtor", 0, "DTor", String_DstTor},                                // dst IP 2 letter tor node info

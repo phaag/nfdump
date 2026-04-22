@@ -355,7 +355,7 @@ static flowHash_t *flowHash_init(uint32_t bitSize) {
     flowHash->flags = calloc(flowHash->capacity, sizeof(uint8_t));
     flowHash->cells = calloc(flowHash->capacity, sizeof(hashValue_t));
     flowHash->records = calloc(flowHash->capacity, sizeof(FlowHashRecord_t));
-    return flowHash->cells != NULL && flowHash->flags != NULL ? flowHash : NULL;
+    return flowHash->cells != NULL && flowHash->flags != NULL && flowHash->records != NULL ? flowHash : NULL;
 
 }  // End of flowHash_init
 
@@ -980,7 +980,7 @@ void ListFlowPrintOrder(void) {
         printf(" %-9s", order_mode[i].string);
     }
     printf("\n See also nfdump(1)\n");
-}  // End of istFlowPrintOrder
+}  // End of ListFlowPrintOrder
 
 // Parse flow cache print order -O
 int Parse_PrintOrder(char *order) {

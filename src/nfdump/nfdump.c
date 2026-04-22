@@ -811,7 +811,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'D':
-                LogInfo("Set nameserver option is depricated - using nameserver in resolf.conf instead");
+                LogInfo("Set nameserver option is deprecated - using nameserver in resolf.conf instead");
                 break;
             case 'E': {
                 CheckArgLen(optarg, MAXPATHLEN);
