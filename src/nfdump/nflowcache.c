@@ -1737,7 +1737,7 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
 // in case of custom aggregation, we need to rebuild the record
 // with only those elements aggregated
-static inline void RebuildRecord(void *buffPtr, recordHeaderV4_t *recordHeaderV4, uint64_t i) {
+static inline void RebuildRecord(uint8_t *buffPtr, recordHeaderV4_t *recordHeaderV4) {
     if (aggregateInfo[0] >= 0) {
         // custom user aggregation - create new record
         void *newExtensionList[MAXLISTSIZE] = {0};
@@ -1745,53 +1745,63 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV4_t *recordHeaderV4
         newV4Record->flags = recordHeaderV4->flags;
         newV4Record->nfVersion = recordHeaderV4->nfVersion;
 
-        // define bimap common for all v5 records
-        uint64_t bitMap = 0;
-
-        // XXX FIX!
         // calculate extensions and set bitMap
+        uint64_t bitMap = 0;
+        // EXgenericFlow always exists
+        BitMapSet(bitMap, EXgenericFlowID);
 
-        // calculate offset table size and next offset after offset table
-        uint32_t offsetTableSize = ALIGN8(newV4Record->numExtensions * sizeof(uint16_t));
-        newV4Record->size += offsetTableSize;
-        uint32_t nextOffset = newV4Record->size;
-
-        EXgenericFlow_t *newGenericFlow = AddV4Extension(newV4Record, nextOffset, EXgenericFlow);
-        // XXX FIX!!!
+        for (int i = 0; aggregateInfo[i] >= 0; i++) {
+            uint32_t tableIndex = aggregateInfo[i];
+            uint16_t extID = aggregationTable[tableIndex].param.extID;
+            // if this extension exists in orig record
+            if ((1ULL << extID) & recordHeaderV4->extBitmap) BitMapSet(bitMap, extID);
+        }
         newV4Record->extBitmap = bitMap;
         newV4Record->numExtensions = __builtin_popcountll(bitMap);
 
-        // orig record
-        recordHandle_t recordHandle = {0};
-        MapV4RecordHandle(&recordHandle, recordHeaderV4, i);
+        // calculate offset table size and next offset after offset table
+        uint32_t offsetTableSize = ALIGN8(newV4Record->numExtensions * sizeof(uint16_t));
+        uint16_t *newOffsetTable = V4OffsetTable(newV4Record);
+        newV4Record->size += offsetTableSize;
+        uint32_t nextOffset = newV4Record->size;
 
+        uint32_t slot = 0;
+        while (bitMap) {
+            uint32_t extID = __builtin_ctzll(bitMap);
+            bitMap &= bitMap - 1;
+
+            newOffsetTable[slot++] = nextOffset;
+            uint8_t *extension = buffPtr + nextOffset;
+            size_t size = extensionTable[extID].size;
+            memset(extension, 0, size);
+            newExtensionList[extID] = extension;
+            nextOffset += size;
+        }
+
+        uint16_t *origOffsetTable = V4OffsetTable(recordHeaderV4);
+        uint64_t origBitMap = recordHeaderV4->extBitmap;
         // process record
         // copy all custom aggregation elements
-        for (int j = 0; aggregateInfo[j] >= 0; j++) {
-            uint32_t tableIndex = aggregateInfo[j];
+        for (int i = 0; aggregateInfo[i] >= 0; i++) {
+            uint32_t tableIndex = aggregateInfo[i];
             uint16_t extID = aggregationTable[tableIndex].param.extID;
-            if (recordHandle.extensionList[extID]) {
-                // extension exists in orig record
-                void *newRecord = NULL;
-                if (newExtensionList[extID] == NULL) {
-                    // add this extension to the output record as well
-                    // PushExtensionID(newV4Record, extID, extension);
-                    // XXX FIX!
-                    // AddV4Extension(newV4Record, nextOffset, ext, extension);
-                    void *extension = NULL;
-                    newExtensionList[extID] = extension;
-                    newRecord = extension;
-                } else {
-                    newRecord = newExtensionList[extID];
-                }
-                ptrdiff_t offset = aggregationTable[tableIndex].param.offset;
-                ptrdiff_t length = aggregationTable[tableIndex].param.length;
-                memcpy(newRecord + offset, recordHandle.extensionList[extID] + offset, length);
-            }
+
+            // get extension in orig record
+            uint64_t _bit = (1ULL << extID);
+            uint64_t _mask = _bit - 1;
+            uint32_t _rank = __builtin_popcountll(origBitMap & _mask);
+            uint8_t *origExtension = (uint8_t *)(recordHeaderV4) + origOffsetTable[_rank];
+
+            // copy to new record
+            uint8_t *newRecord = newExtensionList[extID];
+            ptrdiff_t offset = aggregationTable[tableIndex].param.offset;
+            ptrdiff_t length = aggregationTable[tableIndex].param.length;
+            memcpy(newRecord + offset, origExtension + offset, length);
         }
 
         // copy timestamps
-        EXgenericFlow_t *origGenericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
+        EXgenericFlow_t *newGenericFlow = newExtensionList[EXgenericFlowID];
+        EXgenericFlow_t *origGenericFlow = GetExtension(recordHeaderV4, EXgenericFlow);
         if (origGenericFlow && newGenericFlow) {
             newGenericFlow->msecFirst = origGenericFlow->msecFirst;
             newGenericFlow->msecLast = origGenericFlow->msecLast;
@@ -1836,7 +1846,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         void *buffPtr = GetCursor(dataBlock);
 
         // prepare record to export into new file
-        RebuildRecord(buffPtr, recordHeaderV4, i);
+        RebuildRecord(buffPtr, recordHeaderV4);
 
         // remap header to written memory
         recordHeaderV4 = (recordHeaderV4_t *)buffPtr;

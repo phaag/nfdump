@@ -1552,11 +1552,6 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         processed_records++;
         exporter_ipfix->PacketSequence++;
 
-        /* XXX FIX!
-        if (stack[STACK_ENGINE_TYPE]) recordHeaderV4->engineType = stack[STACK_ENGINE_TYPE];
-        if (stack[STACK_ENGINE_ID]) recordHeaderV4->engineID = stack[STACK_ENGINE_ID];
-        */
-
         // handle sampling
         uint64_t packetInterval = 1;
         uint64_t spaceInterval = 0;

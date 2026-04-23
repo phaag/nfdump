@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -45,7 +45,6 @@ typedef struct profile_param_info_s {
 } profile_param_info_t;
 
 typedef struct profile_channel_info_s {
-    // XXX FilterEngine_t *engine;
     void *engine;
     char *group;
     char *profile;

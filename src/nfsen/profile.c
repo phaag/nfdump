@@ -222,7 +222,6 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         LogError("*** Compiling filter failed for channel %s in profile '%s' in group '%s'.", profile_param->channelname, profile_param->profilename,
                  profile_param->profilegroup);
         LogError("*** File: %s", path);
-        // XXX LogError("*** Error: %s\n", yyerror_buff);
         LogError("*** Failed Filter: %s", filter);
         free(filter);
         return;
