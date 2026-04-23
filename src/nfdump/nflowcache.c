@@ -255,6 +255,12 @@ static struct order_mode_s {
 #define MaxAggrStackSize 64
 static int aggregateInfo[MaxAggrStackSize] = {0};
 
+// Pre-computed rebuild metadata — filled once by ParseAggregateMask for custom aggregation.
+// staticRebuildBitMap: EXgenericFlow + EXcntFlow + all aggregated extIDs < MAXEXTENSIONS.
+// staticRebuildMaxSize: upper-bound byte size of a pre-built record (all bitmap exts present).
+static uint64_t staticRebuildBitMap = 0;
+static uint32_t staticRebuildMaxSize = 0;
+
 static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
@@ -1219,7 +1225,7 @@ char *ParseAggregateMask(char *print_format, char *arg) {
 
                 if (subnet > 64) {
                     v6Mask[0] = 0xffffffffffffffffLL;
-                    v6Mask[1] = 0xffffffffffffffffLL << (64 - subnet);
+                    v6Mask[1] = 0xffffffffffffffffLL << (128 - subnet);
                 } else {
                     v6Mask[0] = 0xffffffffffffffffLL << (64 - subnet);
                     v6Mask[1] = 0;
@@ -1301,6 +1307,25 @@ char *ParseAggregateMask(char *print_format, char *arg) {
     }
     aggregateInfo[elementCount] = -1;
 
+    // Pre-compute static rebuild metadata for BuildMinimalRecord calls at insert time.
+    staticRebuildBitMap = 0;
+    BitMapSet(staticRebuildBitMap, EXgenericFlowID);
+    BitMapSet(staticRebuildBitMap, EXcntFlowID);
+    for (int i = 0; aggregateInfo[i] >= 0; i++) {
+        uint16_t extID = aggregationTable[aggregateInfo[i]].param.extID;
+        if (extID < MAXEXTENSIONS) BitMapSet(staticRebuildBitMap, extID);
+    }
+    uint32_t numStaticExts = __builtin_popcountll(staticRebuildBitMap);
+    staticRebuildMaxSize = sizeof(recordHeaderV4_t) + ALIGN8(numStaticExts * sizeof(uint16_t));
+    {
+        uint64_t bm = staticRebuildBitMap;
+        while (bm) {
+            uint32_t extID = __builtin_ctzll(bm);
+            bm &= bm - 1;
+            staticRebuildMaxSize += extensionTable[extID].size;
+        }
+    }
+
 #ifdef DEVEL
     printf("Aggregate key:  maxKeyLen: %zu bytes\n", maxKeyLen);
     printf("Aggregate format string: '%s'\n", formatStr);
@@ -1342,6 +1367,100 @@ char *ParseAggregateMask(char *print_format, char *arg) {
     return formatStr;
 
 }  // End of ParseAggregateMask
+
+// Build a compact record for custom aggregation, to be stored at insert time.
+// Always includes EXgenericFlow and EXcntFlow; includes aggregated extensions present in
+// the original record. Uses a single pre-scan of the original offset table so that the
+// per-field copy loop is O(1) per element instead of O(numExtensions) via popcountll.
+// Populates *handle directly, eliminating any subsequent MapV4RecordHandle call.
+// Returns the byte size of the newly built record.
+static size_t BuildMinimalRecord(void *p, recordHeaderV4_t *recordHeaderV4, recordHandle_t *handle) {
+    void *newExtensionList[MAXLISTSIZE] = {0};
+    uint8_t *buffPtr = (uint8_t *)p;
+
+    recordHeaderV4_t *newV4Record = AddV4Header(buffPtr);
+    newV4Record->flags = recordHeaderV4->flags;
+    newV4Record->nfVersion = recordHeaderV4->nfVersion;
+
+    // Pre-scan orig record's offset table once — O(numExtensions)
+    uint8_t *origExtPtr[MAXEXTENSIONS] = {0};
+    {
+        uint16_t *ot = V4OffsetTable(recordHeaderV4);
+        uint64_t bm = recordHeaderV4->extBitmap;
+        uint32_t slot = 0;
+        while (bm) {
+            uint32_t extID = __builtin_ctzll(bm);
+            bm &= bm - 1;
+            if (extID < MAXEXTENSIONS) origExtPtr[extID] = (uint8_t *)recordHeaderV4 + ot[slot];
+            slot++;
+        }
+    }
+
+    // Build bitmap: always EXgenericFlow + EXcntFlow, plus aggregated exts present in orig
+    uint64_t bitMap = 0;
+    BitMapSet(bitMap, EXgenericFlowID);
+    BitMapSet(bitMap, EXcntFlowID);
+    for (int i = 0; aggregateInfo[i] >= 0; i++) {
+        uint16_t extID = aggregationTable[aggregateInfo[i]].param.extID;
+        if (extID < MAXEXTENSIONS && origExtPtr[extID]) BitMapSet(bitMap, extID);
+    }
+    newV4Record->extBitmap = bitMap;
+    newV4Record->numExtensions = __builtin_popcountll(bitMap);
+
+    uint32_t offsetTableSize = ALIGN8(newV4Record->numExtensions * sizeof(uint16_t));
+    uint16_t *newOffsetTable = V4OffsetTable(newV4Record);
+    newV4Record->size += offsetTableSize;
+    uint32_t nextOffset = newV4Record->size;
+
+    uint32_t slot = 0;
+    uint64_t bm = bitMap;
+    while (bm) {
+        uint32_t extID = __builtin_ctzll(bm);
+        bm &= bm - 1;
+        newOffsetTable[slot++] = nextOffset;
+        uint8_t *extension = buffPtr + nextOffset;
+        size_t size = extensionTable[extID].size;
+        memset(extension, 0, size);
+        newExtensionList[extID] = extension;
+        nextOffset += size;
+    }
+    newV4Record->size = nextOffset;
+
+    // Copy aggregated fields — O(1) per element using pre-scanned origExtPtr
+    for (int i = 0; aggregateInfo[i] >= 0; i++) {
+        uint32_t tableIndex = aggregateInfo[i];
+        uint16_t extID = aggregationTable[tableIndex].param.extID;
+        uint8_t *origExtension = (extID < MAXEXTENSIONS) ? origExtPtr[extID] : NULL;
+        if (!origExtension) continue;  // not in orig record, or EXlocal / virtual ext
+        uint8_t *newExt = (uint8_t *)newExtensionList[extID];
+        if (!newExt) continue;
+        ptrdiff_t offset = aggregationTable[tableIndex].param.offset;
+        ptrdiff_t length = aggregationTable[tableIndex].param.length;
+        memcpy(newExt + offset, origExtension + offset, length);
+    }
+
+    // Copy timestamps and counters from orig EXgenericFlow
+    if (origExtPtr[EXgenericFlowID] && newExtensionList[EXgenericFlowID]) {
+        EXgenericFlow_t *orig = (EXgenericFlow_t *)origExtPtr[EXgenericFlowID];
+        EXgenericFlow_t *newGF = (EXgenericFlow_t *)newExtensionList[EXgenericFlowID];
+        newGF->msecFirst = orig->msecFirst;
+        newGF->msecLast = orig->msecLast;
+        newGF->msecReceived = orig->msecReceived;
+        newGF->inBytes = orig->inBytes;
+        newGF->inPackets = orig->inPackets;
+    }
+
+    // Populate handle directly — avoids a subsequent MapV4RecordHandle call
+    if (handle) {
+        *handle = (recordHandle_t){.recordHeaderV4 = newV4Record, .numElements = newV4Record->numExtensions};
+        for (int extID = 0; extID < MAXEXTENSIONS; extID++) handle->extensionList[extID] = newExtensionList[extID];
+        handle->extensionList[EXheader] = (void *)newV4Record;
+        handle->extensionList[EXlocal] = (void *)handle;
+    }
+
+    return newV4Record->size;
+
+}  // End of BuildMinimalRecord
 
 void InsertFlow(recordHandle_t *recordHandle) {
     dbg_printf("Enter %s\n", __func__);
@@ -1392,7 +1511,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     uint64_t aggrFlows = 1;
     if (cntFlow) {
         outPackets = cntFlow->outPackets;
-        outBytes = cntFlow->outPackets;
+        outBytes = cntFlow->outBytes;
         aggrFlows = cntFlow->flows;
     }
 
@@ -1469,9 +1588,15 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
 
-        void *p = nfmalloc(record->size);
-        memcpy((void *)p, record, record->size);
-        flowHash->records[index].flowrecord = p;
+        {
+            size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
+            void *p = nfmalloc(allocSize);
+            if (staticRebuildMaxSize)
+                BuildMinimalRecord(p, record, NULL);
+            else
+                memcpy((void *)p, record, record->size);
+            flowHash->records[index].flowrecord = p;
+        }
         flowHash->records[index].swap = NeedSwap(keymem);
 
         // keymen got part of the cache
@@ -1519,9 +1644,15 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             flowHash->records[index].msecFirst = genericFlow->msecFirst;
             flowHash->records[index].msecLast = genericFlow->msecLast;
 
-            void *p = nfmalloc(record->size);
-            memcpy((void *)p, record, record->size);
-            flowHash->records[index].flowrecord = p;
+            {
+                size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
+                void *p = nfmalloc(allocSize);
+                if (staticRebuildMaxSize)
+                    BuildMinimalRecord(p, record, NULL);
+                else
+                    memcpy((void *)p, record, record->size);
+                flowHash->records[index].flowrecord = p;
+            }
             flowHash->records[index].swap = NeedSwap(keymem);
 
             // keymen got part of the cache
@@ -1622,9 +1753,15 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
         flowHash->records[index].swap = NeedSwap(keymem);
-        void *p = nfmalloc(record->size);
-        memcpy((void *)p, record, record->size);
-        flowHash->records[index].flowrecord = p;
+        {
+            size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
+            void *p = nfmalloc(allocSize);
+            if (staticRebuildMaxSize)
+                BuildMinimalRecord(p, record, NULL);
+            else
+                memcpy((void *)p, record, record->size);
+            flowHash->records[index].flowrecord = p;
+        }
         mem = NULL;
     }
 
@@ -1735,84 +1872,14 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
 }  // End of PrintSortList
 
-// in case of custom aggregation, we need to rebuild the record
-// with only those elements aggregated
-static inline void RebuildRecord(uint8_t *buffPtr, recordHeaderV4_t *recordHeaderV4) {
-    if (aggregateInfo[0] >= 0) {
-        // custom user aggregation - create new record
-        void *newExtensionList[MAXLISTSIZE] = {0};
-        recordHeaderV4_t *newV4Record = AddV4Header(buffPtr);
-        newV4Record->flags = recordHeaderV4->flags;
-        newV4Record->nfVersion = recordHeaderV4->nfVersion;
+// Export SortList record to nffile: copy the already-minimal stored record to the output
+// buffer and populate *handle.  For custom aggregation the record was pre-built by
+// BuildMinimalRecord at insert time so no rebuild work is needed here.
+static inline size_t RebuildRecord(uint8_t *buffPtr, recordHeaderV4_t *recordHeaderV4, recordHandle_t *handle) {
+    memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
+    MapV4RecordHandle(handle, (recordHeaderV4_t *)buffPtr, 0);
+    return recordHeaderV4->size;
 
-        // calculate extensions and set bitMap
-        uint64_t bitMap = 0;
-        // EXgenericFlow always exists
-        BitMapSet(bitMap, EXgenericFlowID);
-
-        for (int i = 0; aggregateInfo[i] >= 0; i++) {
-            uint32_t tableIndex = aggregateInfo[i];
-            uint16_t extID = aggregationTable[tableIndex].param.extID;
-            // if this extension exists in orig record
-            if ((1ULL << extID) & recordHeaderV4->extBitmap) BitMapSet(bitMap, extID);
-        }
-        newV4Record->extBitmap = bitMap;
-        newV4Record->numExtensions = __builtin_popcountll(bitMap);
-
-        // calculate offset table size and next offset after offset table
-        uint32_t offsetTableSize = ALIGN8(newV4Record->numExtensions * sizeof(uint16_t));
-        uint16_t *newOffsetTable = V4OffsetTable(newV4Record);
-        newV4Record->size += offsetTableSize;
-        uint32_t nextOffset = newV4Record->size;
-
-        uint32_t slot = 0;
-        while (bitMap) {
-            uint32_t extID = __builtin_ctzll(bitMap);
-            bitMap &= bitMap - 1;
-
-            newOffsetTable[slot++] = nextOffset;
-            uint8_t *extension = buffPtr + nextOffset;
-            size_t size = extensionTable[extID].size;
-            memset(extension, 0, size);
-            newExtensionList[extID] = extension;
-            nextOffset += size;
-        }
-
-        uint16_t *origOffsetTable = V4OffsetTable(recordHeaderV4);
-        uint64_t origBitMap = recordHeaderV4->extBitmap;
-        // process record
-        // copy all custom aggregation elements
-        for (int i = 0; aggregateInfo[i] >= 0; i++) {
-            uint32_t tableIndex = aggregateInfo[i];
-            uint16_t extID = aggregationTable[tableIndex].param.extID;
-
-            // get extension in orig record
-            uint64_t _bit = (1ULL << extID);
-            uint64_t _mask = _bit - 1;
-            uint32_t _rank = __builtin_popcountll(origBitMap & _mask);
-            uint8_t *origExtension = (uint8_t *)(recordHeaderV4) + origOffsetTable[_rank];
-
-            // copy to new record
-            uint8_t *newRecord = newExtensionList[extID];
-            ptrdiff_t offset = aggregationTable[tableIndex].param.offset;
-            ptrdiff_t length = aggregationTable[tableIndex].param.length;
-            memcpy(newRecord + offset, origExtension + offset, length);
-        }
-
-        // copy timestamps
-        EXgenericFlow_t *newGenericFlow = newExtensionList[EXgenericFlowID];
-        EXgenericFlow_t *origGenericFlow = GetExtension(recordHeaderV4, EXgenericFlow);
-        if (origGenericFlow && newGenericFlow) {
-            newGenericFlow->msecFirst = origGenericFlow->msecFirst;
-            newGenericFlow->msecLast = origGenericFlow->msecLast;
-            newGenericFlow->msecReceived = origGenericFlow->msecReceived;
-            newGenericFlow->inBytes = origGenericFlow->inBytes;
-            newGenericFlow->inPackets = origGenericFlow->inPackets;
-        }
-    } else {
-        // copy orig record
-        memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
-    }
 }  // End of RebuildRecord
 
 // export SortList - apply possible aggregation mask to zero out aggregated fields
@@ -1823,19 +1890,17 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
     ExportExporterList(nffile);
     flowBlockV3_t *dataBlock = NewFlowBlock(blockSize);
 
+    size_t newSize = 0;
     for (uint64_t i = 0; i < maxindex; i++) {
         uint64_t j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
         recordHeaderV4_t *recordHeaderV4 = (flowRecord->flowrecord);
 
-        // check, if we need cntFlow extension
-        int exCntSize = 0;
-        if (flowRecord->outPackets || flowRecord->outBytes || flowRecord->flows > 1) {
-            exCntSize = EXcntFlowSize;
-        }
-
-        if (!IsAvailable(dataBlock, blockSize, recordHeaderV4->size + exCntSize)) {
+        // Use newSize from previous iteration as a stable estimate (exact for custom aggregation
+        // since all pre-built records have the same layout; avoids the original-record overestimate).
+        if (newSize == 0) newSize = recordHeaderV4->size;
+        if (!IsAvailable(dataBlock, blockSize, newSize)) {
             // flush block - get an empty one
             WriteBlockV3(nffile, dataBlock);
             dataBlock = NULL;
@@ -1845,23 +1910,17 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         // write record
         void *buffPtr = GetCursor(dataBlock);
 
-        // prepare record to export into new file
-        RebuildRecord(buffPtr, recordHeaderV4);
+        // Copy the pre-built minimal record (custom aggr) or the original (non-custom) and
+        // populate recordHandle — RebuildRecord handles both cases via memcpy + MapV4RecordHandle.
+        recordHandle_t recordHandle = {0};
+        newSize = RebuildRecord(buffPtr, recordHeaderV4, &recordHandle);
 
         // remap header to written memory
         recordHeaderV4 = (recordHeaderV4_t *)buffPtr;
 
-        recordHandle_t recordHandle = {0};
-        MapV4RecordHandle(&recordHandle, recordHeaderV4, i + 1);
-
-        // check if cntFlow already exists
+        // check if cntFlow exists (always present for custom aggregation pre-built records)
         EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
 
-        if (cntFlow == NULL && exCntSize) {
-            // XXX FIX! PushExtension(recordHeaderV4, EXcntFlow, extPtr);
-            void *extPtr = NULL;
-            cntFlow = extPtr;
-        }
         dataBlock->rawSize += recordHeaderV4->size;
         dataBlock->numRecords++;
 
