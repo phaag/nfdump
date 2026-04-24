@@ -337,6 +337,8 @@ int main(int argc, char **argv) {
     if (torFileDB == NULL) {
         if (ConfOpen(NULL, "nfdump") < 0) exit(EXIT_FAILURE);
         torFileDB = ConfGetString("tordb.path");
+    } else {
+        ConfOpen(NULL, "nfdump");
     }
 
     if (torFileDB == NULL) {

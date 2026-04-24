@@ -45,6 +45,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "conf/nfconf.h"
 #include "id.h"
 #include "logging.h"
 #include "maxmind.h"
@@ -276,10 +277,30 @@ int LoadMaxMind(char *fileName) {
 
     if (!Init_MaxMind()) return 0;
 
-    /* ---- fast path: mmap existing flat cache if it is newer than nffileV3 ---- */
-    char flatPath[PATH_MAX];
-    snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+    /* ---- Fix 1: if the caller passed the .flat file directly, use it ---- */
+    size_t fnLen = strlen(fileName);
+    if (fnLen > 5 && strcmp(fileName + fnLen - 5, ".flat") == 0) {
+        if (LoadFlatCache(fileName)) {
+            dbg_printf("LoadMaxMind: direct flat file %s\n", fileName);
+            return 1;
+        }
+        LogError("LoadMaxMind: cannot load flat file %s", fileName);
+        return 0;
+    }
 
+    /* ---- Build flat path: respect geodb.flatpath config key (fix 2) ---- */
+    char flatPath[PATH_MAX];
+    char *flatDir = ConfGetString("geodb.flatpath");
+    if (flatDir) {
+        const char *base = strrchr(fileName, '/');
+        base = base ? base + 1 : fileName;
+        snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
+        free(flatDir);
+    } else {
+        snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+    }
+
+    /* ---- fast path: mmap existing flat cache if it is newer than nffileV3 ---- */
     struct stat stNf, stFlat;
     if (stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
         if (LoadFlatCache(flatPath)) {

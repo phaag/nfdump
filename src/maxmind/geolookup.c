@@ -177,6 +177,8 @@ int main(int argc, char **argv) {
     if (geoFile == NULL) {
         if (ConfOpen(NULL, "nfdump") < 0) exit(EXIT_FAILURE);
         geoFile = ConfGetString("geodb.path");
+    } else {
+        ConfOpen(NULL, "nfdump");
     }
 
     if (geoFile == NULL) {

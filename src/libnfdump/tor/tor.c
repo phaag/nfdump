@@ -42,6 +42,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "conf/nfconf.h"
 #include "id.h"
 #include "logging.h"
 #include "nffileV3/nffileV3.h"
@@ -277,35 +278,58 @@ int SaveTorTree(char *fileName) {
     return ret;
 }  // End of SaveTorTree
 
+/* Load (mmap) a flat binary cache file produced by torWriteFlatCache.
+ * Returns 1 on success, 0 on any failure (caller falls back to slow path). */
+static int torLoadFlatCache(const char *flatPath) {
+    int fd = open(flatPath, O_RDONLY);
+    if (fd < 0) return 0;
+
+    torFlatHeader_t hdr;
+    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr) || hdr.magic != TORFLAT_MAGIC || hdr.version != TORFLAT_VERSION || hdr.count == 0) {
+        close(fd);
+        return 0;
+    }
+
+    size_t mapSize = sizeof(torFlatHeader_t) + (size_t)hdr.count * sizeof(torNode_t);
+    void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    if (m == MAP_FAILED) return 0;
+
+    torMmap = m;
+    torMmapSize = mapSize;
+    torArray = (torNode_t *)((char *)m + sizeof(torFlatHeader_t));
+    torCount = hdr.count;
+    dbg_printf("torLoadFlatCache: mmap'd %u nodes from %s\n", torCount, flatPath);
+    return 1;
+}  // End of torLoadFlatCache
+
 int LoadTorTree(char *fileName) {
     dbg_printf("Load TorNode DB file %s\n", fileName);
 
-    /* ---- fast path: mmap the flat binary cache if it is up-to-date ---- */
-    char flatPath[PATH_MAX];
-    snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+    /* ---- Fix 1: if the caller passed the .flat file directly, use it ---- */
+    size_t fnLen = strlen(fileName);
+    if (fnLen > 5 && strcmp(fileName + fnLen - 5, ".flat") == 0) {
+        if (torLoadFlatCache(fileName)) return 1;
+        LogError("LoadTorTree: cannot load flat file %s", fileName);
+        return 0;
+    }
 
+    /* ---- Build flat path: respect tordb.flatpath config key (fix 2) ---- */
+    char flatPath[PATH_MAX];
+    char *flatDir = ConfGetString("tordb.flatpath");
+    if (flatDir) {
+        const char *base = strrchr(fileName, '/');
+        base = base ? base + 1 : fileName;
+        snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
+        free(flatDir);
+    } else {
+        snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+    }
+
+    /* ---- fast path: mmap the flat binary cache if it is up-to-date ---- */
     struct stat stNf, stFlat;
     if (stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
-        int fd = open(flatPath, O_RDONLY);
-        if (fd >= 0) {
-            torFlatHeader_t hdr;
-            if (read(fd, &hdr, sizeof(hdr)) == (ssize_t)sizeof(hdr) && hdr.magic == TORFLAT_MAGIC && hdr.version == TORFLAT_VERSION &&
-                hdr.count > 0) {
-                size_t mapSize = sizeof(torFlatHeader_t) + (size_t)hdr.count * sizeof(torNode_t);
-                void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
-                close(fd);
-                if (m != MAP_FAILED) {
-                    torMmap = m;
-                    torMmapSize = mapSize;
-                    torArray = (torNode_t *)((char *)m + sizeof(torFlatHeader_t));
-                    torCount = hdr.count;
-                    dbg_printf("LoadTorTree: mmap flat cache: %u nodes from %s\n", torCount, flatPath);
-                    return 1;
-                }
-            } else {
-                close(fd);
-            }
-        }
+        if (torLoadFlatCache(flatPath)) return 1;
         LogError("open() tor lookup cache '%s' failed: %s", flatPath, strerror(errno));
     }
 
