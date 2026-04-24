@@ -32,10 +32,15 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "id.h"
 #include "logging.h"
@@ -53,6 +58,71 @@ static inline int torNodeCMP(torNode_t a, torNode_t b) {
 KBTREE_INIT(torTree, torNode_t, torNodeCMP);
 
 static kbtree_t(torTree) *torTree = NULL;
+
+/*
+ * Flat array state — used by LoadTorTree / LookupV4Tor / LookupIP.
+ * The generation path (Init_TorLookup / UpdateTorNode / SaveTorTree)
+ * continues to use the kbtree above.
+ */
+#define TORFLAT_MAGIC 0x544F5246U /* 'T','O','R','F' */
+#define TORFLAT_VERSION 1U
+
+typedef struct torFlatHeader_s {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t count;
+    uint32_t reserved; /* pad to 16 bytes */
+} torFlatHeader_t;
+
+static torNode_t *torArray = NULL; /* base of sorted array           */
+static uint32_t torCount = 0;      /* number of elements             */
+static void *torMmap = NULL;       /* non-NULL when array is mmap'd  */
+static size_t torMmapSize = 0;     /* length passed to munmap()      */
+
+/* bsearch comparator: sort / search by ipaddr ascending */
+static int torNodeCmpByIP(const void *a, const void *b) {
+    uint32_t x = ((const torNode_t *)a)->ipaddr;
+    uint32_t y = ((const torNode_t *)b)->ipaddr;
+    if (x < y) return -1;
+    if (x > y) return 1;
+    return 0;
+}
+
+/*
+ * Write a flat binary cache file for fast subsequent loads.
+ * Uses write-to-temp + atomic rename so concurrent readers never see a
+ * partial file.  Failures are non-fatal (next load simply re-reads nffileV3).
+ */
+static void torWriteFlatCache(const char *flatPath) {
+    char tmpPath[PATH_MAX];
+    snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", flatPath);
+
+    int fd = open(tmpPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        dbg_printf("torWriteFlatCache: cannot create %s: %s\n", tmpPath, strerror(errno));
+        return;
+    }
+
+    torFlatHeader_t hdr = {
+        .magic = TORFLAT_MAGIC,
+        .version = TORFLAT_VERSION,
+        .count = torCount,
+        .reserved = 0,
+    };
+    ssize_t hdrWritten = write(fd, &hdr, sizeof(hdr));
+    ssize_t dataWritten = (hdrWritten == (ssize_t)sizeof(hdr)) ? write(fd, torArray, torCount * sizeof(torNode_t)) : -1;
+    close(fd);
+
+    if (dataWritten != (ssize_t)(torCount * sizeof(torNode_t))) {
+        unlink(tmpPath);
+        dbg_printf("torWriteFlatCache: write error for %s\n", tmpPath);
+        return;
+    }
+    if (rename(tmpPath, flatPath) != 0) {
+        unlink(tmpPath);
+        dbg_printf("torWriteFlatCache: rename failed for %s\n", tmpPath);
+    }
+}  // End of torWriteFlatCache
 
 // returns ok
 int Init_TorLookup(void) {
@@ -210,7 +280,36 @@ int SaveTorTree(char *fileName) {
 int LoadTorTree(char *fileName) {
     dbg_printf("Load TorNode DB file %s\n", fileName);
 
-    Init_TorLookup();
+    /* ---- fast path: mmap the flat binary cache if it is up-to-date ---- */
+    char flatPath[PATH_MAX];
+    snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+
+    struct stat stNf, stFlat;
+    if (stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
+        int fd = open(flatPath, O_RDONLY);
+        if (fd >= 0) {
+            torFlatHeader_t hdr;
+            if (read(fd, &hdr, sizeof(hdr)) == (ssize_t)sizeof(hdr) && hdr.magic == TORFLAT_MAGIC && hdr.version == TORFLAT_VERSION &&
+                hdr.count > 0) {
+                size_t mapSize = sizeof(torFlatHeader_t) + (size_t)hdr.count * sizeof(torNode_t);
+                void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
+                close(fd);
+                if (m != MAP_FAILED) {
+                    torMmap = m;
+                    torMmapSize = mapSize;
+                    torArray = (torNode_t *)((char *)m + sizeof(torFlatHeader_t));
+                    torCount = hdr.count;
+                    dbg_printf("LoadTorTree: mmap flat cache: %u nodes from %s\n", torCount, flatPath);
+                    return 1;
+                }
+            } else {
+                close(fd);
+            }
+        }
+        LogError("open() tor lookup cache '%s' failed: %s", flatPath, strerror(errno));
+    }
+
+    /* ---- slow path: decompress nffileV3, build malloc'd array ---- */
     nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
         return 0;
@@ -219,7 +318,6 @@ int LoadTorTree(char *fileName) {
     arrayBlockV3_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
-        // get next data block from file
         dataBlock = ReadBlockV3(nffile);
         if (dataBlock == NULL) {
             done = 1;
@@ -233,47 +331,52 @@ int LoadTorTree(char *fileName) {
             continue;
         }
 
-        void *arrayElement = ResetCursor(dataBlock);
         size_t expected = (dataBlock->elementSize * dataBlock->numElements) + sizeof(arrayBlockV3_t);
-        if (expected != dataBlock->rawSize) {
-            LogError("Bad array block - size error - found: %zu, expected: %u for element: %u", expected, dataBlock->rawSize, dataBlock->elementType);
+        if (expected != dataBlock->rawSize || dataBlock->elementType != TorTreeElementID || dataBlock->elementSize != sizeof(torNode_t)) {
+            if (dataBlock->elementType == TorTreeElementID)
+                LogError("Bad array block - size error - found: %zu, expected: %u", expected, dataBlock->rawSize);
             FreeDataBlock(dataBlock);
             continue;
         }
 
-        switch (dataBlock->elementType) {
-            case TorTreeElementID: {
-                torNode_t *torNode = (torNode_t *)arrayElement;
-                for (int i = 0; i < (int)dataBlock->numElements; i++) {
-                    torNode_t *node = kb_getp(torTree, torTree, torNode);
-                    if (node) {
-                        LogError("Duplicate IP node: ip: 0x%x", torNode->ipaddr);
-                    } else {
-                        kb_putp(torTree, torTree, torNode);
-                    }
-                    torNode++;
-                }
-            } break;
-            default:
-                LogError("Skip unknown array element: %u", dataBlock->elementType);
+        uint32_t n = dataBlock->numElements;
+        torNode_t *src = (torNode_t *)ResetCursor(dataBlock);
+        torNode_t *tmp = realloc(torArray, (torCount + n) * sizeof(torNode_t));
+        if (!tmp) {
+            LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            FreeDataBlock(dataBlock);
+            break;
         }
+        torArray = tmp;
+        memcpy(torArray + torCount, src, n * sizeof(torNode_t));
+        torCount += n;
         FreeDataBlock(dataBlock);
     }
     CloseFileV3(nffile);
 
+    if (torCount == 0) return 0;
+
+    /* SaveTorTree writes records via in-order kbtree iteration, so the
+     * nffileV3 blocks arrive sorted.  qsort is a defensive safety net. */
+    qsort(torArray, torCount, sizeof(torNode_t), torNodeCmpByIP);
+
+    /* write flat cache for fast-path use on the next invocation */
+    torWriteFlatCache(flatPath);
+
+    dbg_printf("LoadTorTree: loaded %u nodes from %s\n", torCount, fileName);
     return 1;
 }  // End of LoadTorTree
 
 // return 1 - if IP is tor exit node
 // input nfdump IP addr, first/last in msec
 int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo) {
-    if (!torTree) {
+    if (!torArray) {
         torInfo[0] = '\0';
         return 0;
     }
 
-    torNode_t searchNode = {.ipaddr = ip};
-    torNode_t *torNode = kb_getp(torTree, torTree, &searchNode);
+    torNode_t key = {.ipaddr = ip};
+    torNode_t *torNode = bsearch(&key, torArray, torCount, sizeof(torNode_t), torNodeCmpByIP);
     if (torNode) {
         first /= 1000;
         last /= 1000;
@@ -301,10 +404,10 @@ int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo) {
 
     return 0;
 
-}  // End of LookupTor
+}  // End of LookupV4Tor
 
 int LookupV6Tor(uint64_t ip[2], uint64_t first, uint64_t last, char *torInfo) {
-    if (!torTree) {
+    if (!torArray) {
         torInfo[0] = '\0';
         return 0;
     }
@@ -316,10 +419,10 @@ int LookupV6Tor(uint64_t ip[2], uint64_t first, uint64_t last, char *torInfo) {
 
     return 0;
 
-}  // End of LookupTor
+}  // End of LookupV6Tor
 
 void LookupIP(char *ipstring) {
-    if (!torTree) {
+    if (!torArray) {
         printf("No torDB available");
         return;
     }
@@ -327,11 +430,23 @@ void LookupIP(char *ipstring) {
     uint32_t ip;
     int ret = inet_pton(PF_INET, ipstring, &ip);
     if (ret != 1) return;
-    torNode_t searchNode = {.ipaddr = ntohl(ip)};
-    torNode_t *torNode = kb_getp(torTree, torTree, &searchNode);
+    torNode_t key = {.ipaddr = ntohl(ip)};
+    torNode_t *torNode = bsearch(&key, torArray, torCount, sizeof(torNode_t), torNodeCmpByIP);
     if (torNode) {
         printTorNode(torNode);
     } else {
         printf("No tor exit node: %s\n", ipstring);
     }
 }
+
+void FreeTorTree(void) {
+    if (torMmap) {
+        munmap(torMmap, torMmapSize);
+        torMmap = NULL;
+        torMmapSize = 0;
+    } else {
+        free(torArray);
+    }
+    torArray = NULL;
+    torCount = 0;
+}  // End of FreeTorTree

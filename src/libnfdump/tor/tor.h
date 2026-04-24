@@ -36,7 +36,6 @@
 #include <time.h>
 
 #include "config.h"
-#include "kbtree.h"
 
 typedef struct interval_s {
     time_t firstSeen;
@@ -60,6 +59,8 @@ void UpdateTorNode(torNode_t *torNode);
 int LoadTorTree(char *fileName);
 
 int SaveTorTree(char *fileName);
+
+void FreeTorTree(void);
 
 int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo);
 
