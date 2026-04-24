@@ -34,6 +34,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -275,6 +276,22 @@ int LoadMaxMind(char *fileName) {
 
     if (!Init_MaxMind()) return 0;
 
+    /* ---- fast path: mmap existing flat cache if it is newer than nffileV3 ---- */
+    char flatPath[PATH_MAX];
+    snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+
+    struct stat stNf, stFlat;
+    if (stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
+        if (LoadFlatCache(flatPath)) {
+            dbg_printf("LoadMaxMind: fast path via %s\n", flatPath);
+            return 1;
+        }
+        /* fall through to nffileV3 load if mmap fails */
+    }
+
+    /* ---- slow path: decompress nffileV3, build flat arrays, write cache ---- */
+    if (!InitFlatArrays()) return 0;
+
     nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
         return 0;
@@ -361,6 +378,9 @@ int LoadMaxMind(char *fileName) {
     }
     FreeDataBlock(dataBlock);
     CloseFileV3(nffile);
+
+    /* write flat cache for fast-path use next time (best effort) */
+    WriteFlatCache(flatPath);
 
     return 1;
 }  // End of LoadMaxMind

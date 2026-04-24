@@ -33,7 +33,6 @@
 
 #include <stdint.h>
 
-#include "kbtree.h"
 #include "khash.h"
 
 typedef struct locationKey_s {
@@ -148,5 +147,13 @@ asV6Node_t *NextasV6Node(int start);
 asOrgNode_t *NextasOrgNode(int start);
 
 int SaveMaxMind(char *fileName);
+
+void WriteFlatCache(const char *flatPath);
+
+int LoadFlatCache(const char *flatPath);
+
+int InitFlatArrays(void);
+
+void FreeMaxMind(void);
 
 #endif

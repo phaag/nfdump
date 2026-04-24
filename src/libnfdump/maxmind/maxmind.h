@@ -42,6 +42,8 @@ int LoadMaxMind(char *fileName);
 
 int SaveMaxMind(char *fileName);
 
+void FreeMaxMind(void);
+
 void LookupV4Country(uint32_t ip, char *country);
 
 void LookupV6Country(uint64_t ip[2], char *country);

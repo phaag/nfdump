@@ -32,9 +32,15 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "kbtree.h"
 #include "khash.h"
@@ -138,6 +144,150 @@ typedef struct mmHandle_s {
 
 static mmHandle_t *mmHandle = NULL;
 
+/* -----------------------------------------------------------------------
+ * Flat sorted-array cache
+ * One single mmap'd file (<nffile>.flat) holds a compact binary image of
+ * all five sorted tables.  The localMap khash is rebuilt from the raw
+ * locationInfo section on every load (linear scan, no decompression).
+ * ----------------------------------------------------------------------- */
+#define MMFLAT_MAGIC   0x4D4D464CU   /* 'M','M','F','L' */
+#define MMFLAT_VERSION 1U
+#define MMFLAT_NSECT   6U
+
+/* Section IDs (indices into mmFlatHeader_t.sec[]) */
+#define MMFLAT_SEC_LOC    0
+#define MMFLAT_SEC_IPV4   1
+#define MMFLAT_SEC_IPV6   2
+#define MMFLAT_SEC_ASV4   3
+#define MMFLAT_SEC_ASV6   4
+#define MMFLAT_SEC_ASORG  5
+
+typedef struct mmFlatSection_s {
+    uint32_t elemSize;   /* sizeof the element type    */
+    uint32_t count;      /* number of elements         */
+    uint64_t offset;     /* byte offset from file start */
+} mmFlatSection_t;
+
+typedef struct mmFlatHeader_s {
+    uint32_t        magic;
+    uint32_t        version;
+    uint32_t        numSections;
+    uint32_t        reserved;
+    mmFlatSection_t sec[MMFLAT_NSECT];
+} mmFlatHeader_t;
+
+/* Flat state — populated either from mmap or from malloc after slow load */
+typedef struct mmFlat_s {
+    /* mmap state (NULL when data came from LoadMaxMind slow path) */
+    void   *mmapBase;
+    size_t  mmapSize;
+
+    /* pointers into the sorted arrays (point into mmap or realloc'd memory) */
+    locationInfo_t *locArr;   uint32_t locCount;
+    ipV4Node_t     *ipV4Arr;  uint32_t ipV4Count;
+    ipV6Node_t     *ipV6Arr;  uint32_t ipV6Count;
+    asV4Node_t     *asV4Arr;  uint32_t asV4Count;
+    asV6Node_t     *asV6Arr;  uint32_t asV6Count;
+    asOrgNode_t    *asOrgArr; uint32_t asOrgCount;
+} mmFlat_t;
+
+static mmFlat_t *mmFlat = NULL;
+
+/* ---- comparators for qsort (sort by network address ascending) ---- */
+static int cmpIpV4(const void *a, const void *b) {
+    uint32_t x = ((const ipV4Node_t *)a)->network;
+    uint32_t y = ((const ipV4Node_t *)b)->network;
+    if (x < y) return -1;
+    if (x > y) return 1;
+    return 0;
+}
+static int cmpIpV6(const void *a, const void *b) {
+    const ipV6Node_t *x = (const ipV6Node_t *)a;
+    const ipV6Node_t *y = (const ipV6Node_t *)b;
+    if (x->network[0] != y->network[0]) return x->network[0] < y->network[0] ? -1 : 1;
+    if (x->network[1] != y->network[1]) return x->network[1] < y->network[1] ? -1 : 1;
+    return 0;
+}
+static int cmpAsV4(const void *a, const void *b) {
+    uint32_t x = ((const asV4Node_t *)a)->network;
+    uint32_t y = ((const asV4Node_t *)b)->network;
+    if (x < y) return -1;
+    if (x > y) return 1;
+    return 0;
+}
+static int cmpAsV6(const void *a, const void *b) {
+    const asV6Node_t *x = (const asV6Node_t *)a;
+    const asV6Node_t *y = (const asV6Node_t *)b;
+    if (x->network[0] != y->network[0]) return x->network[0] < y->network[0] ? -1 : 1;
+    if (x->network[1] != y->network[1]) return x->network[1] < y->network[1] ? -1 : 1;
+    return 0;
+}
+static int cmpAsOrg(const void *a, const void *b) {
+    uint32_t x = ((const asOrgNode_t *)a)->as;
+    uint32_t y = ((const asOrgNode_t *)b)->as;
+    if (x < y) return -1;
+    if (x > y) return 1;
+    return 0;
+}
+
+/* ---- asymmetric binary searches (netmask == 0 means "probe") ---- */
+static inline ipV4Node_t *flatSearchV4(const ipV4Node_t *arr, uint32_t n, uint32_t ip) {
+    uint32_t lo = 0, hi = n;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        uint32_t masked = ip & arr[mid].netmask;
+        if (masked == arr[mid].network) return (ipV4Node_t *)&arr[mid];
+        if (masked  < arr[mid].network) hi = mid;
+        else lo = mid + 1;
+    }
+    return NULL;
+}
+static inline ipV6Node_t *flatSearchV6(const ipV6Node_t *arr, uint32_t n, const uint64_t ip[2]) {
+    uint32_t lo = 0, hi = n;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        uint64_t m0 = ip[0] & arr[mid].netmask[0];
+        uint64_t m1 = ip[1] & arr[mid].netmask[1];
+        if (m0 == arr[mid].network[0] && m1 == arr[mid].network[1]) return (ipV6Node_t *)&arr[mid];
+        if (m0 < arr[mid].network[0] || (m0 == arr[mid].network[0] && m1 < arr[mid].network[1])) hi = mid;
+        else lo = mid + 1;
+    }
+    return NULL;
+}
+static inline asV4Node_t *flatSearchAsV4(const asV4Node_t *arr, uint32_t n, uint32_t ip) {
+    uint32_t lo = 0, hi = n;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        uint32_t masked = ip & arr[mid].netmask;
+        if (masked == arr[mid].network) return (asV4Node_t *)&arr[mid];
+        if (masked  < arr[mid].network) hi = mid;
+        else lo = mid + 1;
+    }
+    return NULL;
+}
+static inline asV6Node_t *flatSearchAsV6(const asV6Node_t *arr, uint32_t n, const uint64_t ip[2]) {
+    uint32_t lo = 0, hi = n;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        uint64_t m0 = ip[0] & arr[mid].netmask[0];
+        uint64_t m1 = ip[1] & arr[mid].netmask[1];
+        if (m0 == arr[mid].network[0] && m1 == arr[mid].network[1]) return (asV6Node_t *)&arr[mid];
+        if (m0 < arr[mid].network[0] || (m0 == arr[mid].network[0] && m1 < arr[mid].network[1])) hi = mid;
+        else lo = mid + 1;
+    }
+    return NULL;
+}
+static inline asOrgNode_t *flatSearchAsOrg(const asOrgNode_t *arr, uint32_t n, uint32_t as) {
+    uint32_t lo = 0, hi = n;
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        if (as == arr[mid].as) return (asOrgNode_t *)&arr[mid];
+        if (as  < arr[mid].as) hi = mid;
+        else lo = mid + 1;
+    }
+    return NULL;
+}
+
 int Init_MaxMind(void) {
     mmHandle = calloc(1, sizeof(mmHandle_t));
     if (!mmHandle) {
@@ -161,6 +311,7 @@ int Init_MaxMind(void) {
 }  // End of Init_MaxMind
 
 void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
+    /* Store in khash for O(1) lookup by localID */
     for (int i = 0; i < (int)NumRecords; i++) {
         int absent;
         locationKey_t locationKey = {.key = locationInfo->localID};
@@ -172,6 +323,15 @@ void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
         }
         locationInfo++;
     }
+
+    /* Also append to flat locArr for flat-cache serialisation */
+    if (!mmFlat) return;
+    locationInfo_t *tmp = realloc(mmFlat->locArr, (mmFlat->locCount + NumRecords) * sizeof(locationInfo_t));
+    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    mmFlat->locArr = tmp;
+    /* walk back to beginning of the block; locationInfo was advanced above */
+    memcpy(mmFlat->locArr + mmFlat->locCount, locationInfo - NumRecords, NumRecords * sizeof(locationInfo_t));
+    mmFlat->locCount += NumRecords;
 
 }  // End of LoadLocalInfo
 
@@ -186,6 +346,13 @@ void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords) {
         }
         ipV4Node++;
     }
+
+    if (!mmFlat) return;
+    ipV4Node_t *tmp = realloc(mmFlat->ipV4Arr, (mmFlat->ipV4Count + NumRecords) * sizeof(ipV4Node_t));
+    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    mmFlat->ipV4Arr = tmp;
+    memcpy(mmFlat->ipV4Arr + mmFlat->ipV4Count, ipV4Node - NumRecords, NumRecords * sizeof(ipV4Node_t));
+    mmFlat->ipV4Count += NumRecords;
 
 }  // End of LoadIPv4Tree
 
@@ -202,6 +369,13 @@ void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
         ipV6Node++;
     }
 
+    if (!mmFlat) return;
+    ipV6Node_t *tmp = realloc(mmFlat->ipV6Arr, (mmFlat->ipV6Count + NumRecords) * sizeof(ipV6Node_t));
+    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    mmFlat->ipV6Arr = tmp;
+    memcpy(mmFlat->ipV6Arr + mmFlat->ipV6Count, ipV6Node - NumRecords, NumRecords * sizeof(ipV6Node_t));
+    mmFlat->ipV6Count += NumRecords;
+
 }  // End of LoadIPv6Tree
 
 void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
@@ -215,6 +389,13 @@ void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
         }
         asV4Node++;
     }
+
+    if (!mmFlat) return;
+    asV4Node_t *tmp = realloc(mmFlat->asV4Arr, (mmFlat->asV4Count + NumRecords) * sizeof(asV4Node_t));
+    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    mmFlat->asV4Arr = tmp;
+    memcpy(mmFlat->asV4Arr + mmFlat->asV4Count, asV4Node - NumRecords, NumRecords * sizeof(asV4Node_t));
+    mmFlat->asV4Count += NumRecords;
 }  // End of LoadASV4Tree
 
 void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
@@ -230,6 +411,13 @@ void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
         asV6Node++;
     }
 
+    if (!mmFlat) return;
+    asV6Node_t *tmp = realloc(mmFlat->asV6Arr, (mmFlat->asV6Count + NumRecords) * sizeof(asV6Node_t));
+    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    mmFlat->asV6Arr = tmp;
+    memcpy(mmFlat->asV6Arr + mmFlat->asV6Count, asV6Node - NumRecords, NumRecords * sizeof(asV6Node_t));
+    mmFlat->asV6Count += NumRecords;
+
 }  // End of LoadASV6Tree
 
 void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords) {
@@ -243,6 +431,13 @@ void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords) {
         }
         asOrgNode++;
     }
+
+    if (!mmFlat) return;
+    asOrgNode_t *tmp = realloc(mmFlat->asOrgArr, (mmFlat->asOrgCount + NumRecords) * sizeof(asOrgNode_t));
+    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    mmFlat->asOrgArr = tmp;
+    memcpy(mmFlat->asOrgArr + mmFlat->asOrgCount, asOrgNode - NumRecords, NumRecords * sizeof(asOrgNode_t));
+    mmFlat->asOrgCount += NumRecords;
 }  // End of LoadASorgTree
 
 void PutLocation(locationInfo_t *locationInfo) {
@@ -317,23 +512,20 @@ void PutASorgNode(asOrgNode_t *asOrgNode) {
 }  // End of PutASorgNode
 
 void LookupV4Country(uint32_t ip, char *country) {
-    if (!mmHandle) {
+    if (!mmFlat || !mmFlat->ipV4Arr) {
         country[0] = '.';
         country[1] = '.';
         return;
     }
 
-    ipLocationInfo_t info = {0};
-    ipV4Node_t ipSearch = {.network = ip, .netmask = 0};
-    ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
+    ipV4Node_t *ipV4Node = flatSearchV4(mmFlat->ipV4Arr, mmFlat->ipV4Count, ip);
     if (!ipV4Node) {
         country[0] = '.';
         country[1] = '.';
         return;
     }
-    info = ipV4Node->info;
 
-    locationKey_t locationKey = {.key = info.localID};
+    locationKey_t locationKey = {.key = ipV4Node->info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
     if (k == kh_end(mmHandle->localMap)) {
         country[0] = '.';
@@ -348,25 +540,20 @@ void LookupV4Country(uint32_t ip, char *country) {
 }  // End of LookupV4Country
 
 void LookupV6Country(uint64_t ip[2], char *country) {
-    if (!mmHandle) {
+    if (!mmFlat || !mmFlat->ipV6Arr) {
         country[0] = '.';
         country[1] = '.';
         return;
     }
 
-    ipLocationInfo_t info = {0};
-    ipV6Node_t ipSearch = {0};
-    ipSearch.network[0] = ip[0];
-    ipSearch.network[1] = ip[1];
-    ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
+    ipV6Node_t *ipV6Node = flatSearchV6(mmFlat->ipV6Arr, mmFlat->ipV6Count, ip);
     if (!ipV6Node) {
         country[0] = '.';
         country[1] = '.';
         return;
     }
-    info = ipV6Node->info;
 
-    locationKey_t locationKey = {.key = info.localID};
+    locationKey_t locationKey = {.key = ipV6Node->info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
     if (k == kh_end(mmHandle->localMap)) {
         country[0] = '.';
@@ -378,102 +565,58 @@ void LookupV6Country(uint64_t ip[2], char *country) {
     country[0] = locationInfo.country[0];
     country[1] = locationInfo.country[1];
 
-    /*
-            printf("localID: %d %s/%s/%s long/lat: %8.4f/%-8.4f, accuracy: %u, AS: %u\n",
-                    locationInfo.localID, locationInfo.continent, locationInfo.country, locationInfo.city,
-                    ipV4Node->longitude, ipV4Node->latitude, ipV4Node->accuracy, as);
-            }
-    */
 }  // End of LookupV6Country
 
 void LookupV4Location(uint32_t ip, char *location, size_t len) {
     location[0] = '\0';
-    if (!mmHandle) {
-        return;
-    }
+    if (!mmFlat || !mmFlat->ipV4Arr) return;
 
-    ipLocationInfo_t info = {0};
-    ipV4Node_t ipSearch = {.network = ip, .netmask = 0};
-    ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
-    if (!ipV4Node) {
-        return;
-    }
-    info = ipV4Node->info;
+    ipV4Node_t *ipV4Node = flatSearchV4(mmFlat->ipV4Arr, mmFlat->ipV4Count, ip);
+    if (!ipV4Node) return;
 
-    locationKey_t locationKey = {.key = info.localID};
+    locationKey_t locationKey = {.key = ipV4Node->info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
-    if (k == kh_end(mmHandle->localMap)) {
-        return;
-    }
+    if (k == kh_end(mmHandle->localMap)) return;
 
     locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
-    snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", locationInfo.continent, locationInfo.country, locationInfo.city, info.longitude,
-             info.latitude);
+    snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", locationInfo.continent, locationInfo.country, locationInfo.city,
+             ipV4Node->info.longitude, ipV4Node->info.latitude);
 
 }  // End of LookupV4Location
 
 void LookupV6Location(uint64_t ip[2], char *location, size_t len) {
     location[0] = '\0';
-    if (!mmHandle) {
-        return;
-    }
+    if (!mmFlat || !mmFlat->ipV6Arr) return;
 
-    ipLocationInfo_t info = {0};
+    ipV6Node_t *ipV6Node = flatSearchV6(mmFlat->ipV6Arr, mmFlat->ipV6Count, ip);
+    if (!ipV6Node) return;
 
-    ipV6Node_t ipSearch = {0};
-    ipSearch.network[0] = ip[0];
-    ipSearch.network[1] = ip[1];
-    ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-    if (!ipV6Node) {
-        return;
-    }
-    info = ipV6Node->info;
-
-    locationKey_t locationKey = {.key = info.localID};
+    locationKey_t locationKey = {.key = ipV6Node->info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
-    if (k == kh_end(mmHandle->localMap)) {
-        return;
-    }
+    if (k == kh_end(mmHandle->localMap)) return;
 
     locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
-    snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", locationInfo.continent, locationInfo.country, locationInfo.city, info.longitude,
-             info.latitude);
+    snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", locationInfo.continent, locationInfo.country, locationInfo.city,
+             ipV6Node->info.longitude, ipV6Node->info.latitude);
 
 }  // End of LookupV6Location
 
 uint32_t LookupV4AS(uint32_t ip) {
-    if (!mmHandle) {
-        return 0;
-    }
-
-    asV4Node_t asSearch = {.network = ip, .netmask = 0};
-    asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-    return asV4Node == NULL ? 0 : asV4Node->as;
-
+    if (!mmFlat || !mmFlat->asV4Arr) return 0;
+    asV4Node_t *n = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, ip);
+    return n == NULL ? 0 : n->as;
 }  // End of LookupV4AS
 
 uint32_t LookupV6AS(uint64_t ip[2]) {
-    if (!mmHandle) {
-        return 0;
-    }
-
-    asV6Node_t asV6Search = {0};
-    asV6Search.network[0] = ip[0];
-    asV6Search.network[1] = ip[1];
-    asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
-    return asV6Node == NULL ? 0 : asV6Node->as;
-
+    if (!mmFlat || !mmFlat->asV6Arr) return 0;
+    asV6Node_t *n = flatSearchAsV6(mmFlat->asV6Arr, mmFlat->asV6Count, ip);
+    return n == NULL ? 0 : n->as;
 }  // End of LookupV6AS
 
 const char *LookupASorg(uint32_t as) {
-    if (!mmHandle) {
-        return NULL;
-    }
-
-    asOrgNode_t asSearch = {.as = as};
-    asOrgNode_t *asOrgNode = kb_getp(asOrgTree, mmHandle->asOrgTree, &asSearch);
-    return asOrgNode == NULL ? "not found" : asOrgNode->orgName;
-
+    if (!mmFlat || !mmFlat->asOrgArr) return NULL;
+    asOrgNode_t *n = flatSearchAsOrg(mmFlat->asOrgArr, mmFlat->asOrgCount, as);
+    return n == NULL ? "not found" : n->orgName;
 }  // End of LookupASorg
 
 void LookupAS(char *asString) {
@@ -492,26 +635,15 @@ void LookupAS(char *asString) {
 }  // End of LookupAS
 
 const char *LookupV4ASorg(uint32_t ip) {
-    if (!mmHandle) {
-        return "";
-    }
-
-    asV4Node_t asSearch = {.network = ip, .netmask = 0};
-    asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-    return asV4Node == NULL ? "" : asV4Node->orgName;
+    if (!mmFlat || !mmFlat->asV4Arr) return "";
+    asV4Node_t *n = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, ip);
+    return n == NULL ? "" : n->orgName;
 }  // End of LookupV4ASorg
 
 const char *LookupV6ASorg(uint64_t ip[2]) {
-    if (!mmHandle) {
-        return "";
-    }
-
-    asV6Node_t asV6Search = {0};
-    asV6Search.network[0] = ip[0];
-    asV6Search.network[1] = ip[1];
-    asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
-    return asV6Node == NULL ? "" : asV6Node->orgName;
-
+    if (!mmFlat || !mmFlat->asV6Arr) return "";
+    asV6Node_t *n = flatSearchAsV6(mmFlat->asV6Arr, mmFlat->asV6Count, ip);
+    return n == NULL ? "" : n->orgName;
 }  // End of LookupV6ASorg
 
 void LookupWhois(char *ip) {
@@ -523,34 +655,27 @@ void LookupWhois(char *ip) {
     if (strchr(ip, ':') != NULL) {
         // IPv6
         uint64_t network[2];
-        ipV6Node_t ipSearch = {0};
-        asV6Node_t asSearch = {0};
+        uint64_t ipnet[2];
         int ret = inet_pton(PF_INET6, ip, network);
         if (ret != 1) return;
-        ipSearch.network[0] = ntohll(network[0]);
-        asSearch.network[0] = ntohll(network[0]);
-        ipSearch.network[1] = ntohll(network[1]);
-        asSearch.network[1] = ntohll(network[1]);
+        ipnet[0] = ntohll(network[0]);
+        ipnet[1] = ntohll(network[1]);
 
-        uint64_t testv4v6 = ipSearch.network[1] & 0xFFFFFFFF00000000LL;
-        if (ipSearch.network[0] == 0 && (testv4v6 == 0LL || testv4v6 == 0x0000ffff00000000LL)) {
-            uint32_t net = ipSearch.network[1];
-            asV4Node_t asSearch = {.network = net, .netmask = 0};
-            asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-            if (asV4Node) {
-                as = asV4Node->as;
-                asOrg = asV4Node->orgName;
+        uint64_t testv4v6 = ipnet[1] & 0xFFFFFFFF00000000LL;
+        if (ipnet[0] == 0 && (testv4v6 == 0LL || testv4v6 == 0x0000ffff00000000LL)) {
+            uint32_t net = (uint32_t)ipnet[1];
+            if (mmFlat && mmFlat->asV4Arr) {
+                asV4Node_t *asV4Node = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, net);
+                if (asV4Node) { as = asV4Node->as; asOrg = asV4Node->orgName; }
             }
         } else {
-            ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-            if (ipV6Node) {
-                info = ipV6Node->info;
+            if (mmFlat && mmFlat->ipV6Arr) {
+                ipV6Node = flatSearchV6(mmFlat->ipV6Arr, mmFlat->ipV6Count, ipnet);
+                if (ipV6Node) info = ipV6Node->info;
             }
-
-            asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asSearch);
-            if (asV6Node) {
-                as = asV6Node->as;
-                asOrg = asV6Node->orgName;
+            if (mmFlat && mmFlat->asV6Arr) {
+                asV6Node_t *asV6Node = flatSearchAsV6(mmFlat->asV6Arr, mmFlat->asV6Count, ipnet);
+                if (asV6Node) { as = asV6Node->as; asOrg = asV6Node->orgName; }
             }
         }
 
@@ -559,17 +684,15 @@ void LookupWhois(char *ip) {
         uint32_t net;
         int ret = inet_pton(PF_INET, ip, &net);
         if (ret != 1) return;
-        ipV4Node_t ipSearch = {.network = ntohl(net), .netmask = 0};
-        ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
-        if (ipV4Node) {
-            info = ipV4Node->info;
-        }
+        uint32_t hnet = ntohl(net);
 
-        asV4Node_t asSearch = {.network = ntohl(net), .netmask = 0};
-        asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-        if (asV4Node) {
-            as = asV4Node->as;
-            asOrg = asV4Node->orgName;
+        if (mmFlat && mmFlat->ipV4Arr) {
+            ipV4Node = flatSearchV4(mmFlat->ipV4Arr, mmFlat->ipV4Count, hnet);
+            if (ipV4Node) info = ipV4Node->info;
+        }
+        if (mmFlat && mmFlat->asV4Arr) {
+            asV4Node_t *asV4Node = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, hnet);
+            if (asV4Node) { as = asV4Node->as; asOrg = asV4Node->orgName; }
         }
     }
 
@@ -688,3 +811,167 @@ asOrgNode_t *NextasOrgNode(int start) {
     }
 
 }  // End of NextasOrgNode
+
+/* -----------------------------------------------------------------------
+ * Flat cache write / load / free
+ * ----------------------------------------------------------------------- */
+
+/* Sort all flat arrays and write a single binary flat-cache file.
+ * Called from LoadMaxMind (slow path) after all blocks have been loaded. */
+void WriteFlatCache(const char *flatPath) {
+    if (!mmFlat) return;
+
+    /* sort each table by network address (ascending) */
+    if (mmFlat->ipV4Count)  qsort(mmFlat->ipV4Arr,  mmFlat->ipV4Count,  sizeof(ipV4Node_t),  cmpIpV4);
+    if (mmFlat->ipV6Count)  qsort(mmFlat->ipV6Arr,  mmFlat->ipV6Count,  sizeof(ipV6Node_t),  cmpIpV6);
+    if (mmFlat->asV4Count)  qsort(mmFlat->asV4Arr,  mmFlat->asV4Count,  sizeof(asV4Node_t),  cmpAsV4);
+    if (mmFlat->asV6Count)  qsort(mmFlat->asV6Arr,  mmFlat->asV6Count,  sizeof(asV6Node_t),  cmpAsV6);
+    if (mmFlat->asOrgCount) qsort(mmFlat->asOrgArr, mmFlat->asOrgCount, sizeof(asOrgNode_t), cmpAsOrg);
+
+    /* build header */
+    mmFlatHeader_t hdr = {
+        .magic       = MMFLAT_MAGIC,
+        .version     = MMFLAT_VERSION,
+        .numSections = MMFLAT_NSECT,
+        .reserved    = 0,
+    };
+
+    uint64_t off = sizeof(mmFlatHeader_t);
+#define FILL_SEC(IDX, arr, n, type) \
+    hdr.sec[IDX].elemSize = sizeof(type); \
+    hdr.sec[IDX].count    = (n); \
+    hdr.sec[IDX].offset   = off; \
+    off += (uint64_t)(n) * sizeof(type)
+
+    FILL_SEC(MMFLAT_SEC_LOC,   mmFlat->locArr,   mmFlat->locCount,   locationInfo_t);
+    FILL_SEC(MMFLAT_SEC_IPV4,  mmFlat->ipV4Arr,  mmFlat->ipV4Count,  ipV4Node_t);
+    FILL_SEC(MMFLAT_SEC_IPV6,  mmFlat->ipV6Arr,  mmFlat->ipV6Count,  ipV6Node_t);
+    FILL_SEC(MMFLAT_SEC_ASV4,  mmFlat->asV4Arr,  mmFlat->asV4Count,  asV4Node_t);
+    FILL_SEC(MMFLAT_SEC_ASV6,  mmFlat->asV6Arr,  mmFlat->asV6Count,  asV6Node_t);
+    FILL_SEC(MMFLAT_SEC_ASORG, mmFlat->asOrgArr, mmFlat->asOrgCount, asOrgNode_t);
+#undef FILL_SEC
+
+    char tmpPath[PATH_MAX];
+    snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", flatPath);
+    int fd = open(tmpPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) { dbg_printf("WriteFlatCache: open(%s): %s\n", tmpPath, strerror(errno)); return; }
+
+    int ok = 1;
+#define WRITE_BUF(ptr, sz) \
+    if (ok && write(fd, (ptr), (sz)) != (ssize_t)(sz)) ok = 0
+
+    WRITE_BUF(&hdr, sizeof(hdr));
+    WRITE_BUF(mmFlat->locArr,   mmFlat->locCount   * sizeof(locationInfo_t));
+    WRITE_BUF(mmFlat->ipV4Arr,  mmFlat->ipV4Count  * sizeof(ipV4Node_t));
+    WRITE_BUF(mmFlat->ipV6Arr,  mmFlat->ipV6Count  * sizeof(ipV6Node_t));
+    WRITE_BUF(mmFlat->asV4Arr,  mmFlat->asV4Count  * sizeof(asV4Node_t));
+    WRITE_BUF(mmFlat->asV6Arr,  mmFlat->asV6Count  * sizeof(asV6Node_t));
+    WRITE_BUF(mmFlat->asOrgArr, mmFlat->asOrgCount * sizeof(asOrgNode_t));
+#undef WRITE_BUF
+
+    close(fd);
+    if (!ok) { unlink(tmpPath); dbg_printf("WriteFlatCache: write error\n"); return; }
+    if (rename(tmpPath, flatPath) != 0) { unlink(tmpPath); }
+    dbg_printf("WriteFlatCache: wrote %s\n", flatPath);
+}  // End of WriteFlatCache
+
+/* Try to mmap an existing flat cache.  Returns 1 on success. */
+int LoadFlatCache(const char *flatPath) {
+    int fd = open(flatPath, O_RDONLY);
+    if (fd < 0) return 0;
+
+    mmFlatHeader_t hdr;
+    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr) ||
+        hdr.magic != MMFLAT_MAGIC || hdr.version != MMFLAT_VERSION ||
+        hdr.numSections != MMFLAT_NSECT) {
+        close(fd);
+        return 0;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) != 0) { close(fd); return 0; }
+    size_t mapSize = (size_t)st.st_size;
+
+    void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    if (m == MAP_FAILED) return 0;
+
+    /* validate section elem sizes */
+    if (hdr.sec[MMFLAT_SEC_LOC].elemSize   != sizeof(locationInfo_t) ||
+        hdr.sec[MMFLAT_SEC_IPV4].elemSize  != sizeof(ipV4Node_t)     ||
+        hdr.sec[MMFLAT_SEC_IPV6].elemSize  != sizeof(ipV6Node_t)     ||
+        hdr.sec[MMFLAT_SEC_ASV4].elemSize  != sizeof(asV4Node_t)     ||
+        hdr.sec[MMFLAT_SEC_ASV6].elemSize  != sizeof(asV6Node_t)     ||
+        hdr.sec[MMFLAT_SEC_ASORG].elemSize != sizeof(asOrgNode_t)) {
+        munmap(m, mapSize);
+        return 0;
+    }
+
+    mmFlat = calloc(1, sizeof(mmFlat_t));
+    if (!mmFlat) { munmap(m, mapSize); return 0; }
+
+    mmFlat->mmapBase = m;
+    mmFlat->mmapSize = mapSize;
+
+#define MAP_SEC(IDX, field, countField, type) \
+    mmFlat->field      = (type *)((char *)m + hdr.sec[IDX].offset); \
+    mmFlat->countField = hdr.sec[IDX].count
+
+    MAP_SEC(MMFLAT_SEC_LOC,   locArr,   locCount,   locationInfo_t);
+    MAP_SEC(MMFLAT_SEC_IPV4,  ipV4Arr,  ipV4Count,  ipV4Node_t);
+    MAP_SEC(MMFLAT_SEC_IPV6,  ipV6Arr,  ipV6Count,  ipV6Node_t);
+    MAP_SEC(MMFLAT_SEC_ASV4,  asV4Arr,  asV4Count,  asV4Node_t);
+    MAP_SEC(MMFLAT_SEC_ASV6,  asV6Arr,  asV6Count,  asV6Node_t);
+    MAP_SEC(MMFLAT_SEC_ASORG, asOrgArr, asOrgCount, asOrgNode_t);
+#undef MAP_SEC
+
+    /* Rebuild khash localMap from the mmap'd locationInfo section */
+    for (uint32_t i = 0; i < mmFlat->locCount; i++) {
+        int absent;
+        locationKey_t locationKey = {.key = mmFlat->locArr[i].localID};
+        khint_t k = kh_put(localMap, mmHandle->localMap, locationKey, &absent);
+        if (absent) kh_value(mmHandle->localMap, k) = mmFlat->locArr[i];
+    }
+
+    dbg_printf("LoadFlatCache: mmap'd %s: loc=%u ipv4=%u ipv6=%u asv4=%u asv6=%u asorg=%u\n",
+               flatPath, mmFlat->locCount, mmFlat->ipV4Count, mmFlat->ipV6Count,
+               mmFlat->asV4Count, mmFlat->asV6Count, mmFlat->asOrgCount);
+    return 1;
+}  // End of LoadFlatCache
+
+/* Allocate an empty mmFlat for the slow (nffileV3 load) path */
+int InitFlatArrays(void) {
+    mmFlat = calloc(1, sizeof(mmFlat_t));
+    if (!mmFlat) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+    return 1;
+}  // End of InitFlatArrays
+
+void FreeMaxMind(void) {
+    if (mmFlat) {
+        if (mmFlat->mmapBase) {
+            munmap(mmFlat->mmapBase, mmFlat->mmapSize);
+        } else {
+            free(mmFlat->locArr);
+            free(mmFlat->ipV4Arr);
+            free(mmFlat->ipV6Arr);
+            free(mmFlat->asV4Arr);
+            free(mmFlat->asV6Arr);
+            free(mmFlat->asOrgArr);
+        }
+        free(mmFlat);
+        mmFlat = NULL;
+    }
+    if (mmHandle) {
+        kh_destroy(localMap, mmHandle->localMap);
+        kb_destroy(ipV4Tree, mmHandle->ipV4Tree);
+        kb_destroy(ipV6Tree, mmHandle->ipV6Tree);
+        kb_destroy(asV4Tree, mmHandle->asV4Tree);
+        kb_destroy(asV6Tree, mmHandle->asV6Tree);
+        kb_destroy(asOrgTree, mmHandle->asOrgTree);
+        free(mmHandle);
+        mmHandle = NULL;
+    }
+}  // End of FreeMaxMind
