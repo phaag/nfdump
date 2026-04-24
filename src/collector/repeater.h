@@ -40,7 +40,6 @@
 
 #include "queue.h"
 
-#define MAX_REPEATERS 8
 #define REPEATER_QUEUE_CAPACITY 8
 
 typedef struct repeater_host_s {
@@ -63,7 +62,7 @@ typedef struct repeater_ctx_s {
     queue_t *packetQueue;                // queue of packets to repeat
     pthread_t tid;                       // tid of repeater thread
     int rawSocket;                       // if we do src spoofing, use this raw socket
-    repeater_t repeater[MAX_REPEATERS];  // array of MAX_REPEATERS
+    repeater_t repeater;  // single repeater target
 } repeater_ctx_t;
 
 repeater_ctx_t *RepeaterInit(repeater_host_t *repeater_host, uint32_t queue_len, int srcSpoofing);

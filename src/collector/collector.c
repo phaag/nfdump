@@ -390,7 +390,7 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         // Flush Exporter to file
         FlushExporter(fs);
 
-        // Signaling rote for backend
+        // Signaling rotate for backend
         msgBlockV3_t *msgBlock = NULL;
         InitDataBlock(msgBlock, BLOCK_SIZE_V3);
         uint8_t *p = GetCursor(msgBlock);

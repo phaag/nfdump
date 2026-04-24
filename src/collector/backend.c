@@ -214,7 +214,7 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
         // compile argument %f
         // nfcapd_filename => full path - cut of datadir/
         char *filename = nfcapd_filename + strlen(nffile_ctx->datadir) + 1;  //
-        if (SendLauncherMessage(nffile_ctx->msgQueue, cycle_message.when, isoExtension, filename, nffile_ctx->datadir, nffile->ident) < 0) {
+        if (SendLauncherMessage(nffile_ctx->msgQueue, cycle_message.when, isoExtension, filename, nffile_ctx->datadir, nffile->ident) != 1) {
             LogError("Disable launcher due to errors");
             queue_close(nffile_ctx->msgQueue);
             nffile_ctx->msgQueue = NULL;

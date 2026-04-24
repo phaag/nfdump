@@ -120,7 +120,7 @@ static void usage(char *name) {
         "-M dir \t\tSet the output directory for dynamic sources.\n"
         "-o options \tAdd sfcpad options, separated with ','. Available: 'tun'\n"
         "-P pidfile\tset the PID file\n"
-        "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
+        "-R IP[/port]\tRepeat incoming packets to IP address/port.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-x process\tlaunch process after a new file becomes available\n"
         "-W workers\toptionally set the number of workers to compress flows\n"
@@ -327,8 +327,17 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
                     // push context
                     if (queue_try_push(repeater_ctx->packetQueue, pkt_ctx) == NULL) {
                         // successfully pushed packet context - get next free context
-                        PacketCtx_t *next = queue_pop(repeater_ctx->bufferQueue);
-                        if (next == QUEUE_CLOSED) {
+                        PacketCtx_t *next = queue_try_pop(repeater_ctx->bufferQueue);
+                        if (next == NULL || next == QUEUE_EMPTY) {
+                            // pool exhausted - allocate a fresh context
+                            next = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
+                            if (!next) {
+                                LogError("run_network() out of memory in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                                done = 1;
+                                pkt_ctx = NULL;
+                                continue;
+                            }
+                        } else if (next == QUEUE_CLOSED) {
                             LogError("run_network() fatal error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                             done = 1;
                             pkt_ctx = NULL;
@@ -378,10 +387,10 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
             if (interval <= 0.0) interval = 1.0;
 
             if (repeaterDropped) {
-                LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
-            } else {
                 LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u, dropped repeater packet: %u", packets,
                         (double)packets / interval, ignored_packets, repeaterDropped);
+            } else {
+                LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
             }
             packets = ignored_packets = repeaterDropped = 0;
 
@@ -482,7 +491,7 @@ int main(int argc, char **argv) {
 #endif
 
     unsigned srcSpoofing = 0;
-    repeater_host_t repeater_host[MAX_REPEATERS] = {0};
+    repeater_host_t repeater_host = {0};
 
     collector_ctx_t collector_ctx = {0};
     stringlist_t sourceList = {0};
@@ -645,14 +654,12 @@ int main(int argc, char **argv) {
                     *p++ = '\0';
                     port = p;
                 }
-                int i = 0;
-                while (repeater_host[i].hostname && (i < MAX_REPEATERS)) i++;
-                if (i == MAX_REPEATERS) {
-                    LogError("Too many packet repeaters! Max: %i repeaters allowed", MAX_REPEATERS);
+                if (repeater_host.hostname) {
+                    LogError("Only one packet repeater is supported");
                     exit(EXIT_FAILURE);
                 }
-                repeater_host[i].hostname = hostname;
-                repeater_host[i].port = port;
+                repeater_host.hostname = hostname;
+                repeater_host.port = port;
 
                 break;
             }
@@ -827,24 +834,24 @@ int main(int argc, char **argv) {
     }
 
     // before we drop our privileges, check for srcSpoofing and a repeater
-    if (sock < 0 && repeater_host[0].hostname) {
+    if (sock < 0 && repeater_host.hostname) {
         LogError("Packet repeaters can be used only together with a live network socket");
         exit(EXIT_FAILURE);
     }
 
     repeater_ctx_t *repeater_ctx = NULL;
-    if (srcSpoofing && repeater_host[0].hostname) {
+    if (srcSpoofing && repeater_host.hostname) {
         if (!RunAsRoot()) {
             LogError("Packet repeater with src spoofing enabled need to run as root");
             exit(EXIT_FAILURE);
         }
-        repeater_ctx = RepeaterInit(repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
+        repeater_ctx = RepeaterInit(&repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
     }
     // drop privileges
     SetPriv(userid, groupid);
 
-    if (srcSpoofing == 0 && repeater_host[0].hostname) {
-        repeater_ctx = RepeaterInit(repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
+    if (srcSpoofing == 0 && repeater_host.hostname) {
+        repeater_ctx = RepeaterInit(&repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
     }
 
     launcher_ctx_t *launcher_ctx = NULL;
