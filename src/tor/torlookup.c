@@ -353,7 +353,7 @@ int main(int argc, char **argv) {
             if (strlen(arg) > 2 && (valid_ipv4(arg))) {
                 LookupIP(arg);
             } else {
-                LogError("Not a valid IPv4 or IPv6: ", arg);
+                LogError("Not a valid IPv4 or IPv6: %s", arg);
                 exit(EXIT_FAILURE);
             }
         }

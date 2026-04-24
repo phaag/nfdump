@@ -45,14 +45,6 @@
 // include after
 #include "kbtree.h"
 
-#define PushArrayHeader(dataBlock, arrayType, arraySize)   \
-    (dataBlock)->type = DATA_BLOCK_TYPE_4;                 \
-    void *p = ((void *)(dataBlock) + sizeof(dataBlock_t)); \
-    recordHeader_t *arrayHeader = (recordHeader_t *)p;     \
-    arrayHeader->type = arrayType;                         \
-    arrayHeader->size = arraySize;                         \
-    (dataBlock)->size += sizeof(recordHeader_t);
-
 static inline int torNodeCMP(torNode_t a, torNode_t b) {
     if (a.ipaddr == b.ipaddr) return 0;
     return a.ipaddr > b.ipaddr ? 1 : -1;
@@ -162,11 +154,7 @@ void UpdateTorNode(torNode_t *torNode) {
             if (torNode->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torNode->interval[0].lastSeen;
             if (torNode->interval[0].firstSeen < node->interval[index].firstSeen) abort();
         }
-#ifdef DEVEL
-        printTorNode(node);
-        printTorNode(torNode);
-        printf("--\n\n");
-#endif
+
     } else {
         torNode->interval[0].firstSeen = torNode->lastPublished;
         kb_putp(torTree, torTree, torNode);
@@ -176,6 +164,10 @@ void UpdateTorNode(torNode_t *torNode) {
 
 int SaveTorTree(char *fileName) {
     nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_TORLOOKUP, LZ4_COMPRESSED, LEVEL_0, NOT_ENCRYPTED);
+    if (!nffile) {
+        LogError("OpenNewFileV3(%s) failed", fileName);
+        return 0;
+    }
     uint32_t blockSize = nffile->fileHeader->blockSize;
 
     // get new empty data block
@@ -235,13 +227,13 @@ int LoadTorTree(char *fileName) {
         }
 
         dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->rawSize);
-        if (dataBlock->type != DATA_BLOCK_TYPE_4) {
+        if (dataBlock->type != BLOCK_TYPE_ARRAY) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
             FreeDataBlock(dataBlock);
             continue;
         }
 
-        void *arrayElement = GetCursor(dataBlock);
+        void *arrayElement = ResetCursor(dataBlock);
         size_t expected = (dataBlock->elementSize * dataBlock->numElements) + sizeof(arrayBlockV3_t);
         if (expected != dataBlock->rawSize) {
             LogError("Bad array block - size error - found: %zu, expected: %u for element: %u", expected, dataBlock->rawSize, dataBlock->elementType);

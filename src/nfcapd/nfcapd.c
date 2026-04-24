@@ -144,90 +144,8 @@ static void usage(char *name) {
         name);
 }  // End of usage
 
-static void IntHandler(int signal) {
-    switch (signal) {
-        case SIGHUP:
-        case SIGINT:
-        case SIGTERM:
-            done = 1;
-            break;
-        default:
-            // ignore everything we don't know
-            break;
-    }
-
-}  // End of IntHandler
-
 #include "nffile_inline.c"
-
-static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
-    // Reset lengths that might have been modified by previous recvmsg calls
-    pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
-    pkt_ctx->msg.msg_controllen = sizeof(pkt_ctx->control);
-
-    ssize_t cnt = recvmsg(sockfd, &pkt_ctx->msg, 0);
-
-    if (cnt > 0) {
-        struct cmsghdr *cmsg = CMSG_FIRSTHDR(&pkt_ctx->msg);
-        if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMP) {
-            memcpy(tv, CMSG_DATA(cmsg), sizeof(*tv));
-        } else {
-            gettimeofday(tv, NULL);  // fallback only for valid packets
-        }
-    } else {
-        // cnt <= 0 → no valid packet
-        tv->tv_sec = time(NULL);
-        tv->tv_usec = 0;
-    }
-
-    return cnt;
-}  // End of get_next_packet
-
-static inline int poll_for_packet(int fd, time_t next_rotate, time_t now) {
-    int timeout_ms = (int)(next_rotate - now) * 1000;
-    if (timeout_ms < 0) timeout_ms = 0;
-
-    struct pollfd pfd = {.fd = fd, .events = POLLIN};
-
-    for (;;) {
-        int ret = poll(&pfd, 1, timeout_ms);
-        if (ret >= 0) {
-            // 0 = timeout, >0 = ready
-            return ret;
-        }
-        if (errno == EINTR) {
-            if (done) {
-                // interrupted by signal and we’re shutting down
-                return -2;
-            }
-            // retry poll with same timeout (best-effort)
-            continue;
-        }
-
-        // real error
-        LogError("poll() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return -1;
-    }
-}  // End of poll_for_packet
-
-static inline ssize_t recv_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
-    for (;;) {
-        ssize_t cnt = get_next_packet(sockfd, pkt_ctx, tv);
-        if (cnt >= 0) {
-            pkt_ctx->bufferLen = cnt;
-            return cnt;
-        }
-        if (errno == EINTR) {
-            if (done) {
-                // signal + shutdown
-                return -2;
-            }
-            continue;
-        }
-        LogError("recvmsg() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return -1;
-    }
-}  // End of recv_packet
+#include "collector_run_inline.c"
 
 static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, PacketCtx_t *pkt_ctx, ssize_t cnt,
                                   struct timeval tv, uint64_t *packets, uint32_t *ignored_packets) {
@@ -325,8 +243,12 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = NULL;
-        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
+        if (!fs->dataBlock) {
+            LogError("run_network: out of memory allocating data block for ident: %s", fs->Ident);
+            free(pkt_ctx);
+            return;
+        }
         fs->bad_packets = 0;
     }
 
@@ -440,8 +362,12 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
     if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
-        fs->dataBlock = NULL;
-        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
+        if (!fs->dataBlock) {
+            LogError("run_file_mode: out of memory allocating data block for ident: %s", fs->Ident);
+            free(pkt_ctx);
+            return;
+        }
         fs->bad_packets = 0;
     }
 

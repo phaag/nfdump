@@ -104,7 +104,7 @@ static void StoreIPV4tree(nffileV3_t *nffile) {
     for (ipV4Node_t *ipv4Node = NextIPv4Node(FIRSTNODE); ipv4Node != NULL; ipv4Node = NextIPv4Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(ipV4Node_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, NULL);
+            WriteBlockV3(nffile, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = IPV4treeElementID;
@@ -236,7 +236,7 @@ static void StoreASorgtree(nffileV3_t *nffile) {
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = ASOrgtreeElementID;
-            dataBlock->elementSize = sizeof(ASOrgtreeElementID);
+            dataBlock->elementSize = sizeof(asOrgNode_t);
 
             outBuff = GetCursor(dataBlock);
         }
@@ -296,7 +296,7 @@ int LoadMaxMind(char *fileName) {
             continue;
         }
 
-        void *arrayElement = GetCursor(dataBlock);
+        void *arrayElement = ResetCursor(dataBlock);
 
         size_t expected = (dataBlock->elementSize * dataBlock->numElements) + sizeof(arrayBlockV3_t);
         if (expected != dataBlock->rawSize) {
@@ -332,7 +332,7 @@ int LoadMaxMind(char *fileName) {
             } break;
             case ASV4treeElementID: {
                 asV4Node_t *asV4Node = (asV4Node_t *)arrayElement;
-                if (dataBlock->elementSize != sizeof(asV6Node_t)) {
+                if (dataBlock->elementSize != sizeof(asV4Node_t)) {
                     LogError("Size check failed for ASv4 node - rebuild nfdump geo DB");
                 } else {
                     LoadASV4Tree(asV4Node, dataBlock->numElements);

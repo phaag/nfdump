@@ -219,9 +219,9 @@ static int parse_cidr(const char *cidr, ip128_t *ip, ip128_t *mask) {
         if (prefix == 0 || prefix > 32) return 0;
         // IPv4-mapped: ::ffff:a.b.c.d
         uint32_t maskv4 = 0xFFFFFFFF << (32 - prefix);
-        uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-        memcpy(mask->bytes, prefix, 12);
-        maskv4 = ntohl(maskv4);
+        static const uint8_t ipv4mapped_pfx[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+        memcpy(mask->bytes, ipv4mapped_pfx, 12);
+        maskv4 = htonl(maskv4);
         memcpy(mask->bytes + 12, &maskv4, sizeof(uint32_t));
 
     } else {
@@ -382,8 +382,8 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         PushBlockV3(fs->blockQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
-        if (fs->dataBlock == QUEUE_CLOSED) {
-            fs->dataBlock = NULL;
+        if (fs->dataBlock == NULL) {
+            LogError("PeriodicCycle: out of memory allocating new data block");
             return 0;
         }
 
@@ -393,6 +393,10 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         // Signaling rotate for backend
         msgBlockV3_t *msgBlock = NULL;
         InitDataBlock(msgBlock, BLOCK_SIZE_V3);
+        if (msgBlock == NULL) {
+            LogError("PeriodicCycle: out of memory allocating message block");
+            return 0;
+        }
         uint8_t *p = GetCursor(msgBlock);
         cycle_message_t cycle_message = {.type = MESSAGE_CYCLE, .length = sizeof(cycle_message_t), .when = t_start, .done = done};
         memcpy(&cycle_message.stat_record, (void *)&fs->stat_record, sizeof(stat_record_t));
