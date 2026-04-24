@@ -712,10 +712,11 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                     }
                     case EXinPayloadID:
                     case EXoutPayloadID: {
+                        uint32_t payloadLen = eh->length - sizeof(elementHeader_t);
                         EXPayload_t *pl = (EXPayload_t *)((uint8_t *)h + nextOffset);
-                        uint32_t len = ((EXPayload_t *)edata)->size;
-                        memcpy(pl, edata, sizeof(uint32_t) + len);
-                        uint32_t extSize = sizeof(uint32_t) + len;
+                        pl->size = payloadLen;
+                        memcpy(pl->payload, edata, payloadLen);
+                        uint32_t extSize = sizeof(uint32_t) + payloadLen;
                         nextOffset += extSize;
                         h->size += extSize;
                         break;
