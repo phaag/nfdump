@@ -85,7 +85,8 @@
 #define ASV6treeElementID 5
 #define ASOrgtreeElementID 7
 // tor
-#define TorTreeElementID 6
+#define TorV4TreeElementID 6
+#define TorV6TreeElementID 8
 
 #define SlackRecord 256
 

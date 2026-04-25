@@ -79,7 +79,7 @@ static time_t hms_to_time(int h, int m, int s);
 
 static time_t ReadTime(char *timestring);
 
-static int scanLine(char *line, torNode_t *torNode);
+static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node);
 
 static int processFile(char *torFile);
 
@@ -149,32 +149,49 @@ static time_t ReadTime(char *timestring) {
     return epoch;
 }
 
-static int scanLine(char *line, torNode_t *torNode) {
+static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) {
     if (strstr(line, TAG_EXITNODE) != NULL) {
-        memset((void *)torNode, 0, sizeof(torNode_t));
+        memset((void *)torV4Node, 0, sizeof(torV4Node_t));
+        memset((void *)torV6Node, 0, sizeof(torV6Node_t));
     } else if (strstr(line, TAG_PUBLISHED) != NULL) {
         char *timestring = line + strlen(TAG_PUBLISHED) + 1;
         time_t lastPublished = ReadTime(timestring);
-        torNode->lastPublished = lastPublished;
-        torNode->interval[0].firstSeen = torNode->lastPublished;
+        torV4Node->lastPublished = lastPublished;
+        torV4Node->interval[0].firstSeen = lastPublished;
     } else if (strstr(line, TAG_LASTSTATUS) != NULL) {
         char *timestring = line + strlen(TAG_LASTSTATUS) + 1;
         time_t lastStatus = ReadTime(timestring);
-        if (lastStatus > torNode->interval[0].lastSeen) torNode->interval[0].lastSeen = lastStatus;
+        if (lastStatus > torV4Node->interval[0].lastSeen) torV4Node->interval[0].lastSeen = lastStatus;
     } else if (strstr(line, TAG_EXITADDRESS) != NULL) {
         char *ipstring = line + strlen(TAG_EXITADDRESS) + 1;
         char *timestring = strchr(ipstring, ' ');
+        if (!timestring) return 0;
         *timestring++ = '\0';
-        uint32_t ip = 0;
-        int ret = inet_pton(PF_INET, ipstring, &ip);
-        if (ret == 1) {
-            torNode->ipaddr = htonl(ip);
+        // try IPv4
+        uint32_t ip4 = 0;
+        if (inet_pton(PF_INET, ipstring, &ip4) == 1) {
+            torV4Node->ipaddr = htonl(ip4);
             time_t lastSeen = ReadTime(timestring);
-            if (lastSeen > torNode->interval[0].lastSeen) torNode->interval[0].lastSeen = lastSeen;
+            if (lastSeen > torV4Node->interval[0].lastSeen) torV4Node->interval[0].lastSeen = lastSeen;
             return 1;
-        } else {
-            LogError("Unpasable IP address: %s", ipstring);
         }
+        // try IPv6
+        struct in6_addr ip6;
+        if (inet_pton(AF_INET6, ipstring, &ip6) == 1) {
+            const uint8_t *b = ip6.s6_addr;
+            torV6Node->network[0] = ((uint64_t)b[0] << 56) | ((uint64_t)b[1] << 48) | ((uint64_t)b[2] << 40) | ((uint64_t)b[3] << 32) |
+                                    ((uint64_t)b[4] << 24) | ((uint64_t)b[5] << 16) | ((uint64_t)b[6] << 8) | (uint64_t)b[7];
+            torV6Node->network[1] = ((uint64_t)b[8] << 56) | ((uint64_t)b[9] << 48) | ((uint64_t)b[10] << 40) | ((uint64_t)b[11] << 32) |
+                                    ((uint64_t)b[12] << 24) | ((uint64_t)b[13] << 16) | ((uint64_t)b[14] << 8) | (uint64_t)b[15];
+            // copy timing state from the shared torV4Node accumulators
+            torV6Node->lastPublished = torV4Node->lastPublished;
+            torV6Node->interval[0].firstSeen = torV4Node->interval[0].firstSeen;
+            time_t lastSeen = ReadTime(timestring);
+            if (lastSeen > torV4Node->interval[0].lastSeen) torV4Node->interval[0].lastSeen = lastSeen;
+            torV6Node->interval[0].lastSeen = torV4Node->interval[0].lastSeen;
+            return 2;
+        }
+        LogError("Unparseable IP address: %s", ipstring);
     }
     return 0;
 }
@@ -188,12 +205,14 @@ static int processFile(char *torFile) {
     fp = fopen(torFile, "r");
     if (fp == NULL) return errno;
 
-    torNode_t torNode = {0};
+    torV4Node_t torV4Node = {0};
+    torV6Node_t torV6Node = {0};
     while ((read = getline(&line, &len, fp)) != -1) {
-        // printf("Next line: %s", line);
-        int ipfound = scanLine(line, &torNode);
-        if (ipfound) {
-            UpdateTorNode(&torNode);
+        int ipfound = scanLine(line, &torV4Node, &torV6Node);
+        if (ipfound == 1) {
+            UpdateTorV4Node(&torV4Node);
+        } else if (ipfound == 2) {
+            UpdateTorV6Node(&torV6Node);
         }
     }
 
@@ -354,7 +373,9 @@ int main(int argc, char **argv) {
     if (argc - optind > 0) {
         while (argc - optind > 0) {
             char *arg = argv[optind++];
-            if (strlen(arg) > 2 && (valid_ipv4(arg))) {
+            uint32_t t4;
+            struct in6_addr t6;
+            if (inet_pton(AF_INET, arg, &t4) == 1 || inet_pton(AF_INET6, arg, &t6) == 1) {
                 LookupIP(arg);
             } else {
                 LogError("Not a valid IPv4 or IPv6: %s", arg);
@@ -379,9 +400,10 @@ int main(int argc, char **argv) {
             char *word, *brkt;
             word = strtok_r(line, sep, &brkt);
             while (word) {
-                if (valid_ipv4(word)) {
-                    LookupIP(string_trim(word));
-                }
+                char *w = string_trim(word);
+                uint32_t t4;
+                struct in6_addr t6;
+                if (inet_pton(AF_INET, w, &t4) == 1 || inet_pton(AF_INET6, w, &t6) == 1) LookupIP(w);
                 word = strtok_r(NULL, sep, &brkt);
             }
         }

@@ -44,17 +44,29 @@ typedef struct interval_s {
 
 #define MAXINTERVALS 8
 
-typedef struct torNode_s {
+typedef struct torV4Node_s {
     uint32_t ipaddr;
     uint16_t gaps;
     uint16_t intervalIndex;
     time_t lastPublished;
     interval_t interval[MAXINTERVALS];
-} torNode_t;
+} torV4Node_t;
+
+typedef struct torV6Node_s {
+    /* IPv6 address: [0] high 64-bit, [1] low 64-bit, host byte order */
+    uint64_t network[2];
+    uint16_t gaps;
+    uint16_t intervalIndex;
+    uint32_t pad; /* alignment before time_t */
+    time_t lastPublished;
+    interval_t interval[MAXINTERVALS];
+} torV6Node_t;
 
 int Init_TorLookup(void);
 
-void UpdateTorNode(torNode_t *torNode);
+void UpdateTorV4Node(torV4Node_t *torV4Node);
+
+void UpdateTorV6Node(torV6Node_t *torV6Node);
 
 int LoadTorTree(char *fileName);
 
