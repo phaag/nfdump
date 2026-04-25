@@ -277,7 +277,7 @@ int LoadMaxMind(char *fileName) {
 
     if (!Init_MaxMind()) return 0;
 
-    /* ---- Fix 1: if the caller passed the .flat file directly, use it ---- */
+    // if caller passed the .flat file directly, use it
     size_t fnLen = strlen(fileName);
     if (fnLen > 5 && strcmp(fileName + fnLen - 5, ".flat") == 0) {
         if (LoadFlatCache(fileName)) {
@@ -288,33 +288,45 @@ int LoadMaxMind(char *fileName) {
         return 0;
     }
 
-    /* ---- Build flat path: respect geodb.flatpath config key (fix 2) ---- */
+    // build flat path: respect geodb.flatpath config key, if it exists
     char flatPath[PATH_MAX];
     char *flatDir = ConfGetString("geodb.flatpath");
+    int useFlatCache = 1;
     if (flatDir) {
-        const char *base = strrchr(fileName, '/');
-        base = base ? base + 1 : fileName;
-        snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
-        free(flatDir);
+        if (strcmp(flatDir, "none") == 0) {
+            useFlatCache = 0;
+            free(flatDir);
+        } else {
+            if (!CheckPath(flatDir, S_IFDIR)) {
+                LogError("Config value geodb.flatpath='%s' - is not a directory", flatDir);
+                free(flatDir);
+                return 0;
+            }
+            const char *base = strrchr(fileName, '/');
+            base = base ? base + 1 : fileName;
+            snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
+            free(flatDir);
+        }
     } else {
         snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
     }
 
-    /* ---- fast path: mmap existing flat cache if it is newer than nffileV3 ---- */
+    // fast path: mmap existing flat cache if it is newer than mmdb master db file
     struct stat stNf, stFlat;
-    if (stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
+    if (useFlatCache && stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
         if (LoadFlatCache(flatPath)) {
             dbg_printf("LoadMaxMind: fast path via %s\n", flatPath);
             return 1;
         }
-        /* fall through to nffileV3 load if mmap fails */
+        LogError("LoadMaxMind: Failed to load flat cache");
     }
 
-    /* ---- slow path: decompress nffileV3, build flat arrays, write cache ---- */
+    // slow path: decompress mmdb master file, build flat arrays, write cache
     if (!InitFlatArrays()) return 0;
 
     nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
+        LogError("LoadMaxMind: Failed to open maxmind db file");
         return 0;
     }
     int done = 0;
@@ -400,8 +412,10 @@ int LoadMaxMind(char *fileName) {
     FreeDataBlock(dataBlock);
     CloseFileV3(nffile);
 
-    /* write flat cache for fast-path use next time (best effort) */
-    WriteFlatCache(flatPath);
+    SortFlatArrays();
+
+    // write flat cache for fast-path use next time (best effort)
+    if (useFlatCache) WriteFlatCache(flatPath);
 
     return 1;
 }  // End of LoadMaxMind

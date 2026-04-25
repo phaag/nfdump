@@ -148,6 +148,10 @@ asOrgNode_t *NextasOrgNode(int start);
 
 int SaveMaxMind(char *fileName);
 
+void SortFlatArrays(void);
+
+void SortFlatArrays(void);
+
 void WriteFlatCache(const char *flatPath);
 
 int LoadFlatCache(const char *flatPath);

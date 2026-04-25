@@ -150,50 +150,56 @@ static mmHandle_t *mmHandle = NULL;
  * all five sorted tables.  The localMap khash is rebuilt from the raw
  * locationInfo section on every load (linear scan, no decompression).
  * ----------------------------------------------------------------------- */
-#define MMFLAT_MAGIC   0x4D4D464CU   /* 'M','M','F','L' */
+#define MMFLAT_MAGIC 0x4D4D464CU  // 'M','M','F','L'
 #define MMFLAT_VERSION 1U
-#define MMFLAT_NSECT   6U
 
-/* Section IDs (indices into mmFlatHeader_t.sec[]) */
-#define MMFLAT_SEC_LOC    0
-#define MMFLAT_SEC_IPV4   1
-#define MMFLAT_SEC_IPV6   2
-#define MMFLAT_SEC_ASV4   3
-#define MMFLAT_SEC_ASV6   4
-#define MMFLAT_SEC_ASORG  5
+// section IDs (indices into mmFlatHeader_t.sec[])
+#define MMFLAT_SEC_LOC 0
+#define MMFLAT_SEC_IPV4 1
+#define MMFLAT_SEC_IPV6 2
+#define MMFLAT_SEC_ASV4 3
+#define MMFLAT_SEC_ASV6 4
+#define MMFLAT_SEC_ASORG 5
+// number of sections
+#define MMFLAT_NSECT 6U
 
 typedef struct mmFlatSection_s {
-    uint32_t elemSize;   /* sizeof the element type    */
-    uint32_t count;      /* number of elements         */
-    uint64_t offset;     /* byte offset from file start */
+    uint32_t elemSize;  // sizeof the element type
+    uint32_t count;     // number of elements
+    uint64_t offset;    // byte offset from file start
 } mmFlatSection_t;
 
 typedef struct mmFlatHeader_s {
-    uint32_t        magic;
-    uint32_t        version;
-    uint32_t        numSections;
-    uint32_t        reserved;
+    uint32_t magic;
+    uint32_t version;
+    uint32_t numSections;
+    uint32_t reserved;
     mmFlatSection_t sec[MMFLAT_NSECT];
 } mmFlatHeader_t;
 
-/* Flat state — populated either from mmap or from malloc after slow load */
+// flat state — populated either from mmap or from malloc after slow load
 typedef struct mmFlat_s {
-    /* mmap state (NULL when data came from LoadMaxMind slow path) */
-    void   *mmapBase;
-    size_t  mmapSize;
+    void *mmapBase;  // mmap state (NULL when data came from LoadMaxMind slow path)
+    size_t mmapSize;
 
-    /* pointers into the sorted arrays (point into mmap or realloc'd memory) */
-    locationInfo_t *locArr;   uint32_t locCount;
-    ipV4Node_t     *ipV4Arr;  uint32_t ipV4Count;
-    ipV6Node_t     *ipV6Arr;  uint32_t ipV6Count;
-    asV4Node_t     *asV4Arr;  uint32_t asV4Count;
-    asV6Node_t     *asV6Arr;  uint32_t asV6Count;
-    asOrgNode_t    *asOrgArr; uint32_t asOrgCount;
+    // pointers into the sorted arrays (point into mmap or realloc'd memory)
+    locationInfo_t *locArr;
+    uint32_t locCount;
+    ipV4Node_t *ipV4Arr;
+    uint32_t ipV4Count;
+    ipV6Node_t *ipV6Arr;
+    uint32_t ipV6Count;
+    asV4Node_t *asV4Arr;
+    uint32_t asV4Count;
+    asV6Node_t *asV6Arr;
+    uint32_t asV6Count;
+    asOrgNode_t *asOrgArr;
+    uint32_t asOrgCount;
 } mmFlat_t;
 
 static mmFlat_t *mmFlat = NULL;
 
-/* ---- comparators for qsort (sort by network address ascending) ---- */
+// comparators for qsort (sort by network address ascending)
 static int cmpIpV4(const void *a, const void *b) {
     uint32_t x = ((const ipV4Node_t *)a)->network;
     uint32_t y = ((const ipV4Node_t *)b)->network;
@@ -230,15 +236,17 @@ static int cmpAsOrg(const void *a, const void *b) {
     return 0;
 }
 
-/* ---- asymmetric binary searches (netmask == 0 means "probe") ---- */
+// asymmetric binary searches (netmask == 0 means "probe")
 static inline ipV4Node_t *flatSearchV4(const ipV4Node_t *arr, uint32_t n, uint32_t ip) {
     uint32_t lo = 0, hi = n;
     while (lo < hi) {
         uint32_t mid = lo + (hi - lo) / 2;
         uint32_t masked = ip & arr[mid].netmask;
         if (masked == arr[mid].network) return (ipV4Node_t *)&arr[mid];
-        if (masked  < arr[mid].network) hi = mid;
-        else lo = mid + 1;
+        if (masked < arr[mid].network)
+            hi = mid;
+        else
+            lo = mid + 1;
     }
     return NULL;
 }
@@ -249,8 +257,10 @@ static inline ipV6Node_t *flatSearchV6(const ipV6Node_t *arr, uint32_t n, const 
         uint64_t m0 = ip[0] & arr[mid].netmask[0];
         uint64_t m1 = ip[1] & arr[mid].netmask[1];
         if (m0 == arr[mid].network[0] && m1 == arr[mid].network[1]) return (ipV6Node_t *)&arr[mid];
-        if (m0 < arr[mid].network[0] || (m0 == arr[mid].network[0] && m1 < arr[mid].network[1])) hi = mid;
-        else lo = mid + 1;
+        if (m0 < arr[mid].network[0] || (m0 == arr[mid].network[0] && m1 < arr[mid].network[1]))
+            hi = mid;
+        else
+            lo = mid + 1;
     }
     return NULL;
 }
@@ -260,8 +270,10 @@ static inline asV4Node_t *flatSearchAsV4(const asV4Node_t *arr, uint32_t n, uint
         uint32_t mid = lo + (hi - lo) / 2;
         uint32_t masked = ip & arr[mid].netmask;
         if (masked == arr[mid].network) return (asV4Node_t *)&arr[mid];
-        if (masked  < arr[mid].network) hi = mid;
-        else lo = mid + 1;
+        if (masked < arr[mid].network)
+            hi = mid;
+        else
+            lo = mid + 1;
     }
     return NULL;
 }
@@ -272,8 +284,10 @@ static inline asV6Node_t *flatSearchAsV6(const asV6Node_t *arr, uint32_t n, cons
         uint64_t m0 = ip[0] & arr[mid].netmask[0];
         uint64_t m1 = ip[1] & arr[mid].netmask[1];
         if (m0 == arr[mid].network[0] && m1 == arr[mid].network[1]) return (asV6Node_t *)&arr[mid];
-        if (m0 < arr[mid].network[0] || (m0 == arr[mid].network[0] && m1 < arr[mid].network[1])) hi = mid;
-        else lo = mid + 1;
+        if (m0 < arr[mid].network[0] || (m0 == arr[mid].network[0] && m1 < arr[mid].network[1]))
+            hi = mid;
+        else
+            lo = mid + 1;
     }
     return NULL;
 }
@@ -282,8 +296,10 @@ static inline asOrgNode_t *flatSearchAsOrg(const asOrgNode_t *arr, uint32_t n, u
     while (lo < hi) {
         uint32_t mid = lo + (hi - lo) / 2;
         if (as == arr[mid].as) return (asOrgNode_t *)&arr[mid];
-        if (as  < arr[mid].as) hi = mid;
-        else lo = mid + 1;
+        if (as < arr[mid].as)
+            hi = mid;
+        else
+            lo = mid + 1;
     }
     return NULL;
 }
@@ -303,7 +319,7 @@ int Init_MaxMind(void) {
     mmHandle->asOrgTree = kb_init(asOrgTree, 10 * KB_DEFAULT_SIZE);
 
     if (!mmHandle->ipV4Tree || !mmHandle->ipV6Tree || !mmHandle->localMap || !mmHandle->asV4Tree || !mmHandle->asV6Tree || !mmHandle->asOrgTree) {
-        LogError("Initialization of MaxMind failed");
+        LogError("Initialization of MaxMind module failed");
         return 0;
     }
     return 1;
@@ -327,7 +343,10 @@ void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
     /* Also append to flat locArr for flat-cache serialisation */
     if (!mmFlat) return;
     locationInfo_t *tmp = realloc(mmFlat->locArr, (mmFlat->locCount + NumRecords) * sizeof(locationInfo_t));
-    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    if (!tmp) {
+        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     mmFlat->locArr = tmp;
     /* walk back to beginning of the block; locationInfo was advanced above */
     memcpy(mmFlat->locArr + mmFlat->locCount, locationInfo - NumRecords, NumRecords * sizeof(locationInfo_t));
@@ -349,7 +368,10 @@ void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords) {
 
     if (!mmFlat) return;
     ipV4Node_t *tmp = realloc(mmFlat->ipV4Arr, (mmFlat->ipV4Count + NumRecords) * sizeof(ipV4Node_t));
-    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    if (!tmp) {
+        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     mmFlat->ipV4Arr = tmp;
     memcpy(mmFlat->ipV4Arr + mmFlat->ipV4Count, ipV4Node - NumRecords, NumRecords * sizeof(ipV4Node_t));
     mmFlat->ipV4Count += NumRecords;
@@ -371,7 +393,10 @@ void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
 
     if (!mmFlat) return;
     ipV6Node_t *tmp = realloc(mmFlat->ipV6Arr, (mmFlat->ipV6Count + NumRecords) * sizeof(ipV6Node_t));
-    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    if (!tmp) {
+        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     mmFlat->ipV6Arr = tmp;
     memcpy(mmFlat->ipV6Arr + mmFlat->ipV6Count, ipV6Node - NumRecords, NumRecords * sizeof(ipV6Node_t));
     mmFlat->ipV6Count += NumRecords;
@@ -392,7 +417,10 @@ void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
 
     if (!mmFlat) return;
     asV4Node_t *tmp = realloc(mmFlat->asV4Arr, (mmFlat->asV4Count + NumRecords) * sizeof(asV4Node_t));
-    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    if (!tmp) {
+        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     mmFlat->asV4Arr = tmp;
     memcpy(mmFlat->asV4Arr + mmFlat->asV4Count, asV4Node - NumRecords, NumRecords * sizeof(asV4Node_t));
     mmFlat->asV4Count += NumRecords;
@@ -413,7 +441,10 @@ void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
 
     if (!mmFlat) return;
     asV6Node_t *tmp = realloc(mmFlat->asV6Arr, (mmFlat->asV6Count + NumRecords) * sizeof(asV6Node_t));
-    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    if (!tmp) {
+        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     mmFlat->asV6Arr = tmp;
     memcpy(mmFlat->asV6Arr + mmFlat->asV6Count, asV6Node - NumRecords, NumRecords * sizeof(asV6Node_t));
     mmFlat->asV6Count += NumRecords;
@@ -434,7 +465,10 @@ void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords) {
 
     if (!mmFlat) return;
     asOrgNode_t *tmp = realloc(mmFlat->asOrgArr, (mmFlat->asOrgCount + NumRecords) * sizeof(asOrgNode_t));
-    if (!tmp) { LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno)); return; }
+    if (!tmp) {
+        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     mmFlat->asOrgArr = tmp;
     memcpy(mmFlat->asOrgArr + mmFlat->asOrgCount, asOrgNode - NumRecords, NumRecords * sizeof(asOrgNode_t));
     mmFlat->asOrgCount += NumRecords;
@@ -666,7 +700,10 @@ void LookupWhois(char *ip) {
             uint32_t net = (uint32_t)ipnet[1];
             if (mmFlat && mmFlat->asV4Arr) {
                 asV4Node_t *asV4Node = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, net);
-                if (asV4Node) { as = asV4Node->as; asOrg = asV4Node->orgName; }
+                if (asV4Node) {
+                    as = asV4Node->as;
+                    asOrg = asV4Node->orgName;
+                }
             }
         } else {
             if (mmFlat && mmFlat->ipV6Arr) {
@@ -675,7 +712,10 @@ void LookupWhois(char *ip) {
             }
             if (mmFlat && mmFlat->asV6Arr) {
                 asV6Node_t *asV6Node = flatSearchAsV6(mmFlat->asV6Arr, mmFlat->asV6Count, ipnet);
-                if (asV6Node) { as = asV6Node->as; asOrg = asV6Node->orgName; }
+                if (asV6Node) {
+                    as = asV6Node->as;
+                    asOrg = asV6Node->orgName;
+                }
             }
         }
 
@@ -692,7 +732,10 @@ void LookupWhois(char *ip) {
         }
         if (mmFlat && mmFlat->asV4Arr) {
             asV4Node_t *asV4Node = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, hnet);
-            if (asV4Node) { as = asV4Node->as; asOrg = asV4Node->orgName; }
+            if (asV4Node) {
+                as = asV4Node->as;
+                asOrg = asV4Node->orgName;
+            }
         }
     }
 
@@ -812,66 +855,79 @@ asOrgNode_t *NextasOrgNode(int start) {
 
 }  // End of NextasOrgNode
 
-/* -----------------------------------------------------------------------
+/*
  * Flat cache write / load / free
- * ----------------------------------------------------------------------- */
+ */
 
-/* Sort all flat arrays and write a single binary flat-cache file.
- * Called from LoadMaxMind (slow path) after all blocks have been loaded. */
+// Sort all flat arrays by network address (ascending).
+// Must be called before any binary-search lookup and before WriteFlatCache.
+void SortFlatArrays(void) {
+    if (!mmFlat) return;
+    if (mmFlat->ipV4Count) qsort(mmFlat->ipV4Arr, mmFlat->ipV4Count, sizeof(ipV4Node_t), cmpIpV4);
+    if (mmFlat->ipV6Count) qsort(mmFlat->ipV6Arr, mmFlat->ipV6Count, sizeof(ipV6Node_t), cmpIpV6);
+    if (mmFlat->asV4Count) qsort(mmFlat->asV4Arr, mmFlat->asV4Count, sizeof(asV4Node_t), cmpAsV4);
+    if (mmFlat->asV6Count) qsort(mmFlat->asV6Arr, mmFlat->asV6Count, sizeof(asV6Node_t), cmpAsV6);
+    if (mmFlat->asOrgCount) qsort(mmFlat->asOrgArr, mmFlat->asOrgCount, sizeof(asOrgNode_t), cmpAsOrg);
+}  // End of SortFlatArrays
+
+// Write a single binary flat-cache file.
+// Caller must have called SortFlatArrays() beforehand.
 void WriteFlatCache(const char *flatPath) {
     if (!mmFlat) return;
 
-    /* sort each table by network address (ascending) */
-    if (mmFlat->ipV4Count)  qsort(mmFlat->ipV4Arr,  mmFlat->ipV4Count,  sizeof(ipV4Node_t),  cmpIpV4);
-    if (mmFlat->ipV6Count)  qsort(mmFlat->ipV6Arr,  mmFlat->ipV6Count,  sizeof(ipV6Node_t),  cmpIpV6);
-    if (mmFlat->asV4Count)  qsort(mmFlat->asV4Arr,  mmFlat->asV4Count,  sizeof(asV4Node_t),  cmpAsV4);
-    if (mmFlat->asV6Count)  qsort(mmFlat->asV6Arr,  mmFlat->asV6Count,  sizeof(asV6Node_t),  cmpAsV6);
-    if (mmFlat->asOrgCount) qsort(mmFlat->asOrgArr, mmFlat->asOrgCount, sizeof(asOrgNode_t), cmpAsOrg);
-
-    /* build header */
+    // build header
     mmFlatHeader_t hdr = {
-        .magic       = MMFLAT_MAGIC,
-        .version     = MMFLAT_VERSION,
+        .magic = MMFLAT_MAGIC,
+        .version = MMFLAT_VERSION,
         .numSections = MMFLAT_NSECT,
-        .reserved    = 0,
+        .reserved = 0,
     };
 
     uint64_t off = sizeof(mmFlatHeader_t);
-#define FILL_SEC(IDX, arr, n, type) \
+#define FILL_SEC(IDX, arr, n, type)       \
     hdr.sec[IDX].elemSize = sizeof(type); \
-    hdr.sec[IDX].count    = (n); \
-    hdr.sec[IDX].offset   = off; \
+    hdr.sec[IDX].count = (n);             \
+    hdr.sec[IDX].offset = off;            \
     off += (uint64_t)(n) * sizeof(type)
 
-    FILL_SEC(MMFLAT_SEC_LOC,   mmFlat->locArr,   mmFlat->locCount,   locationInfo_t);
-    FILL_SEC(MMFLAT_SEC_IPV4,  mmFlat->ipV4Arr,  mmFlat->ipV4Count,  ipV4Node_t);
-    FILL_SEC(MMFLAT_SEC_IPV6,  mmFlat->ipV6Arr,  mmFlat->ipV6Count,  ipV6Node_t);
-    FILL_SEC(MMFLAT_SEC_ASV4,  mmFlat->asV4Arr,  mmFlat->asV4Count,  asV4Node_t);
-    FILL_SEC(MMFLAT_SEC_ASV6,  mmFlat->asV6Arr,  mmFlat->asV6Count,  asV6Node_t);
+    FILL_SEC(MMFLAT_SEC_LOC, mmFlat->locArr, mmFlat->locCount, locationInfo_t);
+    FILL_SEC(MMFLAT_SEC_IPV4, mmFlat->ipV4Arr, mmFlat->ipV4Count, ipV4Node_t);
+    FILL_SEC(MMFLAT_SEC_IPV6, mmFlat->ipV6Arr, mmFlat->ipV6Count, ipV6Node_t);
+    FILL_SEC(MMFLAT_SEC_ASV4, mmFlat->asV4Arr, mmFlat->asV4Count, asV4Node_t);
+    FILL_SEC(MMFLAT_SEC_ASV6, mmFlat->asV6Arr, mmFlat->asV6Count, asV6Node_t);
     FILL_SEC(MMFLAT_SEC_ASORG, mmFlat->asOrgArr, mmFlat->asOrgCount, asOrgNode_t);
 #undef FILL_SEC
 
     char tmpPath[PATH_MAX];
     snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", flatPath);
     int fd = open(tmpPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) { dbg_printf("WriteFlatCache: open(%s): %s\n", tmpPath, strerror(errno)); return; }
+    if (fd < 0) {
+        LogError("WriteFlatCache: open(%s): %s", tmpPath, strerror(errno));
+        return;
+    }
 
     int ok = 1;
 #define WRITE_BUF(ptr, sz) \
     if (ok && write(fd, (ptr), (sz)) != (ssize_t)(sz)) ok = 0
 
     WRITE_BUF(&hdr, sizeof(hdr));
-    WRITE_BUF(mmFlat->locArr,   mmFlat->locCount   * sizeof(locationInfo_t));
-    WRITE_BUF(mmFlat->ipV4Arr,  mmFlat->ipV4Count  * sizeof(ipV4Node_t));
-    WRITE_BUF(mmFlat->ipV6Arr,  mmFlat->ipV6Count  * sizeof(ipV6Node_t));
-    WRITE_BUF(mmFlat->asV4Arr,  mmFlat->asV4Count  * sizeof(asV4Node_t));
-    WRITE_BUF(mmFlat->asV6Arr,  mmFlat->asV6Count  * sizeof(asV6Node_t));
+    WRITE_BUF(mmFlat->locArr, mmFlat->locCount * sizeof(locationInfo_t));
+    WRITE_BUF(mmFlat->ipV4Arr, mmFlat->ipV4Count * sizeof(ipV4Node_t));
+    WRITE_BUF(mmFlat->ipV6Arr, mmFlat->ipV6Count * sizeof(ipV6Node_t));
+    WRITE_BUF(mmFlat->asV4Arr, mmFlat->asV4Count * sizeof(asV4Node_t));
+    WRITE_BUF(mmFlat->asV6Arr, mmFlat->asV6Count * sizeof(asV6Node_t));
     WRITE_BUF(mmFlat->asOrgArr, mmFlat->asOrgCount * sizeof(asOrgNode_t));
 #undef WRITE_BUF
 
     close(fd);
-    if (!ok) { unlink(tmpPath); dbg_printf("WriteFlatCache: write error\n"); return; }
-    if (rename(tmpPath, flatPath) != 0) { unlink(tmpPath); }
+    if (!ok) {
+        unlink(tmpPath);
+        LogError("WriteFlatCache: write error");
+        return;
+    }
+    if (rename(tmpPath, flatPath) != 0) {
+        unlink(tmpPath);
+    }
     dbg_printf("WriteFlatCache: wrote %s\n", flatPath);
 }  // End of WriteFlatCache
 
@@ -881,15 +937,17 @@ int LoadFlatCache(const char *flatPath) {
     if (fd < 0) return 0;
 
     mmFlatHeader_t hdr;
-    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr) ||
-        hdr.magic != MMFLAT_MAGIC || hdr.version != MMFLAT_VERSION ||
+    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr) || hdr.magic != MMFLAT_MAGIC || hdr.version != MMFLAT_VERSION ||
         hdr.numSections != MMFLAT_NSECT) {
         close(fd);
         return 0;
     }
 
     struct stat st;
-    if (fstat(fd, &st) != 0) { close(fd); return 0; }
+    if (fstat(fd, &st) != 0) {
+        close(fd);
+        return 0;
+    }
     size_t mapSize = (size_t)st.st_size;
 
     void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
@@ -897,31 +955,31 @@ int LoadFlatCache(const char *flatPath) {
     if (m == MAP_FAILED) return 0;
 
     /* validate section elem sizes */
-    if (hdr.sec[MMFLAT_SEC_LOC].elemSize   != sizeof(locationInfo_t) ||
-        hdr.sec[MMFLAT_SEC_IPV4].elemSize  != sizeof(ipV4Node_t)     ||
-        hdr.sec[MMFLAT_SEC_IPV6].elemSize  != sizeof(ipV6Node_t)     ||
-        hdr.sec[MMFLAT_SEC_ASV4].elemSize  != sizeof(asV4Node_t)     ||
-        hdr.sec[MMFLAT_SEC_ASV6].elemSize  != sizeof(asV6Node_t)     ||
-        hdr.sec[MMFLAT_SEC_ASORG].elemSize != sizeof(asOrgNode_t)) {
+    if (hdr.sec[MMFLAT_SEC_LOC].elemSize != sizeof(locationInfo_t) || hdr.sec[MMFLAT_SEC_IPV4].elemSize != sizeof(ipV4Node_t) ||
+        hdr.sec[MMFLAT_SEC_IPV6].elemSize != sizeof(ipV6Node_t) || hdr.sec[MMFLAT_SEC_ASV4].elemSize != sizeof(asV4Node_t) ||
+        hdr.sec[MMFLAT_SEC_ASV6].elemSize != sizeof(asV6Node_t) || hdr.sec[MMFLAT_SEC_ASORG].elemSize != sizeof(asOrgNode_t)) {
         munmap(m, mapSize);
         return 0;
     }
 
     mmFlat = calloc(1, sizeof(mmFlat_t));
-    if (!mmFlat) { munmap(m, mapSize); return 0; }
+    if (!mmFlat) {
+        munmap(m, mapSize);
+        return 0;
+    }
 
     mmFlat->mmapBase = m;
     mmFlat->mmapSize = mapSize;
 
-#define MAP_SEC(IDX, field, countField, type) \
-    mmFlat->field      = (type *)((char *)m + hdr.sec[IDX].offset); \
+#define MAP_SEC(IDX, field, countField, type)                  \
+    mmFlat->field = (type *)((char *)m + hdr.sec[IDX].offset); \
     mmFlat->countField = hdr.sec[IDX].count
 
-    MAP_SEC(MMFLAT_SEC_LOC,   locArr,   locCount,   locationInfo_t);
-    MAP_SEC(MMFLAT_SEC_IPV4,  ipV4Arr,  ipV4Count,  ipV4Node_t);
-    MAP_SEC(MMFLAT_SEC_IPV6,  ipV6Arr,  ipV6Count,  ipV6Node_t);
-    MAP_SEC(MMFLAT_SEC_ASV4,  asV4Arr,  asV4Count,  asV4Node_t);
-    MAP_SEC(MMFLAT_SEC_ASV6,  asV6Arr,  asV6Count,  asV6Node_t);
+    MAP_SEC(MMFLAT_SEC_LOC, locArr, locCount, locationInfo_t);
+    MAP_SEC(MMFLAT_SEC_IPV4, ipV4Arr, ipV4Count, ipV4Node_t);
+    MAP_SEC(MMFLAT_SEC_IPV6, ipV6Arr, ipV6Count, ipV6Node_t);
+    MAP_SEC(MMFLAT_SEC_ASV4, asV4Arr, asV4Count, asV4Node_t);
+    MAP_SEC(MMFLAT_SEC_ASV6, asV6Arr, asV6Count, asV6Node_t);
     MAP_SEC(MMFLAT_SEC_ASORG, asOrgArr, asOrgCount, asOrgNode_t);
 #undef MAP_SEC
 
@@ -933,9 +991,8 @@ int LoadFlatCache(const char *flatPath) {
         if (absent) kh_value(mmHandle->localMap, k) = mmFlat->locArr[i];
     }
 
-    dbg_printf("LoadFlatCache: mmap'd %s: loc=%u ipv4=%u ipv6=%u asv4=%u asv6=%u asorg=%u\n",
-               flatPath, mmFlat->locCount, mmFlat->ipV4Count, mmFlat->ipV6Count,
-               mmFlat->asV4Count, mmFlat->asV6Count, mmFlat->asOrgCount);
+    dbg_printf("LoadFlatCache: mmap'd %s: loc=%u ipv4=%u ipv6=%u asv4=%u asv6=%u asorg=%u\n", flatPath, mmFlat->locCount, mmFlat->ipV4Count,
+               mmFlat->ipV6Count, mmFlat->asV4Count, mmFlat->asV6Count, mmFlat->asOrgCount);
     return 1;
 }  // End of LoadFlatCache
 
