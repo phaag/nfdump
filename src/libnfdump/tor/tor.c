@@ -72,22 +72,22 @@ typedef struct torFlatHeader_s {
     uint32_t magic;
     uint32_t version;
     uint32_t count;
-    uint32_t reserved; /* pad to 16 bytes */
+    uint32_t reserved;  // pad to 16 bytes
 } torFlatHeader_t;
 
-static torNode_t *torArray = NULL; /* base of sorted array           */
-static uint32_t torCount = 0;      /* number of elements             */
-static void *torMmap = NULL;       /* non-NULL when array is mmap'd  */
-static size_t torMmapSize = 0;     /* length passed to munmap()      */
+static torNode_t *torArray = NULL;  // base of sorted array
+static uint32_t torCount = 0;       // number of elements
+static void *torMmap = NULL;        // non-NULL when array is mmap'd
+static size_t torMmapSize = 0;      // length passed to munmap()
 
-/* bsearch comparator: sort / search by ipaddr ascending */
+// bsearch comparator: sort / search by ipaddr ascending
 static int torNodeCmpByIP(const void *a, const void *b) {
     uint32_t x = ((const torNode_t *)a)->ipaddr;
     uint32_t y = ((const torNode_t *)b)->ipaddr;
     if (x < y) return -1;
     if (x > y) return 1;
     return 0;
-}
+}  // End of torNodeCmpByIP
 
 /*
  * Write a flat binary cache file for fast subsequent loads.
@@ -100,7 +100,7 @@ static void torWriteFlatCache(const char *flatPath) {
 
     int fd = open(tmpPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
-        dbg_printf("torWriteFlatCache: cannot create %s: %s\n", tmpPath, strerror(errno));
+        LogError("WriteFlatCache: open(%s): %s", tmpPath, strerror(errno));
         return;
     }
 
@@ -116,19 +116,18 @@ static void torWriteFlatCache(const char *flatPath) {
 
     if (dataWritten != (ssize_t)(torCount * sizeof(torNode_t))) {
         unlink(tmpPath);
-        dbg_printf("torWriteFlatCache: write error for %s\n", tmpPath);
+        LogError("WriteFlatCache: write error for %s", tmpPath);
         return;
     }
     if (rename(tmpPath, flatPath) != 0) {
         unlink(tmpPath);
-        dbg_printf("torWriteFlatCache: rename failed for %s\n", tmpPath);
+        LogError("torWriteFlatCache: rename failed for %s", tmpPath);
     }
 }  // End of torWriteFlatCache
 
 // returns ok
 int Init_TorLookup(void) {
     torTree = kb_init(torTree, KB_DEFAULT_SIZE);
-
     return 1;
 }  // End of Init_TorLookup
 
@@ -278,14 +277,23 @@ int SaveTorTree(char *fileName) {
     return ret;
 }  // End of SaveTorTree
 
-/* Load (mmap) a flat binary cache file produced by torWriteFlatCache.
- * Returns 1 on success, 0 on any failure (caller falls back to slow path). */
+// Load (mmap) a flat binary cache file produced by torWriteFlatCache.
+// Returns 1 on success, 0 on any failure (caller falls back to slow path)
 static int torLoadFlatCache(const char *flatPath) {
     int fd = open(flatPath, O_RDONLY);
-    if (fd < 0) return 0;
+    if (fd < 0) {
+        LogError("open() failed for %s: %s", flatPath, strerror(errno));
+        return 0;
+    }
 
     torFlatHeader_t hdr;
-    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr) || hdr.magic != TORFLAT_MAGIC || hdr.version != TORFLAT_VERSION || hdr.count == 0) {
+    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr)) {
+        LogError("read() error for cache file header");
+        close(fd);
+        return 0;
+    }
+    if (hdr.magic != TORFLAT_MAGIC || hdr.version != TORFLAT_VERSION || hdr.count == 0) {
+        LogError("cache file header error magic/version mismatch");
         close(fd);
         return 0;
     }
@@ -293,7 +301,10 @@ static int torLoadFlatCache(const char *flatPath) {
     size_t mapSize = sizeof(torFlatHeader_t) + (size_t)hdr.count * sizeof(torNode_t);
     void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
-    if (m == MAP_FAILED) return 0;
+    if (m == MAP_FAILED) {
+        LogError("mmap() failed for '%s': %s", flatPath, strerror(errno));
+        return 0;
+    }
 
     torMmap = m;
     torMmapSize = mapSize;
@@ -306,7 +317,7 @@ static int torLoadFlatCache(const char *flatPath) {
 int LoadTorTree(char *fileName) {
     dbg_printf("Load TorNode DB file %s\n", fileName);
 
-    /* ---- Fix 1: if the caller passed the .flat file directly, use it ---- */
+    // if the caller passed the .flat file directly, use it
     size_t fnLen = strlen(fileName);
     if (fnLen > 5 && strcmp(fileName + fnLen - 5, ".flat") == 0) {
         if (torLoadFlatCache(fileName)) return 1;
@@ -314,28 +325,40 @@ int LoadTorTree(char *fileName) {
         return 0;
     }
 
-    /* ---- Build flat path: respect tordb.flatpath config key (fix 2) ---- */
+    // flat path: respect tordb.flatpath config key
     char flatPath[PATH_MAX];
     char *flatDir = ConfGetString("tordb.flatpath");
+    int useFlatCache = 1;
     if (flatDir) {
-        const char *base = strrchr(fileName, '/');
-        base = base ? base + 1 : fileName;
-        snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
-        free(flatDir);
+        if (strcmp(flatDir, "none") == 0) {
+            useFlatCache = 0;
+            free(flatDir);
+        } else {
+            if (!CheckPath(flatDir, S_IFDIR)) {
+                LogError("Config value tordb.flatpath='%s' - is not a directory", flatDir);
+                free(flatDir);
+                return 0;
+            }
+            const char *base = strrchr(fileName, '/');
+            base = base ? base + 1 : fileName;
+            snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
+            free(flatDir);
+        }
     } else {
         snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
     }
 
-    /* ---- fast path: mmap the flat binary cache if it is up-to-date ---- */
+    // fast path: mmap the flat binary cache if it is up-to-date
     struct stat stNf, stFlat;
-    if (stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
+    if (useFlatCache && stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
         if (torLoadFlatCache(flatPath)) return 1;
         LogError("open() tor lookup cache '%s' failed: %s", flatPath, strerror(errno));
     }
 
-    /* ---- slow path: decompress nffileV3, build malloc'd array ---- */
+    // slow path: decompress nffileV3, build malloc'd array
     nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
+        LogError("LoadTorTree: Failed to open maxmind db file");
         return 0;
     }
 
@@ -380,12 +403,12 @@ int LoadTorTree(char *fileName) {
 
     if (torCount == 0) return 0;
 
-    /* SaveTorTree writes records via in-order kbtree iteration, so the
-     * nffileV3 blocks arrive sorted.  qsort is a defensive safety net. */
+    // SaveTorTree writes records via in-order kbtree iteration, so the
+    // nffileV3 blocks arrive sorted.  qsort is a defensive safety net
     qsort(torArray, torCount, sizeof(torNode_t), torNodeCmpByIP);
 
-    /* write flat cache for fast-path use on the next invocation */
-    torWriteFlatCache(flatPath);
+    // write flat cache for fast-path use on the next invocation
+    if (useFlatCache) torWriteFlatCache(flatPath);
 
     dbg_printf("LoadTorTree: loaded %u nodes from %s\n", torCount, fileName);
     return 1;

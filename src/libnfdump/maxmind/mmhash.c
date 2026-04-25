@@ -934,11 +934,19 @@ void WriteFlatCache(const char *flatPath) {
 /* Try to mmap an existing flat cache.  Returns 1 on success. */
 int LoadFlatCache(const char *flatPath) {
     int fd = open(flatPath, O_RDONLY);
-    if (fd < 0) return 0;
+    if (fd < 0) {
+        LogError("open() failed for %s: %s", flatPath, strerror(errno));
+        return 0;
+    }
 
     mmFlatHeader_t hdr;
-    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr) || hdr.magic != MMFLAT_MAGIC || hdr.version != MMFLAT_VERSION ||
-        hdr.numSections != MMFLAT_NSECT) {
+    if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr)) {
+        LogError("read() error for cache file header");
+        close(fd);
+        return 0;
+    }
+    if (hdr.magic != MMFLAT_MAGIC || hdr.version != MMFLAT_VERSION || hdr.numSections != MMFLAT_NSECT) {
+        LogError("cache file header error magic/version mismatch");
         close(fd);
         return 0;
     }
@@ -952,7 +960,10 @@ int LoadFlatCache(const char *flatPath) {
 
     void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
-    if (m == MAP_FAILED) return 0;
+    if (m == MAP_FAILED) {
+        LogError("mmap() failed for '%s': %s", flatPath, strerror(errno));
+        return 0;
+    }
 
     /* validate section elem sizes */
     if (hdr.sec[MMFLAT_SEC_LOC].elemSize != sizeof(locationInfo_t) || hdr.sec[MMFLAT_SEC_IPV4].elemSize != sizeof(ipV4Node_t) ||
