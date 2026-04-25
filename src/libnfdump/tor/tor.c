@@ -174,7 +174,9 @@ static void torWriteFlatCache(const char *flatPath) {
 // returns ok
 int Init_TorLookup(void) {
     torV4Tree = kb_init(torV4Tree, KB_DEFAULT_SIZE);
-    torV6Tree = kb_init(torV6Tree, KB_DEFAULT_SIZE);
+    /* torV6Node_t is 160 bytes; KB_DEFAULT_SIZE (512) yields t=1 < 2 and kb_init returns NULL.
+     * Use 1024 which yields t=3. */
+    torV6Tree = kb_init(torV6Tree, 1024);
     return 1;
 }  // End of Init_TorLookup
 
@@ -284,7 +286,7 @@ void UpdateTorV4Node(torV4Node_t *torV4Node) {
             if (torV4Node->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torV4Node->interval[0].lastSeen;
             if (torV4Node->interval[0].firstSeen < node->interval[index].firstSeen) abort();
         }
-
+        node->roles |= torV4Node->roles;
     } else {
         torV4Node->interval[0].firstSeen = torV4Node->lastPublished;
         kb_putp(torV4Tree, torV4Tree, torV4Node);
@@ -311,6 +313,7 @@ void UpdateTorV6Node(torV6Node_t *torV6Node) {
             if (torV6Node->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torV6Node->interval[0].lastSeen;
             if (torV6Node->interval[0].firstSeen < node->interval[index].firstSeen) abort();
         }
+        node->roles |= torV6Node->roles;
     } else {
         torV6Node->interval[0].firstSeen = torV6Node->lastPublished;
         kb_putp(torV6Tree, torV6Tree, torV6Node);
@@ -358,30 +361,32 @@ int SaveTorTree(char *fileName) {
     FlushBlockV3(nffile, dataBlock);
 
     // write v6 blocks
-    dataBlock = NULL;
-    InitDataBlock(dataBlock, blockSize);
-    dataBlock->elementType = TorV6TreeElementID;
-    dataBlock->elementSize = sizeof(torV6Node_t);
-    outBuff = GetCursor(dataBlock);
+    if (torV6Tree) {
+        dataBlock = NULL;
+        InitDataBlock(dataBlock, blockSize);
+        dataBlock->elementType = TorV6TreeElementID;
+        dataBlock->elementSize = sizeof(torV6Node_t);
+        outBuff = GetCursor(dataBlock);
 
-    kb_itr_first(torV6Tree, torV6Tree, &itr);
-    for (; kb_itr_valid(&itr); kb_itr_next(torV6Tree, torV6Tree, &itr)) {
-        torV6Node_t *torV6Node = &kb_itr_key(torV6Node_t, &itr);
-        if (!IsAvailable(dataBlock, blockSize, sizeof(torV6Node_t))) {
-            WriteBlockV3(nffile, dataBlock);
-            dataBlock = NULL;
-            InitDataBlock(dataBlock, blockSize);
-            dataBlock->elementType = TorV6TreeElementID;
-            dataBlock->elementSize = sizeof(torV6Node_t);
-            outBuff = GetCursor(dataBlock);
+        kb_itr_first(torV6Tree, torV6Tree, &itr);
+        for (; kb_itr_valid(&itr); kb_itr_next(torV6Tree, torV6Tree, &itr)) {
+            torV6Node_t *torV6Node = &kb_itr_key(torV6Node_t, &itr);
+            if (!IsAvailable(dataBlock, blockSize, sizeof(torV6Node_t))) {
+                WriteBlockV3(nffile, dataBlock);
+                dataBlock = NULL;
+                InitDataBlock(dataBlock, blockSize);
+                dataBlock->elementType = TorV6TreeElementID;
+                dataBlock->elementSize = sizeof(torV6Node_t);
+                outBuff = GetCursor(dataBlock);
+            }
+            memcpy(outBuff, torV6Node, sizeof(torV6Node_t));
+            outBuff += sizeof(torV6Node_t);
+            dataBlock->rawSize += sizeof(torV6Node_t);
+            dataBlock->numElements++;
         }
-        memcpy(outBuff, torV6Node, sizeof(torV6Node_t));
-        outBuff += sizeof(torV6Node_t);
-        dataBlock->rawSize += sizeof(torV6Node_t);
-        dataBlock->numElements++;
+        // flush last v6 datablock
+        FlushBlockV3(nffile, dataBlock);
     }
-    // flush last v6 datablock
-    FlushBlockV3(nffile, dataBlock);
 
     int ret = FlushFileV3(nffile);
     CloseFileV3(nffile);
@@ -421,9 +426,9 @@ static int torLoadFlatCache(const char *flatPath) {
     torMmap = m;
     torMmapSize = mapSize;
     char *base = (char *)m + sizeof(torFlatHeader_t);
-    torV4Array = (torV4Node_t *)base;
+    torV4Array = hdr.v4count ? (torV4Node_t *)base : NULL;
     torV4Count = hdr.v4count;
-    torV6Array = (torV6Node_t *)(base + (size_t)hdr.v4count * sizeof(torV4Node_t));
+    torV6Array = hdr.v6count ? (torV6Node_t *)(base + (size_t)hdr.v4count * sizeof(torV4Node_t)) : NULL;
     torV6Count = hdr.v6count;
     dbg_printf("torLoadFlatCache: mmap'd %u v4 + %u v6 nodes from %s\n", torV4Count, torV6Count, flatPath);
     return 1;
@@ -558,7 +563,7 @@ int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo) {
 
     torV4Node_t key = {.ipaddr = ip};
     torV4Node_t *torV4Node = bsearch(&key, torV4Array, torV4Count, sizeof(torV4Node_t), torV4NodeCmpByIP);
-    if (torV4Node) {
+    if (torV4Node && (torV4Node->roles & TOR_ROLE_EXIT)) {
         first /= 1000;
         last /= 1000;
         for (int i = 0; i <= (int)torV4Node->intervalIndex; i++) {
@@ -599,7 +604,7 @@ int LookupV6Tor(uint64_t ip[2], uint64_t first, uint64_t last, char *torInfo) {
     key.network[0] = ip[0];
     key.network[1] = ip[1];
     torV6Node_t *node = bsearch(&key, torV6Array, torV6Count, sizeof(torV6Node_t), torV6NodeCmpByNet);
-    if (node) {
+    if (node && (node->roles & TOR_ROLE_EXIT)) {
         first /= 1000;
         last /= 1000;
         for (int i = 0; i <= (int)node->intervalIndex; i++) {

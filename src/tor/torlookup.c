@@ -58,10 +58,11 @@
 #include "tor/tor.h"
 #include "util.h"
 
-#define TAG_EXITNODE "ExitNode"
-#define TAG_PUBLISHED "Published"
-#define TAG_LASTSTATUS "LastStatus"
+#define TAG_EXITNODE    "ExitNode"
+#define TAG_PUBLISHED   "Published"
+#define TAG_LASTSTATUS  "LastStatus"
 #define TAG_EXITADDRESS "ExitAddress"
+#define TAG_ROLE        "Role"
 
 static void usage(char *name);
 
@@ -151,8 +152,8 @@ static time_t ReadTime(char *timestring) {
 
 static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) {
     if (strstr(line, TAG_EXITNODE) != NULL) {
-        memset((void *)torV4Node, 0, sizeof(torV4Node_t));
-        memset((void *)torV6Node, 0, sizeof(torV6Node_t));
+        /* Signal processFile to commit the previous block and reset state */
+        return -1;
     } else if (strstr(line, TAG_PUBLISHED) != NULL) {
         char *timestring = line + strlen(TAG_PUBLISHED) + 1;
         time_t lastPublished = ReadTime(timestring);
@@ -192,6 +193,25 @@ static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) 
             return 2;
         }
         LogError("Unparseable IP address: %s", ipstring);
+    } else if (strstr(line, TAG_ROLE) != NULL) {
+        /* Parse comma-separated role tokens and set bitmask on both nodes.
+         * Known roles: Guard Exit HSDir Auth Fast Stable Middle */
+        char *roles = line + strlen(TAG_ROLE) + 1;
+        uint8_t mask = 0;
+        char *tok = strtok(roles, ",\n\r");
+        while (tok) {
+            while (*tok == ' ') tok++;  /* trim leading space */
+            if (strcmp(tok, "Guard")  == 0) mask |= TOR_ROLE_GUARD;
+            else if (strcmp(tok, "Exit")   == 0) mask |= TOR_ROLE_EXIT;
+            else if (strcmp(tok, "HSDir")  == 0) mask |= TOR_ROLE_HSDIR;
+            else if (strcmp(tok, "Auth")   == 0) mask |= TOR_ROLE_AUTH;
+            else if (strcmp(tok, "Fast")   == 0) mask |= TOR_ROLE_FAST;
+            else if (strcmp(tok, "Stable") == 0) mask |= TOR_ROLE_STABLE;
+            else if (strcmp(tok, "Middle") == 0) mask |= TOR_ROLE_MIDDLE;
+            tok = strtok(NULL, ",\n\r");
+        }
+        torV4Node->roles = mask;
+        torV6Node->roles = mask;
     }
     return 0;
 }
@@ -208,12 +228,30 @@ static int processFile(char *torFile) {
     torV4Node_t torV4Node = {0};
     torV6Node_t torV6Node = {0};
     while ((read = getline(&line, &len, fp)) != -1) {
-        int ipfound = scanLine(line, &torV4Node, &torV6Node);
-        if (ipfound == 1) {
-            UpdateTorV4Node(&torV4Node);
-        } else if (ipfound == 2) {
-            UpdateTorV6Node(&torV6Node);
+        int result = scanLine(line, &torV4Node, &torV6Node);
+        if (result == -1) {
+            /* New ExitNode block starting — commit any pending node from previous block.
+             * If no Role line was seen, default to Exit-only. */
+            if (torV4Node.ipaddr) {
+                if (!torV4Node.roles) torV4Node.roles = TOR_ROLE_EXIT;
+                UpdateTorV4Node(&torV4Node);
+            }
+            if (torV6Node.network[0] || torV6Node.network[1]) {
+                if (!torV6Node.roles) torV6Node.roles = TOR_ROLE_EXIT;
+                UpdateTorV6Node(&torV6Node);
+            }
+            memset(&torV4Node, 0, sizeof(torV4Node));
+            memset(&torV6Node, 0, sizeof(torV6Node));
         }
+    }
+    /* Flush the last block in the file */
+    if (torV4Node.ipaddr) {
+        if (!torV4Node.roles) torV4Node.roles = TOR_ROLE_EXIT;
+        UpdateTorV4Node(&torV4Node);
+    }
+    if (torV6Node.network[0] || torV6Node.network[1]) {
+        if (!torV6Node.roles) torV6Node.roles = TOR_ROLE_EXIT;
+        UpdateTorV6Node(&torV6Node);
     }
 
     fclose(fp);

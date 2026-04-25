@@ -44,10 +44,20 @@ typedef struct interval_s {
 
 #define MAXINTERVALS 8
 
+/* Tor node role bitmask — flags can be combined */
+#define TOR_ROLE_GUARD (1U << 0)
+#define TOR_ROLE_EXIT (1U << 1)
+#define TOR_ROLE_HSDIR (1U << 2)
+#define TOR_ROLE_AUTH (1U << 3)
+#define TOR_ROLE_FAST (1U << 4)
+#define TOR_ROLE_STABLE (1U << 5)
+#define TOR_ROLE_MIDDLE (1U << 6)
+
 typedef struct torV4Node_s {
     uint32_t ipaddr;
     uint16_t gaps;
-    uint16_t intervalIndex;
+    uint8_t intervalIndex;  // max MAXINTERVALS-1 = 7, fits in uint8_t
+    uint8_t roles;          // TOR_ROLE_* bitmask
     time_t lastPublished;
     interval_t interval[MAXINTERVALS];
 } torV4Node_t;
@@ -56,7 +66,8 @@ typedef struct torV6Node_s {
     uint64_t network[2];  // IPv6 address: [0] high 64-bit, [1] low 64-bit, host byte order
     uint16_t gaps;
     uint16_t intervalIndex;
-    uint32_t pad;  // alignment before time_t
+    uint16_t roles;  // TOR_ROLE_* bitmask
+    uint16_t pad;    // alignment before time_t
     time_t lastPublished;
     interval_t interval[MAXINTERVALS];
 } torV6Node_t;
