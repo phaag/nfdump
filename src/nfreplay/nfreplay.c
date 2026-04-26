@@ -302,7 +302,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
         // cnt is the number of blocks, which matched the filter
         // and added to the output buffer
-        recordHeader_t *record_ptr = GetCursor(dataBlock);
+        recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {

@@ -141,8 +141,8 @@ static flowBlockV3_t *StoreV4Record(uint8_t *buf, nffileV3_t *nffile, flowBlockV
     // update flow block timestamps from genericFlow if present
     EXgenericFlow_t *gf = GetExtension(h, EXgenericFlow);
     if (gf) {
-        if (block->minTimestamp == 0 || gf->msecFirst < block->minTimestamp) block->minTimestamp = gf->msecFirst;
-        if (gf->msecLast > block->maxTimestamp) block->maxTimestamp = gf->msecLast;
+        if (block->msecFirst == 0 || gf->msecFirst < block->msecFirst) block->msecFirst = gf->msecFirst;
+        if (gf->msecLast > block->msecLast) block->msecLast = gf->msecLast;
     }
 
     return block;

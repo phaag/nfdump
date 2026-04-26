@@ -85,11 +85,11 @@ typedef struct torFlatHeader_s {
     uint32_t v6count;
 } torFlatHeader_t;
 
-static torV4Node_t *torV4Array = NULL; /* base of sorted IPv4 array */
+static torV4Node_t *torV4Array = NULL;  // base of sorted IPv4 array
 static uint32_t torV4Count = 0;
-static torV6Node_t *torV6Array = NULL; /* base of sorted IPv6 array */
+static torV6Node_t *torV6Array = NULL;  // base of sorted IPv6 array
 static uint32_t torV6Count = 0;
-static void *torMmap = NULL; /* non-NULL when arrays are mmap'd */
+static void *torMmap = NULL;  // non-NULL when arrays are mmap'd
 static size_t torMmapSize = 0;
 
 /* bsearch/qsort comparators for the flat arrays */
