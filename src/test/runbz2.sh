@@ -37,7 +37,7 @@ export TZ
 NFDUMP="../nfdump/nfdump -G none"
 
 # bzip2 compression tests
-$NFDUMP -J 2 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J 1 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J bzip2 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J 0 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
+$NFDUMP -J=bzip2 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=lzo -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=bzip2 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null

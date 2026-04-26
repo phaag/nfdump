@@ -37,8 +37,9 @@ export TZ
 NFDUMP="../nfdump/nfdump -G none"
 
 # lz4 compression tests
-$NFDUMP -J 3 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J 1 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J lz4:5 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J lz4:9 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
-$NFDUMP -J 0 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
+$NFDUMP -J=lz4 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=lz4:5 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=lz4:9 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+$NFDUMP -J=0 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
