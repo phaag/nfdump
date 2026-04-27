@@ -1159,8 +1159,14 @@ int main(int argc, char **argv) {
 
     // Change Ident only
     if (flist.single_file && strlen(Ident) > 0) {
-        ChangeIdent(flist.single_file, Ident);
-        exit(EXIT_SUCCESS);
+        if (ChangeIdent(flist.single_file, Ident)) {
+            LogInfo("Successfully changed ident to %s for %s", Ident, flist.single_file);
+            exit(EXIT_SUCCESS);
+        } else {
+            LogInfo("Failed to change ident to %s for %s", Ident, flist.single_file);
+            exit(EXIT_FAILURE);
+        }
+        exit(ChangeIdent(flist.single_file, Ident) ? EXIT_SUCCESS : EXIT_FAILURE);
     }
 
     if (print_stat) {
@@ -1301,9 +1307,9 @@ int main(int argc, char **argv) {
             if (!nffile) exit(EXIT_FAILURE);
             SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
-                CloseFileV3(nffile);
+                FlushFileV3(nffile);
             } else {
-                CloseFileV3(nffile);
+                FlushFileV3(nffile);
                 unlink(wfile);
             }
         } else {

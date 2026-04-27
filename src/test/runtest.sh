@@ -66,7 +66,7 @@ $NFDUMP -r dummy_flows.nf -O bytes -z=lz4 -w test.5.flows.nf
 $NFDUMP -v check -r test.5.flows.nf >/dev/null
 $NFDUMP -r test.5.flows.nf -i TestFlows
 $NFDUMP -r test.5.flows.nf -q -o raw >test.5-2.out
-diff -u test.5.out test.5-2.out
+diff -u test.5.out nftest.5.out
 
 # create testdir dir for flow replay
 if [ -d testdir ]; then

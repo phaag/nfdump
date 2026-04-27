@@ -412,8 +412,9 @@ void FlushBlockV3(nffileV3_t *nffile, void *blockHeader) {
 
 // Called during FlushFileV3(), after all data blocks are written.
 static void WriteStatsBlock(nffileV3_t *nffile) {
-    // fix empty stat record
-    if (nffile->stat_record->msecFirstSeen == 0x7fffffffffffffffLL) nffile->stat_record->msecFirstSeen = 0;
+    // Skip stats block for non-flow files (maxmind, tor, etc.) that never
+    // accumulate any stats — identified by the sentinel set in NewFile().
+    if (nffile->stat_record->msecFirstSeen == 0x7fffffffffffffffLL) return;
 
     dataBlockV3_t *dataBlock = NewDataBlock(nffile->fileHeader->blockSize);
     *dataBlock = (dataBlockV3_t){
@@ -430,21 +431,27 @@ static void WriteStatsBlock(nffileV3_t *nffile) {
 
 }  // End of WriteStatsBlock
 
+// Total on-disk size of every IDENT block — fixed so ChangeIdent() is a
+// simple in-place payload overwrite with no size arithmetic.
+// IDENTLEN (128) is already a multiple of 8, so no padding is required.
+#define IDENT_BLOCK_SIZE ((uint32_t)(sizeof(dataBlockV3_t) + IDENTLEN))
+
 static void WriteIdentBlock(nffileV3_t *nffile) {
-    const char *ident = nffile->ident ? nffile->ident : "none";
-    uint32_t len = (uint32_t)strlen(ident) + 1;  // include NUL
-    uint32_t paddedLen = (len + 7) & ~7u;        // 8-byte aligned
+    // Skip ident block for non-flow files (maxmind, tor, etc.) that have no
+    // source identity.  ChangeIdent() will reject such files as well.
+    if (!nffile->ident) return;
 
     dataBlockV3_t *dataBlock = NewDataBlock(nffile->fileHeader->blockSize);
     *dataBlock = (dataBlockV3_t){
         .type = BLOCK_TYPE_IDENT,
-        .discSize = sizeof(dataBlockV3_t) + paddedLen,
-        .rawSize = sizeof(dataBlockV3_t) + paddedLen,
+        .discSize = IDENT_BLOCK_SIZE,
+        .rawSize = IDENT_BLOCK_SIZE,
         .compression = NOT_COMPRESSED,
         .encryption = NOT_ENCRYPTED,
     };
+    // strncpy zero-fills the entire IDENTLEN region when ident is shorter
     char *buf = (char *)dataBlock + sizeof(dataBlockV3_t);
-    memcpy(buf, ident, len);
+    strncpy(buf, nffile->ident, IDENTLEN);
 
     queue_push(nffile->processQueue, dataBlock);
 
@@ -536,25 +543,30 @@ int FlushFileV3(nffileV3_t *nffile) {
 /*
  * ChangeIdent — replace the ident string in a closed nffile v3.
  *
- * Assumptions (match FlushFileV3 write order):
- *   - The IDENT block is always the last data block, written immediately
- *     after the STATS block and immediately before the block directory.
+ * WriteIdentBlock() always allocates a fixed IDENT_BLOCK_SIZE on-disk block
+ * (sizeof(dataBlockV3_t) + IDENTLEN bytes).  The block header fields are
+ * therefore constant for any ident value, so ChangeIdent only needs to
+ * overwrite the IDENTLEN-byte payload region — no block header rewrite, no
+ * size arithmetic, no heap allocation.
  *
  * Algorithm:
- *   1. Open the file for read/write (no mmap needed — we use pread/pwrite).
+ *   1. Open the file R/W.
  *   2. Read and validate the file header.
- *   3. Locate the BLOCK_TYPE_IDENT entry in the directory.
- *   4. Truncate the file at the ident block's on-disk offset, removing the
- *      old ident block, directory, and footer in one shot.
- *   5. Write the new ident block at that offset.
- *   6. Rebuild and write the directory (with updated IDENT entry) + footer.
- *   7. Rewrite the file header with the new directory location.
- *   8. fsync and close.
+ *   3. Read the block directory header.
+ *   4. Scan directory entries one-by-one to find BLOCK_TYPE_IDENT.
+ *   5. pwrite IDENTLEN zero-filled bytes (new ident, NUL-padded) at
+ *      entry.offset + sizeof(dataBlockV3_t).  Block header is untouched.
+ *   6. fsync and close.
  *
  * Returns 1 on success, 0 on error.
  */
 int ChangeIdent(const char *filename, const char *ident) {
     if (!filename || !ident) return 0;
+
+    if (strlen(ident) >= IDENTLEN) {
+        LogError("ChangeIdent: ident '%s' too long (max %u characters)", ident, IDENTLEN - 1);
+        return 0;
+    }
 
     // --- open file for read/write ---
     int fd = open(filename, O_RDWR);
@@ -605,130 +617,51 @@ int ChangeIdent(const char *filename, const char *ident) {
         return 0;
     }
 
-    // --- read directory entries ---
-    size_t entriesSize = dirHdr.numEntries * sizeof(directoryEntryV3_t);
-    directoryEntryV3_t *entries = malloc(entriesSize);
-    if (!entries) {
-        LogError("ChangeIdent: malloc() failed: %s", strerror(errno));
-        close(fd);
-        return 0;
-    }
-
-    ret = pread(fd, entries, entriesSize, (off_t)fileHeader.offDirectory + sizeof(blockDirectoryV3_t));
-    if (ret != (ssize_t)entriesSize) {
-        LogError("ChangeIdent: failed to read directory entries from '%s'", filename);
-        free(entries);
-        close(fd);
-        return 0;
-    }
-
-    // --- locate the IDENT entry (must be last data block) ---
-    // Assumption: ident is last — its offset is the truncation point.
-    int identIdx = -1;
-    for (int i = (int)dirHdr.numEntries - 1; i >= 0; i--) {
-        if (entries[i].type == BLOCK_TYPE_IDENT) {
-            identIdx = i;
+    // --- scan directory entries one-by-one to find the IDENT block ---
+    // No heap allocation: entries are small and we stop at the first hit.
+    off_t entryBase = (off_t)fileHeader.offDirectory + (off_t)sizeof(blockDirectoryV3_t);
+    off_t identPayloadOffset = -1;
+    for (uint32_t i = 0; i < dirHdr.numEntries; i++) {
+        directoryEntryV3_t entry;
+        ret = pread(fd, &entry, sizeof(directoryEntryV3_t), entryBase + (off_t)(i * sizeof(directoryEntryV3_t)));
+        if (ret != (ssize_t)sizeof(directoryEntryV3_t)) {
+            LogError("ChangeIdent: failed to read directory entry %u from '%s'", i, filename);
+            close(fd);
+            return 0;
+        }
+        if (entry.type == BLOCK_TYPE_IDENT) {
+            // Verify the on-disk block was written by the current code, which
+            // always allocates IDENT_BLOCK_SIZE bytes.  Older files have a
+            // variable-size block that cannot safely receive a full IDENTLEN
+            // payload write; tell the user to rewrite the file first.
+            if (entry.size < IDENT_BLOCK_SIZE) {
+                LogError(
+                    "ChangeIdent: IDENT block in '%s' is %u bytes (need %u); "
+                    "rewrite with 'nfdump -r <in> -w <out>' to upgrade the file first",
+                    filename, entry.size, IDENT_BLOCK_SIZE);
+                close(fd);
+                return 0;
+            }
+            identPayloadOffset = (off_t)entry.offset + (off_t)sizeof(dataBlockV3_t);
             break;
         }
     }
-    if (identIdx < 0) {
-        LogError("ChangeIdent: no IDENT block found in '%s'", filename);
-        free(entries);
+    if (identPayloadOffset < 0) {
+        LogError("ChangeIdent: no IDENT block found in '%s' - not a flow file", filename);
         close(fd);
         return 0;
     }
 
-    off_t identOffset = (off_t)entries[identIdx].offset;
-
-    // --- build new ident block ---
-    uint32_t newLen = (uint32_t)strlen(ident) + 1;  // include NUL
-    uint32_t newPadded = (newLen + 7) & ~7u;        // 8-byte aligned
-    uint32_t newBlockSize = (uint32_t)sizeof(dataBlockV3_t) + newPadded;
-
-    // allocate a zero-filled buffer so padding bytes are clean
-    uint8_t *identBuf = calloc(1, newBlockSize);
-    if (!identBuf) {
-        LogError("ChangeIdent: calloc() failed: %s", strerror(errno));
-        free(entries);
-        close(fd);
-        return 0;
-    }
-    dataBlockV3_t *identBlock = (dataBlockV3_t *)identBuf;
-    *identBlock = (dataBlockV3_t){
-        .type = BLOCK_TYPE_IDENT,
-        .discSize = newBlockSize,
-        .rawSize = newBlockSize,
-        .compression = NOT_COMPRESSED,
-        .encryption = NOT_ENCRYPTED,
-    };
-    memcpy(identBuf + sizeof(dataBlockV3_t), ident, newLen);
-
-    // --- truncate file at ident block offset (drops old ident + dir + footer) ---
-    if (ftruncate(fd, identOffset) < 0) {
-        LogError("ChangeIdent: ftruncate() '%s': %s", filename, strerror(errno));
-        free(identBuf);
-        free(entries);
-        close(fd);
-        return 0;
-    }
-
-    // --- write new ident block ---
-    ret = pwrite(fd, identBuf, newBlockSize, identOffset);
-    free(identBuf);
-    if (ret != (ssize_t)newBlockSize) {
-        LogError("ChangeIdent: pwrite() ident block '%s': %s", filename, strerror(errno));
-        free(entries);
-        close(fd);
-        return 0;
-    }
-
-    // --- update the directory entry for IDENT ---
-    entries[identIdx].size = newBlockSize;
-    // offset stays the same; only size may change
-
-    // --- write new directory ---
-    off_t newDirOffset = identOffset + (off_t)newBlockSize;
-
-    ret = pwrite(fd, &dirHdr, sizeof(blockDirectoryV3_t), newDirOffset);
-    if (ret != (ssize_t)sizeof(blockDirectoryV3_t)) {
-        LogError("ChangeIdent: pwrite() directory header '%s': %s", filename, strerror(errno));
-        free(entries);
-        close(fd);
-        return 0;
-    }
-
-    off_t pos = newDirOffset + sizeof(blockDirectoryV3_t);
-    ret = pwrite(fd, entries, entriesSize, pos);
-    free(entries);
-    if (ret != (ssize_t)entriesSize) {
-        LogError("ChangeIdent: pwrite() directory entries '%s': %s", filename, strerror(errno));
-        close(fd);
-        return 0;
-    }
-    pos += (off_t)entriesSize;
-
-    uint32_t newDirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
-
-    // --- write new footer ---
-    fileFooterV3_t footer = {
-        .magic = FOOTER_MAGIC_V3,
-        .dirSize = newDirSize,
-        .offDirectory = (uint64_t)newDirOffset,
-        .checksum = 0,
-    };
-    ret = pwrite(fd, &footer, sizeof(fileFooterV3_t), pos);
-    if (ret != (ssize_t)sizeof(fileFooterV3_t)) {
-        LogError("ChangeIdent: pwrite() footer '%s': %s", filename, strerror(errno));
-        close(fd);
-        return 0;
-    }
-
-    // --- rewrite file header with updated directory location ---
-    fileHeader.offDirectory = (uint64_t)newDirOffset;
-    fileHeader.dirSize = newDirSize;
-    ret = pwrite(fd, &fileHeader, sizeof(fileHeaderV3_t), 0);
-    if (ret != (ssize_t)sizeof(fileHeaderV3_t)) {
-        LogError("ChangeIdent: pwrite() header '%s': %s", filename, strerror(errno));
+    // --- overwrite only the payload bytes ---
+    // WriteIdentBlock() always writes a fixed IDENT_BLOCK_SIZE block, so the
+    // block header (type, discSize, rawSize, compression, encryption) is
+    // identical for every possible ident string — no need to touch it.
+    // strncpy zero-fills the remainder, giving a clean NUL-padded payload.
+    char buf[IDENTLEN];
+    strncpy(buf, ident, IDENTLEN);
+    ret = pwrite(fd, buf, IDENTLEN, identPayloadOffset);
+    if (ret != IDENTLEN) {
+        LogError("ChangeIdent: pwrite() ident payload '%s': %s", filename, strerror(errno));
         close(fd);
         return 0;
     }
