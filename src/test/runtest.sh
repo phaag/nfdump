@@ -99,6 +99,7 @@ if [ -f testdir/pidfile ]; then
 fi
 
 $NFDUMP -r dummy_flows.nf -q -o extended -6 'packets > 0' >test.6-1.out
+$NFDUMP -v check -r testdir/nfcapd.*
 $NFDUMP -r testdir/nfcapd.* -q -o extended -6 >test.6-2.out
 $NFEXPIRE -l testdir 
 
@@ -123,6 +124,8 @@ kill -TERM $(cat testdir/pidfile)
 sleep 1
 echo done.
 
+$NFDUMP -v check -r testdir/nfcapd.*
+
 echo -n Starting nfcapd ...
 $NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
 sleep 1
@@ -141,9 +144,9 @@ if [ -f testdir/pidfile ]; then
 	echo nfcapd does not terminate
 	exit
 fi
-
+echo Test renameAppend file
 $NFDUMP -X -v check -r testdir/nfcapd.* >/dev/null
-
+echo Success
 mkdir memck.$$
 # OpenBSD
 export MALLOC_OPTIONS=CFGJS

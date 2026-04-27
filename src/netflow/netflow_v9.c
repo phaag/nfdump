@@ -154,8 +154,8 @@ static const struct v9TranslationMap_s {
     AddElement(NF_F_FLOW_CREATE_TIME_MSEC, SIZEmsecFirst, MOVE_NUMBER, EXgenericFlowID, OFFmsecFirst, "msec first"),
     AddElement(NF_F_FLOW_END_TIME_MSEC, SIZEmsecLast, MOVE_NUMBER, EXgenericFlowID, OFFmsecLast, "msec last"),
     AddElement(SystemInitTimeMiliseconds, 0, MOVE_SYSUP, EXnull, 0, "SysupTime msec"),
-    AddElement(NF9_ENGINE_TYPE, 0, NOP, EXnull, 0, "engine type"),
-    AddElement(NF9_ENGINE_ID, 0, NOP, EXnull, 0, "engine ID"),
+    // AddElement(NF9_ENGINE_TYPE, 0, NOP, EXnull, 0, "engine type"),
+    // AddElement(NF9_ENGINE_ID, 0, NOP, EXnull, 0, "engine ID"),
     AddElement(NF9_ETHERTYPE, SIZEetherType, MOVE_NUMBER, EXlayer2ID, OFFetherType, "ethertype"),
 
     // NSEL extensions

@@ -1066,7 +1066,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         if (strcmp(query_type, "check") == 0) {
-            VerifyFileV3(flist.single_file, 0);
+            exit(VerifyFileV3(flist.single_file, 0) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
         } else if (strcmp(query_type, "repair") == 0) {
             ReWriteV3(flist.single_file);
         } else {

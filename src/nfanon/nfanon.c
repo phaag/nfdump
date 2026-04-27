@@ -418,7 +418,7 @@ static void *worker_thread(void *arg) {
 
         uint32_t recordCount = 0;
 
-        recordHeader_t *record_ptr = GetCursor(dataBlock);
+        recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {

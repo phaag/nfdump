@@ -329,94 +329,150 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
 }  // End of SumStatRecords
 
 /*
- * RenameAppendV3:
- *  - If newName does not exist: rename oldName -> newName.
- *  - If newName exists: append data blocks from oldName into newName
- *    without decompressing/recompressing.  Merge directories and stats,
- *    then remove oldName.
- *
- * The append works at the file level:
- *  1. mmap both files read-only, validate headers + directories.
- *  2. Open dst for read-write, truncate after its last data block
- *     (chop off old STATS, IDENT, directory + footer).
- *  3. Copy src data blocks (raw, compressed bytes) to the end of dst.
- *  4. Build a merged directory: dst entries (unchanged) + src entries
- *     (offsets adjusted by the dst data end position).  Skip STATS and
- *     IDENT blocks from src — they'll be replaced by merged versions.
- *  5. Sum stat records, write merged stats + ident blocks.
- *  6. Write new directory + footer, rewrite header.
- *  7. Unlink oldName.
- *
- *  Returns 0 on success, -1 on error.
+ * copyDataBlocks: copy all non-STATS/IDENT blocks from nffile into wfd,
+ * appending directory entries to entries[*idx] and advancing *writePos.
+ * Returns 0 on success, -1 on error.
  */
-int RenameAppendV3(const char *oldName, const char *newName) {
-    if (access(newName, F_OK) != 0) {
-        // destination does not exist — simple rename
-        return rename(oldName, newName);
+static int copyDataBlocks(const nffileV3_t *nffile, int wfd, directoryEntryV3_t *entries, uint32_t *idx, off_t *writePos,
+                          const char *tag) {
+    const blockDirectoryV3_t *dir = nffile->blockDirectory;
+    for (uint32_t i = 0; i < dir->numEntries; i++) {
+        const directoryEntryV3_t *e = &dir->entries[i];
+        if (e->type == BLOCK_TYPE_STATS || e->type == BLOCK_TYPE_IDENT) continue;
+        if (e->offset + e->size > nffile->mapSize) {
+            LogError("RenameAppendV3: %s entry[%u] out of bounds", tag, i);
+            return -1;
+        }
+        ssize_t n = pwrite(wfd, nffile->map + e->offset, e->size, *writePos);
+        if (n != (ssize_t)e->size) {
+            LogError("RenameAppendV3: pwrite() %s block[%u]: %s", tag, i, strerror(errno));
+            return -1;
+        }
+        entries[(*idx)++] = (directoryEntryV3_t){.type = e->type, .size = e->size, .offset = (uint64_t)*writePos};
+        *writePos += (off_t)e->size;
+    }
+    return 0;
+}  // End of copyDataBlocks
+
+/*
+ * writeMergedStats: write a STATS block and append its directory entry.
+ * Skips silently when no flows were recorded (sentinel msecFirstSeen value).
+ * Returns 0 on success, -1 on error.
+ */
+static int writeMergedStats(int wfd, const stat_record_t *stats, directoryEntryV3_t *entries, uint32_t *idx, off_t *writePos) {
+    if (stats->msecFirstSeen == 0x7fffffffffffffffLL) return 0;
+
+    const uint32_t size = (uint32_t)(sizeof(dataBlockV3_t) + sizeof(stat_record_t));
+    const dataBlockV3_t hdr = {
+        .type = BLOCK_TYPE_STATS, .discSize = size, .rawSize = size, .compression = NOT_COMPRESSED, .encryption = NOT_ENCRYPTED,
+    };
+    ssize_t n = pwrite(wfd, &hdr, sizeof(hdr), *writePos);
+    if (n != (ssize_t)sizeof(hdr)) {
+        LogError("RenameAppendV3: pwrite() stats header: %s", strerror(errno));
+        return -1;
+    }
+    n = pwrite(wfd, stats, sizeof(stat_record_t), *writePos + (off_t)sizeof(hdr));
+    if (n != (ssize_t)sizeof(stat_record_t)) {
+        LogError("RenameAppendV3: pwrite() stats payload: %s", strerror(errno));
+        return -1;
+    }
+    entries[(*idx)++] = (directoryEntryV3_t){.type = BLOCK_TYPE_STATS, .size = size, .offset = (uint64_t)*writePos};
+    *writePos += (off_t)size;
+    return 0;
+}  // End of writeMergedStats
+
+/*
+ * writeMergedIdent: write an IDENT block of fixed size IDENTLEN and append
+ * its directory entry.  Skips silently when ident is NULL.
+ * Returns 0 on success, -1 on error.
+ */
+static int writeMergedIdent(int wfd, const char *ident, directoryEntryV3_t *entries, uint32_t *idx, off_t *writePos) {
+    if (!ident) return 0;
+
+    const uint32_t size = (uint32_t)(sizeof(dataBlockV3_t) + IDENTLEN);
+    const dataBlockV3_t hdr = {
+        .type = BLOCK_TYPE_IDENT, .discSize = size, .rawSize = size, .compression = NOT_COMPRESSED, .encryption = NOT_ENCRYPTED,
+    };
+    ssize_t n = pwrite(wfd, &hdr, sizeof(hdr), *writePos);
+    if (n != (ssize_t)sizeof(hdr)) {
+        LogError("RenameAppendV3: pwrite() ident header: %s", strerror(errno));
+        return -1;
+    }
+    char buf[IDENTLEN];
+    strncpy(buf, ident, IDENTLEN);
+    n = pwrite(wfd, buf, IDENTLEN, *writePos + (off_t)sizeof(hdr));
+    if (n != IDENTLEN) {
+        LogError("RenameAppendV3: pwrite() ident payload: %s", strerror(errno));
+        return -1;
+    }
+    entries[(*idx)++] = (directoryEntryV3_t){.type = BLOCK_TYPE_IDENT, .size = size, .offset = (uint64_t)*writePos};
+    *writePos += (off_t)size;
+    return 0;
+}  // End of writeMergedIdent
+
+/*
+ * writeDirectoryFooter: write the block directory, the file footer, and
+ * rewrite the file header with the final directory location.
+ * header->offDirectory and header->dirSize are updated in place.
+ * Returns 0 on success, -1 on error.
+ */
+static int writeDirectoryFooter(int wfd, fileHeaderV3_t *header, const directoryEntryV3_t *entries, uint32_t numEntries,
+                                off_t dirOffset) {
+    const size_t entriesSize = numEntries * sizeof(directoryEntryV3_t);
+    const uint32_t dirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
+
+    const blockDirectoryV3_t dirHdr = {.magic = DIRECTORY_MAGIC, .numEntries = numEntries};
+    ssize_t n = pwrite(wfd, &dirHdr, sizeof(dirHdr), dirOffset);
+    if (n != (ssize_t)sizeof(dirHdr)) {
+        LogError("RenameAppendV3: pwrite() directory header: %s", strerror(errno));
+        return -1;
+    }
+    off_t pos = dirOffset + (off_t)sizeof(dirHdr);
+    if (entriesSize > 0) {
+        n = pwrite(wfd, entries, entriesSize, pos);
+        if (n != (ssize_t)entriesSize) {
+            LogError("RenameAppendV3: pwrite() directory entries: %s", strerror(errno));
+            return -1;
+        }
+        pos += (off_t)entriesSize;
     }
 
-    // --- open source (tmp) file via mmap ---
-    nffileV3_t *src = mmapFileV3(oldName);
-    if (!src) {
-        LogError("RenameAppendV3: cannot open source '%s'", oldName);
+    const fileFooterV3_t footer = {
+        .magic = FOOTER_MAGIC_V3, .dirSize = dirSize, .offDirectory = (uint64_t)dirOffset, .checksum = 0,
+    };
+    n = pwrite(wfd, &footer, sizeof(footer), pos);
+    if (n != (ssize_t)sizeof(footer)) {
+        LogError("RenameAppendV3: pwrite() footer: %s", strerror(errno));
         return -1;
     }
 
-    // --- open destination file via mmap ---
-    nffileV3_t *dst = mmapFileV3(newName);
-    if (!dst) {
-        LogError("RenameAppendV3: cannot open destination '%s'", newName);
-        CloseFileV3(src);
+    header->offDirectory = (uint64_t)dirOffset;
+    header->dirSize = dirSize;
+    n = pwrite(wfd, header, sizeof(*header), 0);
+    if (n != (ssize_t)sizeof(*header)) {
+        LogError("RenameAppendV3: pwrite() final header: %s", strerror(errno));
         return -1;
     }
+    return 0;
+}  // End of writeDirectoryFooter
 
-    // verify blockSize match
-    if (dst->fileHeader->blockSize != src->fileHeader->blockSize) {
-        LogError("RenameAppendV3: blockSize mismatch dst=%u src=%u", dst->fileHeader->blockSize, src->fileHeader->blockSize);
-        CloseFileV3(src);
-        CloseFileV3(dst);
-        return -1;
-    }
-    const blockDirectoryV3_t *srcDir = src->blockDirectory;
-    const blockDirectoryV3_t *dstDir = dst->blockDirectory;
-
-    // all blocks (including STATS/IDENT) sit between header and directory;
-    // old STATS/IDENT become dead bytes, unreferenced by the merged directory
-    off_t dstDataEnd = (off_t)dst->fileHeader->offDirectory;
-
-    // src blocks start right after header, directory follows last block
-    size_t srcCopySize = (size_t)(src->fileHeader->offDirectory - sizeof(fileHeaderV3_t));
-    uint64_t srcFirstOffset = sizeof(fileHeaderV3_t);
-
-    // worst case - numEntries, if none of the files has STATS/IDENT
-    uint32_t totalEntries = dstDir->numEntries + srcDir->numEntries + 2;
-
-    // allocate merged directory
-    directoryEntryV3_t *mergedEntries = malloc(totalEntries * sizeof(directoryEntryV3_t));
-    if (!mergedEntries) {
+/*
+ * buildMergedTempFile: write the merged content of dst and src into a new
+ * temp file created in the same directory as newName.
+ * Closes src and dst before returning (on both success and failure paths).
+ * Returns a malloc'd path to the temp file on success, NULL on failure.
+ * The caller must rename() the temp file to its final destination and free()
+ * the returned string.
+ */
+static char *buildMergedTempFile(nffileV3_t *src, nffileV3_t *dst, const char *newName) {
+    // worst case: all dst entries + all src entries + 2 (STATS + IDENT)
+    uint32_t totalEntries = dst->blockDirectory->numEntries + src->blockDirectory->numEntries + 2;
+    directoryEntryV3_t *entries = malloc(totalEntries * sizeof(directoryEntryV3_t));
+    if (!entries) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         CloseFileV3(src);
         CloseFileV3(dst);
-        return -1;
-    }
-
-    // fill dst entries (skip STATS/IDENT — offsets unchanged)
-    uint32_t idx = 0;
-    for (uint32_t i = 0; i < dstDir->numEntries; i++) {
-        uint32_t t = dstDir->entries[i].type;
-        if (t != BLOCK_TYPE_STATS && t != BLOCK_TYPE_IDENT) {
-            mergedEntries[idx++] = dstDir->entries[i];
-        }
-    }
-
-    // fill src entries with adjusted offsets
-    // src block at original offset X becomes dstDataEnd + (X - srcFirstOffset)
-    for (uint32_t i = 0; i < srcDir->numEntries; i++) {
-        uint32_t t = srcDir->entries[i].type;
-        if (t == BLOCK_TYPE_STATS || t == BLOCK_TYPE_IDENT) continue;
-        mergedEntries[idx] = srcDir->entries[i];
-        mergedEntries[idx].offset = (uint64_t)dstDataEnd + (srcDir->entries[i].offset - srcFirstOffset);
-        idx++;
+        return NULL;
     }
 
     // merge stat records
@@ -425,204 +481,132 @@ int RenameAppendV3(const char *oldName, const char *newName) {
         mergedStats = *dst->stat_record;
     } else {
         memset(&mergedStats, 0, sizeof(mergedStats));
+        mergedStats.msecFirstSeen = 0x7fffffffffffffffLL;
     }
     if (src->stat_record) SumStatRecords(&mergedStats, src->stat_record);
 
-    // keep dst ident — must copy since CloseFileV3 frees dst->ident
-    char *ident = strdup(dst->ident ? dst->ident : "none");
-    if (!ident) {
+    // keep dst ident, fall back to src ident
+    const char *rawIdent = dst->ident ? dst->ident : src->ident;
+    char *ident = rawIdent ? strdup(rawIdent) : NULL;
+    if (rawIdent && !ident) {
         LogError("strdup() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(mergedEntries);
+        free(entries);
         CloseFileV3(src);
         CloseFileV3(dst);
-        return -1;
+        return NULL;
     }
 
-    // --- we have everything we need from the mmap'd data; now do I/O ---
+    fileHeaderV3_t header = *dst->fileHeader;
 
-    // copy header to stack before we close the mmap
-    fileHeaderV3_t savedHeader = *dst->fileHeader;
-
-    // get pointer to src raw data before we close anything
-    const uint8_t *srcData = NULL;
-    if (srcCopySize > 0) {
-        srcData = src->map + srcFirstOffset;
+    // create temp file in the same directory as newName
+    size_t nameLen = strlen(newName);
+    char *tmpName = malloc(nameLen + 8);
+    if (!tmpName) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(ident);
+        free(entries);
+        CloseFileV3(src);
+        CloseFileV3(dst);
+        return NULL;
     }
-
-    // open dst file for writing (separate fd — mmap stays valid for srcData read)
-    int wfd = open(newName, O_RDWR);
+    snprintf(tmpName, nameLen + 8, "%s.XXXXXX", newName);
+    int wfd = mkstemp(tmpName);
     if (wfd < 0) {
-        LogError("open(rw) '%s': %s", newName, strerror(errno));
-        free(mergedEntries);
+        LogError("RenameAppendV3: mkstemp('%s'): %s", tmpName, strerror(errno));
+        free(tmpName);
+        free(ident);
+        free(entries);
         CloseFileV3(src);
         CloseFileV3(dst);
-        return -1;
+        return NULL;
     }
+    fchmod(wfd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
-    // truncate dst at directory offset — removes old directory + footer
-    // After this, dst mmap pages beyond dstDataEnd are invalid (SIGBUS).
-    // All dst mmap data was consumed above; only src->map is accessed below.
-    if (ftruncate(wfd, dstDataEnd) < 0) {
-        LogError("ftruncate() '%s': %s", newName, strerror(errno));
-        close(wfd);
-        free(mergedEntries);
-        CloseFileV3(src);
-        CloseFileV3(dst);
-        return -1;
-    }
+    // write placeholder header (rewritten at end with final offDirectory)
+    ssize_t n = pwrite(wfd, &header, sizeof(header), 0);
+    int ok = (n == (ssize_t)sizeof(header));
+    if (!ok) LogError("RenameAppendV3: pwrite() header: %s", strerror(errno));
 
-    // append src data blocks as raw bytes — no decompress/recompress
-    off_t writePos = dstDataEnd;
-    if (srcCopySize > 0) {
-        ssize_t ret = pwrite(wfd, srcData, srcCopySize, writePos);
-        if (ret != (ssize_t)srcCopySize) {
-            LogError("pwrite() src data: %s", strerror(errno));
-            close(wfd);
-            free(mergedEntries);
-            CloseFileV3(src);
-            CloseFileV3(dst);
-            return -1;
-        }
-        writePos += (off_t)srcCopySize;
-    }
+    off_t writePos = (off_t)sizeof(fileHeaderV3_t);
+    uint32_t idx = 0;
 
-    // all mmap data consumed — release both mappings
-    CloseFileV3(src);
+    // copy non-STATS/IDENT blocks from dst, then src
+    // (directory entries are always in file-offset order -- see nfwriter mutex)
+    ok = ok && (copyDataBlocks(dst, wfd, entries, &idx, &writePos, "dst") == 0);
+    ok = ok && (copyDataBlocks(src, wfd, entries, &idx, &writePos, "src") == 0);
+
     CloseFileV3(dst);
+    CloseFileV3(src);
 
-    // write merged STATS block
-    uint32_t statsBlockSize = sizeof(dataBlockV3_t) + sizeof(stat_record_t);
-    dataBlockV3_t statsHdr = {
-        .type = BLOCK_TYPE_STATS,
-        .discSize = statsBlockSize,
-        .rawSize = statsBlockSize,
-        .compression = NOT_COMPRESSED,
-        .encryption = NOT_ENCRYPTED,
-    };
-    ssize_t ret = pwrite(wfd, &statsHdr, sizeof(dataBlockV3_t), writePos);
-    if (ret != (ssize_t)sizeof(dataBlockV3_t)) {
-        LogError("pwrite() stats header: %s", strerror(errno));
-        close(wfd);
-        free(mergedEntries);
-        free(ident);
-        return -1;
-    }
-    mergedEntries[idx++] = (directoryEntryV3_t){
-        .type = BLOCK_TYPE_STATS,
-        .size = statsBlockSize,
-        .offset = (uint64_t)writePos,
-    };
-    ret = pwrite(wfd, &mergedStats, sizeof(stat_record_t), writePos + sizeof(dataBlockV3_t));
-    if (ret != (ssize_t)sizeof(stat_record_t)) {
-        LogError("pwrite() stats payload: %s", strerror(errno));
-        close(wfd);
-        free(mergedEntries);
-        free(ident);
-        return -1;
-    }
-    writePos += statsBlockSize;
+    // append merged STATS and IDENT blocks
+    ok = ok && (writeMergedStats(wfd, &mergedStats, entries, &idx, &writePos) == 0);
+    ok = ok && (writeMergedIdent(wfd, ident, entries, &idx, &writePos) == 0);
 
-    // write IDENT block
-    uint32_t identLen = (uint32_t)strlen(ident) + 1;
-    uint32_t identPadded = (identLen + 7) & ~7u;
-    uint32_t identBlockSize = sizeof(dataBlockV3_t) + identPadded;
-    dataBlockV3_t identHdr = {
-        .type = BLOCK_TYPE_IDENT,
-        .discSize = identBlockSize,
-        .rawSize = identBlockSize,
-        .compression = NOT_COMPRESSED,
-        .encryption = NOT_ENCRYPTED,
-    };
+    // write directory, footer, and rewrite header
+    ok = ok && (writeDirectoryFooter(wfd, &header, entries, idx, writePos) == 0);
 
-    // assemble ident block in a small stack buffer
-    uint8_t identBuf[sizeof(dataBlockV3_t) + 256];
-    memset(identBuf, 0, sizeof(identBuf));
-    memcpy(identBuf, &identHdr, sizeof(dataBlockV3_t));
-    memcpy(identBuf + sizeof(dataBlockV3_t), ident, identLen);
-
-    ret = pwrite(wfd, identBuf, identBlockSize, writePos);
-    if (ret != (ssize_t)identBlockSize) {
-        LogError("pwrite() ident block: %s", strerror(errno));
-        close(wfd);
-        free(mergedEntries);
-        free(ident);
-        return -1;
-    }
-    mergedEntries[idx++] = (directoryEntryV3_t){
-        .type = BLOCK_TYPE_IDENT,
-        .size = identBlockSize,
-        .offset = (uint64_t)writePos,
-    };
-    writePos += identBlockSize;
-
-    // --- write merged directory ---
-    off_t dirOffset = writePos;
-    uint32_t numEntries = idx;  // should == totalEntries
-
-    blockDirectoryV3_t dirHdr = {
-        .magic = DIRECTORY_MAGIC,
-        .numEntries = numEntries,
-    };
-    ret = pwrite(wfd, &dirHdr, sizeof(blockDirectoryV3_t), dirOffset);
-    if (ret != (ssize_t)sizeof(blockDirectoryV3_t)) {
-        LogError("pwrite() directory header: %s", strerror(errno));
-        close(wfd);
-        free(mergedEntries);
-        free(ident);
-        return -1;
-    }
-
-    size_t entriesSize = numEntries * sizeof(directoryEntryV3_t);
-    off_t pos = dirOffset + sizeof(blockDirectoryV3_t);
-    if (entriesSize > 0) {
-        ret = pwrite(wfd, mergedEntries, entriesSize, pos);
-        if (ret != (ssize_t)entriesSize) {
-            LogError("pwrite() directory entries: %s", strerror(errno));
-            close(wfd);
-            free(mergedEntries);
-            free(ident);
-            return -1;
-        }
-        pos += entriesSize;
-    }
-    free(mergedEntries);
-
-    uint32_t dirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
-
-    // --- write footer ---
-    fileFooterV3_t footer = {
-        .magic = FOOTER_MAGIC_V3,
-        .dirSize = dirSize,
-        .offDirectory = (uint64_t)dirOffset,
-        .checksum = 0,
-    };
-    ret = pwrite(wfd, &footer, sizeof(fileFooterV3_t), pos);
-    if (ret != (ssize_t)sizeof(fileFooterV3_t)) {
-        LogError("pwrite() footer: %s", strerror(errno));
-        close(wfd);
-        free(ident);
-        return -1;
-    }
-
-    // --- rewrite header with new directory offset ---
-    savedHeader.offDirectory = (uint64_t)dirOffset;
-    savedHeader.dirSize = dirSize;
-
-    ret = pwrite(wfd, &savedHeader, sizeof(fileHeaderV3_t), 0);
-    if (ret != (ssize_t)sizeof(fileHeaderV3_t)) {
-        LogError("pwrite() header: %s", strerror(errno));
-        close(wfd);
-        free(ident);
-        return -1;
-    }
-
-    fsync(wfd);
-    close(wfd);
+    free(entries);
     free(ident);
 
-    // remove source tmp file
-    return unlink(oldName);
+    if (ok) {
+        fsync(wfd);
+        close(wfd);
+        return tmpName;
+    }
 
+    close(wfd);
+    unlink(tmpName);
+    free(tmpName);
+    return NULL;
+}  // End of buildMergedTempFile
+
+/*
+ * RenameAppendV3:
+ *  - If newName does not exist: rename oldName -> newName.
+ *  - If newName exists: merge data blocks from oldName into newName
+ *    without decompressing/recompressing, then remove oldName.
+ *
+ * Blocks are copied individually (not as a raw byte range) to avoid
+ * orphan STATS/IDENT bytes that would cause nfdump -v check to fail.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int RenameAppendV3(const char *oldName, const char *newName) {
+    if (access(newName, F_OK) != 0) return rename(oldName, newName);
+
+    nffileV3_t *src = mmapFileV3(oldName);
+    if (!src) {
+        LogError("RenameAppendV3: cannot open source '%s'", oldName);
+        return -1;
+    }
+
+    nffileV3_t *dst = mmapFileV3(newName);
+    if (!dst) {
+        LogError("RenameAppendV3: cannot open destination '%s'", newName);
+        CloseFileV3(src);
+        return -1;
+    }
+
+    if (dst->fileHeader->blockSize != src->fileHeader->blockSize) {
+        LogError("RenameAppendV3: blockSize mismatch dst=%u src=%u", dst->fileHeader->blockSize, src->fileHeader->blockSize);
+        CloseFileV3(src);
+        CloseFileV3(dst);
+        return -1;
+    }
+
+    // buildMergedTempFile closes src and dst before returning
+    char *tmpName = buildMergedTempFile(src, dst, newName);
+    if (!tmpName) return -1;
+
+    int rc = rename(tmpName, newName);
+    if (rc != 0) {
+        LogError("RenameAppendV3: rename('%s','%s'): %s", tmpName, newName, strerror(errno));
+        unlink(tmpName);
+    } else {
+        unlink(oldName);
+    }
+    free(tmpName);
+    return rc;
 }  // End of RenameAppendV3
 
 // Check if all data blocks in file already have target compression
