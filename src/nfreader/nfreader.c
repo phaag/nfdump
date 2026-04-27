@@ -43,7 +43,7 @@
  * This compiles this code and links the required nfdump files
  * If you do it by hand:
  *
- * gcc -I.. -std=c11 -O3 -o nfreader nfreader.c -lnfdump
+ * gcc -I.. -std=c17 -O3 -I../libnffile -I../include -I../inline -I../.. -lnffile -o nfreader nfreader.c
  *
  */
 
@@ -64,10 +64,12 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "id.h"
 #include "logging.h"
 #include "nfdump.h"
-#include "nffile.h"
-#include "nfxV3.h"
+#include "nffileV3/nffileV3.h"
+#include "nfxV4.h"
+#include "output_short.h"
 #include "util.h"
 
 /* Function Prototypes */
@@ -168,7 +170,7 @@ static void print_record(recordHandle_t *recordHandle) {
 
 static void process_data(void) {
     // Get the first file handle
-    nffile_t *nffile = GetNextFile(NULL);
+    nffileV3_t *nffile = GetNextFile();
     if (nffile == NULL) {
         LogError("Empty file list. No files to process\n");
         return;
@@ -180,45 +182,47 @@ static void process_data(void) {
         return;
     }
 
-    dataBlock_t *dataBlock = NULL;
+    flowBlockV3_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
+        dataBlock = ReadBlockV3(nffile);
 
         if (dataBlock == NULL) {
-            if (GetNextFile(nffile) == NULL) {
+            if (GetNextFile() == NULL) {
                 done = 1;
                 printf("\nDone\n");
                 continue;
             }
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+        if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Skip block type %u. Write block unmodified", dataBlock->type);
             continue;
         }
 
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        recordHeaderV4_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
         uint64_t processed = 0;
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < dataBlock->numRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeaderV4_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
             sumSize += record_ptr->size;
 
             switch (record_ptr->type) {
-                case V3Record:
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, ++processed);
+                case V4Record:
+                    MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, ++processed);
 
                     /*
                      * insert hier your calls to your processing routine
                      * recordHandle now contains the mapped flow record
+                     * record_ptr the raw record.
                      * for example you can print each record:
                      */
 
+                    flow_record_short(stdout, (recordHeaderV4_t *)record_ptr);
                     print_record(recordHandle);
                     break;
                 default: {
@@ -227,14 +231,14 @@ static void process_data(void) {
             }
 
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+            record_ptr = (recordHeaderV4_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 
     }  // while
 
     FreeDataBlock(dataBlock);
-    DisposeFile(nffile);
+    CloseFileV3(nffile);
 
 }  // End of process_data
 
