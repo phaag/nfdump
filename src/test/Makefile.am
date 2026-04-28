@@ -1,22 +1,21 @@
 
 check_PROGRAMS = nftest nfgen4 test_append
-TESTS = nftest runprepare.sh runlzo.sh runlz4.sh
+TESTS = nftest test_prepare.sh test_compress_lzo.sh test_compress_lz4.sh
+TESTS += test_append.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh
 
 if HAVE_BZ2
 TEST_BZIP2=yes
-TESTS += runbz2.sh
+TESTS += test_compress_bz2.sh
 endif
 
 if HAVE_ZSTD
 TEST_ZSTD=yes
-TESTS += runzstd.sh
+TESTS += test_compress_zstd.sh
 endif
 
 if ENABLE_READPCAP
-TESTS += runtest_nfcapd.sh
+TESTS += test_nfcapd.sh
 endif
-
-TESTS += runtest.sh
 
 AM_TESTS_ENVIRONMENT = \
 ## Set enabled compression
@@ -43,6 +42,9 @@ test_append_SOURCES = test_append.c
 test_append_LDADD = -lnffile
 test_append_LDFLAGS = -L../libnffile
 
-EXTRA_DIST = testsetup.sh runprepare.sh runtest.sh runbz2.sh runlz4.sh runlzo.sh runzstd.sh
-EXTRA_DIST += nftest.1.out nftest.2.out nftest.4.out
+EXTRA_DIST = testsetup.sh \
+             test_prepare.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh \
+             test_append.sh test_nfcapd.sh \
+             test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh
+EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt
 CLEANFILES = $(check_PROGRAMS) test.flows.nf *.gch 

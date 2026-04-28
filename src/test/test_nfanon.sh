@@ -28,35 +28,20 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
 #
-
-
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/testsetup.sh"
 
 echo ""
-echo "── prepare test data ────────────────────────────────────────────────────"
+echo "── nfanon ───────────────────────────────────────────────────────────────"
 
-# generate dummy_flows.nf used by all subsequent test scripts
-rm -f dummy_flows.nf
-if ./nfgen4 >/dev/null 2>&1; then
-    pass "nfgen4"
+# anonymise a flow file and verify the result is readable
+if nfanon -K abcdefghijklmnopqrstuvwxyz012345 \
+          -r dummy_flows.nf -w "$WORKDIR/anon.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/anon.nf" >/dev/null 2>&1 \
+   && nfdump -q -r "$WORKDIR/anon.nf" -o raw >/dev/null 2>&1; then
+    pass "nfanon_write_read"
 else
-    fail "nfgen4"
-fi
-
-# verify the generated file is well-formed
-if nfdump -v check -r dummy_flows.nf >/dev/null 2>&1; then
-    pass "nffile_check"
-else
-    fail "nffile_check"
-fi
-
-# verify the flow content matches the reference output
-if nfdump -r dummy_flows.nf -q -o raw >"$WORKDIR/test.1.out" 2>/dev/null \
-   && diff -u "$WORKDIR/test.1.out" "$SCRIPT_DIR/nftest.1.out" >/dev/null 2>&1; then
-    pass "raw_output_reference"
-else
-    fail "raw_output_reference"
+    fail "nfanon_write_read"
 fi
 
 summary
