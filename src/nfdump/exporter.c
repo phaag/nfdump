@@ -46,7 +46,6 @@
 #include "logging.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
-#include "nfxV3.h"
 #include "nfxV4.h"
 #include "util.h"
 
