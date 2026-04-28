@@ -1,4 +1,4 @@
-# nfdump
+# nfdump - Development branch
 
 [![Build Status](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
@@ -38,20 +38,56 @@
 - Actively maintained and compatible with [NfSen](https://github.com/phaag/nfsen).
 
 ---
+## What changed in nfdump-1.8.0
 
+nfdump-1.8.0 replaces the nffile v2 container format with **nffile v3**, a redesigned
+on-disk layout that adds a block directory and a redundant footer.  The directory records
+the type, compressed size, and offset for every data block.  This makes random-access
+and integrity verification possible without a full sequential scan, and lays the groundwork
+for optional columnar indexing.  Furthermore new data block types may be introduced as needed.
+The footer carries an optional xxHash-64 checksum field covering the directory region. This  enables the fast detection of truncated or corrupted files.  
+Files are memory-mapped for reading (`mmap(2)`), eliminating intermediate copy buffers and letting
+the OS page cache manage I/O scheduling.
+
+Flow records move from the v3 extension format to **record format v4**.  The key structural
+change is the replacement of a linear element list with a compact **offset table** indexed
+by a 64-bit extension bitmap.  Locating a specific extension—say `EXipv4Flow` or
+`EXasInfo`—no longer requires walking the preceding elements; instead a single
+`__builtin_popcountll` on the bitmap gives the slot index directly, which is a branchless
+O(1) operation that keeps the CPU pipeline and branch predictor in a clean state.  The
+extension set itself is extended from 38 to 40 named extensions, adding `EXinterfaceID`,
+`EXasInfo`, separate `EXasRoutingV4/V6`, split MAC address extensions, `EXflowId`,
+`EXnokiaNat`, and `EXipInfo`.
+
+Both the v3 file format and the v4 record format are now strictly **8-byte aligned**, which avoids unaligned loads and matches the natural granularity of modern 64-bit load/store units.  Block-level compression
+(LZO, LZ4, BZ2, ZSTD) is per-block. The file-level default can be overridden on a per-block basis.
+
+The earliest nfdump version dates back to 2004, the area of **Intel Pentium 4 ** type CPUs 1 code 1-2 threads, DDR2 memory. Nowadays a Core i9 for example has 24Cores and 32 threads and use DDR5 memory. Roughly ~50-100 times faster than back in 2004. Although software still mostly runs as designed in 2004, we can significantly improve the design and architecture of software to make use of modern CPU design, adapt the software design to cache lines optimize code for branch prediction and avoid pointer cheasing. Nfdump 1.8.x still focuses on efficiency and speed and removed a lot of old code. However, it does not mean nfdump-1.7.x is slow - but if possible improve and modernise code. 
+
+The good news: nfdump-1.8.0 retains full **backward read compatibility**. All programms transparently read and process nfdump-1.7.x v2 files, but only write new nffile v3 files. Some improvements already have been implemented such as a new ipfix/netflow v9 pipeline decoder, which improves speed for decoding these protocols. 
+
+The other news: nfdump-1.8.0 does not yet implement a rich full list of new features. The user experiance should still feel familiar. However, once the code is stable and switched as prodiction-ready, new fetures will be implemented.
+
+Although this is development code and should **not yet be used in production**, I'd like to hear from you, if you find time for testing - testing the way you use nfdump.
+
+---
 ## Compatibility
 
-- nfdump-1.7.x (codename “unicorn”) is the current release series.
-- Fully compatible with files created by nfdump-1.6.18 or newer.
-- Legacy flow files from earlier versions may lack certain fields. Use nfdump-1.6.17 to update such records where necessary.
+- nfdump-1.8.x (codename “Colibry”) is the current development release.
+
+- Fully compatible with files created by nfdump-1.7.x or newer.
+
+- Flow files from nfdump-1.7.x ("Unicorn") are processed transparently from all binaries.
+
+- Legacy flow files from nfdump 1.6.x can no longer be processed. Use nfdump-1.7.8 to update these flow files to nfdump-1.7.x format and then process the resulting files with nfdump-1.8.x.
+
 - To convert old files to the new format:
 
   ```sh
-  ./nfdump -r old-flowfile -y -w new-flowfile
+  ./nfdump -r old-flowfile -w new-flowfile -z=lz4
   ```
 
-- **Note:** Only `nfdump` can read legacy nfdump-1.6.x files; all other programs require the new format.
-- **NfSen Users:** Upgrade NfSen to the latest [GitHub version](https://github.com/phaag/nfsen) for full compatibility. Some legacy binaries (e.g., nfprofile, nftrack) are still available but may be deprecated in future releases.
+- **NfSen Users:** nfdump-1.8.x is not fully tested with NfSen and may or may nor work. It is planned to make nfdump-1.8.x still be compatible with legacy NfSen, although this compatibility may get removed at some time in future.
 
 ---
 
