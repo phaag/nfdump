@@ -1,4 +1,6 @@
-- 2e3c995 2026-04-22  (HEAD -> master, origin/master, origin/HEAD) Update ChangeLog and fix minor bugs
+- 8f1af1c 2026-04-28  (HEAD -> master, origin/master, origin/HEAD) Fix exit codes
+- 24352a6 2026-04-22  Fix spelling errors and some uaf errors
+- 2e3c995 2026-04-22  Update ChangeLog and fix minor bugs
 - a22dcf0 2026-04-11  Cleanup filter code. Remove dead code
 - 13259cc 2026-04-04  Merge pull request #671 from castillo-n/fix/ipv6-dst-anon-uses-src
 - 6e39712 2026-04-04  Fix naming of variables
