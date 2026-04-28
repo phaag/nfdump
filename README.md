@@ -9,6 +9,7 @@
 ## Table of Contents
 
 - [Features](#features)
+- [What changed in nfdump-1.8.0](#what-changed-in-nfdump-180)
 - [Compatibility](#compatibility)
 - [Installation](#installation)
 - [Configuration Options](#configuration-options)
@@ -44,8 +45,8 @@ nfdump-1.8.0 replaces the nffile v2 container format with **nffile v3**, a redes
 on-disk layout that adds a block directory and a redundant footer.  The directory records
 the type, compressed size, and offset for every data block.  This makes random-access
 and integrity verification possible without a full sequential scan, and lays the groundwork
-for optional columnar indexing.  Furthermore new data block types may be introduced as needed.
-The footer carries an optional xxHash-64 checksum field covering the directory region. This  enables the fast detection of truncated or corrupted files.  
+for optional columnar indexing.  Furthermore, new data block types may be introduced as needed.
+The footer carries an optional xxHash-64 checksum field covering the directory region. This enables the fast detection of truncated or corrupted files.  
 Files are memory-mapped for reading (`mmap(2)`), eliminating intermediate copy buffers and letting
 the OS page cache manage I/O scheduling.
 
@@ -55,25 +56,27 @@ by a 64-bit extension bitmap.  Locating a specific extension—say `EXipv4Flow` 
 `EXasInfo`—no longer requires walking the preceding elements; instead a single
 `__builtin_popcountll` on the bitmap gives the slot index directly, which is a branchless
 O(1) operation that keeps the CPU pipeline and branch predictor in a clean state.  The
-extension set itself is extended from 38 to 40 named extensions, adding `EXinterfaceID`,
-`EXasInfo`, separate `EXasRoutingV4/V6`, split MAC address extensions, `EXflowId`,
-`EXnokiaNat`, and `EXipInfo`.
+extension set is reorganized between V3 and V4. V3's combined `EXasRouting`
+and `EXmacAddr` are split into separate IPv4/IPv6 and in/out variants respectively; the
+BGP next-hop and IP next-hop types are removed (their data is covered by the routing
+extensions). Newly added types are `EXinterface`, `EXasInfo`, `EXflowId`, `EXnokiaNat`,
+`EXnokiaNatString`, and `EXipInfo`. The on-disk file size of nffile v3 is comparable to nffile v2 — sometimes marginally larger, sometimes marginally smaller. 
 
 Both the v3 file format and the v4 record format are now strictly **8-byte aligned**, which avoids unaligned loads and matches the natural granularity of modern 64-bit load/store units.  Block-level compression
 (LZO, LZ4, BZ2, ZSTD) is per-block. The file-level default can be overridden on a per-block basis.
 
-The earliest nfdump version dates back to 2004, the area of **Intel Pentium 4 ** type CPUs 1 code 1-2 threads, DDR2 memory. Nowadays a Core i9 for example has 24Cores and 32 threads and use DDR5 memory. Roughly ~50-100 times faster than back in 2004. Although software still mostly runs as designed in 2004, we can significantly improve the design and architecture of software to make use of modern CPU design, adapt the software design to cache lines optimize code for branch prediction and avoid pointer cheasing. Nfdump 1.8.x still focuses on efficiency and speed and removed a lot of old code. However, it does not mean nfdump-1.7.x is slow - but if possible improve and modernise code. 
+The earliest nfdump version dates back to 2004, the era of **Intel Pentium 4** type CPUs, 1 core, 1–2 threads, DDR2 memory. Nowadays a Core i9 for example has 24 cores and 32 threads and uses DDR5 memory — roughly 50–100× faster than 2004 hardware. Although software designed in 2004 still runs on modern CPUs, the design and architecture can be significantly improved to exploit modern CPU features: adapt data layout to cache lines, optimize code for branch prediction, and avoid pointer chasing. nfdump 1.8.x still focuses on efficiency and speed and has removed a lot of legacy code. However, nfdump-1.7.x is not slow - it was constantly improved over time. The new 1.8.x simply improves and modernizes the code where possible.
 
-The good news: nfdump-1.8.0 retains full **backward read compatibility**. All programms transparently read and process nfdump-1.7.x v2 files, but only write new nffile v3 files. Some improvements already have been implemented such as a new ipfix/netflow v9 pipeline decoder, which improves speed for decoding these protocols. 
+The good news: nfdump-1.8.0 retains full **backward read compatibility**. All programs transparently read and process nfdump-1.7.x v2 files, but only write the new nffile v3 format. Some improvements are already implemented, such as a new IPFIX/NetFlow v9 pipeline decoder that improves decode throughput for these protocols. The collector hot path has been redesigned to reduce per-packet overhead.
 
-The other news: nfdump-1.8.0 does not yet implement a rich full list of new features. The user experiance should still feel familiar. However, once the code is stable and switched as prodiction-ready, new fetures will be implemented.
+The other news: nfdump-1.8.0 does not yet implement a full set of new features. The user experience should still feel familiar. Once the code stabilizes and is declared production-ready, new features will be added.
 
-Although this is development code and should **not yet be used in production**, I'd like to hear from you, if you find time for testing - testing the way you use nfdump.
+This is development code and should **not yet be used in production**. The branch is not yet fully tested. Feedback from real-world testing is very welcome — particularly from users testing their own nfdump workflows.
 
 ---
 ## Compatibility
 
-- nfdump-1.8.x (codename “Colibry”) is the current development release.
+- nfdump-1.8.x (codename "Colibri") is the current development release.
 
 - Fully compatible with files created by nfdump-1.7.x or newer.
 
@@ -87,7 +90,7 @@ Although this is development code and should **not yet be used in production**, 
   ./nfdump -r old-flowfile -w new-flowfile -z=lz4
   ```
 
-- **NfSen Users:** nfdump-1.8.x is not fully tested with NfSen and may or may nor work. It is planned to make nfdump-1.8.x still be compatible with legacy NfSen, although this compatibility may get removed at some time in future.
+- **NfSen Users:** nfdump-1.8.x is not fully tested with NfSen and may or may not work. It is planned to keep nfdump-1.8.x compatible with legacy NfSen, although this compatibility may be removed in a future release.
 
 ---
 
@@ -160,7 +163,7 @@ For a full list, run `./configure --help`. Options include:
 - `--enable-nfprofile`
   Build nfprofile and nftrack, required by NfSen (default: NO)
 - `--enable-devel`
-  Enable debugging aqnd developer options. For developers only (default: NO)
+  Enable debugging and developer options. For developers only (default: NO)
 - `--with-lz4=PATH`, `--with-zstd=PATH`, `--with-bz2=PATH`
   Specify non-default library install locations for compression libraries.
 - `--enable-lto`
