@@ -12,6 +12,10 @@ TEST_ZSTD=yes
 TESTS += runzstd.sh
 endif
 
+if ENABLE_READPCAP
+TESTS += runtest_nfcapd.sh
+endif
+
 TESTS += runtest.sh
 
 AM_TESTS_ENVIRONMENT = \
