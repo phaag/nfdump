@@ -55,7 +55,7 @@ void daemonize(void) {
         case -1:
             // error
             LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
+            exit(EXIT_FAILURE);
             break;
         default:
             // parent
@@ -64,7 +64,7 @@ void daemonize(void) {
 
     if (setsid() < 0) {
         LogError("setsid() error: %s", strerror(errno));
-        exit(EXIT_SUCCESS);
+        exit(EXIT_FAILURE);
     }
 
     // Double fork
