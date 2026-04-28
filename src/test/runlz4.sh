@@ -29,17 +29,55 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-set -e
-TZ=MET
-export TZ
 
-# prevent any default goelookup for testing
-NFDUMP="../nfdump/nfdump -G none"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/testsetup.sh"
 
-# lz4 compression tests
-$NFDUMP -J=lz4 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=lz4:5 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=lz4:9 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=0 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+echo ""
+echo "── lz4 compression ────────────────────────────────────────────────────"
+
+cp dummy_flows.nf "$WORKDIR/flows.nf"
+
+if nfdump -J=lz4 -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lz4"
+else
+    fail "lz4"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none"
+else
+    fail "none"
+fi
+
+if nfdump -J=lz4:5 -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lz4:5"
+else
+    fail "lz4:5"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none_2"
+else
+    fail "none_2"
+fi
+
+if nfdump -J=lz4:9 -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lz4:9"
+else
+    fail "lz4:9"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none_3"
+else
+    fail "none_3"
+fi
+
+summary

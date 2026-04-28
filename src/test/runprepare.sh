@@ -1,7 +1,7 @@
 #!/bin/sh
 #  This file is part of the nfdump project.
 #
-#  Copyright (c) 2023, Peter Haag
+#  Copyright (c) 2026, Peter Haag
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -29,22 +29,34 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-set -e
-TZ=Europe/Zurich
-export TZ
 
-# Check for correct output
-rm -f test.*
-./nfgen4
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/testsetup.sh"
 
-# prevent any default geolookup for testing
-NFDUMP="../nfdump/nfdump -G none"
+echo ""
+echo "── prepare test data ────────────────────────────────────────────────────"
 
-# verify test
-$NFDUMP -v check -r dummy_flows.nf
+# generate dummy_flows.nf used by all subsequent test scripts
+rm -f dummy_flows.nf
+if ./nfgen4 >/dev/null 2>&1; then
+    pass "nfgen4"
+else
+    fail "nfgen4"
+fi
 
-# read test
-rm -f test1.out
-$NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
-diff -u test.1.out nftest.1.out
-rm -f test.1.out
+# verify the generated file is well-formed
+if nfdump -v check -r dummy_flows.nf >/dev/null 2>&1; then
+    pass "nffile_check"
+else
+    fail "nffile_check"
+fi
+
+# verify the flow content matches the reference output
+if nfdump -r dummy_flows.nf -q -o raw >"$WORKDIR/test.1.out" 2>/dev/null \
+   && diff -u "$WORKDIR/test.1.out" "$SCRIPT_DIR/nftest.1.out" >/dev/null 2>&1; then
+    pass "raw_output_reference"
+else
+    fail "raw_output_reference"
+fi
+
+summary

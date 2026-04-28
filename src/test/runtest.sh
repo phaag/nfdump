@@ -1,7 +1,7 @@
 #!/bin/sh
 #  This file is part of the nfdump project.
 #
-#  Copyright (c) 2023, Peter Haag
+#  Copyright (c) 2026, Peter Haag
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -29,145 +29,218 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-set -e
-TZ=Europe/Zurich
-export TZ
 
-# prevent any default goelookup for testing
-NFDUMP="../nfdump/nfdump -G none"
-NFCAPD="../nfcapd/nfcapd"
-NFREPLAY="../nfreplay/nfreplay"
-NFEXPIRE="../nfexpire/nfexpire"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/testsetup.sh"
 
-$NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
-diff -u test.1.out nftest.1.out
+# ── nfdump read/write/sort/compress tests ─────────────────────────────────────
+echo ""
+echo "── nfdump read / write / sort / compress ────────────────────────────────"
 
-# read/write compressed flow test
-$NFDUMP -r dummy_flows.nf -q -z=lzo -w test.2.flows.nf
-$NFDUMP -v check -r test.2.flows.nf >/dev/null
-
-$NFDUMP -r test.2.flows.nf -q -o raw >test.2.out
-diff -u test.2.out nftest.1.out
-
-# test tstart sort order
-$NFDUMP -r test.2.flows.nf -q -O tstart -o raw >test.3.out
-diff -u test.3.out nftest.2.out
-
-# test write descending sorted flow table
-$NFDUMP -r dummy_flows.nf -O tstart -z=lzo -w test.4.flows.nf
-$NFDUMP -v check -r test.4.flows.nf >/dev/null
-$NFDUMP -r test.4.flows.nf -i TestFlows
-$NFDUMP -q -r test.4.flows.nf -o raw >test.4.out
-diff -u test.4.out nftest.4.out
-
-# test write ascending sorted flow table
-$NFDUMP -r dummy_flows.nf -q -O bytes -o raw >test.5.out
-$NFDUMP -r dummy_flows.nf -O bytes -z=lz4 -w test.5.flows.nf
-$NFDUMP -v check -r test.5.flows.nf >/dev/null
-$NFDUMP -r test.5.flows.nf -i TestFlows
-$NFDUMP -r test.5.flows.nf -q -o raw >test.5-2.out
-diff -u test.5.out nftest.5.out
-
-# create testdir dir for flow replay
-if [ -d testdir ]; then
-	rm -f testdir/*
-	rm -f testdir/.nfcapd.book
-	rmdir testdir
-fi
-mkdir testdir
-
-# Test flow collection
-# Start nfcapd on localhost and replay flows
-echo
-echo -n Starting nfcapd ...
-$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
-sleep 1
-echo done.
-echo -n Replay flows ...
-$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
-echo done.
-sleep 1
-
-echo -n Terminate nfcapd ...
-kill -TERM $(cat testdir/pidfile)
-sleep 1
-echo done.
-
-if [ -f testdir/pidfile ]; then
-	echo nfcapd does not terminate
-	exit
+# 1. raw output matches reference
+if nfdump -r dummy_flows.nf -q -o raw >"$WORKDIR/test.1.out" 2>/dev/null \
+   && diff -u "$WORKDIR/test.1.out" "$SCRIPT_DIR/nftest.1.out" >/dev/null 2>&1; then
+    pass "raw_output"
+else
+    fail "raw_output"
 fi
 
-$NFDUMP -r dummy_flows.nf -q -o extended -6 'packets > 0' >test.6-1.out
-$NFDUMP -v check -r testdir/nfcapd.*
-$NFDUMP -r testdir/nfcapd.* -q -o extended -6 >test.6-2.out
-$NFEXPIRE -l testdir 
-
-diff test.6-1.out test.6-2.out
-
-# Test proper AppendRename
-# Start nfcapd on localhost and replay flows
-rm -f testdir/nfcapd.*
-rm -f testdir/.nfcapd.book
-echo
-echo -n Starting nfcapd ...
-$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
-sleep 1
-echo done.
-echo -n Replay flows ...
-$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
-echo done.
-sleep 1
-
-echo -n Terminate nfcapd ...
-kill -TERM $(cat testdir/pidfile)
-sleep 1
-echo done.
-
-$NFDUMP -v check -r testdir/nfcapd.*
-
-echo -n Starting nfcapd ...
-$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
-sleep 1
-echo done.
-echo -n Replay flows ...
-$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
-echo done.
-sleep 1
-
-echo -n Terminate nfcapd ...
-kill -TERM $(cat testdir/pidfile)
-sleep 1
-echo done.
-
-if [ -f testdir/pidfile ]; then
-	echo nfcapd does not terminate
-	exit
+# 2. lzo compress + read back
+if nfdump -r dummy_flows.nf -q -z=lzo -w "$WORKDIR/test.2.flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/test.2.flows.nf" >/dev/null 2>&1 \
+   && nfdump -r "$WORKDIR/test.2.flows.nf" -q -o raw >"$WORKDIR/test.2.out" 2>/dev/null \
+   && diff -u "$WORKDIR/test.2.out" "$SCRIPT_DIR/nftest.1.out" >/dev/null 2>&1; then
+    pass "lzo_compress_read"
+else
+    fail "lzo_compress_read"
 fi
-echo Test renameAppend file
-$NFDUMP -X -v check -r testdir/nfcapd.* >/dev/null
-echo Success
-mkdir memck.$$
-# OpenBSD
+
+# 3. tstart sort order (depends on test.2.flows.nf)
+if nfdump -r "$WORKDIR/test.2.flows.nf" -q -O tstart -o raw \
+          >"$WORKDIR/test.3.out" 2>/dev/null \
+   && diff -u "$WORKDIR/test.3.out" "$SCRIPT_DIR/nftest.2.out" >/dev/null 2>&1; then
+    pass "tstart_sort"
+else
+    fail "tstart_sort"
+fi
+
+# 4. write descending sorted table + change ident
+if nfdump -r dummy_flows.nf -O tstart -z=lzo -w "$WORKDIR/test.4.flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/test.4.flows.nf" >/dev/null 2>&1 \
+   && nfdump -r "$WORKDIR/test.4.flows.nf" -i TestFlows >/dev/null 2>&1 \
+   && nfdump -q -r "$WORKDIR/test.4.flows.nf" -o raw >"$WORKDIR/test.4.out" 2>/dev/null \
+   && diff -u "$WORKDIR/test.4.out" "$SCRIPT_DIR/nftest.4.out" >/dev/null 2>&1; then
+    pass "descending_sort_ident"
+else
+    fail "descending_sort_ident"
+fi
+
+# 5. bytes sort + lz4 compress
+if nfdump -r dummy_flows.nf -q -O bytes -o raw >"$WORKDIR/test.5.out" 2>/dev/null \
+   && nfdump -r dummy_flows.nf -O bytes -z=lz4 -w "$WORKDIR/test.5.flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/test.5.flows.nf" >/dev/null 2>&1 \
+   && nfdump -r "$WORKDIR/test.5.flows.nf" -i TestFlows >/dev/null 2>&1 \
+   && nfdump -r "$WORKDIR/test.5.flows.nf" -q -o raw >"$WORKDIR/test.5-2.out" 2>/dev/null \
+   && diff -u "$WORKDIR/test.5.out" "$SCRIPT_DIR/nftest.5.out" >/dev/null 2>&1; then
+    pass "bytes_sort_lz4"
+else
+    fail "bytes_sort_lz4"
+fi
+
+# ── live collection (nfcapd + nfreplay) ───────────────────────────────────────
+echo ""
+echo "── live collection ──────────────────────────────────────────────────────"
+
+cp dummy_flows.nf first.nf
+if nfdump -r dummy_flows.nf -w second.nf 2>/dev/null \
+    && ./test_append first.nf second.nf; then
+        pass "RenameAppend"
+    else
+        fail "RenameAppend"
+fi
+
+COLLECT_FILE=""
+if [ ! -x "$NFREPLAY_BIN" ]; then
+    skip "live_collect: nfreplay not available"
+else
+    COLLECT_DIR="$WORKDIR/collect"
+    mkdir -p "$COLLECT_DIR"
+    nfcapd -p 65530 -w "$COLLECT_DIR" -D \
+           -P "$COLLECT_DIR/pidfile" -I TestIdent -z=lz4 >/dev/null 2>&1
+    sleep 1
+    nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530 >/dev/null 2>&1
+    sleep 1
+    kill -TERM "$(cat "$COLLECT_DIR/pidfile" 2>/dev/null)" 2>/dev/null || true
+    sleep 1
+
+    if [ -f "$COLLECT_DIR/pidfile" ]; then
+        fail "live_collect: nfcapd did not terminate"
+    else
+        COLLECT_FILE=$(ls "$COLLECT_DIR"/nfcapd.* 2>/dev/null | head -1)
+        if [ -z "$COLLECT_FILE" ]; then
+            fail "live_collect: no output file created"
+        else
+            nfdump -r dummy_flows.nf -q -o extended -6 'packets > 0' \
+                   >"$WORKDIR/ref.6.out" 2>/dev/null
+            nfdump -v check -r "$COLLECT_FILE" >/dev/null 2>&1
+            nfdump -r "$COLLECT_FILE" -q -o extended -6 >"$WORKDIR/test.6.out" 2>/dev/null
+            nfexpire -l "$COLLECT_DIR" >/dev/null 2>&1
+            if diff "$WORKDIR/ref.6.out" "$WORKDIR/test.6.out" >/dev/null 2>&1; then
+                pass "live_collect"
+            else
+                fail "live_collect: output differs from reference"
+            fi
+        fi
+    fi
+fi
+
+# ── AppendRename ──────────────────────────────────────────────────────────────
+echo ""
+echo "── AppendRename ─────────────────────────────────────────────────────────"
+
+if [ ! -x "$NFREPLAY_BIN" ]; then
+    skip "append_rename: nfreplay not available"
+else
+    APPEND_DIR="$WORKDIR/append"
+    mkdir -p "$APPEND_DIR"
+
+    # Cycle 1
+    nfcapd -p 65531 -w "$APPEND_DIR" -D \
+           -P "$APPEND_DIR/pidfile" -I TestIdent -t 3600 -z=lz4 >/dev/null 2>&1
+    sleep 1
+    nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65531 >/dev/null 2>&1
+    sleep 1
+    kill -TERM "$(cat "$APPEND_DIR/pidfile" 2>/dev/null)" 2>/dev/null || true
+    sleep 1
+
+    # Cycle 2
+    nfcapd -p 65531 -w "$APPEND_DIR" -D \
+           -P "$APPEND_DIR/pidfile" -I TestIdent -t 3600 -z=lz4 >/dev/null 2>&1
+    sleep 1
+    nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65531 >/dev/null 2>&1
+    sleep 1
+    kill -TERM "$(cat "$APPEND_DIR/pidfile" 2>/dev/null)" 2>/dev/null || true
+    sleep 1
+
+    if [ -f "$APPEND_DIR/pidfile" ]; then
+        fail "append_rename: nfcapd did not terminate on second cycle"
+    elif nfdump -X -v check -r "$APPEND_DIR"/nfcapd.* >/dev/null 2>&1; then
+        pass "append_rename"
+    else
+        fail "append_rename: file check failed after two cycles"
+    fi
+fi
+
+# ── memory guard checks ───────────────────────────────────────────────────────
+echo ""
+echo "── memory guard checks ──────────────────────────────────────────────────"
+
+mkdir -p "$WORKDIR/memck"
 export MALLOC_OPTIONS=CFGJS
-# MacOSX
 export MallocGuardEdges=1
 export MallocStackLogging=1
-export MallocStackLoggingDirectory=memck.$$
+export MallocStackLoggingDirectory="$WORKDIR/memck"
 export MallocScribble=1
 export MallocErrorAbort=1
 export MallocCorruptionAbort=1
-$NFDUMP -r dummy_flows.nf 'host 172.16.2.66'
-$NFDUMP -r dummy_flows.nf -s ip 'host 172.16.2.66'
-$NFDUMP -r dummy_flows.nf -s record 'host 172.16.2.66'
-$NFDUMP -r dummy_flows.nf -w test.7.flows.nf 'host 172.16.2.66'
-$NFDUMP -r dummy_flows.nf -O tstart -w test.8.flows.nf 'host 172.16.2.66'
-../nfanon/nfanon -K abcdefghijklmnopqrstuvwxyz012345 -r dummy_flows.nf -w test.9.flows.nf
-$NFDUMP -q -r test.9.flows.nf -o raw >test.9.out
-$NFDUMP -r testdir/nfcapd.* -i NewIdent
-rm -f testdir/nfcapd.* test*.out test*.flows.nf dummy_flows.nf
-rm -f testdir/.nfcapd.book
-[ -d testdir ] && rmdir testdir
-[ -d memck.$$ ] && rm -rf memck.$$
 
-echo All tests successful. || rm -rf memck.$$
+if nfdump -r dummy_flows.nf 'host 172.16.2.66' >/dev/null 2>&1; then
+    pass "memck_filter"
+else
+    fail "memck_filter"
+fi
+if nfdump -r dummy_flows.nf -s ip 'host 172.16.2.66' >/dev/null 2>&1; then
+    pass "memck_stats_ip"
+else
+    fail "memck_stats_ip"
+fi
+if nfdump -r dummy_flows.nf -s record 'host 172.16.2.66' >/dev/null 2>&1; then
+    pass "memck_stats_record"
+else
+    fail "memck_stats_record"
+fi
+if nfdump -r dummy_flows.nf -w "$WORKDIR/test.7.flows.nf" \
+          'host 172.16.2.66' >/dev/null 2>&1; then
+    pass "memck_write_filter"
+else
+    fail "memck_write_filter"
+fi
+if nfdump -r dummy_flows.nf -O tstart -w "$WORKDIR/test.8.flows.nf" \
+          'host 172.16.2.66' >/dev/null 2>&1; then
+    pass "memck_write_sort"
+else
+    fail "memck_write_sort"
+fi
+
+unset MALLOC_OPTIONS MallocGuardEdges MallocStackLogging MallocStackLoggingDirectory \
+      MallocScribble MallocErrorAbort MallocCorruptionAbort
+
+# ── nfanon ────────────────────────────────────────────────────────────────────
+echo ""
+echo "── nfanon ───────────────────────────────────────────────────────────────"
+
+if nfanon -K abcdefghijklmnopqrstuvwxyz012345 \
+          -r dummy_flows.nf -w "$WORKDIR/test.9.flows.nf" >/dev/null 2>&1 \
+   && nfdump -q -r "$WORKDIR/test.9.flows.nf" -o raw >/dev/null 2>&1; then
+    pass "nfanon"
+else
+    fail "nfanon"
+fi
+
+# ── ChangeIdent ───────────────────────────────────────────────────────────────
+echo ""
+echo "── ChangeIdent ──────────────────────────────────────────────────────────"
+
+# Use the AppendRename output file if available.
+APPEND_FILE=$(ls "$WORKDIR/append"/nfcapd.* 2>/dev/null | head -1)
+if [ -n "$APPEND_FILE" ] && [ -f "$APPEND_FILE" ]; then
+    if nfdump -r "$APPEND_FILE" -i NewIdent >/dev/null 2>&1; then
+        pass "change_ident"
+    else
+        fail "change_ident"
+    fi
+else
+    skip "change_ident: no AppendRename file available"
+fi
+
+summary

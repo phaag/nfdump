@@ -29,20 +29,76 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-set -e
-TZ=MET
-export TZ
 
-# prevent any default goelookup for testing
-NFDUMP="../nfdump/nfdump -G none"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/testsetup.sh"
 
-# zstd compression tests
-$NFDUMP -J=zstd -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=lzo -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=zstd -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=zstd:5 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=zstd:9 -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=lzo -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+echo ""
+echo "── zstd compression ───────────────────────────────────────────────────"
+
+cp dummy_flows.nf "$WORKDIR/flows.nf"
+
+if nfdump -J=zstd -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "zstd"
+else
+    fail "zstd"
+fi
+
+if nfdump -J=lzo -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lzo"
+else
+    fail "lzo"
+fi
+
+if nfdump -J=zstd -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "zstd_2"
+else
+    fail "zstd_2"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none"
+else
+    fail "none"
+fi
+
+if nfdump -J=zstd:5 -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "zstd:5"
+else
+    fail "zstd:5"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none_2"
+else
+    fail "none_2"
+fi
+
+if nfdump -J=zstd:9 -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "zstd:9"
+else
+    fail "zstd:9"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none_3"
+else
+    fail "none_3"
+fi
+
+if nfdump -J=lzo -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lzo_2"
+else
+    fail "lzo_2"
+fi
+
+summary

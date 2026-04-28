@@ -29,15 +29,41 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 
-set -e
-TZ=MET
-export TZ
 
-# prevent any default goelookup for testing
-NFDUMP="../nfdump/nfdump -G none"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SCRIPT_DIR/testsetup.sh"
 
-# lzo compression tests
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=lzo -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=none -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
-$NFDUMP -J=lzo -r dummy_flows.nf && $NFDUMP -v check -r dummy_flows.nf >/dev/null
+echo ""
+echo "── lzo compression ────────────────────────────────────────────────────"
+
+cp dummy_flows.nf "$WORKDIR/flows.nf"
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none"
+else
+    fail "none"
+fi
+
+if nfdump -J=lzo -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lzo"
+else
+    fail "lzo"
+fi
+
+if nfdump -J=none -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "none_2"
+else
+    fail "none_2"
+fi
+
+if nfdump -J=lzo -r "$WORKDIR/flows.nf" >/dev/null 2>&1 \
+   && nfdump -v check -r "$WORKDIR/flows.nf" >/dev/null 2>&1; then
+    pass "lzo_2"
+else
+    fail "lzo_2"
+fi
+
+summary

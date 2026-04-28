@@ -1,5 +1,5 @@
 
-check_PROGRAMS = nftest nfgen4
+check_PROGRAMS = nftest nfgen4 test_append
 TESTS = nftest runprepare.sh runlzo.sh runlz4.sh
 
 if HAVE_BZ2
@@ -39,6 +39,10 @@ nftest_LDADD = -lnfdump -lnffile
 nftest_LDFLAGS = -L../libnfdump -L../libnffile
 nftest_DEPENDENCIES = nfgen4
 
-EXTRA_DIST = runprepare.sh runtest.sh runbz2.sh runlz4.sh runlzo.sh runzstd.sh
+test_append_SOURCES = test_append.c
+test_append_LDADD = -lnffile
+test_append_LDFLAGS = -L../libnffile
+
+EXTRA_DIST = testsetup.sh runprepare.sh runtest.sh runbz2.sh runlz4.sh runlzo.sh runzstd.sh
 EXTRA_DIST += nftest.1.out nftest.2.out nftest.4.out
 CLEANFILES = $(check_PROGRAMS) test.flows.nf *.gch 
