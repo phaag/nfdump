@@ -148,13 +148,16 @@ typedef struct blockListV3_s {
 /*
  * Generic block header for each data block, independant of the type
  */
-#define BLOCKHEADER                                                       \
-    struct {                                                              \
-        uint32_t type;        /* Block type */                            \
-        uint32_t discSize;    /* on-disc payload size with this header */ \
-        uint32_t rawSize;     /* uncompressed payload size with header */ \
-        uint16_t compression; /* block-level compression */               \
-        uint16_t encryption;  /* block-level encryption */                \
+#define BLOCKHEADER                                                        \
+    struct {                                                               \
+        uint32_t type;        /* Block type */                             \
+        uint32_t discSize;    /* on-disc payload size with this header */  \
+        uint32_t rawSize;     /* uncompressed payload size with header */  \
+        uint16_t compression; /* block-level compression */                \
+        uint16_t encryption;  /* block-level encryption */                 \
+        uint64_t checksum;    /* XXH3_64bits over on-disk payload bytes;   \
+                               * covers [sizeof(dataBlockV3_t), discSize). \
+                               * 0 = checksum disabled or not present */   \
     }
 
 #define MESSAGEHEADER                         \
@@ -215,7 +218,6 @@ typedef struct flowBlockV3_s {
     uint64_t extensionBitmap;  // or'ed bitmask of extID values present in this block
     uint64_t msecFirst;        // earliest first seen record timestamp
     uint64_t msecLast;         // latest last seen record timestamp
-    uint64_t checksum;         // xxHash64
 } flowBlockV3_t;
 _Static_assert((sizeof(flowBlockV3_t) & 7) == 0, "flowBlockV3_t for 8 byte aligned");
 
@@ -278,6 +280,7 @@ typedef struct nffileV3_s {
     uint32_t compression;       // default type of compression
     uint32_t compressionLevel;  // default compression level, if available.
     uint32_t encryption;        // default encryption for blocks
+    int xxHash;                 // non-zero: calculate per-block and directory xxHash checksum
     _Atomic off_t blockOffset;  // atomic block I/O offset (read: mmap scan pos, write: pwrite pos)
     queue_t *processQueue;      // blocks ready to be processed. Connects consumer/producer threads
     pthread_mutex_t wlock;      // writer lock

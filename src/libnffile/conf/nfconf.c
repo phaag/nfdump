@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2025-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -50,8 +50,8 @@
 #include <resolv.h>
 #endif
 
-#include "toml.h"
 #include "logging.h"
+#include "toml.h"
 #include "util.h"
 
 #define NFCONF_FILE SYSCONFDIR "/nfdump.conf"
@@ -59,7 +59,8 @@
 typedef struct nfconfFile_s {
     int valid;                  // flag
     toml_table_t *conf;         // handle to top toml table
-    toml_table_t *sectionConf;  // handle to nfdump section
+    toml_table_t *sectionConf;  // handle to requested section
+    toml_table_t *commonConf;   // handle to [common] section (fallback)
 } nfconfFile_t;
 
 static nfconfFile_t nfconfFile = {0};
@@ -81,16 +82,9 @@ int ConfOpen(char *filename, char *section) {
     // if no config file is given, check for default
     // silently return if not found
     if (filename == NULL) {
-#ifdef CONFIGDIR
-        // supplied at compile time
-        size_t len = sizeof(CONFIGDIR) + 1 + 11 + 1;  // path + '/' + nfdump.conf + '\0'
-        filename = calloc(1, len);
-        snprintf(filename, len, "%s/%s", CONFIGDIR, "nfdump.conf");
-#else
-        // hard coded default
+        // NFCONF_FILE expands to SYSCONFDIR "/nfdump.conf" at compile time
         filename = NFCONF_FILE;
-#endif
-        if (TestPath(NFCONF_FILE, S_IFREG) == PATH_NOTEXISTS) {
+        if (TestPath(filename, S_IFREG) == PATH_NOTEXISTS) {
             return 0;
         }
     }
@@ -112,15 +106,17 @@ int ConfOpen(char *filename, char *section) {
     }
 
     toml_table_t *sectionConf = toml_table_table(conf, section);
-    if (!sectionConf) {
-        // printf("Failed to parse config file %s: No section [%s] found\n", filename, section);
+    toml_table_t *commonConf = toml_table_table(conf, "common");
+    if (!sectionConf && !commonConf) {
+        // Neither the requested section nor [common] was found
         free(conf);
         return 0;
     }
 
     nfconfFile.valid = 1;
     nfconfFile.conf = conf;
-    nfconfFile.sectionConf = sectionConf;
+    nfconfFile.sectionConf = sectionConf;  // may be NULL when only [common] exists
+    nfconfFile.commonConf = commonConf;
 
     // ConfInventory();
     return 1;
@@ -152,7 +148,6 @@ int ConfGetFormatEntry(char *format, char **key, char **value) {
         *key = NULL;
         *value = NULL;
         fmtConf = NULL;
-        i = 0;
         return 0;
     }
 
@@ -165,7 +160,6 @@ int ConfGetFormatEntry(char *format, char **key, char **value) {
         *key = NULL;
         *value = NULL;
         fmtConf = NULL;
-        i = 0;
         return 0;
     }
 
@@ -234,69 +228,82 @@ int ConfGetExporter(char **ident, char **ip, char **flowdir) {
 
 }  // end of ConfGetExporter
 
-char *ConfGetString(char *key) {
-    if (!nfconfFile.valid) return NULL;
-
+// Walk a dot-separated key path inside a TOML table and return the leaf string value.
+// Returns true and sets *out (caller must free) on success; false on any miss.
+static bool confTableGetString(toml_table_t *root, const char *key, char **out) {
+    if (!root) return false;
     char *k = strdup(key);
-    key = k;
-
-    toml_table_t *table = nfconfFile.sectionConf;
-    char *p = strchr(key, '.');
+    char *cur = k;
+    toml_table_t *table = root;
+    char *p = strchr(cur, '.');
     while (p) {
         *p = '\0';
-        table = toml_table_table(table, key);
+        table = toml_table_table(table, cur);
         if (!table) {
             free(k);
-            return NULL;
+            return false;
         }
-        key = p + 1;
-        p = strchr(key, '.');
+        cur = p + 1;
+        p = strchr(cur, '.');
     }
-    if (strlen(key) == 0) {
+    if (*cur == '\0') {
         free(k);
-        return NULL;
+        return false;
     }
-
-    toml_value_t Data = toml_table_string(table, key);
+    toml_value_t v = toml_table_string(table, cur);
     free(k);
-    if (Data.ok) {
-        return strdup(Data.u.s);
+    if (v.ok) {
+        *out = strdup(v.u.s);
+        return true;
     }
-    return NULL;
+    return false;
+}  // End of confTableGetString
 
+// Walk a dot-separated key path inside a TOML table and return the leaf int64 value.
+// Returns true and sets *out on success; false on any miss.
+static bool confTableGetInt64(toml_table_t *root, const char *key, int64_t *out) {
+    if (!root) return false;
+    char *k = strdup(key);
+    char *cur = k;
+    toml_table_t *table = root;
+    char *p = strchr(cur, '.');
+    while (p) {
+        *p = '\0';
+        table = toml_table_table(table, cur);
+        if (!table) {
+            free(k);
+            return false;
+        }
+        cur = p + 1;
+        p = strchr(cur, '.');
+    }
+    if (*cur == '\0') {
+        free(k);
+        return false;
+    }
+    toml_value_t v = toml_table_int(table, cur);
+    free(k);
+    if (v.ok) {
+        *out = v.u.i;
+        return true;
+    }
+    return false;
+}  // End of confTableGetInt64
+
+char *ConfGetString(char *key) {
+    if (!nfconfFile.valid) return NULL;
+    char *val;
+    if (confTableGetString(nfconfFile.sectionConf, key, &val)) return val;
+    if (confTableGetString(nfconfFile.commonConf, key, &val)) return val;
+    return NULL;
 }  // End of ConfGetString
 
 int64_t ConfGetValue(char *key) {
     if (!nfconfFile.valid) return 0;
-
-    char *k = strdup(key);
-    key = k;
-
-    toml_table_t *table = nfconfFile.sectionConf;
-    char *p = strchr(key, '.');
-    while (p) {
-        *p = '\0';
-        table = toml_table_table(table, key);
-        if (!table) {
-            free(k);
-            return 0;
-        }
-        key = p + 1;
-        p = strchr(key, '.');
-    }
-    if (strlen(key) == 0) {
-        free(k);
-        return 0;
-    }
-
-    toml_value_t Data = toml_table_int(table, key);
-    free(k);
-    if (Data.ok) {
-        return Data.u.i;
-    }
-
+    int64_t val;
+    if (confTableGetInt64(nfconfFile.sectionConf, key, &val)) return val;
+    if (confTableGetInt64(nfconfFile.commonConf, key, &val)) return val;
     return 0;
-
 }  // End of ConfGetValue
 
 static void ConfPrintTableValue(toml_table_t *sectionConf, const char *tableName, const char *entry) {
@@ -452,7 +459,7 @@ int ConfGetUint64(option_t *optionList, char *key, uint64_t *valUint64) {
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, key) == 0) {
             if (optionList[i].flags == OPTDEFAULT) {
-                int confUint64 = ConfGetValue(key);
+                int64_t confUint64 = ConfGetValue(key);
                 *valUint64 = (uint64_t)confUint64;
                 return 1;
             } else {
@@ -527,8 +534,8 @@ int OptGetBool(option_t *optionList, char *name, bool *valBool) {
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, name) == 0) {
             if (optionList[i].flags == OPTDEFAULT) {
-                char confName[32] = "opt.";
-                strcat(confName, optionList[i].name);
+                char confName[64];
+                snprintf(confName, sizeof(confName), "opt.%s", optionList[i].name);
                 int confBool = ConfGetValue(confName);
                 *valBool = confBool;
                 return 1;

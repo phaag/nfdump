@@ -333,8 +333,7 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
  * appending directory entries to entries[*idx] and advancing *writePos.
  * Returns 0 on success, -1 on error.
  */
-static int copyDataBlocks(const nffileV3_t *nffile, int wfd, directoryEntryV3_t *entries, uint32_t *idx, off_t *writePos,
-                          const char *tag) {
+static int copyDataBlocks(const nffileV3_t *nffile, int wfd, directoryEntryV3_t *entries, uint32_t *idx, off_t *writePos, const char *tag) {
     const blockDirectoryV3_t *dir = nffile->blockDirectory;
     for (uint32_t i = 0; i < dir->numEntries; i++) {
         const directoryEntryV3_t *e = &dir->entries[i];
@@ -364,7 +363,11 @@ static int writeMergedStats(int wfd, const stat_record_t *stats, directoryEntryV
 
     const uint32_t size = (uint32_t)(sizeof(dataBlockV3_t) + sizeof(stat_record_t));
     const dataBlockV3_t hdr = {
-        .type = BLOCK_TYPE_STATS, .discSize = size, .rawSize = size, .compression = NOT_COMPRESSED, .encryption = NOT_ENCRYPTED,
+        .type = BLOCK_TYPE_STATS,
+        .discSize = size,
+        .rawSize = size,
+        .compression = NOT_COMPRESSED,
+        .encryption = NOT_ENCRYPTED,
     };
     ssize_t n = pwrite(wfd, &hdr, sizeof(hdr), *writePos);
     if (n != (ssize_t)sizeof(hdr)) {
@@ -391,7 +394,11 @@ static int writeMergedIdent(int wfd, const char *ident, directoryEntryV3_t *entr
 
     const uint32_t size = (uint32_t)(sizeof(dataBlockV3_t) + IDENTLEN);
     const dataBlockV3_t hdr = {
-        .type = BLOCK_TYPE_IDENT, .discSize = size, .rawSize = size, .compression = NOT_COMPRESSED, .encryption = NOT_ENCRYPTED,
+        .type = BLOCK_TYPE_IDENT,
+        .discSize = size,
+        .rawSize = size,
+        .compression = NOT_COMPRESSED,
+        .encryption = NOT_ENCRYPTED,
     };
     ssize_t n = pwrite(wfd, &hdr, sizeof(hdr), *writePos);
     if (n != (ssize_t)sizeof(hdr)) {
@@ -416,8 +423,7 @@ static int writeMergedIdent(int wfd, const char *ident, directoryEntryV3_t *entr
  * header->offDirectory and header->dirSize are updated in place.
  * Returns 0 on success, -1 on error.
  */
-static int writeDirectoryFooter(int wfd, fileHeaderV3_t *header, const directoryEntryV3_t *entries, uint32_t numEntries,
-                                off_t dirOffset) {
+static int writeDirectoryFooter(int wfd, fileHeaderV3_t *header, const directoryEntryV3_t *entries, uint32_t numEntries, off_t dirOffset) {
     const size_t entriesSize = numEntries * sizeof(directoryEntryV3_t);
     const uint32_t dirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
 
@@ -438,7 +444,10 @@ static int writeDirectoryFooter(int wfd, fileHeaderV3_t *header, const directory
     }
 
     const fileFooterV3_t footer = {
-        .magic = FOOTER_MAGIC_V3, .dirSize = dirSize, .offDirectory = (uint64_t)dirOffset, .checksum = 0,
+        .magic = FOOTER_MAGIC_V3,
+        .dirSize = dirSize,
+        .offDirectory = (uint64_t)dirOffset,
+        .checksum = 0,
     };
     n = pwrite(wfd, &footer, sizeof(footer), pos);
     if (n != (ssize_t)sizeof(footer)) {

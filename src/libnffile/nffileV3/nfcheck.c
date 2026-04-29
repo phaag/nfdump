@@ -53,6 +53,9 @@
 #include "util.h"
 #include "vcs_track.h"
 
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+
 #define LAYOUT_VERSION_1 1
 #define LAYOUT_VERSION_2 2
 
@@ -145,12 +148,12 @@ int VerifyFileV3(const char *filename, int verbose) {
         fileHeader->creator = CREATOR_UNKNOWN;
     }
 
-    // === Phase 1: Header ===
+    printf("=== Phase 1: Header validation ===\n");
     printf("File       : %s\n", filename);
     printf("Size       : %zu\n", fileSize);
     printf("Version    : %u\n", fileHeader->layoutVersion);
     printf("Block size : %u\n", fileHeader->blockSize);
-    printf("Creator    : %s(%u)\n", nf_creator[fileHeader->creator], fileHeader->creator);
+    printf("Creator    : %s(ID:%u)\n", nf_creator[fileHeader->creator], fileHeader->creator);
 
     time_t created = (time_t)fileHeader->created;
     struct tm tbuf;
@@ -180,6 +183,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     // get blockDirectory
     const blockDirectoryV3_t *blockDirectory = NULL;
     uint32_t dirSize = 0;
+    int checksumFailed = 0;
     if (fileHeader->offDirectory && (fileHeader->offDirectory < fileSize)) {
         blockDirectory = (const blockDirectoryV3_t *)(map + fileHeader->offDirectory);
         if (blockDirectory->magic != DIRECTORY_MAGIC) {
@@ -199,6 +203,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         printf("File '%s' not cleanly closed - try to recover\n", filename);
     }
 
+    if (footer->checksum) printf("Checksum   : 0x%" PRIx64 "\n", footer->checksum);
     do {
         if (blockDirectory == NULL) {
             // no valid block directory found - try to recover from footer, if it is valid
@@ -226,8 +231,14 @@ int VerifyFileV3(const char *filename, int verbose) {
         }
     } while (0);
 
-    // verify directory
-    // TODO: verify ftr->checksum (xxHash64 over directory region)
+    // verify directory checksum if present
+    if (footer && blockDirectory && footer->checksum != 0) {
+        uint64_t computed = XXH3_64bits(blockDirectory, dirSize);
+        if (computed != footer->checksum) {
+            printf("Directory checksum mismatch: stored %016" PRIx64 " computed %016" PRIx64 "\n", footer->checksum, computed);
+            checksumFailed = 1;
+        }
+    }
 
     if (blockDirectory == NULL) {
         printf("Failed to read or recover a valid block directory in '%s'\n", filename);
@@ -269,9 +280,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     }
     blockList.capacity = DIR_INIT_CAPACITY;
 
-    // === Phase 2: Sequential block scan ===
-    printf("\nScanning blocks:\n");
-
+    printf("\n=== Phase 2: Sequential block scan ===\n");
     struct {
         uint32_t numBlocks;
         uint32_t compression;
@@ -305,9 +314,21 @@ int VerifyFileV3(const char *filename, int verbose) {
             blockSizeFound = dataBlock->rawSize;
         }
 
+        // verify per-block xxHash checksum if present
+        if (dataBlock->checksum != 0 && dataBlock->discSize > (uint32_t)sizeof(dataBlockV3_t)) {
+            const uint8_t *payload = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
+            uint32_t payloadSize = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
+            uint64_t computed = XXH3_64bits(payload, payloadSize);
+            if (computed != dataBlock->checksum) {
+                printf("Block %u: checksum mismatch at offset %lld: stored %016" PRIx64 " computed %016" PRIx64 "\n", totalBlocks,
+                       (long long)nextOffset, dataBlock->checksum, computed);
+                checksumFailed = 1;
+            }
+        }
+
         if (verbose)
-            printf("Checkblock: type: %u, rawSize: %u, discSize: %u, compression: %u\n", dataBlock->type, dataBlock->rawSize, dataBlock->discSize,
-                   dataBlock->compression);
+            printf("Checkblock: type: %u, offset: %lld, rawSize: %u, discSize: %u, compression: %u, checksum: 0x%" PRIx64 "\n", dataBlock->type,
+                   nextOffset, dataBlock->rawSize, dataBlock->discSize, dataBlock->compression, dataBlock->checksum);
 
         switch (dataBlock->type) {
             case BLOCK_TYPE_FLOW: {
@@ -315,7 +336,8 @@ int VerifyFileV3(const char *filename, int verbose) {
                 blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
                 flowBlockV3_t *flowBlock = (flowBlockV3_t *)dataBlock;
                 if (flowBlock->numRecords == 0) {
-                    printf("Block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize, dataBlock->discSize);
+                    printf("Flow block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize,
+                           dataBlock->discSize);
                     blockCheckFailed = 1;
                 }
             } break;
@@ -347,10 +369,7 @@ int VerifyFileV3(const char *filename, int verbose) {
             blockCheckFailed = 1;
             break;
         }
-        if (verbose) {
-            printf("  Block %4u: offset %10lld  type %u  size %u  rawSize %u  comp %u\n", totalBlocks, nextOffset, dataBlock->type,
-                   dataBlock->discSize, dataBlock->rawSize, dataBlock->compression);
-        }
+
         totalBlocks++;
         nextOffset += dataBlock->discSize;
     }
@@ -371,6 +390,7 @@ int VerifyFileV3(const char *filename, int verbose) {
 
     // try to verify the block directory and compare it with out blocklist
     // === Phase 3: Directory validation ===
+    printf("\n=== Phase 3: Directory validation ===\n");
     uint32_t directoryEntriesFailed = blockDirectory == NULL;
     if (blockCheckFailed == 0 && blockDirectory) {
         if (blockList.count != blockDirectory->numEntries) {
@@ -382,12 +402,18 @@ int VerifyFileV3(const char *filename, int verbose) {
         const directoryEntryV3_t *dirEntry = blockDirectory->entries;
         for (uint32_t i = 0; i < blockCnt; i++) {
             // the corresponding entries must be identical
+            if (verbose) {
+                printf("[%u] type: %u, size: %u, offset: %" PRIu64 "\n", i, dirEntry[i].type, dirEntry[i].size, dirEntry[i].offset);
+            }
             if (memcmp(&listEntry[i], &dirEntry[i], sizeof(directoryEntryV3_t)) != 0) {
-                printf("Missmatch on directory entry [%u]: type: %u/%u, size: %u/%u, offset: %" PRIu64 "/%" PRIu64 "\n", i, listEntry[i].type,
-                       dirEntry[i].type, listEntry[i].size, dirEntry[i].size, listEntry[i].offset, dirEntry[i].offset);
+                printf("Missmatch on directory entry [%u]: found/expected - type: %u/%u, size: %u/%u, offset: %" PRIu64 "/%" PRIu64 "\n", i,
+                       listEntry[i].type, dirEntry[i].type, listEntry[i].size, dirEntry[i].size, listEntry[i].offset, dirEntry[i].offset);
                 directoryEntriesFailed = 1;
             }
         }
+    }
+    if (directoryEntriesFailed == 0) {
+        printf("Found %u valid entries\n", blockDirectory->numEntries);
     }
 
     // --- Summary ---
@@ -411,13 +437,14 @@ int VerifyFileV3(const char *filename, int verbose) {
         if (unknownBlocks) printf("  Unknown      : %u\n", unknownBlocks);
     }
     printf("  Directory       : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");
+    printf("  Checksums       : %s\n", checksumFailed == 0 ? "OK" : "FAILED");
 
     free(blockList.entries);
     msync(map, fileSize, MS_SYNC);
     munmap(map, fileSize);
     close(fd);
 
-    return blockCheckFailed == 0 && directoryEntriesFailed == 0;
+    return blockCheckFailed == 0 && directoryEntriesFailed == 0 && checksumFailed == 0;
 
 }  // End of VerifyFileV3
 

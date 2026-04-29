@@ -46,12 +46,16 @@
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffileV3.h"
 #include "nfxV4.h"
 #include "queue.h"
 #include "util.h"
 #include "vcs_track.h"
+
+#define XXH_INLINE_ALL
+#include "xxhash.h"
 
 // NumWorkers is set from nffileV3.c via Init_nffile
 extern uint32_t NumWorkers;
@@ -140,6 +144,16 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
 
     wptr->compression = compression;
 
+    // compute XXH3_64bits checksum over the on-disk payload bytes
+    // covers [sizeof(dataBlockV3_t), discSize) — the block header (including the
+    // checksum field itself) is excluded from the hash input
+    wptr->checksum = 0;
+    if (nffile->xxHash && wptr->discSize > (uint32_t)sizeof(dataBlockV3_t)) {
+        const uint8_t *payload = (const uint8_t *)wptr + sizeof(dataBlockV3_t);
+        uint32_t payloadSize = wptr->discSize - (uint32_t)sizeof(dataBlockV3_t);
+        wptr->checksum = XXH3_64bits(payload, payloadSize);
+    }
+
     dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u\n", wptr->type, wptr->rawSize, wptr->discSize);
 
     // reserve file space and record directory entry atomically
@@ -220,6 +234,7 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     nffile->fileName = fileName;
     nffile->compression = compression;
     nffile->compressionLevel = compressionLevel;
+    nffile->xxHash = ConfGetValue("xxhash") ? 1 : 0;
 
     nffile->map = NULL;
     nffile->mapSize = 0;
@@ -486,12 +501,23 @@ static int WriteDirectory(nffileV3_t *nffile) {
 
     uint32_t dirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
 
+    // --- compute directory checksum over the serialized directory in memory ---
+    // uses the same two regions already written to disk: dirHdr + entries[]
+    uint64_t dirChecksum = 0;
+    if (nffile->xxHash) {
+        XXH3_state_t hashState;
+        XXH3_64bits_reset(&hashState);
+        XXH3_64bits_update(&hashState, &dirHdr, sizeof(blockDirectoryV3_t));
+        if (entriesSize > 0) XXH3_64bits_update(&hashState, nffile->blockList.entries, entriesSize);
+        dirChecksum = XXH3_64bits_digest(&hashState);
+    }
+
     // --- write footer ---
     fileFooterV3_t footer = {
         .magic = FOOTER_MAGIC_V3,
         .dirSize = dirSize,
         .offDirectory = (uint64_t)dirOffset,
-        .checksum = 0,  // TODO: xxHash64 over directory region
+        .checksum = dirChecksum,
     };
 
     ret = pwrite(nffile->fd, &footer, sizeof(fileFooterV3_t), pos);

@@ -1,4 +1,145 @@
-- 473cf57 2025-11-09  (HEAD -> master, origin/master, origin/HEAD) Fix old ANSI C functions in fts_compat.c
+- 972d1fb 2026-04-28  (HEAD -> devel_1.8.x, origin/devel_1.8.x) Update Readme.md
+- 8fa4fee 2026-04-28  Update Readme.md
+- 50d99c6 2026-04-28  Refine and improve test suite
+- df9c1a8 2026-04-28  Modify testing
+- a4e49cf 2026-04-28  Cleanup includes
+- 3118e88 2026-04-28  Remove compat_1.6 files
+- 448166e 2026-04-27  Adapt nfreader to nffileV3 and recordV4
+- 1e8a820 2026-04-27  Fix RenameAppend()
+- 6b913f7 2026-04-27  Make ident fixlen and adapt tests
+- 3c867c0 2026-04-26  Fix some test files
+- b7d60bb 2026-04-26  Fix nfreplay bug and add nfcapd test script
+- 7431904 2026-04-25  Add tor node role. Still report only exit nodes
+- bd43350 2026-04-25  Fix comments
+- f0d61d2 2026-04-25  Update tor code with IPv6 exit nodes
+- 36a555c 2026-04-25  Cleanup torlookup code
+- e50dd3f 2026-04-25  Review maxmind code and update minor issues
+- 5a3ae2b 2026-04-24  Improve -G/-H handling with .flat cache file.. Add flatpath option in config file
+- 4cb03fc 2026-04-24  Fix payload size in convertV2
+- 396a00b 2026-04-24  Improve maxmind lookup - add flat cache
+- 1ee2ff3 2026-04-24  Improve tor lookup
+- 62eda08 2026-04-24  Cleanup maxmind geolookup and tor torlookup
+- ec67890 2026-04-24  Cleanup lauchner and repeater
+- 43a3353 2026-04-23  Adapt and improve  nflowcache.c for aggregation to v4 record
+- 2fcfa54 2026-04-23  Cleanup custom aggregation for new v4 record
+- 9e63106 2026-04-22  Re-enable ChangeIdent
+- 1642d9c 2026-04-22  Re-enable sat_record printing
+- af0d1a2 2026-04-22  Fix spelling errors
+- 4827cd4 2026-04-22  Fix minor bugs
+- a985f62 2026-04-11  Work on more fixes. Add entropy to payload printing in output_raw
+- d5ced32 2026-04-10  Work on XXX issues
+- 9f3af9a 2026-04-10  Work on filter
+- 0bc6c33 2026-04-10  Adapt legacy programs to new layout
+- d023b74 2026-04-08  Fixes from debug session
+- 73e5bf2 2026-04-08  Add nbar array records and if/vrf records
+- 276d231 2026-04-08  Free converter exporter tables
+- cbf5c87 2026-04-07  Fix some bugs in exporter conversion and some cleanup
+- 41e8989 2026-04-07  Add v2 exporter/sampler info to V2 converter
+- e190f50 2026-04-06  Add v3 converter and fix v1/v5 collector
+- cfebf09 2026-04-05  Fix bug and add stub  for 1.7.x conversion
+- 4a80f2e 2026-04-05  Add missing new files
+- d3aa73c 2026-04-05  Implemented nffile version 3
+- fc6c5ff 2026-03-30  Enable extensions in grammar.y
+- 0cd2fb1 2026-03-30  Replace all gettimeofday by clock_gettime. cleanup nfxv3.h includes
+- a91643f 2026-03-30  Update all programs to v4 record
+- 50595b7 2026-03-29  Update sfcapd to new v4 record
+- 9fd446d 2026-03-29  - Pipeline: replace rank offset with extension offset. Fill offset table at L_END and not at start. - Netflow v5. Check at runtime to add optional extension. Prevent wasting space.
+- b3ad103 2026-03-28  Status 20260328-1
+- 24daa81 2026-03-26  Status 20260327-1
+- d9504e5 2026-03-24  Switch to devel_1.8.x branch. Add new record v4
+- 6b96df6 2026-03-04  (origin/hackathon2026) Fix proper EXnull handling and printing and update tests
+- 5927ed3 2026-03-04  Fix bugs
+- b29f71d 2026-03-03  Replace old number scaling code
+- ba94176 2026-03-02  Avoid expensive stat() calls. Replaced by fstatat()
+- ff26f32 2026-03-02  New code base for nfexpire
+- 732b1e4 2026-02-28  Refrag code - move logging functions into new file logging.[ch]
+- 1596835 2026-02-26  Fix other thread unsafe glibc library calls
+- 5b379bf 2026-02-26  Replace all localtime() calls with localtime_r()
+- e36b865 2026-02-26  Fix nfprofile and some localtime() issues
+- 28b42e3 2026-02-25  Fix SetupPath()
+- a59e770 2026-02-25  New bookkeeper implemented
+- aac815d 2026-02-25  Remove old expire code in collector
+- 13f63b0 2026-02-24  Update sflow collector to nfcapd level
+- ab39ba7 2026-02-23  Updated launcher code in nfcapd
+- d750f97 2026-02-23  Ready new repeater code in nfcapd
+- f4c9f53 2026-02-20  Replaced run() loop in nfcapd
+- d4a19a6 2026-02-17  split backend data in new nffile backend context
+- 4d81212 2026-02-16  Remove old and no longer used libpcap life code
+- 6c6c87c 2026-02-16  Fix #667 duration bug in -s stat output
+- 14d0b46 2026-02-16  Cleanup TPACKETV3 code
+- 84f3b22 2026-02-16  Cleanup BPF code. Make buffer size configurable
+- fce61d7 2026-02-16  Fix IP fragment init code
+- 361bd5e 2026-02-15  Fix Statistic on BPF socket
+- 09de43b 2026-02-15  Fix nfpcapd build options and remove useless FIX_INCLUDES
+- dbdc2ba 2026-02-14  Fix potential swap32() double definition
+- b3e7370 2026-02-14  Add expire function to fragment list in nfpcapd
+- 8dfa9e5 2026-02-14  Update Readme
+- b9438dd 2026-02-14  Update nfpcapd - Refactor messy ProcessPacket code with state processing
+- e7af66f 2026-02-12  Update nfpcapd - Improve packet processing. Make it more robust
+- 9d585f8 2026-02-10  Update debug messages
+- 8c29f61 2026-02-10  Replace verbose option -v to verbose level -v <n> for most binaries. Needs more work
+- 3ea8d71 2026-02-09  Update nfpcapd - remove unused interrupt handler and use atomic done variables
+- 9a14047 2026-02-09  Fix statistic for pcap file processing
+- a2b1eb7 2026-02-09  Update nfpcapd - replace slow packet dump code by native calls
+- 5ab715f 2026-02-05  Add missing packet_pcap_file.c
+- 183f045 2026-02-05  Update nfpcapd - Replace pcap reader code with faster mmap version
+- ac07fa1 2026-02-04  Silently skip unknown records in nfanon. Fixed #665
+- 5aedf78 2026-02-04  Update nfpcapd - Modify slab allocator
+- 3490191 2026-02-03  Update nfpcapd - replace rb-tree with an open hash. Improves nfpcapd performance
+- dcabdb6 2026-02-01  Update nfpcapd - shrink slab check
+- 0cebb7c 2026-02-01  Update nfpcapd - Fix verbose logging
+- 8360a58 2026-02-01  Update nfpcapd - Update help text and man page for node cache size
+- 95b252e 2026-02-01  Update nfpcapd - Replace ever growing node cache with an adaptive slab allocator
+- edd6784 2026-01-31  Fix #662. Update man page
+- 29cf020 2026-01-29  Update nfpcapd - Rework a lot of code. Remove lock for NewNode() in hot path
+- 437fa2f 2026-01-27  Update nfpcapd - split node into hotNode and coldNode
+- 7c5b47d 2026-01-26  Update nfpcapd - re-arrange nfpcapd structs
+- c101504 2026-01-26  Update Readme for autotools 2.71.
+- b74d4d6 2026-01-26  Silently skip ETHERTYPE_FLOWCONTROL frames in nfpcapd
+- 855777b 2026-01-26  Fix memory leak, when processing and filtering ssl payload data
+- 446dd20 2026-01-22  Fix memory leak in sslFree
+- 6e71596 2026-01-22  Update stringList_t code
+- 1988d88 2026-01-19  Improve queue code - double cond vars improve performance
+- 7006225 2026-01-18  Cleanup nffile FlushFile and CloseFile. Get rid of FinaliseFile
+- 126268c 2026-01-17  Align ftconv compression arguments with other nfdump binaries
+- a62fbd6 2026-01-17  Remove MAXWORKERS altogether. Instead limit only to the number of cores
+- 323c092 2026-01-17  Remove MAXWORKERS from nffile. 1st step to remove MAXWORKERS entirely
+- 7d0adb0 2026-01-16  Update man pages for new worker heuristics
+- d4f3698 2026-01-16  Align nfanon with cli option -W num to request the number of worker threads. Improve the heuristics to select the number of workers if non requested. New heuristics applys to all nfdump programs.
+- 3885ccd 2026-01-16  Remove old legacy nffile handle re-usage. Cleanup nffile code. Fix minor code bugs.
+- 741837f 2026-01-14  Fix sfcapd nffile initialisation
+- 7ebe0f6 2026-01-14  Major code change in the collector module (nfcpad/sfcapd) - Introduce post processor thread to speed up rotation cycle (See also #628)   The hot path in the collector is heavily reduced. All post processing tasks   are moved to the post processor thread. - Do not allow to set the UDP receive buffer, below the system default. - Improved GetNumWorkers(). - Apply GetNumWorkers() to nfdump filter threads number by default.   the current file flushing, syncing
+- 852f1c0 2026-01-08  Apply the user supplied number of worker threads also to the filter threads
+- b87df34 2026-01-08  Anonymise exporter IPs in nfanon
+- 5036393 2026-01-07  Remove/move unused static
+- f200883 2026-01-07  Cleanup code in filelister thread. Remove global vars. for opt multithreading
+- 58e0bee 2026-01-07  Update configure.ac to work with multiarch layout of Ubuntu. Fixes #655
+- 72e6b85 2026-01-06  Fix type in ConfigureFixedFlowSource
+- 8160c45 2026-01-05  Fix DEVEL code
+- 910655b 2026-01-04  Remove old code, no longer needed
+- cea51ab 2026-01-04  move ip128_t files into collector library
+- 14fabb4 2026-01-04  Update README.md for new build options in configure.ac
+- 97611c3 2026-01-04  Cleanup more code
+- 6093cc7 2026-01-04  Cleanup code - remove static vars and update old nfprofile for new code
+- 0fd11dd 2026-01-04  Fix configure and compile time issues on some linux systems
+- ee9a102 2026-01-04  Merged with github
+- 17f6d79 2026-01-04  Major code change for the collector generic code. Remove old exporter flowsource code. Add new exporter/flowsource code to improve handling of multiple flow sources with lots of exporters, which are now organised in hash tables. Add --enable-lto switch to improve code linking Add --enable-native in order to generate locally more efficient code.
+- 1764402 2025-12-26  Code and build cleanup
+- 7ba0034 2025-12-17  Skip empty nbar records without name and description
+- abd32c6 2025-12-16  Cleanup sequence checks in netflow v5 and v9 module.. ipfix still broken
+- 6922c50 2025-12-16  Fix some nbar boundaries
+- 423b6c9 2025-12-07  #649 Implement dual stack listener for nfcapd and sfcapd.
+- e6c6f38 2025-11-30  Improve code robustness. Affects issues #643, #645. Introduce skip element records with length != 0 and type EXnull Improve handle mapper to mask out unneeded IP element if both IPv4 and IPv6 are present. Records with double IP address element (IPv4 and IPv6) are stripped accordingly. Adapt test procedure accordingly, make check no longer fails.
+- 8c2df82 2025-11-29  Improve mapping code with heuristics for lazy exporters
+- 1c3ebb5 2025-11-29  Fix building pcap reader with new configure.ac
+- 0c3bd5d 2025-11-25  Fix var setting in configure.ac
+- 03ab696 2025-11-24  Fix toc of Readme file
+- 5f3aa30 2025-11-24  Update Readme file for new configure.ac and fix minor issues
+- b563c23 2025-11-24  Rewrite old messy autotools configure.ac hell. Try to make it clean and remove old stuff not needed. Fix errors, make library search more automatic and reliable. Add more comments and structure. Add nfdump.pc.in pkg-config config for nfump libraries. Autoconf and me - did not become best friends ...
+- faa2983 2025-11-18  prevent rrd dependencies to be linked into libnffile
+- eb90b70 2025-11-10  (tag: v1.7.7) Prevent empty ipVersion element to be reported
+- d3cee8c 2025-11-09  Release v1..7.7
+- 473cf57 2025-11-09  Fix old ANSI C functions in fts_compat.c
 - a4f4b8d 2025-11-09  Add IPversion element to nfreplay and update tests
 - ceffc4c 2025-11-09  Cleanup error message in flist
 - 96ebd8f 2025-11-07  honor the ipVersion flag, if both - IPv4 and IPv6 addreeses are present

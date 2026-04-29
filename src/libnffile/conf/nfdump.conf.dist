@@ -2,6 +2,13 @@
 # Copyright (c) 2025, Peter Haag
 # Sample nfdump config file 
 
+[common]
+# common config section for all programs
+# applies to all programs unless overridden
+
+# calculate checksum for datablocks
+xxhash = 1
+
 [nfdump]
 # format definitions
 

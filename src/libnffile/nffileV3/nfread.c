@@ -53,6 +53,9 @@
 #include "queue.h"
 #include "util.h"
 
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+
 // Decompress a single data block located at entry offset/size in the mmap.
 // Returns a newly allocated block (caller must FreeDataBlock), or NULL on error.
 static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry) {
@@ -73,6 +76,18 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
     if (dataBlock->rawSize > nffile->fileHeader->blockSize || dataBlock->rawSize == 0) {
         LogError("Block rawSize error %u at offset %" PRIu64, dataBlock->rawSize, entry->offset);
         return NULL;
+    }
+
+    // verify per-block xxHash checksum if present
+    if (dataBlock->checksum != 0 && dataBlock->discSize > (uint32_t)sizeof(dataBlockV3_t)) {
+        const uint8_t *payload = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
+        uint32_t payloadSize = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
+        uint64_t computed = XXH3_64bits(payload, payloadSize);
+        if (computed != dataBlock->checksum) {
+            LogError("Block checksum mismatch at offset %" PRIu64 ": stored %016" PRIx64 " computed %016" PRIx64,
+                     entry->offset, dataBlock->checksum, computed);
+            return NULL;
+        }
     }
 
     dbg_printf("ReadBlock - type: %u, size: %u, compression: %u\n", dataBlock->type, dataBlock->discSize, dataBlock->compression);
@@ -323,8 +338,17 @@ nffileV3_t *mmapFileV3(const char *filename) {
         }
     }
 
-    // verify directory
-    // TODO: verify ftr->checksum (xxHash64 over directory region)
+    // verify directory checksum if present
+    if (footer && footer->checksum != 0) {
+        uint64_t computed = XXH3_64bits(blockDirectory, dirSize);
+        if (computed != footer->checksum) {
+            LogError("Directory checksum mismatch in '%s': stored %016" PRIx64 " computed %016" PRIx64,
+                     filename, footer->checksum, computed);
+            munmap((void *)map, fileSize);
+            close(fd);
+            return NULL;
+        }
+    }
 
     // verify directory entries fit
     size_t expectedDirSize = sizeof(blockDirectoryV3_t) + blockDirectory->numEntries * sizeof(directoryEntryV3_t);
