@@ -394,6 +394,7 @@ By default, the sampling rate is 1 (unsampled) or the value specified via `-s`. 
 - [nfinflux](https://github.com/phaag/nfinflux): Export metrics to InfluxDB.
 - [nfexporter](https://github.com/phaag/nfexporter): Export metrics for Prometheus.
 - [NfSen](https://github.com/phaag/nfsen): Old legacy graphical frontend.
+- [nfsen-ng](https://github.com/mbolli/nfsen-ng): Project from Michael Bolli
 
 ---
 
