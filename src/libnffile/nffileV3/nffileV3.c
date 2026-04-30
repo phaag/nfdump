@@ -290,6 +290,7 @@ void CloseFileV3(nffileV3_t *nffile) {
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
     if (nffile->blockList.entries) free(nffile->blockList.entries);
+    if (nffile->crypto) free(nffile->crypto);
 
     pthread_mutex_destroy(&nffile->wlock);
 
@@ -603,6 +604,13 @@ int RenameAppendV3(const char *oldName, const char *newName) {
         return -1;
     }
 
+    if ((src->fileHeader->flags & FILE_FLAG_ENCRYPTED) || (dst->fileHeader->flags & FILE_FLAG_ENCRYPTED)) {
+        LogError("RenameAppendV3: cannot merge encrypted files '%s' and '%s'", oldName, newName);
+        CloseFileV3(src);
+        CloseFileV3(dst);
+        return -1;
+    }
+
     // buildMergedTempFile closes src and dst before returning
     char *tmpName = buildMergedTempFile(src, dst, newName);
     if (!tmpName) return -1;
@@ -650,6 +658,12 @@ void ModifyCompressFile(uint32_t compressType, uint32_t compressLevel) {
             continue;
         }
 
+        if (nffile_r->fileHeader->flags & FILE_FLAG_ENCRYPTED) {
+            LogError("ModifyCompressFile: cannot recompress encrypted file '%s'", nffile_r->fileName);
+            CloseFileV3(nffile_r);
+            continue;
+        }
+
         // save fileName before closing (CloseFileV3 frees it)
         char srcFile[MAXPATHLEN];
         strncpy(srcFile, nffile_r->fileName, MAXPATHLEN - 1);
@@ -661,7 +675,7 @@ void ModifyCompressFile(uint32_t compressType, uint32_t compressLevel) {
         outfile[MAXPATHLEN - 1] = '\0';
 
         // allocate output file
-        nffileV3_t *nffile_w = OpenNewFileTmpV3(outfile, nffile_r->fileHeader->creator, compressType, compressLevel, NOT_ENCRYPTED);
+        nffileV3_t *nffile_w = OpenNewFileTmpV3(outfile, nffile_r->fileHeader->creator, compressType, compressLevel, NULL);
         if (!nffile_w) {
             CloseFileV3(nffile_r);
             break;

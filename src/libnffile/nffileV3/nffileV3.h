@@ -185,6 +185,37 @@ typedef struct blockListV3_s {
  * possible encryption methods
  */
 #define NOT_ENCRYPTED 0
+#define CHACHA20_POLY1305 1 /* ChaCha20-Poly1305 IETF (RFC 8439), requires libsodium */
+
+/* File-level flag: at least one encrypted data block exists */
+#define FILE_FLAG_ENCRYPTED 0x0001u
+
+/* KDF identifiers stored in cryptoHeaderBlock_t */
+#define KDF_PBKDF2_SHA256 1 /* PKCS#5 PBKDF2 with HMAC-SHA-256, OpenSSL EVP */
+
+/*
+ * Crypto meta-block (BLOCK_TYPE_META, NOT_COMPRESSED, NOT_ENCRYPTED).
+ * Written as the first block of every encrypted file.
+ * Carries all per-file key-derivation and nonce material.
+ * The block header (BLOCKHEADER) precedes this struct on disk.
+ *
+ * keyCheck: ChaCha20-Poly1305 encryption of 16 zero bytes under the derived
+ *           key with nonce = rootNonce.  Lets the reader detect a wrong
+ *           passphrase immediately without processing any data blocks.
+ */
+typedef struct cryptoHeaderBlock_s {
+    BLOCKHEADER;            /* type=BLOCK_TYPE_META, NOT_COMPRESSED, NOT_ENCRYPTED */
+    uint16_t algorithm;     /* encryption algorithm: CHACHA20_POLY1305             */
+    uint16_t kdfType;       /* KDF_PBKDF2_SHA256                                   */
+    uint32_t kdfIterations; /* PBKDF2 iteration count, e.g. 200000                 */
+    uint8_t salt[32];       /* random per-file KDF salt                            */
+    uint8_t rootNonce[12];  /* random per-file base nonce                          */
+    uint8_t keyCheck[16];   /* AEAD tag of encrypting 16 zero bytes                */
+    uint8_t pad[4];         /* 8-byte struct alignment                             */
+} cryptoHeaderBlock_t;
+_Static_assert((sizeof(cryptoHeaderBlock_t) & 7) == 0, "cryptoHeaderBlock_t 8-byte aligned");
+/* sizeof(dataBlockV3_t)(24) + {algorithm+kdfType+kdfIterations}(8) + salt(32) + rootNonce(12) + keyCheck(16) + pad(4) = 96 */
+_Static_assert(sizeof(cryptoHeaderBlock_t) == 96, "cryptoHeaderBlock_t size check");
 
 /*
  * Generic data block
@@ -257,7 +288,19 @@ typedef struct expBlock_s {
 } expBlockV3_t;
 _Static_assert((sizeof(expBlockV3_t) & 7) == 0, "expBlockV3_t for 8 byte aligned");
 
-// file handle for v3 type fle
+/*
+ * Per-file runtime crypto state.
+ * Allocated by InitNewFileV3 (write path) or mmapFileV3 (read path).
+ * NULL inside nffileV3_t means the file is not encrypted.
+ * Contains no libsodium types — plain uint8_t arrays only.
+ */
+typedef struct nffile_crypto_s {
+    uint32_t algorithm;     /* CHACHA20_POLY1305 etc. (mirrors crypto_algo_t) */
+    uint8_t  encKey[32];    /* derived 256-bit session key                    */
+    uint8_t  rootNonce[12]; /* per-file base nonce                            */
+} nffile_crypto_t;
+
+// file handle for v3 type file
 typedef struct nffileV3_s {
     const uint8_t *map;  // mmap base pointer
     size_t mapSize;      // file size = mapping length
@@ -279,8 +322,8 @@ typedef struct nffileV3_s {
     uint32_t numWorkers;        // number of workers for this handle
     uint32_t compression;       // default type of compression
     uint32_t compressionLevel;  // default compression level, if available.
-    uint32_t encryption;        // default encryption for blocks
-    int xxHash;                 // non-zero: calculate per-block and directory xxHash checksum
+    uint32_t xxHash;            // non-zero: calculate per-block and directory xxHash checksum
+    nffile_crypto_t *crypto;    // per-file crypto state; NULL = not encrypted
     _Atomic off_t blockOffset;  // atomic block I/O offset (read: mmap scan pos, write: pwrite pos)
     queue_t *processQueue;      // blocks ready to be processed. Connects consumer/producer threads
     pthread_mutex_t wlock;      // writer lock
@@ -361,10 +404,13 @@ void *ReadBlockV3(nffileV3_t *nffile);
 
 const expBlockV3_t *getNextExporter(nffileV3_t *nffile, uint32_t *nextOffset);
 
-// nfwrite.c
-nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compression, uint16_t compressionLevel, uint32_t encryption);
+// nfcrypto.c — see nfcrypto.h for full API (always compiled, stubs when no libsodium)
+#include "nfcrypto.h"
 
-nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t compression, uint16_t compressionLevel, uint32_t encryption);
+// nfwrite.c
+nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compression, uint16_t compressionLevel, const crypto_ctx_t *crypto_ctx);
+
+nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t compression, uint16_t compressionLevel, const crypto_ctx_t *crypto_ctx);
 
 void WriteBlockV3(nffileV3_t *nffile, void *blockHeader);
 

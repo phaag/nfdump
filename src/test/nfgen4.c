@@ -257,7 +257,7 @@ int main(int argc, char **argv) {
 
     if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
 
-    nffileV3_t *nffile = OpenNewFileV3("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, LEVEL_0, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, LEVEL_0, NULL);
     if (!nffile) {
         fprintf(stderr, "Failed to create output file\n");
         exit(255);

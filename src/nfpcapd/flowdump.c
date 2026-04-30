@@ -444,7 +444,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     printRecord = flowParam->printRecord;
     // prepare file
     nffile_ctx->nffile =
-        OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel, nffile_ctx->encryption);
+        OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel, nffile_ctx->crypto_ctx);
     if (!nffile_ctx->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
@@ -472,7 +472,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
                 CloseFlowFile(flowParam, Node->timestamp);
                 nffile_ctx->nffile = OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType,
-                                                      nffile_ctx->compressLevel, nffile_ctx->encryption);
+                                                      nffile_ctx->compressLevel, nffile_ctx->crypto_ctx);
                 if (!nffile_ctx->nffile) {
                     LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                     pthread_kill(flowParam->parent, SIGUSR1);

@@ -60,6 +60,7 @@
 .Op Fl E Ar flowfile
 .Op Fl x Ar flowfile
 .Op Fl W Ar workers
+.Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl z=<compress>
 .Op Fl J Ar compress
 .Op Fl X
@@ -727,6 +728,54 @@ workers. See -W.
 Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
 workers. See -W.
+.It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+Decrypt encrypted input flow files created by
+.Xr nfcapd 1 ,
+.Xr sfcapd 1
+or
+.Xr nfpcapd 1
+with their
+.Fl K
+option.
+Requires
+.Nm
+to be compiled with libsodium support.
+.Pp
+The passphrase may be supplied in one of three ways:
+.Bl -tag -width Ds
+.It Fl K Ns = Ns Ar passphrase
+Use
+.Ar passphrase
+directly.
+The
+.Ql =
+is required; there must be no space between
+.Fl K
+and the passphrase.
+.It Fl K Ns @ Ns Ar keyfile
+Read the passphrase from the first line of
+.Ar keyfile .
+Trailing newlines are stripped.
+This avoids exposing the passphrase in the process table.
+.It Fl K
+(no argument) Prompt interactively from the terminal with echo disabled.
+.El
+.Pp
+The decryption key is re-derived for each input file using Argon2id
+.Pq Li crypto_pwhash
+and the per-file salt stored in the file header.
+The correct passphrase is verified against a key-check tag before any data is decrypted.
+.Pp
+When
+.Fl w Ar outfile
+is also specified,
+.Fl K
+encrypts the output file with the same passphrase in addition to decrypting
+the input files.
+Without
+.Fl w ,
+.Fl K
+only applies to decrypting input files.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.

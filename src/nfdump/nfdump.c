@@ -55,6 +55,10 @@
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "config.h"
+
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+#endif
 #include "exporter.h"
 #include "filter/filter.h"
 #include "flist.h"
@@ -193,7 +197,11 @@ static void usage(char *name) {
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-t <time>\ttime window for filtering packets\n"
-        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
+        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n"
+#ifdef HAVE_LIBSODIUM
+        "-K[=passphrase|@keyfile]\tDecrypt encrypted input files (and encrypt output with -w). Passphrase from argument, key file, or interactive prompt.\n"
+#endif
+        ,
         name);
 } /* usage */
 
@@ -579,7 +587,8 @@ static void *filterThread(void *arg) {
 }  // End of filterThread
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers) {
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers,
+                                  const crypto_ctx_t *crypto_ctx) {
     stat_record_t stat_record = {0};
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
@@ -619,7 +628,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     flowBlockV3_t *dataBlock_w = NULL;
     // prepare output file if requested
     if (wfile) {
-        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
+        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, crypto_ctx);
         if (!nffile_w) {
             stat_record.msecFirstSeen = 0;
             return stat_record;
@@ -801,6 +810,7 @@ int main(int argc, char **argv) {
     configFile = NULL;
     uint32_t compressType = NOT_COMPRESSED;
     uint32_t compressLevel = 0;
+    crypto_ctx_t *crypto_ctx = NULL;
     char *geo_file = getenv("NFGEODB");
     char *tor_file = getenv("NFTORDB");
 
@@ -813,7 +823,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hK::n:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -1033,6 +1043,18 @@ int main(int argc, char **argv) {
             case '6':  // print long IPv6 addr
                 Setv6Mode(1);
                 break;
+            case 'K': {
+                char *pp = ParsePassphrase(optarg, "Enter passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                crypto_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!crypto_ctx) {
+                    LogError("Failed to initialize encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
             default:
                 usage(argv[0]);
                 exit(EXIT_SUCCESS);
@@ -1147,6 +1169,8 @@ int main(int argc, char **argv) {
 
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(numWorkers, fileList)) exit(EXIT_FAILURE);
+
+    RegisterReadCryptoCtx(crypto_ctx);
 
     // Modify compression
     if (ModifyCompress) {
@@ -1294,8 +1318,8 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat =
-        process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compressType, compressLevel, numWorkers);
+    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compressType, compressLevel,
+                            numWorkers, crypto_ctx);
     nfprof_end(&profile_data, totalRecords);
 
     if (totalPassed == 0) {
@@ -1304,7 +1328,7 @@ int main(int argc, char **argv) {
 
     if (aggregate || print_order) {
         if (wfile) {
-            nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
+            nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, crypto_ctx);
             if (!nffile) exit(EXIT_FAILURE);
             SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
@@ -1368,6 +1392,8 @@ int main(int argc, char **argv) {
 #endif
     Dispose_FlowTable();
     Dispose_StatTable();
+    RegisterReadCryptoCtx(NULL);
+    FreeCryptoCtx(crypto_ctx);
 
     return 0;
 }

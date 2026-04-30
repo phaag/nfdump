@@ -53,6 +53,15 @@
 #include "util.h"
 #include "vcs_track.h"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+
+#include "nfcrypto.h"
+#endif
+
 #define XXH_INLINE_ALL
 #include "xxhash.h"
 
@@ -67,6 +76,10 @@ static const char *CompressionType(uint32_t compression) {
            : compression == BZ2_COMPRESSED  ? "bz2 compressed"
                                             : "unknown compression";
 }  // End of CompressionType
+
+static const char *EncryptionType(uint32_t enc) {
+    return enc == NOT_ENCRYPTED ? "not encrypted" : enc == CHACHA20_POLY1305 ? "ChaCha20-Poly1305" : "unknown encryption";
+}  // End of EncryptionType
 
 // =========================================================================
 //  4. VERIFY FILE CONSISTENCY
@@ -161,6 +174,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     char tstr[64];
     strftime(tstr, sizeof(tstr), "%Y-%m-%d %H:%M:%S", t);
     printf("Created    : %s\n", tstr);
+    printf("Encrypted  : %s\n", (fileHeader->flags & FILE_FLAG_ENCRYPTED) ? "yes" : "no");
 
     uint32_t blockSize = fileHeader->blockSize;
     if (blockSize == 0 || blockSize > 64 * ONE_MB) {
@@ -269,6 +283,60 @@ int VerifyFileV3(const char *filename, int verbose) {
         }
     }
 
+#ifdef HAVE_LIBSODIUM
+    /* -----------------------------------------------------------------------
+     * Encryption handling: find cryptoHeaderBlock, derive and verify key.
+     * Must happen before the block scan so we can decrypt blocks for deeper
+     * validation (block-count checks etc.).
+     * ----------------------------------------------------------------------- */
+    int fileEncrypted = (fileHeader->flags & FILE_FLAG_ENCRYPTED) != 0;
+    int keyVerified = 0;
+
+    if (fileEncrypted && blockDirectory) {
+        const cryptoHeaderBlock_t *cryptoHdr = NULL;
+
+        for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
+            const directoryEntryV3_t *e = &blockDirectory->entries[i];
+            if (e->type != BLOCK_TYPE_META) continue;
+            if (e->offset + e->size > fileSize) continue;
+            if (e->size < sizeof(cryptoHeaderBlock_t)) continue;
+            const cryptoHeaderBlock_t *cand = (const cryptoHeaderBlock_t *)(map + e->offset);
+            if (cand->discSize == sizeof(cryptoHeaderBlock_t) && cand->encryption == NOT_ENCRYPTED && cand->compression == NOT_COMPRESSED) {
+                cryptoHdr = cand;
+                break;
+            }
+        }
+
+        printf("\n=== Encryption info ===\n");
+        if (!cryptoHdr) {
+            printf("  ERROR: FILE_FLAG_ENCRYPTED set but no crypto header block found\n");
+        } else {
+            printf("  Algorithm  : %s\n", EncryptionType(cryptoHdr->algorithm));
+            printf("  KDF        : %s\n", cryptoHdr->kdfType == KDF_PBKDF2_SHA256 ? "Argon2id (labelled PBKDF2-SHA256)" : "unknown");
+            printf("  KDF iters  : %u\n", cryptoHdr->kdfIterations);
+
+            nffile_crypto_t tmpCrypto = {0};
+            if (!DeriveKeyFromFile(cryptoHdr, &tmpCrypto)) {
+                printf("  Key        : derivation FAILED\n");
+            } else if (!VerifyEncryptionKey(cryptoHdr, &tmpCrypto)) {
+                printf("  Key        : WRONG passphrase or corrupt key-check\n");
+            } else {
+                printf("  Key        : verified OK\n");
+                keyVerified = 1;
+            }
+            sodium_memzero(tmpCrypto.encKey, sizeof(tmpCrypto.encKey));
+        }
+    }
+#else
+    int fileEncrypted = 0;
+    int keyVerified = 0;
+    if (fileHeader->flags & FILE_FLAG_ENCRYPTED) {
+        printf("\n=== Encryption info ===\n");
+        printf("  File is encrypted but encryption support not compiled in (libsodium missing)\n");
+        printf("  Block-level validation will be skipped for encrypted blocks\n");
+    }
+#endif /* HAVE_LIBSODIUM */
+
     // collect a blocklint while parsing
     blockListV3_t blockList = {0};
     blockList.entries = malloc(DIR_INIT_CAPACITY * sizeof(directoryEntryV3_t));
@@ -315,6 +383,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         }
 
         // verify per-block xxHash checksum if present
+        // For encrypted blocks the checksum covers the ciphertext+tag, which is correct.
         if (dataBlock->checksum != 0 && dataBlock->discSize > (uint32_t)sizeof(dataBlockV3_t)) {
             const uint8_t *payload = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
             uint32_t payloadSize = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
@@ -327,18 +396,23 @@ int VerifyFileV3(const char *filename, int verbose) {
         }
 
         if (verbose)
-            printf("Checkblock: type: %u, offset: %lld, rawSize: %u, discSize: %u, compression: %u, checksum: 0x%" PRIx64 "\n", dataBlock->type,
-                   nextOffset, dataBlock->rawSize, dataBlock->discSize, dataBlock->compression, dataBlock->checksum);
+            printf("Checkblock: type: %u, offset: %lld, rawSize: %u, discSize: %u, compression: %u, encryption: %u, checksum: 0x%" PRIx64 "\n",
+                   dataBlock->type, nextOffset, dataBlock->rawSize, dataBlock->discSize, dataBlock->compression, dataBlock->encryption,
+                   dataBlock->checksum);
 
         switch (dataBlock->type) {
             case BLOCK_TYPE_FLOW: {
                 blockStat[BLOCK_TYPE_FLOW].numBlocks++;
                 blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
-                flowBlockV3_t *flowBlock = (flowBlockV3_t *)dataBlock;
-                if (flowBlock->numRecords == 0) {
-                    printf("Flow block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize,
-                           dataBlock->discSize);
-                    blockCheckFailed = 1;
+                /* Skip record-count check for encrypted blocks — the payload is ciphertext
+                 * and cannot be interpreted without decryption. */
+                if (dataBlock->encryption == NOT_ENCRYPTED) {
+                    flowBlockV3_t *flowBlock = (flowBlockV3_t *)dataBlock;
+                    if (flowBlock->numRecords == 0) {
+                        printf("Flow block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize,
+                               dataBlock->discSize);
+                        blockCheckFailed = 1;
+                    }
                 }
             } break;
             case BLOCK_TYPE_ARRAY:
@@ -438,6 +512,9 @@ int VerifyFileV3(const char *filename, int verbose) {
     }
     printf("  Directory       : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");
     printf("  Checksums       : %s\n", checksumFailed == 0 ? "OK" : "FAILED");
+    if (fileEncrypted) {
+        printf("  Encryption      : %s\n", keyVerified ? "key verified" : "could not verify key");
+    }
 
     free(blockList.entries);
     msync(map, fileSize, MS_SYNC);

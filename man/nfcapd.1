@@ -62,6 +62,7 @@
 .Op Fl x Ar command
 .Op Fl X Ar extensionList
 .Op Fl W Ar workers
+.Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl Y Ar yaf-file
 .Op Fl v Ar level
 .Op Fl V
@@ -285,6 +286,41 @@ workers. See -W.
 Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
 workers. See -W.
+.It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+Encrypt all output flow files using ChaCha20-Poly1305 AEAD authenticated encryption.
+Requires
+.Nm
+to be compiled with libsodium support.
+.Pp
+The passphrase may be supplied in one of three ways:
+.Bl -tag -width Ds
+.It Fl K Ns = Ns Ar passphrase
+Use
+.Ar passphrase
+directly.
+The
+.Ql =
+is required; there must be no space between
+.Fl K
+and the passphrase.
+.It Pf Fl K @ Ar keyfile
+Read the passphrase from the first line of
+.Ar keyfile .
+Trailing newlines are stripped.
+This avoids exposing the passphrase in the process table.
+.It Fl K
+(no argument) Prompt interactively from the terminal with echo disabled.
+.El
+.Pp
+The encryption key is derived from the passphrase using Argon2id
+.Pq Li crypto_pwhash
+with a freshly generated random per-file salt, so every rotated output file uses a distinct
+derived key.
+Encrypted files can be read and decrypted with
+.Xr nfdump 1
+using the same
+.Fl K
+option.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.

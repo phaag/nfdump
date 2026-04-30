@@ -12,6 +12,11 @@ sfcapd_LDFLAGS = -L../libnffile
 sfcapd_CFLAGS = $(PTHREAD_CFLAGS)
 sfcapd_LDADD  += $(PTHREAD_LIBS)
 
+if HAVE_LIBSODIUM
+sfcapd_CPPFLAGS += $(LIBSODIUM_CFLAGS)
+sfcapd_LDADD += $(LIBSODIUM_LIBS)
+endif
+
 if ENABLE_READPCAP
 sfcapd_CPPFLAGS += $(PCAP_CFLAGS)
 sfcapd_LDADD += $(PCAP_LIBS)

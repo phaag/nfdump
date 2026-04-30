@@ -20,6 +20,11 @@ nfdump_SOURCES = nfdump.c spin_lock.h \
 nfdump_LDADD = ../output/liboutput.a  -lnfdump  -lnffile $(PTHREAD_LIBS)
 nfdump_LDFLAGS  = -L../libnfdump -L../libnffile
 
+if HAVE_LIBSODIUM
+nfdump_CPPFLAGS += $(LIBSODIUM_CFLAGS)
+nfdump_LDADD += $(LIBSODIUM_LIBS)
+endif
+
 EXTRA_DIST = memhandle.c
 
 CLEANFILES = *.gch

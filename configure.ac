@@ -192,6 +192,14 @@ AX_CHECK_LIB_GENERIC([BZ2], [bzlib.h], [bz2],
   [AC_MSG_WARN([Bzip2 not found; disabling bz2])]
 )
 
+# --- libsodium (optional, enables ChaCha20-Poly1305 block encryption) ---
+AX_CHECK_LIB_GENERIC([LIBSODIUM], [sodium.h], [sodium],
+  [AC_MSG_NOTICE([Found libsodium — encryption enabled])
+   AC_DEFINE([HAVE_LIBSODIUM], [1], [Define if libsodium is available])],
+  [AC_MSG_WARN([libsodium not found — encryption disabled])]
+)
+AM_CONDITIONAL([HAVE_LIBSODIUM], [test "x$HAVE_LIBSODIUM" = "xyes"])
+
 # --- zlib, if we need it later  ---
 AX_CHECK_LIB_GENERIC([ZLIB], [zlib.h], [z],
   [AC_MSG_NOTICE([Found zlib])],

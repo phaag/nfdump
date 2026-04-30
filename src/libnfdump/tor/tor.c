@@ -321,7 +321,7 @@ void UpdateTorV6Node(torV6Node_t *torV6Node) {
 }  // End of UpdateTorV6Node
 
 int SaveTorTree(char *fileName) {
-    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_TORLOOKUP, LZ4_COMPRESSED, LEVEL_0, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_TORLOOKUP, LZ4_COMPRESSED, LEVEL_0, NULL);
     if (!nffile) {
         LogError("OpenNewFileV3(%s) failed", fileName);
         return 0;

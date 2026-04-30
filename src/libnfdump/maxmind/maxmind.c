@@ -254,7 +254,7 @@ static void StoreASorgtree(nffileV3_t *nffile) {
 }  // End of StoreASorgtree
 
 int SaveMaxMind(char *fileName) {
-    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_GEOLOOKUP, LZ4_COMPRESSED, LEVEL_0, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_GEOLOOKUP, LZ4_COMPRESSED, LEVEL_0, NULL);
     if (!nffile) {
         LogError("OpenNewFile(%s) failed", fileName);
         return 0;

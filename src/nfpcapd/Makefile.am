@@ -16,6 +16,11 @@ nfpcapd_LDADD = ../collector/libcollector.a -lnffile  -lpcap -lm
 nfpcapd_LDADD += $(PCAP_LIBS) $(ZLIB_LIBS)
 nfpcapd_LDFLAGS = -L../libnffile
 
+if HAVE_LIBSODIUM
+nfpcapd_CPPFLAGS += $(LIBSODIUM_CFLAGS)
+nfpcapd_LDADD += $(LIBSODIUM_LIBS)
+endif
+
 if HAVE_ZLIB
 nfpcapd_SOURCES += pcap_gzip.c pcap_gzip.h
 endif

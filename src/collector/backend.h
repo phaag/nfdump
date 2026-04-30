@@ -45,12 +45,12 @@ typedef struct nffile_backend_ctx_s {
     nffileV3_t *nffile;          // nffile handle
 
     // const args
-    char *time_extension;    // parameter passing
-    uint32_t creator;        // creator - nfcapd or sfcapd
-    uint16_t compressType;   // compression type
-    uint16_t compressLevel;  // compression Level
-    uint32_t encryption;     // encryption for new files
-    int pfd;                 // launcher socket
+    char *time_extension;            // parameter passing
+    uint32_t creator;                // creator - nfcapd or sfcapd
+    uint16_t compressType;           // compression type
+    uint16_t compressLevel;          // compression Level
+    const crypto_ctx_t *crypto_ctx;  // encryption context; NULL = not encrypted
+    int pfd;                         // launcher socket
 
     // collector param
     queue_t *blockQueue;  // queue from collector

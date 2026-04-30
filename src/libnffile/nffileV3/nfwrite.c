@@ -57,6 +57,15 @@
 #define XXH_INLINE_ALL
 #include "xxhash.h"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+#endif
+
+#include "nfcrypto.h"
+
 // NumWorkers is set from nffileV3.c via Init_nffile
 extern uint32_t NumWorkers;
 
@@ -73,6 +82,12 @@ static void DeleteFile(nffileV3_t *nffile) {
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
     if (nffile->blockList.entries) free(nffile->blockList.entries);
+    if (nffile->crypto) {
+#ifdef HAVE_LIBSODIUM
+        sodium_memzero(nffile->crypto->encKey, sizeof(nffile->crypto->encKey));
+#endif
+        free(nffile->crypto);
+    }
 
     if (nffile->processQueue) {
         // Free all pending blocks even if queue was aborted
@@ -92,10 +107,13 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
 
     uint32_t blockSize = nffile->fileHeader->blockSize;
     dataBlockV3_t *buff = NULL;
+    dataBlockV3_t *encBuf = NULL;
     dataBlockV3_t *wptr = NULL;
+
     // resolve compression: block-level overrides file default
     int compression = (block_header->compression == UNDEF_COMPRESSED) ? nffile->compression : block_header->compression;
     int level = nffile->compressionLevel;
+
     dbg_printf("nfwrite - compression: %u\n", compression);
     switch (compression) {
         case NOT_COMPRESSED:
@@ -144,9 +162,72 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
 
     wptr->compression = compression;
 
-    // compute XXH3_64bits checksum over the on-disk payload bytes
-    // covers [sizeof(dataBlockV3_t), discSize) — the block header (including the
-    // checksum field itself) is excluded from the hash input
+    dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u\n", wptr->type, wptr->rawSize, wptr->discSize);
+
+    /* ----------------------------------------------------------------
+     * Option A: reserve the file offset BEFORE encrypting so we can use
+     * dstOffset as the nonce differentiator.
+     *
+     * On-disk size with encryption = compressed discSize + 16-byte AEAD tag.
+     * Without encryption on-disk size = compressed discSize.
+     * ---------------------------------------------------------------- */
+    uint32_t onDiskSize = wptr->discSize;
+#ifdef HAVE_LIBSODIUM
+    if (nffile->crypto) {
+        onDiskSize += (uint32_t)crypto_aead_chacha20poly1305_ietf_ABYTES; /* +16 */
+    }
+#endif
+
+    // reserve file space and record directory entry atomically
+    pthread_mutex_lock(&nffile->wlock);
+    off_t dstOffset = atomic_fetch_add(&nffile->blockOffset, onDiskSize);
+    int ok = AddBlock(&nffile->blockList, wptr->type, (uint64_t)dstOffset, onDiskSize);
+    pthread_mutex_unlock(&nffile->wlock);
+
+#ifdef HAVE_LIBSODIUM
+    if (nffile->crypto) {
+        /*
+         * Allocate an output buffer large enough for the full on-disk block:
+         * header (24 bytes) + plaintext payload + 16-byte AEAD tag.
+         * Heap-allocated because nfwriter workers run in parallel.
+         */
+        encBuf = (dataBlockV3_t *)malloc(onDiskSize);
+        if (!encBuf) {
+            LogError("nfwrite: malloc(%u) for encrypt buffer: %s", onDiskSize, strerror(errno));
+            FreeDataBlock(buff);
+            return 0;
+        }
+
+        /* Build per-block nonce: rootNonce XOR le64(dstOffset) */
+        uint8_t nonce[crypto_aead_chacha20poly1305_ietf_NPUBBYTES]; /* 12 bytes */
+        memcpy(nonce, nffile->crypto->rootNonce, sizeof(nonce));
+        uint64_t offsetLE = (uint64_t)dstOffset;
+        for (int bi = 0; bi < 8; bi++) {
+            nonce[bi] ^= (uint8_t)(offsetLE >> (bi * 8));
+        }
+
+        const uint8_t *plaintext = (const uint8_t *)wptr + sizeof(dataBlockV3_t);
+        uint32_t plainLen = wptr->discSize - (uint32_t)sizeof(dataBlockV3_t);
+        uint8_t *ciphertext = (uint8_t *)encBuf + sizeof(dataBlockV3_t);
+        unsigned long long cipherLen = 0;
+
+        int rc = crypto_aead_chacha20poly1305_ietf_encrypt(ciphertext, &cipherLen, plaintext, plainLen, NULL, 0, NULL, nonce, nffile->crypto->encKey);
+        if (rc != 0) {
+            LogError("nfwrite: encryption failed at offset %" PRId64, (int64_t)dstOffset);
+            free(encBuf);
+            FreeDataBlock(buff);
+            return 0;
+        }
+
+        memcpy(encBuf, wptr, sizeof(dataBlockV3_t));
+        encBuf->discSize = (uint32_t)(sizeof(dataBlockV3_t) + cipherLen);
+        encBuf->encryption = CHACHA20_POLY1305;
+        wptr = encBuf;
+    }
+#endif /* HAVE_LIBSODIUM */
+
+    // compute XXH3_64bits checksum over the final on-disk payload bytes
+    // (covers encrypted ciphertext + tag when encryption is active)
     wptr->checksum = 0;
     if (nffile->xxHash && wptr->discSize > (uint32_t)sizeof(dataBlockV3_t)) {
         const uint8_t *payload = (const uint8_t *)wptr + sizeof(dataBlockV3_t);
@@ -154,19 +235,11 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
         wptr->checksum = XXH3_64bits(payload, payloadSize);
     }
 
-    dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u\n", wptr->type, wptr->rawSize, wptr->discSize);
-
-    // reserve file space and record directory entry atomically
-    // guarantees directory order matches file offset order
-    pthread_mutex_lock(&nffile->wlock);
-    off_t dstOffset = atomic_fetch_add(&nffile->blockOffset, wptr->discSize);
-    int ok = AddBlock(&nffile->blockList, wptr->type, (uint64_t)dstOffset, wptr->discSize);
-    pthread_mutex_unlock(&nffile->wlock);
-
     // write at reserved offset — parallel, no lock needed
-    ssize_t writeSize = wptr->discSize;
-    ssize_t ret = pwrite(nffile->fd, (void *)wptr, writeSize, dstOffset);
+    ssize_t writeSize = (ssize_t)wptr->discSize;
+    ssize_t ret = pwrite(nffile->fd, (void *)wptr, (size_t)writeSize, dstOffset);
     FreeDataBlock(buff);
+    if (encBuf) free(encBuf);
     if (ret != writeSize) {
         LogError("pwrite() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
@@ -214,14 +287,51 @@ static void *nfwriter(void *arg) {
 
 }  // End of nfwriter
 
+static uint32_t ceil_power_of_2(uint32_t num) {
+    if (num <= 1) return 1;
+    if ((num & (num - 1)) == 0) return num;
+
+    // __builtin_clz returns number of leading zeros
+    return 1u << (32 - __builtin_clz(num - 1));
+}  // End of ceil_power_of_2
+
 // Common setup for a freshly opened write fd.
 // Takes ownership of fd and fileName on success.
 // On failure, closes fd, unlinks fileName, and returns NULL.
-static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint16_t compression, uint16_t compressionLevel) {
-    // if file is not compressed, 2 workers are fine.
-    uint32_t NumThreads = compression == NOT_COMPRESSED ? 2 : NumWorkers;
+static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint16_t compression, uint16_t compressionLevel,
+                                 const crypto_ctx_t *crypto_ctx) {
+    /*
+     * Worker and queue sizing:
+     * - Uncompressed + unencrypted: 2 workers sufficient (I/O bound).
+     * - Compressed only: use the user-configured NumWorkers.
+     * - Encrypted: ChaCha20-Poly1305 is ~3× slower than compression alone.
+     *   Use at least 4 workers; deepen the queue proportionally so the
+     *   collector never blocks waiting for a free slot.
+     */
+    int useEncryption = (crypto_ctx != NULL);
+    uint32_t NumThreads;
+    uint32_t queueDepth;
+    if (useEncryption) {
+        NumThreads = NumWorkers < 4 ? 4 : NumWorkers;
+        queueDepth = ceil_power_of_2(NumThreads * DefaultQueueSize);
+        if (compression <= NOT_COMPRESSED) {
+#ifdef HAVE_ZSTD
+            compression = ZSTD_COMPRESSED;
+            compressionLevel = 1;
+#else
+            compression = LZ4_COMPRESSED;
+            compressionLevel = 0; /* LZ4_compress_default — fast path, no HC */
+#endif
+        }
+    } else if (compression == NOT_COMPRESSED) {
+        NumThreads = 2;
+        queueDepth = DefaultQueueSize;
+    } else {
+        NumThreads = NumWorkers;
+        queueDepth = DefaultQueueSize;
+    }
 
-    nffileV3_t *nffile = NewFile(NumThreads, DefaultQueueSize);
+    nffileV3_t *nffile = NewFile(NumThreads, queueDepth);
     if (!nffile) {
         LogError("NewFile() failed");
         close(fd);
@@ -235,6 +345,27 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     nffile->compression = compression;
     nffile->compressionLevel = compressionLevel;
     nffile->xxHash = ConfGetValue("xxhash") ? 1 : 0;
+    nffile->crypto = NULL;
+
+    /* freshSalt is populated by DeriveKeyForNewFile() and written to the
+     * cryptoHeaderBlock so the reader can re-derive the same key. */
+    uint8_t freshSalt[32] = {0};
+
+#ifdef HAVE_LIBSODIUM
+    if (crypto_ctx) {
+        nffile->crypto = calloc(1, sizeof(nffile_crypto_t));
+        if (!nffile->crypto) {
+            LogError("InitNewFileV3: calloc(nffile_crypto_t) failed: %s", strerror(errno));
+            DeleteFile(nffile);
+            return NULL;
+        }
+        if (!DeriveKeyForNewFile(crypto_ctx, nffile->crypto, freshSalt)) {
+            LogError("InitNewFileV3: key derivation failed for '%s'", fileName);
+            DeleteFile(nffile);
+            return NULL;
+        }
+    }
+#endif
 
     nffile->map = NULL;
     nffile->mapSize = 0;
@@ -265,6 +396,10 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
         .reserved = 0,
     };
 
+    if (nffile->crypto) {
+        nffile->fileHeader->flags |= FILE_FLAG_ENCRYPTED;
+    }
+
     ssize_t ret = write(fd, nffile->fileHeader, sizeof(fileHeaderV3_t));
     if (ret != (ssize_t)sizeof(fileHeaderV3_t)) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -275,7 +410,54 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     // initialize atomic write offset past the header
     atomic_init(&nffile->blockOffset, (off_t)sizeof(fileHeaderV3_t));
 
-    dbg_printf("InitNewFile: %s, compression: %d, level: %d, workers: %u\n", fileName, nffile->compression, nffile->compressionLevel, NumThreads);
+#ifdef HAVE_LIBSODIUM
+    /*
+     * Write the cryptoHeaderBlock immediately after the file header.
+     * Always plaintext + uncompressed so the reader can extract KDF
+     * parameters and derive the key before reading any data block.
+     */
+    if (nffile->crypto) {
+        cryptoHeaderBlock_t cryptoHdr = {
+            .type = BLOCK_TYPE_META,
+            .discSize = sizeof(cryptoHeaderBlock_t),
+            .rawSize = sizeof(cryptoHeaderBlock_t),
+            .compression = NOT_COMPRESSED,
+            .encryption = NOT_ENCRYPTED,
+            .algorithm = (uint16_t)nffile->crypto->algorithm,
+            .kdfType = (uint16_t)CRYPTO_KDF_ARGON2ID,
+            .kdfIterations = 0, /* use default */
+        };
+        memcpy(cryptoHdr.salt, freshSalt, sizeof(cryptoHdr.salt));
+        memcpy(cryptoHdr.rootNonce, nffile->crypto->rootNonce, sizeof(cryptoHdr.rootNonce));
+
+        /* keyCheck = AEAD tag of encrypting 16 zero bytes under derived key + rootNonce */
+        static const uint8_t plain[16] = {0};
+        uint8_t out[16 + crypto_aead_chacha20poly1305_ietf_ABYTES];
+        unsigned long long outlen = 0;
+        crypto_aead_chacha20poly1305_ietf_encrypt(out, &outlen, plain, sizeof(plain), NULL, 0, NULL, nffile->crypto->rootNonce,
+                                                  nffile->crypto->encKey);
+        memcpy(cryptoHdr.keyCheck, out + 16, 16);
+
+        cryptoHdr.checksum = 0;
+        if (nffile->xxHash) {
+            const uint8_t *p = (const uint8_t *)&cryptoHdr + sizeof(dataBlockV3_t);
+            uint32_t psz = cryptoHdr.discSize - (uint32_t)sizeof(dataBlockV3_t);
+            cryptoHdr.checksum = XXH3_64bits(p, psz);
+        }
+
+        off_t hdrOff = atomic_fetch_add(&nffile->blockOffset, sizeof(cryptoHeaderBlock_t));
+        (void)AddBlock(&nffile->blockList, BLOCK_TYPE_META, (uint64_t)hdrOff, sizeof(cryptoHeaderBlock_t));
+        ret = pwrite(fd, &cryptoHdr, sizeof(cryptoHeaderBlock_t), hdrOff);
+        if (ret != (ssize_t)sizeof(cryptoHeaderBlock_t)) {
+            LogError("write() crypto header error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            DeleteFile(nffile);
+            return NULL;
+        }
+    }
+#endif /* HAVE_LIBSODIUM */
+
+    dbg_printf("InitNewFile: %s, compression: %d, level: %d, workers: %u, %s\n", fileName, nffile->compression, nffile->compressionLevel, NumThreads,
+               crypto_ctx ? "encrypted" : "not encrypted");
 
     // kick off nfwriter
     for (int i = 0; i < (int)NumThreads; i++) {
@@ -295,9 +477,7 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
 }  // End of InitNewFileV3
 
 // Create a new nffileV3 for writing
-nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compression, uint16_t compressionLevel, uint32_t encryption) {
-    (void)encryption;
-
+nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compression, uint16_t compressionLevel, const crypto_ctx_t *crypto_ctx) {
     if (!filename) return NULL;
 
 #ifndef HAVE_ZSTD
@@ -327,16 +507,14 @@ nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compr
         return NULL;
     }
 
-    return InitNewFileV3(fd, name, creator, compression, compressionLevel);
+    return InitNewFileV3(fd, name, creator, compression, compressionLevel, crypto_ctx);
 
 }  // End of OpenNewFileV3
 
 // Create a new temporary nffileV3 for writing.
 // template must be a writable string ending with "XXXXXX" (per mkstemp).
 // On success, template is modified in-place to the actual filename.
-nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t compression, uint16_t compressionLevel, uint32_t encryption) {
-    (void)encryption;
-
+nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t compression, uint16_t compressionLevel, const crypto_ctx_t *crypto_ctx) {
     if (!tmplate) return NULL;
 
 #ifndef HAVE_ZSTD
@@ -374,7 +552,7 @@ nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t com
         return NULL;
     }
 
-    return InitNewFileV3(fd, tmp, creator, compression, compressionLevel);
+    return InitNewFileV3(fd, tmp, creator, compression, compressionLevel, crypto_ctx);
 
 }  // End of OpenNewFileTmpV3
 
@@ -619,6 +797,11 @@ int ChangeIdent(const char *filename, const char *ident) {
     }
     if (fileHeader.magic != HEADER_MAGIC_V3 || fileHeader.layoutVersion != LAYOUT_VERSION_3) {
         LogError("ChangeIdent: bad magic or version in '%s'", filename);
+        close(fd);
+        return 0;
+    }
+    if (fileHeader.flags & FILE_FLAG_ENCRYPTED) {
+        LogError("ChangeIdent: cannot modify ident in encrypted file '%s'", filename);
         close(fd);
         return 0;
     }

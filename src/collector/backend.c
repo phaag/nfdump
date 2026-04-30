@@ -63,7 +63,7 @@ int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffil
     nffile_ctx->creator = init_nffile_ctx->creator;
     nffile_ctx->compressType = init_nffile_ctx->compressType;
     nffile_ctx->compressLevel = init_nffile_ctx->compressLevel;
-    nffile_ctx->encryption = init_nffile_ctx->encryption;
+    nffile_ctx->crypto_ctx = init_nffile_ctx->crypto_ctx;
     nffile_ctx->time_extension = init_nffile_ctx->time_extension;
     nffile_ctx->msgQueue = init_nffile_ctx->msgQueue;
     nffile_ctx->pfd = init_nffile_ctx->pfd;
@@ -230,7 +230,7 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
     int retry = 0;
     do {
         nffile = OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel,
-                                  nffile_ctx->encryption);
+                                  nffile_ctx->crypto_ctx);
         if (nffile) break;
 
         retry++;
@@ -257,7 +257,7 @@ static noreturn void *nffile_backend_thread(void *arg) {
     queue_t *blockQueue = nffile_ctx->blockQueue;  // queue from upstream collector
 
     nffile_ctx->nffile =
-        OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel, nffile_ctx->encryption);
+        OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel, nffile_ctx->crypto_ctx);
     if (!nffile_ctx->nffile) {
         // closing the queue prevents the upstream collector to push new data blocks
         queue_close(blockQueue);

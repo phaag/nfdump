@@ -350,7 +350,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
             uint32_t compressType = nffile_r->compression;
             uint32_t compressLevel = nffile_r->compressionLevel;
-            nffile_w = OpenNewFileV3(outFile, CREATOR_NFANON, compressType, compressLevel, NOT_ENCRYPTED);
+            nffile_w = OpenNewFileV3(outFile, CREATOR_NFANON, compressType, compressLevel, NULL);
             if (!nffile_w) {
                 // can not create output file
                 CloseFileV3(nffile_r);

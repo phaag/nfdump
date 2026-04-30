@@ -133,7 +133,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, uint32_t compressType, u
     // nfdump variables
 
     char *ident = "flow-tools";
-    nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_FT2NFDUMP, compressType, compressLevel, NOT_ENCRYPTED);
+    nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_FT2NFDUMP, compressType, compressLevel, NULL);
     if (!nffile) {
         LogError("OpenNewFile() failed.");
         return 1;

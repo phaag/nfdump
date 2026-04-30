@@ -57,6 +57,10 @@
 #include "pcap_reader.h"
 #endif
 
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+#endif
+
 #include "backend.h"
 #include "barrier.h"
 #include "collector.h"
@@ -138,7 +142,11 @@ static void usage(char *name) {
         "-6\t\tListen on IPv6 only\n"
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
-        "-Z\t\tAdd timezone offset to filename.\n",
+        "-Z\t\tAdd timezone offset to filename.\n"
+#ifdef HAVE_LIBSODIUM
+        "-K[=passphrase|@keyfile]\tEncrypt output files. Passphrase from argument, key file, or interactive prompt.\n"
+#endif
+        ,
         name);
 }  // End of usage
 
@@ -416,6 +424,7 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
 #endif
+    crypto_ctx_t *crypto_ctx = NULL;
 
     unsigned srcSpoofing = 0;
     repeater_host_t repeater_host = {0};
@@ -453,7 +462,7 @@ int main(int argc, char **argv) {
     parse_tun = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:J:l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:J:K::l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -683,6 +692,18 @@ int main(int argc, char **argv) {
                     family = AF_UNSPEC;
                 }
                 break;
+            case 'K': {
+                char *pp = ParsePassphrase(optarg, "Enter encryption passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                crypto_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!crypto_ctx) {
+                    LogError("Failed to initialize encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -818,7 +839,7 @@ int main(int argc, char **argv) {
     const nffile_backend_ctx_t nffile_backend_ctx = {.creator = CREATOR_SFCAPD,
                                                      .compressType = compressType,
                                                      .compressLevel = compressLevel,
-                                                     .encryption = NOT_ENCRYPTED,
+                                                     .crypto_ctx = crypto_ctx,
                                                      .subdir = subdir_index,
                                                      .time_extension = time_extension,
                                                      .msgQueue = launcher_ctx ? launcher_ctx->msgQueue : NULL};
@@ -891,6 +912,7 @@ int main(int argc, char **argv) {
 
     LogInfo("Terminating sfcapd.");
     remove_pid(pidfile);
+    FreeCryptoCtx(crypto_ctx);
 
     EndLog();
     return 0;

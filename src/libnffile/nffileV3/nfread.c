@@ -56,6 +56,15 @@
 #define XXH_INLINE_ALL
 #include "xxhash.h"
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+#endif
+
+#include "nfcrypto.h"
+
 // Decompress a single data block located at entry offset/size in the mmap.
 // Returns a newly allocated block (caller must FreeDataBlock), or NULL on error.
 static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry) {
@@ -84,8 +93,8 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         uint32_t payloadSize = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
         uint64_t computed = XXH3_64bits(payload, payloadSize);
         if (computed != dataBlock->checksum) {
-            LogError("Block checksum mismatch at offset %" PRIu64 ": stored %016" PRIx64 " computed %016" PRIx64,
-                     entry->offset, dataBlock->checksum, computed);
+            LogError("Block checksum mismatch at offset %" PRIu64 ": stored %016" PRIx64 " computed %016" PRIx64, entry->offset, dataBlock->checksum,
+                     computed);
             return NULL;
         }
     }
@@ -95,6 +104,56 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
     uint32_t blockSize = nffile->fileHeader->blockSize;
     int compression = dataBlock->compression;
     dataBlockV3_t *outBlock = NULL;
+
+#ifdef HAVE_LIBSODIUM
+    /*
+     * Decrypt step: runs AFTER checksum verification (checksum covers the
+     * encrypted bytes, so we verify integrity first, then decrypt).
+     *
+     * We allocate a temporary plaintext buffer, decrypt into it, then run
+     * the normal decompression switch on the decrypted data.
+     */
+    dataBlockV3_t *decBuf = NULL;
+    if (nffile->crypto && dataBlock->encryption == CHACHA20_POLY1305) {
+        /* Build per-block nonce = rootNonce XOR le64(offset) */
+        uint8_t nonce[crypto_aead_chacha20poly1305_ietf_NPUBBYTES];
+        memcpy(nonce, nffile->crypto->rootNonce, sizeof(nonce));
+        uint64_t offsetLE = entry->offset;
+        for (int bi = 0; bi < 8; bi++) {
+            nonce[bi] ^= (uint8_t)(offsetLE >> (bi * 8));
+        }
+
+        const uint8_t *ciphertext = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
+        uint32_t cipherLen = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
+
+        if (cipherLen < (uint32_t)crypto_aead_chacha20poly1305_ietf_ABYTES) {
+            LogError("nfread: encrypted block at offset %" PRIu64 " too short (%u)", entry->offset, cipherLen);
+            return NULL;
+        }
+
+        decBuf = NewDataBlock(blockSize);
+        if (!decBuf) return NULL;
+
+        uint8_t *plaintext = (uint8_t *)decBuf + sizeof(dataBlockV3_t);
+        unsigned long long plainLen = 0;
+
+        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL,
+                                                           ciphertext, cipherLen, NULL, 0,
+                                                           nonce, nffile->crypto->encKey);
+        if (rc != 0) {
+            LogError("nfread: decryption failed at offset %" PRIu64 " (wrong key or corrupt block)", entry->offset);
+            FreeDataBlock(decBuf);
+            return NULL;
+        }
+
+        memcpy(decBuf, dataBlock, sizeof(dataBlockV3_t));
+        decBuf->discSize = (uint32_t)(sizeof(dataBlockV3_t) + plainLen);
+        decBuf->encryption = NOT_ENCRYPTED;
+
+        dataBlock = decBuf;
+        compression = dataBlock->compression;
+    }
+#endif /* HAVE_LIBSODIUM */
 
     switch (compression) {
         case UNDEF_COMPRESSED:
@@ -139,8 +198,15 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
             break;
         default:
             LogError("Unknown compression type: %u - skip block", compression);
+#ifdef HAVE_LIBSODIUM
+            FreeDataBlock(decBuf);
+#endif
             return NULL;
     }
+
+#ifdef HAVE_LIBSODIUM
+    FreeDataBlock(decBuf); /* free temporary decrypt buffer (may be NULL) */
+#endif
 
     return outBlock;
 
@@ -342,8 +408,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
     if (footer && footer->checksum != 0) {
         uint64_t computed = XXH3_64bits(blockDirectory, dirSize);
         if (computed != footer->checksum) {
-            LogError("Directory checksum mismatch in '%s': stored %016" PRIx64 " computed %016" PRIx64,
-                     filename, footer->checksum, computed);
+            LogError("Directory checksum mismatch in '%s': stored %016" PRIx64 " computed %016" PRIx64, filename, footer->checksum, computed);
             munmap((void *)map, fileSize);
             close(fd);
             return NULL;
@@ -407,6 +472,58 @@ nffileV3_t *mmapFileV3(const char *filename) {
             }
         }
     }
+
+#ifdef HAVE_LIBSODIUM
+    /*
+     * If the file is marked encrypted, find the cryptoHeaderBlock and derive
+     * the key.  We do this after the directory scan so we can report the
+     * filename in any error messages.
+     */
+    if (fileHeader->flags & FILE_FLAG_ENCRYPTED) {
+        const cryptoHeaderBlock_t *cryptoHdr = NULL;
+
+        for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
+            const directoryEntryV3_t *e = &blockDirectory->entries[i];
+            if (e->type != BLOCK_TYPE_META) continue;
+            if (e->offset + e->size > fileSize) continue;
+            if (e->size < sizeof(cryptoHeaderBlock_t)) continue;
+
+            const cryptoHeaderBlock_t *cand = (const cryptoHeaderBlock_t *)(map + e->offset);
+            /* Identify by size: plain dataBlockV3_t + crypto payload */
+            if (cand->discSize == sizeof(cryptoHeaderBlock_t) && cand->encryption == NOT_ENCRYPTED && cand->compression == NOT_COMPRESSED) {
+                cryptoHdr = cand;
+                break;
+            }
+        }
+
+        if (!cryptoHdr) {
+            LogError("File '%s' is marked encrypted but has no crypto header block", filename);
+            CloseFileV3(nffile);
+            return NULL;
+        }
+
+        /* Derive key from stored passphrase (set via -K) or prompt interactively.
+         * Re-derives for every file so each file's unique salt is honoured. */
+        nffile->crypto = calloc(1, sizeof(nffile_crypto_t));
+        if (!nffile->crypto) {
+            LogError("calloc(nffile_crypto_t) failed: %s", strerror(errno));
+            CloseFileV3(nffile);
+            return NULL;
+        }
+
+        if (!DeriveKeyFromFile(cryptoHdr, nffile->crypto)) {
+            LogError("Key derivation failed for '%s'", filename);
+            CloseFileV3(nffile);
+            return NULL;
+        }
+
+        if (!VerifyEncryptionKey(cryptoHdr, nffile->crypto)) {
+            LogError("Wrong passphrase or corrupt encryption header for '%s'", filename);
+            CloseFileV3(nffile);
+            return NULL;
+        }
+    }
+#endif /* HAVE_LIBSODIUM */
 
     return nffile;
 

@@ -63,6 +63,10 @@
 #include "bookkeeper.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
+
+#ifdef HAVE_LIBSODIUM
+#include <sodium.h>
+#endif
 #include "config.h"
 #include "daemon.h"
 #include "flist.h"
@@ -135,7 +139,11 @@ static void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
-        "-D\t\tdetach from terminal (daemonize)\n",
+        "-D\t\tdetach from terminal (daemonize)\n"
+#ifdef HAVE_LIBSODIUM
+        "-K[=passphrase|@keyfile]\tEncrypt output files. Passphrase from argument, key file, or interactive prompt.\n"
+#endif
+        ,
         name);
 }  // End of usage
 
@@ -193,6 +201,7 @@ int main(int argc, char *argv[]) {
 
     uint32_t compressType = UNDEF_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
+    crypto_ctx_t *crypto_ctx = NULL;
     snaplen = 1522U;
     bufflen = 0;
     do_daemonize = 0;
@@ -221,7 +230,7 @@ int main(int argc, char *argv[]) {
     numWorkers = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:z::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -407,6 +416,18 @@ int main(int argc, char *argv[]) {
                 printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
                 break;
+            case 'K': {
+                char *pp = ParsePassphrase(optarg, "Enter encryption passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                crypto_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!crypto_ctx) {
+                    LogError("Failed to initialize encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -548,7 +569,7 @@ int main(int argc, char *argv[]) {
             .creator = CREATOR_NFPCAPD,
             .compressType = compressType,
             .compressLevel = compressLevel,
-            .encryption = NOT_ENCRYPTED,
+            .crypto_ctx = crypto_ctx,
             .subdir = subdir_index,
             .time_extension = time_extension,
         };
@@ -685,6 +706,7 @@ int main(int argc, char *argv[]) {
     if (pidfile) remove_pid(pidfile);
 
     LogInfo("Terminating nfpcapd.");
+    FreeCryptoCtx(crypto_ctx);
     EndLog();
 
     exit(EXIT_SUCCESS);
