@@ -74,7 +74,7 @@
  * ----------------------------------------------------------------------- */
 char *ParsePassphrase(const char *arg, const char *prompt) {
     if (arg == NULL) {
-        /* -K alone: interactive prompt */
+        // -K alone: interactive prompt
         char *passPhrase = getpass(prompt ? prompt : "Enter passphrase: ");
         if (!passPhrase) {
             LogError("-K: getpass() failed: %s", strerror(errno));
@@ -84,14 +84,14 @@ char *ParsePassphrase(const char *arg, const char *prompt) {
         memset(passPhrase, 0, strlen(passPhrase)); /* best-effort zero of getpass buffer */
         return result;
     } else if (arg[0] == '=') {
-        /* -K=passphrase */
+        // -K=passphrase
         if (arg[1] == '\0') {
             LogError("-K: empty passphrase after '='");
             return NULL;
         }
         return strdup(arg + 1);
     } else if (arg[0] == '@') {
-        /* -K@keyfile: read passphrase from first line of file */
+        // -K@keyfile: read passphrase from first line of file
         const char *fname = arg + 1;
         if (fname[0] == '\0') {
             LogError("-K: missing filename after '@'");
@@ -109,7 +109,7 @@ char *ParsePassphrase(const char *arg, const char *prompt) {
             LogError("-K: cannot read passphrase from '%s'", fname);
             return NULL;
         }
-        /* strip trailing newline / carriage return */
+        // strip trailing newline / carriage return
         size_t len = strlen(buf);
         while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) buf[--len] = '\0';
         if (len == 0) {
@@ -124,7 +124,7 @@ char *ParsePassphrase(const char *arg, const char *prompt) {
         LogError("-K: use -K=<passphrase> or -K@<keyfile>; bare -K<value> is not accepted");
         return NULL;
     }
-} /* End of ParsePassphrase */
+}  // End of ParsePassphrase
 
 #ifdef HAVE_LIBSODIUM
 
@@ -152,7 +152,7 @@ static int deriveKey(const char *passphrase, const uint8_t *salt32, uint8_t out[
         return 0;
     }
     return 1;
-}
+}  // End of deriveKey
 
 /* -----------------------------------------------------------------------
  * NewCryptoCtx — allocate and populate a crypto_ctx_t.
@@ -181,7 +181,7 @@ crypto_ctx_t *NewCryptoCtx(const char *passphrase) {
     ctx->kdfIterations = 0; /* use algorithm default */
     strncpy(ctx->passphrase, passphrase, sizeof(ctx->passphrase) - 1);
     return ctx;
-}
+}  // End of NewCryptoCtx
 
 /* -----------------------------------------------------------------------
  * FreeCryptoCtx — zero the passphrase and free.
@@ -190,13 +190,16 @@ void FreeCryptoCtx(crypto_ctx_t *ctx) {
     if (!ctx) return;
     sodium_memzero(ctx->passphrase, sizeof(ctx->passphrase));
     free(ctx);
-}
+}  // End of FreeCryptoCtx
 
 /* -----------------------------------------------------------------------
  * RegisterReadCryptoCtx — set the module-level read ctx used by
  * DeriveKeyFromFile().  Pass NULL to revert to interactive prompting.
  * ----------------------------------------------------------------------- */
-void RegisterReadCryptoCtx(const crypto_ctx_t *ctx) { g_readCtx = ctx; }
+void RegisterReadCryptoCtx(const crypto_ctx_t *ctx) {
+    //
+    g_readCtx = ctx;
+}  // End of RegisterReadCryptoCtx
 
 /* -----------------------------------------------------------------------
  * DeriveKeyForNewFile — write path: generate fresh random salt, derive key,
@@ -221,7 +224,7 @@ int DeriveKeyForNewFile(const crypto_ctx_t *ctx, nffile_crypto_t *out, uint8_t s
     randombytes_buf(out->rootNonce, sizeof(out->rootNonce));
     out->algorithm = ctx->algorithm;
     return 1;
-}
+}  // End of DeriveKeyForNewFile
 
 /* -----------------------------------------------------------------------
  * DeriveKeyFromFile — read path: derive key using the salt from the on-disk
@@ -259,7 +262,7 @@ int DeriveKeyFromFile(const cryptoHeaderBlock_t *cryptoHdr, nffile_crypto_t *out
         out->algorithm = (crypto_algo_t)cryptoHdr->algorithm;
     }
     return ok;
-}
+}  // End of DeriveKeyFromFile
 
 /* -----------------------------------------------------------------------
  * VerifyEncryptionKey — test derived key against the on-disk keyCheck tag.
@@ -287,7 +290,7 @@ int VerifyEncryptionKey(const cryptoHeaderBlock_t *cryptoHdr, const nffile_crypt
         return 0;
     }
     return 1;
-}
+}  // End of VerifyEncryptionKey
 
 #else /* !HAVE_LIBSODIUM — dead stubs so callers need no #ifdef */
 
@@ -295,11 +298,17 @@ crypto_ctx_t *NewCryptoCtx(const char *passphrase) {
     (void)passphrase;
     LogError("NewCryptoCtx: encryption not compiled in (libsodium missing)");
     return NULL;
-}
+}  // End of NewCryptoCtx
 
-void FreeCryptoCtx(crypto_ctx_t *ctx) { (void)ctx; }
+void FreeCryptoCtx(crypto_ctx_t *ctx) {
+    //
+    (void)ctx;
+}  // End of FreeCryptoCtx
 
-void RegisterReadCryptoCtx(const crypto_ctx_t *ctx) { (void)ctx; }
+void RegisterReadCryptoCtx(const crypto_ctx_t *ctx) {
+    //
+    (void)ctx;
+}  // End of RegisterReadCryptoCtx
 
 int DeriveKeyForNewFile(const crypto_ctx_t *ctx, nffile_crypto_t *out, uint8_t salt32_out[32]) {
     (void)ctx;
@@ -312,13 +321,13 @@ int DeriveKeyFromFile(const cryptoHeaderBlock_t *cryptoHdr, nffile_crypto_t *out
     (void)cryptoHdr;
     (void)out;
     return 0;
-}
+}  // End of DeriveKeyFromFile
 
 int VerifyEncryptionKey(const cryptoHeaderBlock_t *cryptoHdr, const nffile_crypto_t *crypto) {
     LogError("VerifyEncryptionKey: encryption not compiled in (libsodium missing)");
     (void)cryptoHdr;
     (void)crypto;
     return 0;
-}
+}  // End of VerifyEncryptionKey
 
 #endif /* HAVE_LIBSODIUM */

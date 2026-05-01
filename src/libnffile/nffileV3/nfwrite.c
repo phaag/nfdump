@@ -320,15 +320,18 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             compressionLevel = 1;
 #else
             compression = LZ4_COMPRESSED;
-            compressionLevel = 0; /* LZ4_compress_default — fast path, no HC */
+            compressionLevel = 0;  // LZ4_compress_default — fast path, no HC
 #endif
         }
-    } else if (compression == NOT_COMPRESSED) {
-        NumThreads = 2;
-        queueDepth = DefaultQueueSize;
     } else {
-        NumThreads = NumWorkers;
-        queueDepth = DefaultQueueSize;
+        // no encryption
+        if (compression == NOT_COMPRESSED) {
+            NumThreads = 2;
+            queueDepth = DefaultQueueSize;
+        } else {
+            NumThreads = NumWorkers;
+            queueDepth = DefaultQueueSize;
+        }
     }
 
     nffileV3_t *nffile = NewFile(NumThreads, queueDepth);
@@ -344,14 +347,14 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     nffile->fileName = fileName;
     nffile->compression = compression;
     nffile->compressionLevel = compressionLevel;
-    nffile->xxHash = ConfGetValue("xxhash") ? 1 : 0;
     nffile->crypto = NULL;
+    nffile->xxHash = ConfGetValue("xxhash") ? 1 : 0;
 
+#ifdef HAVE_LIBSODIUM
+    nffile->xxHash = 1;  // force xxHash with encryption
     /* freshSalt is populated by DeriveKeyForNewFile() and written to the
      * cryptoHeaderBlock so the reader can re-derive the same key. */
     uint8_t freshSalt[32] = {0};
-
-#ifdef HAVE_LIBSODIUM
     if (crypto_ctx) {
         nffile->crypto = calloc(1, sizeof(nffile_crypto_t));
         if (!nffile->crypto) {
@@ -425,7 +428,7 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             .encryption = NOT_ENCRYPTED,
             .algorithm = (uint16_t)nffile->crypto->algorithm,
             .kdfType = (uint16_t)CRYPTO_KDF_ARGON2ID,
-            .kdfIterations = 0, /* use default */
+            .kdfIterations = 0,  //
         };
         memcpy(cryptoHdr.salt, freshSalt, sizeof(cryptoHdr.salt));
         memcpy(cryptoHdr.rootNonce, nffile->crypto->rootNonce, sizeof(cryptoHdr.rootNonce));

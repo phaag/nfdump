@@ -49,18 +49,17 @@
  *     new file by InitNewFileV3().
  *   - All functions compile without HAVE_LIBSODIUM: when sodium is absent,
  *     NewCryptoCtx() returns NULL and all other entry points fail safely.
- *     Callers need no #ifdef guards.
  *
  * Typical write path (capture daemons):
  *   crypto_ctx_t *ctx = NewCryptoCtx(passphrase);      // once at startup
- *   OpenNewFileTmpV3(..., ctx);                         // per file rotation
- *   // InitNewFileV3 derives a fresh key + nonce for each file internally
- *   FreeCryptoCtx(ctx);                                 // on exit
+ *   OpenNewFileTmpV3(..., ctx);                        // per file rotation
+ *    -> InitNewFileV3 derives a fresh key + nonce for each file internally
+ *   FreeCryptoCtx(ctx);                                // on exit
  *
  * Typical read path (nfdump):
  *   crypto_ctx_t *ctx = NewCryptoCtx(passphrase);      // once at startup
- *   RegisterReadCryptoCtx(ctx);                         // affects OpenFileV3
- *   // mmapFileV3 auto-derives + verifies key per encrypted file
+ *   RegisterReadCryptoCtx(ctx);                        // affects OpenFileV3
+ *    -> mmapFileV3 auto-derives + verifies key per encrypted file
  *   RegisterReadCryptoCtx(NULL);
  *   FreeCryptoCtx(ctx);
  *
@@ -70,14 +69,14 @@
  * Algorithm / KDF identifiers (also stored on-disk in cryptoHeaderBlock_t):
  */
 typedef enum {
-    CRYPTO_ALGO_NONE = 0,              /* not encrypted */
-    CRYPTO_ALGO_CHACHA20_POLY1305 = 1, /* ChaCha20-Poly1305 IETF, libsodium */
-    /* CRYPTO_ALGO_AES256_GCM     = 2,     reserved for future use */
+    CRYPTO_ALGO_NONE = 0,               // not encrypted
+    CRYPTO_ALGO_CHACHA20_POLY1305 = 1,  // ChaCha20-Poly1305 IETF, libsodium
+    // CRYPTO_ALGO_AES256_GCM     = 2,  //   reserved for future use - implemented later
 } crypto_algo_t;
 
 typedef enum {
-    CRYPTO_KDF_ARGON2ID = 1, /* libsodium crypto_pwhash Argon2id */
-    /* CRYPTO_KDF_SCRYPT = 2,    reserved for future use */
+    CRYPTO_KDF_ARGON2ID = 1,  // libsodium crypto_pwhash Argon2id
+    // CRYPTO_KDF_SCRYPT = 2, //   reserved for future use
 } crypto_kdf_t;
 
 /*
@@ -86,9 +85,9 @@ typedef enum {
  * Passphrase is zeroed by FreeCryptoCtx().
  */
 typedef struct crypto_ctx_s {
-    crypto_algo_t algorithm; /* which AEAD cipher to use */
-    crypto_kdf_t kdf;        /* which KDF to use for key derivation */
-    uint32_t kdfIterations;  /* 0 = use algorithm default */
+    crypto_algo_t algorithm;  // which AEAD cipher to use
+    crypto_kdf_t kdf;         // which KDF to use for key derivation
+    uint32_t kdfIterations;   // 0 = use algorithm default
     char passphrase[1024];
 } crypto_ctx_t;
 
@@ -108,7 +107,8 @@ typedef struct crypto_ctx_s {
  */
 char *ParsePassphrase(const char *optarg, const char *prompt);
 
-/* Create a crypto_ctx_t with default algorithm (ChaCha20-Poly1305) and KDF
+/*
+ * Create a crypto_ctx_t with default algorithm (ChaCha20-Poly1305) and KDF
  * (Argon2id).  passphrase must be non-empty.
  * Returns NULL if libsodium is not compiled in, or on error.
  * Caller must call FreeCryptoCtx() when done.
@@ -125,12 +125,14 @@ void FreeCryptoCtx(crypto_ctx_t *ctx);
  */
 void RegisterReadCryptoCtx(const crypto_ctx_t *ctx);
 
-/* -----------------------------------------------------------------------
+/*
+ * -----------------------------------------------------------------------
  * Internal functions — called by nfwrite.c and nfread.c only.
  * Not intended for direct use by CLI tools.
- * ----------------------------------------------------------------------- */
+ * -----------------------------------------------------------------------
+ */
 
-/* Forward declaration; full struct defined in nffileV3.h */
+// Forward declaration; full struct defined in nffileV3.h
 struct nffile_crypto_s;
 struct cryptoHeaderBlock_s;
 
