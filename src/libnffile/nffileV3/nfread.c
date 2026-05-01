@@ -126,6 +126,17 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
             nonce[bi] ^= (uint8_t)(offsetLE >> (bi * 8));
         }
 
+        // Reconstruct the AAD that was committed at write time.
+        // The encrypted block's header fields (type, rawSize, compression) are
+        // copied unchanged from the pre-encryption block by nfwrite().
+        blockEncAAD_t aad = {
+            .type        = (uint32_t)dataBlock->type,
+            .rawSize     = (uint32_t)dataBlock->rawSize,
+            .compression = (uint32_t)dataBlock->compression,
+            .pad         = 0,
+            .offset      = entry->offset,
+        };
+
         const uint8_t *ciphertext = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
         uint32_t cipherLen = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
 
@@ -140,7 +151,7 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         uint8_t *plaintext = (uint8_t *)decBuf + sizeof(dataBlockV3_t);
         unsigned long long plainLen = 0;
 
-        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL, ciphertext, cipherLen, NULL, 0, nonce, nffile->crypto->encKey);
+        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL, ciphertext, cipherLen, (const uint8_t *)&aad, sizeof(aad), nonce, nffile->crypto->encKey);
         if (rc != 0) {
             LogError("nfread: decryption failed at offset %" PRIu64 " (wrong key or corrupt block)", entry->offset);
             FreeDataBlock(decBuf);
@@ -350,10 +361,15 @@ nffileV3_t *mmapFileV3(const char *filename) {
     }
 
     // validate footer
-    fileFooterV3_t *footer = (fileFooterV3_t *)(map + fileSize - sizeof(fileFooterV3_t));
-    if (footer->magic != FOOTER_MAGIC_V3) {
-        LogError("Bad magic 0x%X for footer in '%s'", footer->magic, filename);
-        footer = NULL;
+    fileFooterV3_t footerBuf = {0};
+    fileFooterV3_t *footer = NULL;
+    if (fileSize >= sizeof(fileFooterV3_t)) {
+        memcpy(&footerBuf, map + fileSize - sizeof(fileFooterV3_t), sizeof(fileFooterV3_t));
+        if (footerBuf.magic != FOOTER_MAGIC_V3) {
+            LogError("Bad magic 0x%X for footer in '%s'", footerBuf.magic, filename);
+        } else {
+            footer = &footerBuf;
+        }
     }
 
     // get blockDirectory
@@ -439,7 +455,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
     nffile->fd = fd;
     nffile->fileName = strdup(filename);
     nffile->fileHeader = fileHeader;
-    nffile->fileFooter = footer;
+    nffile->fileFooter = NULL;  /* footer was read into a local buffer; not stored in mmap */
     nffile->blockDirectory = blockDirectory;
 
     nffile->stat_record = calloc(1, sizeof(stat_record_t));
@@ -522,6 +538,20 @@ nffileV3_t *mmapFileV3(const char *filename) {
             LogError("Wrong passphrase or corrupt encryption header for '%s'", filename);
             CloseFileV3(nffile);
             return NULL;
+        }
+
+        /* Verify file-structure MAC stored in the footer (non-zero = MAC present). */
+        if (footer != NULL) {
+            static const uint8_t zeroMac[32] = {0};
+            if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
+                LogError("Encrypted file '%s' has no file MAC — file may be corrupt or pre-release", filename);
+            } else if (!VerifyFileMac(nffile->crypto, fileHeader, cryptoHdr,
+                                      blockDirectory->entries, blockDirectory->numEntries,
+                                      footer->fileMac)) {
+                LogError("File MAC verification failed for '%s' — file structure may have been tampered with", filename);
+                CloseFileV3(nffile);
+                return NULL;
+            }
         }
     }
 #endif /* HAVE_LIBSODIUM */

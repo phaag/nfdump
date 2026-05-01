@@ -82,13 +82,23 @@ typedef enum {
 /*
  * Application-lifetime crypto configuration.
  * Created once, immutable, shared read-only across threads.
- * Passphrase is zeroed by FreeCryptoCtx().
+ *
+ * The passphrase is never stored in cleartext.  Instead it is XOR-obfuscated
+ * with a random pad generated at NewCryptoCtx() time so that the raw
+ * passphrase bytes are not directly visible in a process-memory dump.
+ * Both arrays are zeroed by FreeCryptoCtx().
+ *
+ * To recover the plaintext temporarily, XOR maskedPass[0..passLen-1] with
+ * passPad[0..passLen-1].  The scratch buffer must be sodium_free()'d after use.
  */
+#define CRYPTO_CTX_MAX_PASSPHRASE 1023u  /* maximum passphrase length (bytes, excl. NUL) */
 typedef struct crypto_ctx_s {
     crypto_algo_t algorithm;  // which AEAD cipher to use
     crypto_kdf_t kdf;         // which KDF to use for key derivation
     uint32_t kdfIterations;   // 0 = use algorithm default
-    char passphrase[1024];
+    size_t passLen;           // strlen of original passphrase
+    uint8_t passPad[CRYPTO_CTX_MAX_PASSPHRASE + 1];     /* random one-time XOR mask */
+    uint8_t maskedPass[CRYPTO_CTX_MAX_PASSPHRASE + 1];  /* passphrase XOR passPad   */
 } crypto_ctx_t;
 
 /*
@@ -106,6 +116,27 @@ typedef struct crypto_ctx_s {
  * Returns NULL on any error (message written via LogError).
  */
 char *ParsePassphrase(const char *optarg, const char *prompt);
+
+/* Forward declarations for MAC functions (full types in nffileV3.h) */
+struct fileHeaderV3_s;
+struct directoryEntryV3_s;
+
+/* Forward declarations; full structs defined in nffileV3.h */
+struct nffile_crypto_s;
+struct cryptoHeaderBlock_s;
+
+/*
+ * One-time initialization of the libsodium library.  Must be called before
+ * any other crypto function.  Invoked automatically by Init_nffile().
+ * Returns 1 on success, 0 on failure.
+ */
+int InitCrypto(void);
+
+/*
+ * Securely zero and free per-file crypto state.  Safe to call with NULL.
+ * Used by CloseFileV3() and DeleteFile().
+ */
+void FreeFileCrypto(struct nffile_crypto_s *crypto);
 
 /*
  * Create a crypto_ctx_t with default algorithm (ChaCha20-Poly1305) and KDF
@@ -132,9 +163,7 @@ void RegisterReadCryptoCtx(const crypto_ctx_t *ctx);
  * -----------------------------------------------------------------------
  */
 
-// Forward declaration; full struct defined in nffileV3.h
-struct nffile_crypto_s;
-struct cryptoHeaderBlock_s;
+/* (Forward declarations moved above InitCrypto/FreeFileCrypto) */
 
 /*
  * Write path: generate a fresh 32-byte random salt, derive the session key
@@ -157,5 +186,57 @@ int DeriveKeyFromFile(const struct cryptoHeaderBlock_s *cryptoHdr, struct nffile
  * Returns 1 if correct, 0 if wrong or error.
  */
 int VerifyEncryptionKey(const struct cryptoHeaderBlock_s *cryptoHdr, const struct nffile_crypto_s *crypto);
+
+/*
+ * Compute a 32-byte BLAKE2b file-structure MAC for encrypted files.
+ *
+ * A 32-byte MAC key is derived from crypto->encKey via crypto_kdf_derive_from_key
+ * (subkey_id=1, ctx="nfdmpMAC"), domain-separating it from the encryption key.
+ *
+ * MAC input (fixed order):
+ *   1. fileHeaderV3_t: nfdVersion, created, creator, flags, blockSize
+ *   2. cryptoHeaderBlock_t: algorithm, kdfType, kdfIterations, salt,
+ *                           rootNonce, keyCheck
+ *   3. All directoryEntryV3_t in order: type, size, offset per entry
+ *
+ * Returns 1 on success, 0 on error.
+ * Requires HAVE_LIBSODIUM; no-op stub returns 0 when libsodium absent.
+ */
+int ComputeFileMac(const struct nffile_crypto_s *crypto,
+                   const struct fileHeaderV3_s *hdr,
+                   const struct cryptoHeaderBlock_s *cryptoHdr,
+                   const struct directoryEntryV3_s *entries,
+                   uint32_t numEntries,
+                   uint8_t mac_out[32]);
+
+/*
+ * Verify the 32-byte file MAC stored in mac[] against a freshly computed MAC.
+ * Returns 1 if equal (via constant-time sodium_memcmp), 0 on mismatch or error.
+ */
+int VerifyFileMac(const struct nffile_crypto_s *crypto,
+                  const struct fileHeaderV3_s *hdr,
+                  const struct cryptoHeaderBlock_s *cryptoHdr,
+                  const struct directoryEntryV3_s *entries,
+                  uint32_t numEntries,
+                  const uint8_t mac[32]);
+
+/*
+ * Additional Authenticated Data (AAD) for block-level AEAD.
+ * Authenticates block header fields that are written in plaintext alongside
+ * the ciphertext, preventing an attacker from silently altering block type,
+ * size, compression, or position without detection.
+ *
+ * NOTE: files written with AAD are not compatible with files written without.
+ * All new encrypted files use this structure.  The struct layout is fixed;
+ * natural C alignment produces no padding (all uint32_t + uint64_t at 16).
+ */
+typedef struct {
+    uint32_t type;        /* block type (from block header) */
+    uint32_t rawSize;     /* uncompressed payload size (from block header) */
+    uint32_t compression; /* compression algorithm (uint32 of uint16 field) */
+    uint32_t pad;         /* reserved; must be zero */
+    uint64_t offset;      /* block's file offset (dstOffset / entry->offset) */
+} blockEncAAD_t;
+_Static_assert(sizeof(blockEncAAD_t) == 24, "blockEncAAD_t size");
 
 #endif /* NFCRYPTO_H */

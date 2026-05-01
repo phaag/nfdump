@@ -82,12 +82,7 @@ static void DeleteFile(nffileV3_t *nffile) {
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
     if (nffile->blockList.entries) free(nffile->blockList.entries);
-    if (nffile->crypto) {
-#ifdef HAVE_LIBSODIUM
-        sodium_memzero(nffile->crypto->encKey, sizeof(nffile->crypto->encKey));
-#endif
-        free(nffile->crypto);
-    }
+    FreeFileCrypto(nffile->crypto);
 
     if (nffile->processQueue) {
         // Free all pending blocks even if queue was aborted
@@ -208,12 +203,22 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
             nonce[bi] ^= (uint8_t)(offsetLE >> (bi * 8));
         }
 
+        // Build AAD: commit the plaintext block-header fields so any tampering
+        // with type, rawSize, compression, or offset is detected by AEAD.
+        blockEncAAD_t aad = {
+            .type        = (uint32_t)wptr->type,
+            .rawSize     = (uint32_t)wptr->rawSize,
+            .compression = (uint32_t)wptr->compression,
+            .pad         = 0,
+            .offset      = (uint64_t)dstOffset,
+        };
+
         const uint8_t *plaintext = (const uint8_t *)wptr + sizeof(dataBlockV3_t);
         uint32_t plainLen = wptr->discSize - (uint32_t)sizeof(dataBlockV3_t);
         uint8_t *ciphertext = (uint8_t *)encBuf + sizeof(dataBlockV3_t);
         unsigned long long cipherLen = 0;
 
-        int rc = crypto_aead_chacha20poly1305_ietf_encrypt(ciphertext, &cipherLen, plaintext, plainLen, NULL, 0, NULL, nonce, nffile->crypto->encKey);
+        int rc = crypto_aead_chacha20poly1305_ietf_encrypt(ciphertext, &cipherLen, plaintext, plainLen, (const uint8_t *)&aad, sizeof(aad), NULL, nonce, nffile->crypto->encKey);
         if (rc != 0) {
             LogError("nfwrite: encryption failed at offset %" PRId64, (int64_t)dstOffset);
             free(encBuf);
@@ -687,6 +692,30 @@ static int WriteDirectory(nffileV3_t *nffile) {
         .offDirectory = (uint64_t)dirOffset,
         .checksum = dirChecksum,
     };
+    memset(footer.fileMac, 0, sizeof(footer.fileMac));
+
+#ifdef HAVE_LIBSODIUM
+    /*
+     * For encrypted files, compute the BLAKE2b file-structure MAC and store
+     * it in the footer.  The cryptoHeaderBlock_t is always at the fixed
+     * offset immediately after the file header.
+     */
+    if (nffile->crypto) {
+        cryptoHeaderBlock_t cryptoHdrBuf;
+        ssize_t r = pread(nffile->fd, &cryptoHdrBuf, sizeof(cryptoHdrBuf), (off_t)sizeof(fileHeaderV3_t));
+        if (r == (ssize_t)sizeof(cryptoHdrBuf) && cryptoHdrBuf.discSize == sizeof(cryptoHdrBuf)) {
+            if (!ComputeFileMac(nffile->crypto, nffile->fileHeader, &cryptoHdrBuf,
+                                nffile->blockList.entries, nffile->blockList.count,
+                                footer.fileMac)) {
+                LogError("WriteDirectory: ComputeFileMac failed — file MAC will be absent");
+                memset(footer.fileMac, 0, sizeof(footer.fileMac));
+            }
+            sodium_memzero(&cryptoHdrBuf, sizeof(cryptoHdrBuf));
+        } else {
+            LogError("WriteDirectory: failed to read cryptoHeaderBlock — file MAC will be absent");
+        }
+    }
+#endif /* HAVE_LIBSODIUM */
 
     ret = pwrite(nffile->fd, &footer, sizeof(fileFooterV3_t), pos);
     if (ret != (ssize_t)sizeof(fileFooterV3_t)) return 0;

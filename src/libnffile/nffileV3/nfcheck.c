@@ -184,10 +184,13 @@ int VerifyFileV3(const char *filename, int verbose) {
     }
 
     // validate footer
-    fileFooterV3_t *footer = (fileFooterV3_t *)(map + fileSize - sizeof(fileFooterV3_t));
-    if (footer->magic != FOOTER_MAGIC_V3) {
-        printf("Bad magic 0x%X for footer in '%s'\n", footer->magic, filename);
-        footer = NULL;
+    fileFooterV3_t *footer = NULL;
+    if (fileSize >= sizeof(fileFooterV3_t)) {
+        footer = (fileFooterV3_t *)(map + fileSize - sizeof(fileFooterV3_t));
+        if (footer->magic != FOOTER_MAGIC_V3) {
+            printf("Bad magic 0x%X for footer in '%s'\n", footer->magic, filename);
+            footer = NULL;
+        }
     }
 
     if (fileHeader->offDirectory == 0) {
@@ -313,7 +316,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         } else {
             printf("  Algorithm  : %s\n", EncryptionType(cryptoHdr->algorithm));
             printf("  KDF        : %s\n", cryptoHdr->kdfType == KDF_PBKDF2_SHA256 ? "Argon2id (labelled PBKDF2-SHA256)" : "unknown");
-            printf("  KDF iters  : %u\n", cryptoHdr->kdfIterations);
+            printf("  KDF iters  : %u%s\n", cryptoHdr->kdfIterations, cryptoHdr->kdfIterations == 0 ? " (use default)" : "");
 
             nffile_crypto_t tmpCrypto = {0};
             if (!DeriveKeyFromFile(cryptoHdr, &tmpCrypto)) {
@@ -324,6 +327,20 @@ int VerifyFileV3(const char *filename, int verbose) {
                 printf("  Key        : verified OK\n");
                 keyVerified = 1;
             }
+
+            /* Verify file-structure MAC (non-zero = MAC present). */
+            if (keyVerified && footer != NULL) {
+                static const uint8_t zeroMac[32] = {0};
+                if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
+                    printf("  File MAC   : absent (all-zero) — pre-release or unencrypted\n");
+                } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries, footer->fileMac)) {
+                    printf("  File MAC   : verified OK\n");
+                } else {
+                    printf("  File MAC   : FAILED — file structure may have been tampered with\n");
+                    checksumFailed = 1;
+                }
+            }
+
             sodium_memzero(tmpCrypto.encKey, sizeof(tmpCrypto.encKey));
         }
     }

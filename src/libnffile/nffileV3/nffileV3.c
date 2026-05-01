@@ -48,6 +48,7 @@
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
+#include "nfcrypto.h"
 #include "nfdump.h"
 #include "nfxV4.h"
 #include "queue.h"
@@ -68,6 +69,8 @@ int Init_nffile(uint32_t workers, queue_t *fileList) {
         LogError("Failed to initialize compression libraries");
         return 0;
     }
+
+    if (!InitCrypto()) return 0;
 
     atomic_init(&blocksInUse, 0);
 
@@ -290,7 +293,7 @@ void CloseFileV3(nffileV3_t *nffile) {
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
     if (nffile->blockList.entries) free(nffile->blockList.entries);
-    if (nffile->crypto) free(nffile->crypto);
+    FreeFileCrypto(nffile->crypto);
 
     pthread_mutex_destroy(&nffile->wlock);
 

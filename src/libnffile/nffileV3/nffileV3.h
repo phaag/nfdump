@@ -70,7 +70,7 @@ typedef struct fileHeaderV3_s {
 #define HEADER_MAGIC_V3 0xA50C
     uint16_t magic;
 #define LAYOUT_VERSION_3 3
-    uint16_t layoutVersion;  // layout v3 with new header
+    uint16_t layoutVersion;  // layout version
     uint32_t nfdVersion;     // version of nfdump that wrote this file
 
     uint64_t created;  // file creation timestamp
@@ -107,7 +107,8 @@ static const char *nf_creator[MAX_CREATOR] = {
 
 /*
  * Required footer:
- * Redundant entry to block directory
+ * Redundant entry to block directory.
+ * fileMac[32] is all-zero for unencrypted files; holds BLAKE2b-256 MAC for encrypted files.
  */
 typedef struct fileFooterV3_s {
     uint32_t magic;  // FOOTER_MAGIC
@@ -116,7 +117,10 @@ typedef struct fileFooterV3_s {
     uint64_t offDirectory;  // offset to block directory
     uint64_t checksum;      // optional checksum xxHash64
                             // checksum covers the directory region from offDirectory to offDirectory + dirSize
+    uint8_t fileMac[32];    // BLAKE2b-256 file-structure MAC for encrypted files;
+                            // all-zero = no MAC present (unencrypted file)
 } fileFooterV3_t;
+_Static_assert(sizeof(fileFooterV3_t) == 56, "fileFooterV3_t size");
 _Static_assert((sizeof(fileFooterV3_t) & 7) == 0, "fileFooterV3_t for 8 byte aligned");
 
 /*
