@@ -735,6 +735,12 @@ int ReWriteV3(const char *filename) {
         close(srcFd);
         return 0;
     }
+    if (srcHeader->flags & FILE_FLAG_ENCRYPTED) {
+        LogError("ReWriteV3: Cannot rewrite encrypted file '%s'", filename);
+        munmap((void *)map, fileSize);
+        close(srcFd);
+        return 0;
+    }
 
     // create temporary output file
     size_t nameLen = strlen(filename);

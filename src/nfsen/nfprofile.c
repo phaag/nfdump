@@ -317,7 +317,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
         if (channels[j].nffile != NULL) {
             // flush output buffer
             if (channels[j].dataBlock->numRecords) {
-                WriteBlockV3(channels[j].nffile, channels[j].dataBlock);
+                PushBlockV3(channels[j].nffile->processQueue, channels[j].dataBlock);
             }
             *channels[j].nffile->stat_record = channels[j].stat_record;
             FlushFileV3(channels[j].nffile);

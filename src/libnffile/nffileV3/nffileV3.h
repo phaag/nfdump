@@ -295,9 +295,9 @@ _Static_assert((sizeof(expBlockV3_t) & 7) == 0, "expBlockV3_t for 8 byte aligned
  * Contains no libsodium types — plain uint8_t arrays only.
  */
 typedef struct nffile_crypto_s {
-    uint32_t algorithm;     /* CHACHA20_POLY1305 etc. (mirrors crypto_algo_t) */
-    uint8_t  encKey[32];    /* derived 256-bit session key                    */
-    uint8_t  rootNonce[12]; /* per-file base nonce                            */
+    uint32_t algorithm;    /* CHACHA20_POLY1305 etc. (mirrors crypto_algo_t) */
+    uint8_t encKey[32];    /* derived 256-bit session key                    */
+    uint8_t rootNonce[12]; /* per-file base nonce                            */
 } nffile_crypto_t;
 
 // file handle for v3 type file
@@ -411,8 +411,6 @@ const expBlockV3_t *getNextExporter(nffileV3_t *nffile, uint32_t *nextOffset);
 nffileV3_t *OpenNewFileV3(const char *filename, uint32_t creator, uint16_t compression, uint16_t compressionLevel, const crypto_ctx_t *crypto_ctx);
 
 nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t compression, uint16_t compressionLevel, const crypto_ctx_t *crypto_ctx);
-
-void WriteBlockV3(nffileV3_t *nffile, void *blockHeader);
 
 void PushBlockV3(queue_t *queue, void *blockHeader);
 

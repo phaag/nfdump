@@ -125,7 +125,7 @@ static flowBlockV3_t *StoreV4Record(uint8_t *buf, nffileV3_t *nffile, flowBlockV
     uint32_t required = h->size;
 
     if (!IsAvailable(block, BLOCK_SIZE_V3, required)) {
-        WriteBlockV3(nffile, block);
+        PushBlockV3(nffile->processQueue, block);
         InitDataBlock(block, nffile->fileHeader->blockSize);
     }
 

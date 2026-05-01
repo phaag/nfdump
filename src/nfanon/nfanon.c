@@ -372,7 +372,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
-            WriteBlockV3(nffile_w, dataBlock);
+            PushBlockV3(nffile_w->processQueue, dataBlock);
             InitDataBlock(dataBlock, nffile_w->fileHeader->blockSize);
             nextBlock = ReadBlockV3(nffile_r);
             continue;
@@ -389,7 +389,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         pthread_controller_wait(barrier);
 
         // write modified block
-        WriteBlockV3(nffile_w, dataBlock);
+        PushBlockV3(nffile_w->processQueue, dataBlock);
 
     }  // while
 

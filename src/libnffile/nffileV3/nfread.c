@@ -99,7 +99,8 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         }
     }
 
-    dbg_printf("ReadBlock - type: %u, size: %u, compression: %u\n", dataBlock->type, dataBlock->discSize, dataBlock->compression);
+    dbg_printf("ReadBlock - type: %u, size: %u, compression: %u, checksum: 0x%llx, encryption: %u\n", dataBlock->type, dataBlock->discSize,
+               dataBlock->compression, dataBlock->checksum, dataBlock->encryption);
 
     uint32_t blockSize = nffile->fileHeader->blockSize;
     int compression = dataBlock->compression;
@@ -115,7 +116,9 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
      */
     dataBlockV3_t *decBuf = NULL;
     if (nffile->crypto && dataBlock->encryption == CHACHA20_POLY1305) {
-        /* Build per-block nonce = rootNonce XOR le64(offset) */
+        dbg_printf("Decrypt datablock\n");
+
+        // Build per-block nonce = rootNonce XOR le64(offset)
         uint8_t nonce[crypto_aead_chacha20poly1305_ietf_NPUBBYTES];
         memcpy(nonce, nffile->crypto->rootNonce, sizeof(nonce));
         uint64_t offsetLE = entry->offset;
@@ -137,9 +140,7 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         uint8_t *plaintext = (uint8_t *)decBuf + sizeof(dataBlockV3_t);
         unsigned long long plainLen = 0;
 
-        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL,
-                                                           ciphertext, cipherLen, NULL, 0,
-                                                           nonce, nffile->crypto->encKey);
+        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL, ciphertext, cipherLen, NULL, 0, nonce, nffile->crypto->encKey);
         if (rc != 0) {
             LogError("nfread: decryption failed at offset %" PRIu64 " (wrong key or corrupt block)", entry->offset);
             FreeDataBlock(decBuf);
@@ -216,7 +217,7 @@ static void *nfreader(void *arg) {
     nffileV3_t *nffile = (nffileV3_t *)arg;
 
     dbg_printf("nfreader enter: %p\n", (void *)pthread_self());
-    /* Signal handling */
+    // Signal handling
     sigset_t set = {0};
     sigfillset(&set);
     pthread_sigmask(SIG_SETMASK, &set, NULL);
@@ -229,7 +230,7 @@ static void *nfreader(void *arg) {
         const directoryEntryV3_t *entry = &dir->entries[i];
 
         // skip metadata blocks — already extracted in OpenFileV3
-        if (entry->type == BLOCK_TYPE_STATS || entry->type == BLOCK_TYPE_IDENT) {
+        if (entry->type == BLOCK_TYPE_STATS || entry->type == BLOCK_TYPE_IDENT || entry->type == BLOCK_TYPE_META) {
             dbg_printf("Skip block type: %u\n", entry->type);
             continue;
         }

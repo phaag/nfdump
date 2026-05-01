@@ -153,7 +153,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     // ── Buffer check — single check, no retry loop ──
     if (!IsAvailable(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize, recordSize)) {
-        WriteBlockV3(nffile_ctx->nffile, fs->dataBlock);
+        PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
     }
@@ -449,7 +449,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
     }
-    WriteBlockV3(nffile_ctx->nffile, fs->dataBlock);
+    PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
     fs->dataBlock = NULL;
     InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
     nffile_ctx->nffile->ident = strdup(fs->Ident);
@@ -467,7 +467,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             case SIGNAL_NODE_SYNC:
                 dbg_printf("Received signal_node_sync\n");
                 // flush current block and close file
-                WriteBlockV3(nffile_ctx->nffile, fs->dataBlock);
+                PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
                 fs->dataBlock = NULL;
                 InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
                 CloseFlowFile(flowParam, Node->timestamp);

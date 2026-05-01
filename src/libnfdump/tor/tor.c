@@ -343,7 +343,7 @@ int SaveTorTree(char *fileName) {
         dbg_printf("ip: %u, first: %ld, last: %ld\n", torV4Node->ipaddr, torV4Node->interval[0].firstSeen, torV4Node->interval[0].lastSeen);
         if (!IsAvailable(dataBlock, blockSize, sizeof(torV4Node_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = TorV4TreeElementID;
@@ -372,7 +372,7 @@ int SaveTorTree(char *fileName) {
         for (; kb_itr_valid(&itr); kb_itr_next(torV6Tree, torV6Tree, &itr)) {
             torV6Node_t *torV6Node = &kb_itr_key(torV6Node_t, &itr);
             if (!IsAvailable(dataBlock, blockSize, sizeof(torV6Node_t))) {
-                WriteBlockV3(nffile, dataBlock);
+                PushBlockV3(nffile->processQueue, dataBlock);
                 dataBlock = NULL;
                 InitDataBlock(dataBlock, blockSize);
                 dataBlock->elementType = TorV6TreeElementID;

@@ -73,7 +73,7 @@ static void StoreLocalMap(nffileV3_t *nffile) {
     for (locationInfo_t *locationInfo = NextLocation(FIRSTNODE); locationInfo != NULL; locationInfo = NextLocation(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(locationInfo_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = LocalInfoElementID;
@@ -106,7 +106,7 @@ static void StoreIPV4tree(nffileV3_t *nffile) {
     for (ipV4Node_t *ipv4Node = NextIPv4Node(FIRSTNODE); ipv4Node != NULL; ipv4Node = NextIPv4Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(ipV4Node_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = IPV4treeElementID;
@@ -138,7 +138,7 @@ static void StoreIPV6tree(nffileV3_t *nffile) {
     for (ipV6Node_t *ipv6Node = NextIPv6Node(FIRSTNODE); ipv6Node != NULL; ipv6Node = NextIPv6Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(ipV6Node_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = IPV6treeElementID;
@@ -170,7 +170,7 @@ static void StoreASV4tree(nffileV3_t *nffile) {
     for (asV4Node_t *asV4Node = NextasV4Node(FIRSTNODE); asV4Node != NULL; asV4Node = NextasV4Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(asV4Node_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = ASV4treeElementID;
@@ -202,7 +202,7 @@ static void StoreASV6tree(nffileV3_t *nffile) {
     for (asV6Node_t *asV6Node = NextasV6Node(FIRSTNODE); asV6Node != NULL; asV6Node = NextasV6Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(asV6Node_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = ASV6treeElementID;
@@ -234,7 +234,7 @@ static void StoreASorgtree(nffileV3_t *nffile) {
     for (asOrgNode_t *asOrgNode = NextasOrgNode(FIRSTNODE); asOrgNode != NULL; asOrgNode = NextasOrgNode(NEXTNODE)) {
         if (!IsAvailable(dataBlock, blockSize, sizeof(asOrgNode_t))) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             dataBlock = NULL;
             InitDataBlock(dataBlock, blockSize);
             dataBlock->elementType = ASOrgtreeElementID;

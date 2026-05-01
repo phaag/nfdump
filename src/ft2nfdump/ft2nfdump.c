@@ -164,7 +164,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, uint32_t compressType, u
         dbg_printf("FT record %u\n", cnt);
         if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, recordSize)) {
             // flush block - get an empty one
-            WriteBlockV3(nffile, dataBlock);
+            PushBlockV3(nffile->processQueue, dataBlock);
             InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
         }
 

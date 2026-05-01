@@ -112,6 +112,8 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
 
     // resolve compression: block-level overrides file default
     int compression = (block_header->compression == UNDEF_COMPRESSED) ? nffile->compression : block_header->compression;
+    if (nffile->crypto) compression = nffile->compression;
+
     int level = nffile->compressionLevel;
 
     dbg_printf("nfwrite - compression: %u\n", compression);
@@ -165,7 +167,7 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
     dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u\n", wptr->type, wptr->rawSize, wptr->discSize);
 
     /* ----------------------------------------------------------------
-     * Option A: reserve the file offset BEFORE encrypting so we can use
+     * reserve the file offset BEFORE encrypting so we can use
      * dstOffset as the nonce differentiator.
      *
      * On-disk size with encryption = compressed discSize + 16-byte AEAD tag.
@@ -174,7 +176,7 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
     uint32_t onDiskSize = wptr->discSize;
 #ifdef HAVE_LIBSODIUM
     if (nffile->crypto) {
-        onDiskSize += (uint32_t)crypto_aead_chacha20poly1305_ietf_ABYTES; /* +16 */
+        onDiskSize += (uint32_t)crypto_aead_chacha20poly1305_ietf_ABYTES;  // +16
     }
 #endif
 
@@ -198,8 +200,8 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
             return 0;
         }
 
-        /* Build per-block nonce: rootNonce XOR le64(dstOffset) */
-        uint8_t nonce[crypto_aead_chacha20poly1305_ietf_NPUBBYTES]; /* 12 bytes */
+        // Build per-block nonce: rootNonce XOR le64(dstOffset)
+        uint8_t nonce[crypto_aead_chacha20poly1305_ietf_NPUBBYTES];  // 12 bytes
         memcpy(nonce, nffile->crypto->rootNonce, sizeof(nonce));
         uint64_t offsetLE = (uint64_t)dstOffset;
         for (int bi = 0; bi < 8; bi++) {
@@ -219,6 +221,7 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
             return 0;
         }
 
+        // copt datablock header
         memcpy(encBuf, wptr, sizeof(dataBlockV3_t));
         encBuf->discSize = (uint32_t)(sizeof(dataBlockV3_t) + cipherLen);
         encBuf->encryption = CHACHA20_POLY1305;
@@ -258,7 +261,7 @@ static void *nfwriter(void *arg) {
     nffileV3_t *nffile = (nffileV3_t *)arg;
 
     dbg_printf("nfwriter %p enter\n", (void *)pthread_self());
-    /* disable signal handling */
+    // disable signal handling
     sigset_t set = {0};
     sigfillset(&set);
     pthread_sigmask(SIG_SETMASK, &set, NULL);
@@ -272,7 +275,7 @@ static void *nfwriter(void *arg) {
         int ok = 1;
         if (block_header->rawSize) {
             // block with data
-            dbg_printf("nfwriter %p write\n", (void *)pthread_self());
+            dbg_printf("nfwriter %p write block rawSize: %u\n", (void *)pthread_self(), block_header->rawSize);
             ok = nfwrite(nffile, block_header);
         }
         FreeDataBlock(block_header);
@@ -559,22 +562,6 @@ nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t com
 
 }  // End of OpenNewFileTmpV3
 
-//
-// WriteBlockV3 — pushes a block onto the processQueue of nffileV3
-// Returns a new empty defult datablock
-void WriteBlockV3(nffileV3_t *nffile, void *blockHeader) {
-    if (blockHeader == NULL) return;
-
-    dataBlockV3_t *dataBlock = (dataBlockV3_t *)blockHeader;
-    if (dataBlock->rawSize != 0) {
-        // empty blocks need not to be written
-        dbg_printf("WriteBlock - push block type: %u, with size: %u\n", dataBlock->type, dataBlock->rawSize);
-        queue_push(nffile->processQueue, dataBlock);
-    }
-
-}  // End of WriteBlockV3
-
-//
 // PushBlockV3 — pushes a block onto the processQueue of nffileV3
 // Returns a new empty defult datablock
 void PushBlockV3(queue_t *queue, void *blockHeader) {
@@ -717,7 +704,7 @@ static int WriteDirectory(nffileV3_t *nffile) {
 
 /*
  *  FlushFileV3 — finalize a file opened for writing.
- *  Caller flushes last data block via WriteBlockV3() before calling this.
+ *  Caller flushes last data block via PushBlockV3() before calling this.
  *    1. Write stats block
  *    2. Write directory + footer + rewrite header
  *    3. fsync

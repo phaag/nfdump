@@ -199,7 +199,8 @@ static void usage(char *name) {
         "-t <time>\ttime window for filtering packets\n"
         "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n"
 #ifdef HAVE_LIBSODIUM
-        "-K[=passphrase|@keyfile]\tDecrypt encrypted input files (and encrypt output with -w). Passphrase from argument, key file, or interactive prompt.\n"
+        "-K[=passphrase|@keyfile]\tDecrypt encrypted input files (and encrypt output with -w). Passphrase from argument, key file, or interactive "
+        "prompt.\n"
 #endif
         ,
         name);
@@ -664,7 +665,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
             if (wfile) {
                 dbg_printf("Flush non flow block type: %u\n", dataBlock->type);
-                WriteBlockV3(nffile_w, dataBlock);
+                PushBlockV3(nffile_w->processQueue, dataBlock);
             }
 
             continue;

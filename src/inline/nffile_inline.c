@@ -145,7 +145,7 @@ static inline flowBlockV3_t *AppendToBuffer(nffileV3_t *nffile, flowBlockV3_t *d
             printf("BlockType is %u\n", dataBlock->type);
             dbg_assert(dataBlock->type == BLOCK_TYPE_FLOW);
         }
-        WriteBlockV3(nffile, dataBlock);
+        PushBlockV3(nffile->processQueue, dataBlock);
         InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
         // map output memory buffer
     }
