@@ -208,17 +208,18 @@ typedef struct blockListV3_s {
  *           passphrase immediately without processing any data blocks.
  */
 typedef struct cryptoHeaderBlock_s {
-    BLOCKHEADER;            /* type=BLOCK_TYPE_META, NOT_COMPRESSED, NOT_ENCRYPTED */
-    uint16_t algorithm;     /* encryption algorithm: CHACHA20_POLY1305             */
-    uint16_t kdfType;       /* KDF_PBKDF2_SHA256                                   */
-    uint32_t kdfIterations; /* PBKDF2 iteration count, e.g. 200000                 */
-    uint8_t salt[32];       /* random per-file KDF salt                            */
-    uint8_t rootNonce[12];  /* random per-file base nonce                          */
-    uint8_t keyCheck[16];   /* AEAD tag of encrypting 16 zero bytes                */
-    uint8_t pad[4];         /* 8-byte struct alignment                             */
+    BLOCKHEADER;  // type=BLOCK_TYPE_META, NOT_COMPRESSED, NOT_ENCRYPTED
+#define CRYPTO_HEADER_V1 1
+    uint32_t version;        // version of crypto header
+    uint16_t algorithm;      // encryption algorithm: CHACHA20_POLY1305
+    uint16_t kdfType;        // KDF_PBKDF2_SHA256
+    uint32_t kdfIterations;  // PBKDF2 iteration count, e.g. 200000
+    uint8_t salt[32];        // random per-file KDF salt
+    uint8_t rootNonce[12];   // random per-file base nonce
+    uint8_t keyCheck[16];    // AEAD tag of encrypting 16 zero bytes
 } cryptoHeaderBlock_t;
 _Static_assert((sizeof(cryptoHeaderBlock_t) & 7) == 0, "cryptoHeaderBlock_t 8-byte aligned");
-/* sizeof(dataBlockV3_t)(24) + {algorithm+kdfType+kdfIterations}(8) + salt(32) + rootNonce(12) + keyCheck(16) + pad(4) = 96 */
+// sizeof(dataBlockV3_t)(24) + version(4) + algorithm(2) + kdfType(2) + kdfIterations(4) + salt(32) + rootNonce(12) + keyCheck(16) = 96
 _Static_assert(sizeof(cryptoHeaderBlock_t) == 96, "cryptoHeaderBlock_t size check");
 
 /*

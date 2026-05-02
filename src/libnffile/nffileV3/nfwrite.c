@@ -434,9 +434,10 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             .rawSize = sizeof(cryptoHeaderBlock_t),
             .compression = NOT_COMPRESSED,
             .encryption = NOT_ENCRYPTED,
+            .version = CRYPTO_HEADER_V1,
             .algorithm = (uint16_t)nffile->crypto->algorithm,
             .kdfType = (uint16_t)CRYPTO_KDF_ARGON2ID,
-            .kdfIterations = 0,  //
+            .kdfIterations = 0,
         };
         memcpy(cryptoHdr.salt, freshSalt, sizeof(cryptoHdr.salt));
         memcpy(cryptoHdr.rootNonce, nffile->crypto->rootNonce, sizeof(cryptoHdr.rootNonce));
@@ -674,7 +675,7 @@ static int WriteDirectory(nffileV3_t *nffile) {
 
     uint32_t dirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
 
-    // --- compute directory checksum over the serialized directory in memory ---
+    // compute directory checksum over the serialized directory in memory
     // uses the same two regions already written to disk: dirHdr + entries[]
     uint64_t dirChecksum = 0;
     if (nffile->xxHash) {

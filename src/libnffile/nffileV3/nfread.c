@@ -506,7 +506,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
             if (e->size < sizeof(cryptoHeaderBlock_t)) continue;
 
             const cryptoHeaderBlock_t *cand = (const cryptoHeaderBlock_t *)(map + e->offset);
-            /* Identify by size: plain dataBlockV3_t + crypto payload */
+            // identify by size and plaintext marker
             if (cand->discSize == sizeof(cryptoHeaderBlock_t) && cand->encryption == NOT_ENCRYPTED && cand->compression == NOT_COMPRESSED) {
                 cryptoHdr = cand;
                 break;
@@ -515,6 +515,11 @@ nffileV3_t *mmapFileV3(const char *filename) {
 
         if (!cryptoHdr) {
             LogError("File '%s' is marked encrypted but has no crypto header block", filename);
+            CloseFileV3(nffile);
+            return NULL;
+        }
+        if (cryptoHdr->version != CRYPTO_HEADER_V1) {
+            LogError("File '%s' has unsupported crypto header version %u", filename, cryptoHdr->version);
             CloseFileV3(nffile);
             return NULL;
         }

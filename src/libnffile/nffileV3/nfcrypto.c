@@ -61,8 +61,6 @@
 #include "nfcrypto.h"
 #include "nffileV3.h"
 
-/* Pull in sodium.h early so InitCrypto/FreeFileCrypto can use its API
- * unconditionally inside #ifdef HAVE_LIBSODIUM blocks below. */
 #ifdef HAVE_LIBSODIUM
 #include <sodium.h>
 #endif
@@ -80,7 +78,7 @@
 static char *secure_prompt(const char *prompt) {
     FILE *tty = fopen("/dev/tty", "r+");
     int tty_opened = (tty != NULL);
-    if (!tty) tty = stdin; /* last-resort fallback when no controlling terminal */
+    if (!tty) tty = stdin;  // last-resort fallback when no controlling terminal
     int fd = fileno(tty);
 
     /* Disable echo */
@@ -440,7 +438,7 @@ int ComputeFileMac(const nffile_crypto_t *crypto, const fileHeaderV3_t *hdr, con
         return 0;
     }
 
-    /* Derive a 32-byte MAC key from the session key (domain-separated) */
+    // Derive a 32-byte MAC key from the session key (domain-separated)
     uint8_t macKey[crypto_kdf_KEYBYTES]; /* = 32 bytes */
     if (crypto_kdf_derive_from_key(macKey, sizeof(macKey), /*subkey_id=*/1, "nfdmpMAC", crypto->encKey) != 0) {
         LogError("ComputeFileMac: crypto_kdf_derive_from_key() failed");
@@ -448,27 +446,28 @@ int ComputeFileMac(const nffile_crypto_t *crypto, const fileHeaderV3_t *hdr, con
         return 0;
     }
 
-    /* BLAKE2b-256 MAC keyed with macKey */
+    // BLAKE2b-256 MAC keyed with macKey
     crypto_generichash_state st;
     crypto_generichash_init(&st, macKey, sizeof(macKey), 32);
     sodium_memzero(macKey, sizeof(macKey));
 
-    /* 1. Selected fileHeaderV3_t fields */
+    // 1. selected fileHeaderV3_t fields
     crypto_generichash_update(&st, (const uint8_t *)&hdr->nfdVersion, sizeof(hdr->nfdVersion));
     crypto_generichash_update(&st, (const uint8_t *)&hdr->created, sizeof(hdr->created));
     crypto_generichash_update(&st, (const uint8_t *)&hdr->creator, sizeof(hdr->creator));
     crypto_generichash_update(&st, (const uint8_t *)&hdr->flags, sizeof(hdr->flags));
     crypto_generichash_update(&st, (const uint8_t *)&hdr->blockSize, sizeof(hdr->blockSize));
 
-    /* 2. cryptoHeaderBlock_t crypto-specific fields (beyond the common BLOCKHEADER) */
-    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->algorithm, sizeof(cryptoHdr->algorithm));
-    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->kdfType, sizeof(cryptoHdr->kdfType));
+    // 2. cryptoHeaderBlock_t crypto-specific fields (beyond the common BLOCKHEADER)
+    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->version,       sizeof(cryptoHdr->version));
+    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->algorithm,     sizeof(cryptoHdr->algorithm));
+    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->kdfType,       sizeof(cryptoHdr->kdfType));
     crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->kdfIterations, sizeof(cryptoHdr->kdfIterations));
-    crypto_generichash_update(&st, cryptoHdr->salt, sizeof(cryptoHdr->salt));
-    crypto_generichash_update(&st, cryptoHdr->rootNonce, sizeof(cryptoHdr->rootNonce));
-    crypto_generichash_update(&st, cryptoHdr->keyCheck, sizeof(cryptoHdr->keyCheck));
+    crypto_generichash_update(&st, cryptoHdr->salt,                            sizeof(cryptoHdr->salt));
+    crypto_generichash_update(&st, cryptoHdr->rootNonce,                       sizeof(cryptoHdr->rootNonce));
+    crypto_generichash_update(&st, cryptoHdr->keyCheck,                        sizeof(cryptoHdr->keyCheck));
 
-    /* 3. Directory entries in order */
+    // 3. directory entries in order
     for (uint32_t i = 0; i < numEntries; i++) {
         const directoryEntryV3_t *e = &entries[i];
         crypto_generichash_update(&st, (const uint8_t *)&e->type, sizeof(e->type));

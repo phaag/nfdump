@@ -304,6 +304,7 @@ int VerifyFileV3(const char *filename, int verbose) {
             if (e->offset + e->size > fileSize) continue;
             if (e->size < sizeof(cryptoHeaderBlock_t)) continue;
             const cryptoHeaderBlock_t *cand = (const cryptoHeaderBlock_t *)(map + e->offset);
+            // identify by size and plaintext marker
             if (cand->discSize == sizeof(cryptoHeaderBlock_t) && cand->encryption == NOT_ENCRYPTED && cand->compression == NOT_COMPRESSED) {
                 cryptoHdr = cand;
                 break;
@@ -314,34 +315,40 @@ int VerifyFileV3(const char *filename, int verbose) {
         if (!cryptoHdr) {
             printf("  ERROR: FILE_FLAG_ENCRYPTED set but no crypto header block found\n");
         } else {
+            printf("  Header ver : %u%s\n", cryptoHdr->version,
+                   cryptoHdr->version == CRYPTO_HEADER_V1 ? "" : " (UNSUPPORTED)");
             printf("  Algorithm  : %s\n", EncryptionType(cryptoHdr->algorithm));
             printf("  KDF        : %s\n", cryptoHdr->kdfType == KDF_PBKDF2_SHA256 ? "Argon2id (labelled PBKDF2-SHA256)" : "unknown");
             printf("  KDF iters  : %u%s\n", cryptoHdr->kdfIterations, cryptoHdr->kdfIterations == 0 ? " (use default)" : "");
-
-            nffile_crypto_t tmpCrypto = {0};
-            if (!DeriveKeyFromFile(cryptoHdr, &tmpCrypto)) {
-                printf("  Key        : derivation FAILED\n");
-            } else if (!VerifyEncryptionKey(cryptoHdr, &tmpCrypto)) {
-                printf("  Key        : WRONG passphrase or corrupt key-check\n");
+            if (cryptoHdr->version != CRYPTO_HEADER_V1) {
+                printf("  ERROR: unsupported crypto header version — cannot verify\n");
+                checksumFailed = 1;
             } else {
-                printf("  Key        : verified OK\n");
-                keyVerified = 1;
-            }
-
-            /* Verify file-structure MAC (non-zero = MAC present). */
-            if (keyVerified && footer != NULL) {
-                static const uint8_t zeroMac[32] = {0};
-                if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
-                    printf("  File MAC   : absent (all-zero) — pre-release or unencrypted\n");
-                } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries, footer->fileMac)) {
-                    printf("  File MAC   : verified OK\n");
+                nffile_crypto_t tmpCrypto = {0};
+                if (!DeriveKeyFromFile(cryptoHdr, &tmpCrypto)) {
+                    printf("  Key        : derivation FAILED\n");
+                } else if (!VerifyEncryptionKey(cryptoHdr, &tmpCrypto)) {
+                    printf("  Key        : WRONG passphrase or corrupt key-check\n");
                 } else {
-                    printf("  File MAC   : FAILED — file structure may have been tampered with\n");
-                    checksumFailed = 1;
+                    printf("  Key        : verified OK\n");
+                    keyVerified = 1;
                 }
-            }
 
-            sodium_memzero(tmpCrypto.encKey, sizeof(tmpCrypto.encKey));
+                // verify file-structure MAC (non-zero = MAC present)
+                if (keyVerified && footer != NULL) {
+                    static const uint8_t zeroMac[32] = {0};
+                    if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
+                        printf("  File MAC   : absent (all-zero) — pre-release or unencrypted\n");
+                    } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries, footer->fileMac)) {
+                        printf("  File MAC   : verified OK\n");
+                    } else {
+                        printf("  File MAC   : FAILED — file structure may have been tampered with\n");
+                        checksumFailed = 1;
+                    }
+                }
+
+                sodium_memzero(tmpCrypto.encKey, sizeof(tmpCrypto.encKey));
+            }
         }
     }
 #else

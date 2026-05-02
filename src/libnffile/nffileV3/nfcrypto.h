@@ -195,8 +195,8 @@ int VerifyEncryptionKey(const struct cryptoHeaderBlock_s *cryptoHdr, const struc
  *
  * MAC input (fixed order):
  *   1. fileHeaderV3_t: nfdVersion, created, creator, flags, blockSize
- *   2. cryptoHeaderBlock_t: algorithm, kdfType, kdfIterations, salt,
- *                           rootNonce, keyCheck
+ *   2. cryptoHeaderBlock_t: version, algorithm, kdfType, kdfIterations,
+ *                           salt, rootNonce, keyCheck
  *   3. All directoryEntryV3_t in order: type, size, offset per entry
  *
  * Returns 1 on success, 0 on error.
