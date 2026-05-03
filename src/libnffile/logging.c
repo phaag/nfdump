@@ -51,7 +51,7 @@
 #endif
 
 /* Global vars */
-static unsigned verbose = 1;
+static int verbose = 1;
 static int use_syslog = 0;
 
 #ifdef sun
@@ -119,7 +119,7 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_
     if (want_syslog == NOSYSLOG) {
         use_syslog = 0;
         if (verbose) {
-            LogInfo("Verbose log level: %u", verbose);
+            LogInfo("Verbose log level: %d", verbose);
         }
         return 1;
     }

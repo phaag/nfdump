@@ -35,7 +35,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <poll.h>
+#include <sys/select.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -94,7 +94,7 @@
 typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, socklen_t *, struct timeval *);
 
 /* module limited globals */
-static int done = 0;
+static volatile sig_atomic_t done = 0;
 
 /* Local function Prototypes */
 static void usage(char *name);
@@ -267,10 +267,19 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     time_t t_start = now - (now % t_win);
     time_t next_rotate = t_start + t_win;
 
+    // Block shutdown signals once here; pselect() unblocks them atomically
+    // during each wait.  Restored after the loop.
+    sigset_t blockmask, origmask;
+    sigemptyset(&blockmask);
+    sigaddset(&blockmask, SIGTERM);
+    sigaddset(&blockmask, SIGINT);
+    sigaddset(&blockmask, SIGHUP);
+    sigprocmask(SIG_BLOCK, &blockmask, &origmask);
+
     uint32_t repeaterDropped = 0;
     while (!done) {
         // wait for packet or timeout
-        int ret = poll_for_packet(socket, next_rotate, now);
+        int ret = poll_for_packet(socket, next_rotate, &origmask);
 
         if (ret > 0) {
             // packet ready
@@ -361,6 +370,7 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
         }
     }
 
+    sigprocmask(SIG_SETMASK, &origmask, NULL);
     if (pkt_ctx) free(pkt_ctx);
 }  // End of run_network
 

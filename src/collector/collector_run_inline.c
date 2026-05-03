@@ -88,35 +88,53 @@ static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct t
 /*
  * Wait for a packet or for the rotation deadline to arrive.
  *
+ * poll() is NOT used here because on OpenBSD its libc wrapper sits on top
+ * of kevent(2) and silently retries on EINTR, so the application never sees
+ * EINTR even when SA_RESTART is not set.  The same wrapper approach exists
+ * in some other BSDs and is permitted by POSIX.
+ *
+ * pselect() is a true syscall on every platform (Linux, macOS, all BSDs).
+ * It atomically unblocks the nominated signals for the duration of the wait,
+ * so delivery of SIGTERM/SIGINT/SIGHUP is guaranteed to return EINTR.
+ *
+ * Caller contract:
+ *   - SIGTERM/SIGINT/SIGHUP must already be blocked in the calling thread
+ *     before entering the collection loop (see run_network()).
+ *   - origmask is the signal mask to restore atomically inside pselect().
+ *   - The caller restores the original mask after the loop exits.
+ *
  * Returns:
  *   > 0  packet ready
  *   = 0  timeout (time to rotate)
  *   -2   interrupted by signal while done == 1 (initiate shutdown)
- *   -1   fatal poll() error (already logged)
+ *   -1   fatal pselect() error (already logged)
  */
-static inline int poll_for_packet(int fd, time_t next_rotate, time_t now) {
-    int timeout_ms = (int)(next_rotate - now) * 1000;
-    if (timeout_ms < 0) timeout_ms = 0;
-
-    struct pollfd pfd = {.fd = fd, .events = POLLIN};
-
+static inline int poll_for_packet(int fd, time_t next_rotate, const sigset_t *origmask) {
     for (;;) {
-        int ret = poll(&pfd, 1, timeout_ms);
-        if (ret >= 0) {
-            // 0 = timeout, >0 = ready
-            return ret;
-        }
+        // check done while signals are blocked — no race with the handler
+        if (done) return -2;
+
+        // recalculate remaining time on every iteration (handles EINTR drift)
+        time_t remaining = next_rotate - time(NULL);
+        if (remaining < 0) remaining = 0;
+        struct timespec ts = {.tv_sec = remaining, .tv_nsec = 0};
+
+        fd_set rfd;
+        FD_ZERO(&rfd);
+        FD_SET(fd, &rfd);
+
+        /* pselect() atomically swaps in origmask (unblocking the signals)
+         * for the duration of the call, then restores the blocked mask on return. */
+        int ret = pselect(fd + 1, &rfd, NULL, NULL, &ts, origmask);
+        if (ret > 0) return 1;
+        if (ret == 0) return 0;
         if (errno == EINTR) {
-            if (done) {
-                // interrupted by signal and we're shutting down
-                return -2;
-            }
-            // retry poll with same timeout (best-effort)
+            // signal arrived — loop back to check done
             continue;
         }
 
         // real error
-        LogError("poll() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pselect() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return -1;
     }
 }  // End of poll_for_packet
