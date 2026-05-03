@@ -59,13 +59,18 @@ char *versionString(void) {
     bzlib = " BZIP2";
 #endif
 
+    char *encryption = "";
+#ifdef HAVE_LIBSODIUM
+    encryption = " CRYPTO";
+#endif
+
     char *pcapreader = "";
 #ifdef ENABLE_READPCAP
     pcapreader = " read-pcap";
 #endif
 
-    snprintf(version_string, sizeof(version_string) - 1, "Version: %s-%s options:%s%s%s%s%s date: %s", VERSION, VCS_TRACK_HASH, lz4lib, zstdlib,
-             bzlib, ja4, pcapreader, VCS_TRACK_DATE);
+    snprintf(version_string, sizeof(version_string) - 1, "Version: %s-%s options:%s%s%s%s%s%s date: %s", VERSION, VCS_TRACK_HASH, lz4lib, zstdlib,
+             bzlib, encryption, ja4, pcapreader, VCS_TRACK_DATE);
     version_string[sizeof(version_string) - 1] = '\0';
 
     return version_string;

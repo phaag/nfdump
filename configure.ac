@@ -168,8 +168,7 @@ AS_IF([test "x$ac_cv_func_arc4random" != "xyes"], [
 ])
 AC_SUBST([RAND_LIBS])
 
-# --- check for log2 in libm (needed by output_raw.c entropy calculation)
-# On Linux/glibc log2 is in libm; on macOS/musl it is already in libc.
+# --- check for log2 in libm
 # AC_SEARCH_LIBS tries without any extra library first, then tries -lm.
 MATH_LIBS=""
 AC_SEARCH_LIBS([log2], [m], [
