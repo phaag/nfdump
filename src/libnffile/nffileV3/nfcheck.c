@@ -545,7 +545,8 @@ int VerifyFileV3(const char *filename, int verbose) {
     munmap(map, fileSize);
     close(fd);
 
-    return blockCheckFailed == 0 && directoryEntriesFailed == 0 && checksumFailed == 0;
+    int encryptionFailed = fileEncrypted && keyVerified == 0;
+    return blockCheckFailed == 0 && directoryEntriesFailed == 0 && checksumFailed == 0 && encryptionFailed == 0;
 
 }  // End of VerifyFileV3
 

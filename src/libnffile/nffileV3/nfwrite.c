@@ -206,11 +206,11 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
         // Build AAD: commit the plaintext block-header fields so any tampering
         // with type, rawSize, compression, or offset is detected by AEAD.
         blockEncAAD_t aad = {
-            .type        = (uint32_t)wptr->type,
-            .rawSize     = (uint32_t)wptr->rawSize,
+            .type = (uint32_t)wptr->type,
+            .rawSize = (uint32_t)wptr->rawSize,
             .compression = (uint32_t)wptr->compression,
-            .pad         = 0,
-            .offset      = (uint64_t)dstOffset,
+            .pad = 0,
+            .offset = (uint64_t)dstOffset,
         };
 
         const uint8_t *plaintext = (const uint8_t *)wptr + sizeof(dataBlockV3_t);
@@ -218,7 +218,8 @@ static int nfwrite(nffileV3_t *nffile, dataBlockV3_t *block_header) {
         uint8_t *ciphertext = (uint8_t *)encBuf + sizeof(dataBlockV3_t);
         unsigned long long cipherLen = 0;
 
-        int rc = crypto_aead_chacha20poly1305_ietf_encrypt(ciphertext, &cipherLen, plaintext, plainLen, (const uint8_t *)&aad, sizeof(aad), NULL, nonce, nffile->crypto->encKey);
+        int rc = crypto_aead_chacha20poly1305_ietf_encrypt(ciphertext, &cipherLen, plaintext, plainLen, (const uint8_t *)&aad, sizeof(aad), NULL,
+                                                           nonce, nffile->crypto->encKey);
         if (rc != 0) {
             LogError("nfwrite: encryption failed at offset %" PRId64, (int64_t)dstOffset);
             free(encBuf);
@@ -705,8 +706,7 @@ static int WriteDirectory(nffileV3_t *nffile) {
         cryptoHeaderBlock_t cryptoHdrBuf;
         ssize_t r = pread(nffile->fd, &cryptoHdrBuf, sizeof(cryptoHdrBuf), (off_t)sizeof(fileHeaderV3_t));
         if (r == (ssize_t)sizeof(cryptoHdrBuf) && cryptoHdrBuf.discSize == sizeof(cryptoHdrBuf)) {
-            if (!ComputeFileMac(nffile->crypto, nffile->fileHeader, &cryptoHdrBuf,
-                                nffile->blockList.entries, nffile->blockList.count,
+            if (!ComputeFileMac(nffile->crypto, nffile->fileHeader, &cryptoHdrBuf, nffile->blockList.entries, nffile->blockList.count,
                                 footer.fileMac)) {
                 LogError("WriteDirectory: ComputeFileMac failed — file MAC will be absent");
                 memset(footer.fileMac, 0, sizeof(footer.fileMac));

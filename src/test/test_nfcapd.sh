@@ -50,7 +50,7 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 # Reads the statistics block written by nfcapd (-I flag).  This is immune to
 # the verbose debug lines that nfdump may print on stdout in devel builds.
 count_flows() {
-    "$NFDUMP_BIN" -G none -I -r "$1" 2>/dev/null \
+    "$NFDUMP_BIN" -G none -I -r "$1" "$2" 2>/dev/null \
         | awk '/^Flows:/{s += $2} END{print s+0}'
 }
 
@@ -233,36 +233,72 @@ fi
 echo ""
 echo "── encryption ──────────────────────────────────────────────────────────"
 
-if [ "$HAS_PCAP" -eq 0 ]; then
-    for _t in compress_lzo compress_lz4 compress_bz2 compress_zstd; do
+HAS_CRYPTO=0
+"$NFCAPD_BIN" -V 2>&1 | grep -qi 'crypto' && HAS_CRYPTO=1
+
+if [ "$HAS_CRYPTO" -eq 0 ]; then
+    for _t in crypto_write crypto_read crypto_flowcount crypto_wrongpass; do
+        skip "$_t: libsodium not compiled in (--with-libsodium)"
+    done
+elif [ "$HAS_PCAP" -eq 0 ]; then
+    for _t in crypto_write crypto_read crypto_flowcount crypto_wrongpass; do
         skip "$_t: --enable-readpcap not compiled in"
     done
 else
-    COMP_PCAP="$TESTDATA/flows_v9_unsamp.pcap"
-    COMP_EXPECTED=161
+    CRYPTO_PCAP="$TESTDATA/flows_v9_unsamp.pcap"
+    CRYPTO_EXPECTED=161
+    CRYPTO_PASS="passw0rd"
+    CRYPTO_DIR="$WORKDIR/crypto"
+    mkdir -p "$CRYPTO_DIR"
 
-    for codec in lzo lz4 bz2 zstd; do
-        cname="compress_$codec"
-        cdir="$WORKDIR/$cname"
-        mkdir -p "$cdir"
-        nfcapd -f "$COMP_PCAP" -w "$cdir" -I comp "-z=$codec" -v 0 >/dev/null 2>&1
-        crc=$?
-        if [ "$crc" -ne 0 ]; then
-            skip "$cname: codec not compiled in (exit $crc)"
+    # 4a. Write: nfcapd collects from pcap into an encrypted file
+    nfcapd -f "$CRYPTO_PCAP" -w "$CRYPTO_DIR" -I crypto -K="$CRYPTO_PASS" \
+           -v 0 >/dev/null 2>&1
+    crc=$?
+    if [ "$crc" -ne 0 ]; then
+        fail "crypto_write: nfcapd exited with status $crc"
+        for _t in crypto_read crypto_flowcount crypto_wrongpass; do
+            skip "$_t: depends on crypto_write"
+        done
+    else
+        CRYPTO_FILE=$(ls "$CRYPTO_DIR"/nfcapd.* 2>/dev/null | head -1)
+        if [ -z "$CRYPTO_FILE" ]; then
+            fail "crypto_write: no output file created"
+            for _t in crypto_read crypto_flowcount crypto_wrongpass; do
+                skip "$_t: depends on crypto_write"
+            done
         else
-            cf=$(ls "$cdir"/nfcapd.* 2>/dev/null | head -1)
-            if [ -z "$cf" ]; then
-                fail "$cname: no output file"
+            pass "crypto_write: encrypted file created"
+
+            # 4b. Read: nfdump can decrypt and read the file
+            if "$NFDUMP_BIN" -G none -r "$CRYPTO_FILE" -K="$CRYPTO_PASS" \
+                             -o null >/dev/null 2>&1; then
+                pass "crypto_read: decryption OK"
             else
-                cgot=$(count_flows "$cf")
-                if [ "${cgot:-0}" -eq "$COMP_EXPECTED" ]; then
-                    pass "$cname: $cgot flows"
-                else
-                    fail "$cname: expected $COMP_EXPECTED flows, got ${cgot:-0}"
-                fi
+                fail "crypto_read: nfdump could not decrypt file"
+            fi
+
+            # 4c. Flow count: decrypted output matches expected count
+            got=$(count_flows "$CRYPTO_FILE" "-K=$CRYPTO_PASS")
+            if [ "${got:-0}" -eq "$CRYPTO_EXPECTED" ]; then
+                pass "crypto_flowcount: $got flows"
+            else
+                fail "crypto_flowcount: expected $CRYPTO_EXPECTED flows, got ${got:-0}"
+            fi
+
+            # 4d. Wrong passphrase must be rejected.
+            # nfdump returns NULL from GetNextFile() on bad password rather than
+            # EXIT_FAILURE, so we cannot rely on the exit code.  Capture stderr
+            # and look for the key-check error message instead.
+            wp_err=$("$NFDUMP_BIN" -G none -r "$CRYPTO_FILE" "-K=wrongpass" \
+                                   -o null 2>&1)
+            if echo "$wp_err" | grep -qi "wrong passphrase\|corrupt.*key\|corrupt.*encr"; then
+                pass "crypto_wrongpass: wrong passphrase correctly rejected"
+            else
+                fail "crypto_wrongpass: expected key-check error on stderr, got: ${wp_err:-<nothing>}"
             fi
         fi
-    done
+    fi
 fi
 
 # =============================================================================

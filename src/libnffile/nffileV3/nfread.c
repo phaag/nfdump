@@ -130,11 +130,11 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         // The encrypted block's header fields (type, rawSize, compression) are
         // copied unchanged from the pre-encryption block by nfwrite().
         blockEncAAD_t aad = {
-            .type        = (uint32_t)dataBlock->type,
-            .rawSize     = (uint32_t)dataBlock->rawSize,
+            .type = (uint32_t)dataBlock->type,
+            .rawSize = (uint32_t)dataBlock->rawSize,
             .compression = (uint32_t)dataBlock->compression,
-            .pad         = 0,
-            .offset      = entry->offset,
+            .pad = 0,
+            .offset = entry->offset,
         };
 
         const uint8_t *ciphertext = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
@@ -151,7 +151,8 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         uint8_t *plaintext = (uint8_t *)decBuf + sizeof(dataBlockV3_t);
         unsigned long long plainLen = 0;
 
-        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL, ciphertext, cipherLen, (const uint8_t *)&aad, sizeof(aad), nonce, nffile->crypto->encKey);
+        int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL, ciphertext, cipherLen, (const uint8_t *)&aad, sizeof(aad),
+                                                           nonce, nffile->crypto->encKey);
         if (rc != 0) {
             LogError("nfread: decryption failed at offset %" PRIu64 " (wrong key or corrupt block)", entry->offset);
             FreeDataBlock(decBuf);
@@ -455,7 +456,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
     nffile->fd = fd;
     nffile->fileName = strdup(filename);
     nffile->fileHeader = fileHeader;
-    nffile->fileFooter = NULL;  /* footer was read into a local buffer; not stored in mmap */
+    nffile->fileFooter = NULL; /* footer was read into a local buffer; not stored in mmap */
     nffile->blockDirectory = blockDirectory;
 
     nffile->stat_record = calloc(1, sizeof(stat_record_t));
@@ -466,26 +467,27 @@ nffileV3_t *mmapFileV3(const char *filename) {
     }
 
     // --- load metadata blocks via directory (pointer access, no I/O) ---
-    for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
-        const directoryEntryV3_t *e = &blockDirectory->entries[i];
+    // For unencrypted files: read stat/ident directly.
+    // For encrypted files: defer to the second pass below, after key derivation.
+    if (!(fileHeader->flags & FILE_FLAG_ENCRYPTED)) {
+        for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
+            const directoryEntryV3_t *e = &blockDirectory->entries[i];
+            if (e->offset + e->size > fileSize) continue;
 
-        // bounds check: entry must fit inside the data region
-        if (e->offset + e->size > fileSize) continue;
+            const uint8_t *blockBase = map + e->offset;
+            const dataBlockV3_t *blk = (const dataBlockV3_t *)blockBase;
 
-        const uint8_t *blockBase = map + e->offset;
-        const dataBlockV3_t *blk = (const dataBlockV3_t *)blockBase;
-
-        if (e->type == BLOCK_TYPE_STATS) {
-            size_t payloadOff = sizeof(dataBlockV3_t);
-            if (payloadOff + sizeof(stat_record_t) <= e->size && blk->rawSize == sizeof(dataBlockV3_t) + sizeof(stat_record_t)) {
-                memcpy(nffile->stat_record, blockBase + payloadOff, sizeof(stat_record_t));
-            }
-        } else if (e->type == BLOCK_TYPE_IDENT) {
-            size_t payloadOff = sizeof(dataBlockV3_t);
-            size_t payloadSize = blk->rawSize - sizeof(dataBlockV3_t);
-            if (payloadSize > 0 && payloadSize < 256 && payloadOff + payloadSize <= e->size) {
-                // ident string is NUL-terminated in the block
-                nffile->ident = strndup((const char *)(blockBase + payloadOff), payloadSize);
+            if (e->type == BLOCK_TYPE_STATS) {
+                size_t payloadOff = sizeof(dataBlockV3_t);
+                if (payloadOff + sizeof(stat_record_t) <= e->size && blk->rawSize == sizeof(dataBlockV3_t) + sizeof(stat_record_t)) {
+                    memcpy(nffile->stat_record, blockBase + payloadOff, sizeof(stat_record_t));
+                }
+            } else if (e->type == BLOCK_TYPE_IDENT) {
+                size_t payloadOff = sizeof(dataBlockV3_t);
+                size_t payloadSize = blk->rawSize - sizeof(dataBlockV3_t);
+                if (payloadSize > 0 && payloadSize < 256 && payloadOff + payloadSize <= e->size) {
+                    nffile->ident = strndup((const char *)(blockBase + payloadOff), payloadSize);
+                }
             }
         }
     }
@@ -550,13 +552,36 @@ nffileV3_t *mmapFileV3(const char *filename) {
             static const uint8_t zeroMac[32] = {0};
             if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
                 LogError("Encrypted file '%s' has no file MAC — file may be corrupt or pre-release", filename);
-            } else if (!VerifyFileMac(nffile->crypto, fileHeader, cryptoHdr,
-                                      blockDirectory->entries, blockDirectory->numEntries,
-                                      footer->fileMac)) {
+            } else if (!VerifyFileMac(nffile->crypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries, footer->fileMac)) {
                 LogError("File MAC verification failed for '%s' — file structure may have been tampered with", filename);
                 CloseFileV3(nffile);
                 return NULL;
             }
+        }
+
+        /*
+         * Second pass: load STATS and IDENT blocks now that the key is
+         * available.  nfread() handles decryption and decompression.
+         */
+        for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
+            const directoryEntryV3_t *e = &blockDirectory->entries[i];
+            if (e->type != BLOCK_TYPE_STATS && e->type != BLOCK_TYPE_IDENT) continue;
+
+            dataBlockV3_t *blk = nfread(nffile, e);
+            if (!blk) continue;
+
+            const uint8_t *payload = (const uint8_t *)blk + sizeof(dataBlockV3_t);
+            uint32_t payloadLen = blk->rawSize - (uint32_t)sizeof(dataBlockV3_t);
+
+            if (e->type == BLOCK_TYPE_STATS) {
+                if (payloadLen == sizeof(stat_record_t)) memcpy(nffile->stat_record, payload, sizeof(stat_record_t));
+            } else if (e->type == BLOCK_TYPE_IDENT) {
+                if (payloadLen > 0 && payloadLen < 256) {
+                    free(nffile->ident);
+                    nffile->ident = strndup((const char *)payload, payloadLen);
+                }
+            }
+            FreeDataBlock(blk);
         }
     }
 #endif /* HAVE_LIBSODIUM */

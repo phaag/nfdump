@@ -1204,7 +1204,7 @@ int main(int argc, char **argv) {
         sum_stat.msecFirstSeen = 0x7fffffffffffffff;
         nffileV3_t *nffile = GetNextFile();
         if (!nffile) {
-            LogError("Error open file: %s", strerror(errno));
+            LogError("Error - open file failed");
             exit(250);
         }
         char *ident = NULL;
@@ -1252,7 +1252,7 @@ int main(int argc, char **argv) {
 
     if (aggregate && (flow_stat || element_stat)) {
         aggregate = 0;
-        LogError("Command line switch -s overwrites -a\n");
+        LogError("Command line switch -s overwrites -a");
     }
 
     if (bidir && !SetBidirAggregation()) {
@@ -1270,13 +1270,13 @@ int main(int argc, char **argv) {
 
     if (gnuplot_stat) {
         if (!flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
-            LogError("Expect data file(s).\n");
+            LogError("Expect data file(s)");
             exit(EXIT_FAILURE);
         }
 
         nffileV3_t *nffile = GetNextFile();
         if (!nffile) {
-            LogError("Error open file: %s\n", strerror(errno));
+            LogError("Error - open file failed");
             exit(250);
         }
         printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
