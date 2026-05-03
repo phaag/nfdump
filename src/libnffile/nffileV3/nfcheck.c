@@ -311,12 +311,11 @@ int VerifyFileV3(const char *filename, int verbose) {
             }
         }
 
-        printf("\n=== Encryption info ===\n");
+        printf("\n=== Encryption header ===\n");
         if (!cryptoHdr) {
             printf("  ERROR: FILE_FLAG_ENCRYPTED set but no crypto header block found\n");
         } else {
-            printf("  Header ver : %u%s\n", cryptoHdr->version,
-                   cryptoHdr->version == CRYPTO_HEADER_V1 ? "" : " (UNSUPPORTED)");
+            printf("  Version    : %u%s\n", cryptoHdr->version, cryptoHdr->version == CRYPTO_HEADER_V1 ? "" : " (UNSUPPORTED)");
             printf("  Algorithm  : %s\n", EncryptionType(cryptoHdr->algorithm));
             printf("  KDF        : %s\n", cryptoHdr->kdfType == KDF_PBKDF2_SHA256 ? "Argon2id (labelled PBKDF2-SHA256)" : "unknown");
             printf("  KDF iters  : %u%s\n", cryptoHdr->kdfIterations, cryptoHdr->kdfIterations == 0 ? " (use default)" : "");
@@ -339,7 +338,8 @@ int VerifyFileV3(const char *filename, int verbose) {
                     static const uint8_t zeroMac[32] = {0};
                     if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
                         printf("  File MAC   : absent (all-zero) — pre-release or unencrypted\n");
-                    } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries, footer->fileMac)) {
+                    } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries,
+                                             footer->fileMac)) {
                         printf("  File MAC   : verified OK\n");
                     } else {
                         printf("  File MAC   : FAILED — file structure may have been tampered with\n");

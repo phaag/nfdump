@@ -48,6 +48,14 @@
 #define EBUFF_SIZE 256
 
 #ifndef HAVE_HTONLL
+static inline uint64_t htonll(uint64_t x) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return __builtin_bswap64(x);
+#else
+    return x;
+#endif
+}
+
 static inline uint64_t ntohll(uint64_t x) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     return __builtin_bswap64(x);

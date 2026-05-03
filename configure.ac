@@ -168,6 +168,16 @@ AS_IF([test "x$ac_cv_func_arc4random" != "xyes"], [
 ])
 AC_SUBST([RAND_LIBS])
 
+# --- check for log2 in libm (needed by output_raw.c entropy calculation)
+# On Linux/glibc log2 is in libm; on macOS/musl it is already in libc.
+# AC_SEARCH_LIBS tries without any extra library first, then tries -lm.
+MATH_LIBS=""
+AC_SEARCH_LIBS([log2], [m], [
+    AS_IF([test "x$ac_cv_search_log2" != "xnone required"],
+        [MATH_LIBS="$ac_cv_search_log2"])
+], [AC_MSG_ERROR([log2() not found — install libm or equivalent])])
+AC_SUBST([MATH_LIBS])
+
 AC_CHECK_SIZEOF(void *)
 
 AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h net/ethernet.h net/ethertypes.h net/if_pflog.h)

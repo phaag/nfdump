@@ -228,7 +228,45 @@ else
 fi
 
 # =============================================================================
-# 4. Extension filtering  (-X flag)
+# 4. File encryption
+# =============================================================================
+echo ""
+echo "── encryption ──────────────────────────────────────────────────────────"
+
+if [ "$HAS_PCAP" -eq 0 ]; then
+    for _t in compress_lzo compress_lz4 compress_bz2 compress_zstd; do
+        skip "$_t: --enable-readpcap not compiled in"
+    done
+else
+    COMP_PCAP="$TESTDATA/flows_v9_unsamp.pcap"
+    COMP_EXPECTED=161
+
+    for codec in lzo lz4 bz2 zstd; do
+        cname="compress_$codec"
+        cdir="$WORKDIR/$cname"
+        mkdir -p "$cdir"
+        nfcapd -f "$COMP_PCAP" -w "$cdir" -I comp "-z=$codec" -v 0 >/dev/null 2>&1
+        crc=$?
+        if [ "$crc" -ne 0 ]; then
+            skip "$cname: codec not compiled in (exit $crc)"
+        else
+            cf=$(ls "$cdir"/nfcapd.* 2>/dev/null | head -1)
+            if [ -z "$cf" ]; then
+                fail "$cname: no output file"
+            else
+                cgot=$(count_flows "$cf")
+                if [ "${cgot:-0}" -eq "$COMP_EXPECTED" ]; then
+                    pass "$cname: $cgot flows"
+                else
+                    fail "$cname: expected $COMP_EXPECTED flows, got ${cgot:-0}"
+                fi
+            fi
+        fi
+    done
+fi
+
+# =============================================================================
+# 5. Extension filtering  (-X flag)
 # =============================================================================
 echo ""
 echo "── extension filtering ──────────────────────────────────────────────────"
@@ -242,7 +280,7 @@ else
 fi
 
 # =============================================================================
-# 5. Live network round-trip
+# 6. Live network round-trip
 # =============================================================================
 echo ""
 echo "── live network round-trip ──────────────────────────────────────────────"
@@ -387,7 +425,7 @@ else
 fi   # nfreplay / dummy_flows.nf available
 
 # =============================================================================
-# 6. Memory / allocator guard checks (pcap mode)
+# 7. Memory / allocator guard checks (pcap mode)
 # =============================================================================
 echo ""
 echo "── memory guard checks ──────────────────────────────────────────────────"

@@ -271,7 +271,7 @@ crypto_ctx_t *NewCryptoCtx(const char *passphrase) {
     }
     // sodium_malloc requires sodium_init()
     // sodium_init() is safe to be called more than once and thread-safe
-    if (sodium_init() < 0) {
+    if (!InitCrypto()) {
         LogError("NewCryptoCtx: sodium_init() failed");
         return NULL;
     }
@@ -354,12 +354,12 @@ int DeriveKeyFromFile(const cryptoHeaderBlock_t *cryptoHdr, nffile_crypto_t *out
         return 0;
     }
 
-    char *unmasked = NULL; /* sodium_malloc'd plaintext copy; zeroed after use */
+    char *unmasked = NULL;  // sodium_malloc'd plaintext copy; zeroed after use
     const char *passphrase = NULL;
     char *prompted = NULL;
 
     if (g_readCtx) {
-        /* Decode the XOR-masked passphrase into a temporary mlock'd buffer */
+        // Decode the XOR-masked passphrase into a temporary mlock'd buffer
         unmasked = findOrig(g_readCtx);
         if (!unmasked) {
             LogError("DeriveKeyFromFile: failed to unmask passphrase");
@@ -459,13 +459,13 @@ int ComputeFileMac(const nffile_crypto_t *crypto, const fileHeaderV3_t *hdr, con
     crypto_generichash_update(&st, (const uint8_t *)&hdr->blockSize, sizeof(hdr->blockSize));
 
     // 2. cryptoHeaderBlock_t crypto-specific fields (beyond the common BLOCKHEADER)
-    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->version,       sizeof(cryptoHdr->version));
-    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->algorithm,     sizeof(cryptoHdr->algorithm));
-    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->kdfType,       sizeof(cryptoHdr->kdfType));
+    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->version, sizeof(cryptoHdr->version));
+    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->algorithm, sizeof(cryptoHdr->algorithm));
+    crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->kdfType, sizeof(cryptoHdr->kdfType));
     crypto_generichash_update(&st, (const uint8_t *)&cryptoHdr->kdfIterations, sizeof(cryptoHdr->kdfIterations));
-    crypto_generichash_update(&st, cryptoHdr->salt,                            sizeof(cryptoHdr->salt));
-    crypto_generichash_update(&st, cryptoHdr->rootNonce,                       sizeof(cryptoHdr->rootNonce));
-    crypto_generichash_update(&st, cryptoHdr->keyCheck,                        sizeof(cryptoHdr->keyCheck));
+    crypto_generichash_update(&st, cryptoHdr->salt, sizeof(cryptoHdr->salt));
+    crypto_generichash_update(&st, cryptoHdr->rootNonce, sizeof(cryptoHdr->rootNonce));
+    crypto_generichash_update(&st, cryptoHdr->keyCheck, sizeof(cryptoHdr->keyCheck));
 
     // 3. directory entries in order
     for (uint32_t i = 0; i < numEntries; i++) {

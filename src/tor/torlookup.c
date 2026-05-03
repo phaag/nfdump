@@ -32,11 +32,13 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "config.h"
@@ -58,11 +60,11 @@
 #include "tor/tor.h"
 #include "util.h"
 
-#define TAG_EXITNODE    "ExitNode"
-#define TAG_PUBLISHED   "Published"
-#define TAG_LASTSTATUS  "LastStatus"
+#define TAG_EXITNODE "ExitNode"
+#define TAG_PUBLISHED "Published"
+#define TAG_LASTSTATUS "LastStatus"
 #define TAG_EXITADDRESS "ExitAddress"
-#define TAG_ROLE        "Role"
+#define TAG_ROLE "Role"
 
 static void usage(char *name);
 
@@ -200,14 +202,21 @@ static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) 
         uint8_t mask = 0;
         char *tok = strtok(roles, ",\n\r");
         while (tok) {
-            while (*tok == ' ') tok++;  /* trim leading space */
-            if (strcmp(tok, "Guard")  == 0) mask |= TOR_ROLE_GUARD;
-            else if (strcmp(tok, "Exit")   == 0) mask |= TOR_ROLE_EXIT;
-            else if (strcmp(tok, "HSDir")  == 0) mask |= TOR_ROLE_HSDIR;
-            else if (strcmp(tok, "Auth")   == 0) mask |= TOR_ROLE_AUTH;
-            else if (strcmp(tok, "Fast")   == 0) mask |= TOR_ROLE_FAST;
-            else if (strcmp(tok, "Stable") == 0) mask |= TOR_ROLE_STABLE;
-            else if (strcmp(tok, "Middle") == 0) mask |= TOR_ROLE_MIDDLE;
+            while (*tok == ' ') tok++; /* trim leading space */
+            if (strcmp(tok, "Guard") == 0)
+                mask |= TOR_ROLE_GUARD;
+            else if (strcmp(tok, "Exit") == 0)
+                mask |= TOR_ROLE_EXIT;
+            else if (strcmp(tok, "HSDir") == 0)
+                mask |= TOR_ROLE_HSDIR;
+            else if (strcmp(tok, "Auth") == 0)
+                mask |= TOR_ROLE_AUTH;
+            else if (strcmp(tok, "Fast") == 0)
+                mask |= TOR_ROLE_FAST;
+            else if (strcmp(tok, "Stable") == 0)
+                mask |= TOR_ROLE_STABLE;
+            else if (strcmp(tok, "Middle") == 0)
+                mask |= TOR_ROLE_MIDDLE;
             tok = strtok(NULL, ",\n\r");
         }
         torV4Node->roles = mask;

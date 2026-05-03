@@ -1054,6 +1054,7 @@ int main(int argc, char **argv) {
                     LogError("Failed to initialize encryption context");
                     exit(EXIT_FAILURE);
                 }
+                RegisterReadCryptoCtx(crypto_ctx);
                 break;
             }
             default:
@@ -1170,8 +1171,6 @@ int main(int argc, char **argv) {
 
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(numWorkers, fileList)) exit(EXIT_FAILURE);
-
-    RegisterReadCryptoCtx(crypto_ctx);
 
     // Modify compression
     if (ModifyCompress) {

@@ -17,7 +17,7 @@ compat =
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort) $(compat)
 
-nfdump_LDADD = ../output/liboutput.a  -lnfdump  -lnffile $(PTHREAD_LIBS)
+nfdump_LDADD = ../output/liboutput.a  -lnfdump  -lnffile $(MATH_LIBS) $(PTHREAD_LIBS)
 nfdump_LDFLAGS  = -L../libnfdump -L../libnffile
 
 if HAVE_LIBSODIUM
