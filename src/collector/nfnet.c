@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -57,7 +57,7 @@ static int isMulticast(struct sockaddr_storage *addr);
 
 static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_storage *addr);
 
-/* Try to create a dual-stack IPv6 socket (IPv6 + IPv4-mapped) */
+// Try to create a dual-stack IPv6 socket (IPv6 + IPv4-mapped)
 static int create_dualstack_socket(const char *port) {
     int sockfd;
     int off = 0;  // IPV6_V6ONLY = 0
@@ -147,53 +147,92 @@ static int set_socket_buffer(int sockfd, unsigned requested) {
     return 0;
 }
 
-// open receive socket for collector
-int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, unsigned sockbuflen) {
-    if (listenport == 0) {
+// Apply SO_RCVBUF and SO_TIMESTAMP to a socket.
+// Closes sockfd and returns -1 on error; returns 0 on success.
+static int apply_socket_opts(int sockfd, unsigned sockbuflen) {
+    if (sockbuflen > 0 && set_socket_buffer(sockfd, sockbuflen) < 0) {
+        close(sockfd);
+        return -1;
+    }
+    int enabled = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_TIMESTAMP, &enabled, sizeof(enabled)) < 0) {
+        LogError("setsockopt(SO_TIMESTAMP) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        close(sockfd);
+        return -1;
+    }
+    return 0;
+}  // End of apply_socket_opts
+
+/*
+ * Open UDP receive socket(s) for the collector.
+ *
+ * On most platforms (Linux, macOS) a single AF_INET6 socket with
+ * IPV6_V6ONLY=0 handles both IPv4-mapped and native IPv6 traffic.
+ * On platforms that disallow clearing IPV6_V6ONLY (e.g. OpenBSD),
+ * two sockets are opened: socks[0] = AF_INET, socks[1] = AF_INET6.
+ *
+ * Returns number of open sockets (1 or 2), or -1 on error.
+ * All returned sockets have SO_RCVBUF and SO_TIMESTAMP configured.
+ * Caller must close all returned sockets.
+ */
+int Unicast_receive_sockets(const char *bindhost, const char *listenport, int family, unsigned sockbuflen, int socks[2]) {
+    socks[0] = socks[1] = -1;
+    if (listenport == NULL) {
         LogError("listen port required!");
         return -1;
     }
 
-    int sockfd = -1;
     if (bindhost == NULL && family == AF_UNSPEC) {
-        // create dual-stack socket by default
-        sockfd = create_dualstack_socket(listenport);
-        if (sockfd >= 0) {
+        // Try dual-stack first (single socket, IPv4-mapped + IPv6)
+        int fd = create_dualstack_socket(listenport);
+        if (fd >= 0) {
+            if (apply_socket_opts(fd, sockbuflen) < 0) return -1;
+            socks[0] = fd;
             LogInfo("Listening dual-stack IPv4/IPv6 on [::]:%s", listenport);
-        } else {
-            LogInfo("Dual-stack bind failed: %s - falling back to getaddrinfo()", strerror(errno));
+            return 1;
         }
-    }
+        LogVerbose("Opening separate IPv4 and IPv6 sockets");
 
-    if (sockfd < 0) {
-        // serach for interface to bind
-        sockfd = search_socket(bindhost, listenport, &family);
-        if (sockfd < 0) {
-            LogError("Could not bind to %s:%s. No interface found", bindhost ? bindhost : "any", listenport);
+        // Open IPv4 socket
+        int fam4 = AF_INET;
+        int fd4 = search_socket(NULL, listenport, &fam4);
+        if (fd4 < 0) {
+            LogError("Could not bind IPv4 socket on port %s: %s", listenport, strerror(errno));
             return -1;
         }
+        if (apply_socket_opts(fd4, sockbuflen) < 0) return -1;
 
-        LogInfo("Bound to %s host: %s, port: %s", family == AF_INET ? "IPv4" : "IPv6", bindhost ? bindhost : "any", listenport);
-    }
-
-    // set socket buffer
-    if (sockbuflen > 0) {
-        if (set_socket_buffer(sockfd, sockbuflen) < 0) {
-            close(sockfd);
+        // Open IPv6-only socket (IPV6_V6ONLY=1 avoids conflict with the IPv4 socket)
+        int fam6 = AF_INET6;
+        int fd6 = search_socket(NULL, listenport, &fam6);
+        if (fd6 < 0) {
+            LogError("Could not bind IPv6 socket on port %s: %s", listenport, strerror(errno));
+            close(fd4);
             return -1;
         }
+        int on = 1;
+        setsockopt(fd6, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
+        if (apply_socket_opts(fd6, sockbuflen) < 0) {
+            close(fd4);
+            return -1;
+        }
+        socks[0] = fd4;
+        socks[1] = fd6;
+        LogInfo("Listening IPv4 on 0.0.0.0:%s and IPv6 on [::]:%s", listenport, listenport);
+        return 2;
     }
 
-    // Enable kernel timestamping on socket
-    int enabled = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_TIMESTAMP, &enabled, sizeof(enabled)) < 0) {
-        close(sockfd);
-        LogError("setsockopt() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    // bindhost specified or specific family: single socket via getaddrinfo
+    int fd = search_socket(bindhost, listenport, &family);
+    if (fd < 0) {
+        LogError("Could not bind to %s:%s. No interface found", bindhost ? bindhost : "any", listenport);
         return -1;
     }
-
-    return sockfd;
-}  // End of Unicast_receive_socket
+    if (apply_socket_opts(fd, sockbuflen) < 0) return -1;
+    LogInfo("Bound to %s host: %s, port: %s", family == AF_INET ? "IPv4" : "IPv6", bindhost ? bindhost : "any", listenport);
+    socks[0] = fd;
+    return 1;
+}  // End of Unicast_receive_sockets
 
 PacketCtx_t *init_packet_ctx(size_t buf_size) {
     PacketCtx_t *PacketCtx = malloc(sizeof(PacketCtx_t) + buf_size);

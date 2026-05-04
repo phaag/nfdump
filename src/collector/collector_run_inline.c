@@ -40,7 +40,7 @@
  *   - static int done;            (module shutdown flag)
  *   - #include "nfnet.h"          (PacketCtx_t, init_packet_ctx)
  *   - #include "logging.h"        (LogError)
- *   - standard POSIX headers      (poll.h, time.h, errno.h, sys/time.h)
+ *   - standard POSIX headers      (sys/select.h, time.h, errno.h, sys/time.h)
  */
 
 /* Signal handler — identical in nfcapd and sfcapd */
@@ -88,11 +88,6 @@ static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct t
 /*
  * Wait for a packet or for the rotation deadline to arrive.
  *
- * poll() is NOT used here because on OpenBSD its libc wrapper sits on top
- * of kevent(2) and silently retries on EINTR, so the application never sees
- * EINTR even when SA_RESTART is not set.  The same wrapper approach exists
- * in some other BSDs and is permitted by POSIX.
- *
  * pselect() is a true syscall on every platform (Linux, macOS, all BSDs).
  * It atomically unblocks the nominated signals for the duration of the wait,
  * so delivery of SIGTERM/SIGINT/SIGHUP is guaranteed to return EINTR.
@@ -103,13 +98,21 @@ static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct t
  *   - origmask is the signal mask to restore atomically inside pselect().
  *   - The caller restores the original mask after the loop exits.
  *
+ * socks[0..nsocks-1] are the receive file descriptors to watch (1 or 2).
+ *
  * Returns:
- *   > 0  packet ready
- *   = 0  timeout (time to rotate)
- *   -2   interrupted by signal while done == 1 (initiate shutdown)
- *   -1   fatal pselect() error (already logged)
+ *   >= 0  index into socks[] of the socket with a pending datagram
+ *   -3    timeout (time to rotate)
+ *   -2    interrupted by signal while done == 1 (initiate shutdown)
+ *   -1    fatal pselect() error (already logged)
  */
-static inline int poll_for_packet(int fd, time_t next_rotate, const sigset_t *origmask) {
+static inline int poll_for_packet(const int *socks, int nsocks, time_t next_rotate, const sigset_t *origmask) {
+    // compute nfds = max(socks[i]) + 1
+    int nfds = 0;
+    for (int i = 0; i < nsocks; i++)
+        if (socks[i] > nfds) nfds = socks[i];
+    nfds++;
+
     for (;;) {
         // check done while signals are blocked — no race with the handler
         if (done) return -2;
@@ -121,13 +124,17 @@ static inline int poll_for_packet(int fd, time_t next_rotate, const sigset_t *or
 
         fd_set rfd;
         FD_ZERO(&rfd);
-        FD_SET(fd, &rfd);
+        for (int i = 0; i < nsocks; i++) FD_SET(socks[i], &rfd);
 
-        /* pselect() atomically swaps in origmask (unblocking the signals)
-         * for the duration of the call, then restores the blocked mask on return. */
-        int ret = pselect(fd + 1, &rfd, NULL, NULL, &ts, origmask);
-        if (ret > 0) return 1;
-        if (ret == 0) return 0;
+        // pselect() atomically swaps in origmask (unblocking the signals)
+        // for the duration of the call, then restores the blocked mask on return
+        int ret = pselect(nfds, &rfd, NULL, NULL, &ts, origmask);
+        if (ret > 0) {
+            for (int i = 0; i < nsocks; i++)
+                if (FD_ISSET(socks[i], &rfd)) return i;
+            continue;  // pselect returned ready but no fd matched — shouldn't happen
+        }
+        if (ret == 0) return -3;
         if (errno == EINTR) {
             // signal arrived — loop back to check done
             continue;

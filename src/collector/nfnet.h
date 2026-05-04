@@ -60,7 +60,7 @@ typedef struct PacketCtx_s {
 
 /* Function prototypes */
 
-int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, unsigned sockbuflen);
+int Unicast_receive_sockets(const char *bindhost, const char *listenport, int family, unsigned sockbuflen, int socks[2]);
 
 int Multicast_receive_socket(const char *hostname, const char *listenport, int family, unsigned sockbuflen);
 

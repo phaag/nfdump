@@ -215,7 +215,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
 }  // End of process_packet
 
 // live network mode
-static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, repeater_ctx_t *repeater_ctx, int socket,
+static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, repeater_ctx_t *repeater_ctx, int *socks, int nsocks,
                         time_t t_win) {
     // prepare socket msg struct
     PacketCtx_t *pkt_ctx = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
@@ -250,12 +250,12 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     uint32_t repeaterDropped = 0;
     while (!done) {
         // wait for packet or timeout
-        int ret = poll_for_packet(socket, next_rotate, &origmask);
+        int ret = poll_for_packet(socks, nsocks, next_rotate, &origmask);
 
-        if (ret > 0) {
-            // packet ready
+        if (ret >= 0) {
+            // packet ready on socks[ret]
             struct timeval tv = {0};
-            ssize_t cnt = recv_packet(socket, pkt_ctx, &tv);
+            ssize_t cnt = recv_packet(socks[ret], pkt_ctx, &tv);
 
             now = tv.tv_sec;
             if (cnt > 0) {
@@ -301,7 +301,7 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
                 LogError("recvmsg() failed: %s", strerror(errno));
                 continue;
             }
-        } else if (ret == 0) {
+        } else if (ret == -3) {
             // poll timeout -> rotate
             now = time(NULL);
         } else if (ret == -2) {
@@ -419,6 +419,12 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
     free(pkt_ctx);
 }  // End of run_file_mode
 
+// Close all open receive sockets (safe to call with nsocks == 0 or socks[i] == -1)
+static void close_sockets(int *socks, int nsocks) {
+    for (int i = 0; i < nsocks; i++)
+        if (socks[i] >= 0) { close(socks[i]); socks[i] = -1; }
+}  // End of close_sockets
+
 int main(int argc, char **argv) {
     char *bindhost, *launch_process;
     char *userid, *groupid, *mcastgroup;
@@ -427,7 +433,7 @@ int main(int argc, char **argv) {
     packet_function_t receive_packet;
     unsigned bufflen, metricInterval;
     time_t twin;
-    int sock, family, do_daemonize, expire, verbose, spec_time_extension;
+    int socks[2], nsocks, family, do_daemonize, expire, verbose, spec_time_extension;
     unsigned subdir_index;
     int numWorkers;
     char *pcap_file = NULL;
@@ -762,7 +768,8 @@ int main(int argc, char **argv) {
 
 // Debug code to read from pcap file
 #ifdef ENABLE_READPCAP
-    sock = -1;
+    socks[0] = socks[1] = -1;
+    nsocks = 0;
     if (pcap_file) {
         printf("Setup pcap reader\n");
         if (!setup_pcap_offline(pcap_file, NULL)) {
@@ -780,19 +787,21 @@ int main(int argc, char **argv) {
     } else
 #endif
     {
-        if (mcastgroup)
-            sock = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
-        else
-            sock = Unicast_receive_socket(bindhost, listenport, family, bufflen);
+        if (mcastgroup) {
+            socks[0] = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
+            nsocks = (socks[0] >= 0) ? 1 : 0;
+        } else {
+            nsocks = Unicast_receive_sockets(bindhost, listenport, family, bufflen, socks);
+        }
 
-        if (sock == -1) {
+        if (nsocks <= 0) {
             LogError("Terminated due to errors");
             exit(EXIT_FAILURE);
         }
     }
 
     // before we drop our privileges, check for srcSpoofing and a repeater
-    if (sock < 0 && repeater_host.hostname) {
+    if (nsocks <= 0 && repeater_host.hostname) {
         LogError("Packet repeaters can be used only together with a live network socket");
         exit(EXIT_FAILURE);
     }
@@ -823,7 +832,7 @@ int main(int argc, char **argv) {
     }
 
     if (!CheckSubDir(subdir_index)) {
-        close(sock);
+        close_sockets(socks, nsocks);
         exit(EXIT_FAILURE);
     }
 
@@ -835,14 +844,14 @@ int main(int argc, char **argv) {
         pid_t pid = check_pid(pidfile);
         if (pid != 0) {
             LogError("Another process with pid %lu is holding the pidfile: %s", (long unsigned)pid, pidfile);
-            close(sock);
+            close_sockets(socks, nsocks);
             exit(255);
         }
         if (write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
     if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
-        close(sock);
+        close_sockets(socks, nsocks);
         exit(EXIT_FAILURE);
     }
 
@@ -856,14 +865,14 @@ int main(int argc, char **argv) {
 
     if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
         LogError("Failed to initialized nffile backend");
-        close(sock);
+        close_sockets(socks, nsocks);
         CloseMetric();
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
     if (!LaunchBackend(&collector_ctx)) {
-        close(sock);
+        close_sockets(socks, nsocks);
         CloseMetric();
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
@@ -872,7 +881,7 @@ int main(int argc, char **argv) {
     pthread_t repeater_tid = 0;
     if (repeater_ctx && (repeater_tid = RepeaterStart(repeater_ctx)) == 0) {
         CloseMetric();
-        close(sock);
+        close_sockets(socks, nsocks);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
@@ -881,7 +890,7 @@ int main(int argc, char **argv) {
     if (launcher_ctx && (launcher_tid = LauncherStart(launcher_ctx)) == 0) {
         RepeaterShutdown(repeater_ctx);
         CloseMetric();
-        close(sock);
+        close_sockets(socks, nsocks);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
@@ -896,7 +905,7 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGHUP, &act, NULL);
 
-    if (sock < 0 && receive_packet == NULL) {
+    if (nsocks <= 0 && receive_packet == NULL) {
         LogError("No packet source defined");
         CloseMetric();
         remove_pid(pidfile);
@@ -904,9 +913,9 @@ int main(int argc, char **argv) {
     }
 
     LogInfo("Startup sfcapd.");
-    if (sock > 0) {
-        run_network(&collector_ctx, &nffile_backend_ctx, repeater_ctx, sock, twin);
-        close(sock);
+    if (nsocks > 0) {
+        run_network(&collector_ctx, &nffile_backend_ctx, repeater_ctx, socks, nsocks, twin);
+        close_sockets(socks, nsocks);
     } else {
         run_file_mode(&collector_ctx, &nffile_backend_ctx, receive_packet, twin);
     }
