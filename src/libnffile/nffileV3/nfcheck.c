@@ -42,6 +42,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "conf/nfconf.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
@@ -220,33 +221,35 @@ int VerifyFileV3(const char *filename, int verbose) {
         printf("File '%s' not cleanly closed - try to recover\n", filename);
     }
 
-    if (footer->checksum) printf("Checksum   : 0x%" PRIx64 "\n", footer->checksum);
-    do {
-        if (blockDirectory == NULL) {
-            // no valid block directory found - try to recover from footer, if it is valid
-            if (footer && footer->offDirectory && (footer->offDirectory < fileSize)) {
-                // block directory within file
-                blockDirectory = (const blockDirectoryV3_t *)(map + footer->offDirectory);
-            } else {
-                break;
+    if (footer) {
+        if (footer->checksum) printf("Checksum   : 0x%" PRIx64 "\n", footer->checksum);
+        do {
+            if (blockDirectory == NULL) {
+                // no valid block directory found - try to recover from footer, if it is valid
+                if (footer && footer->offDirectory && (footer->offDirectory < fileSize)) {
+                    // block directory within file
+                    blockDirectory = (const blockDirectoryV3_t *)(map + footer->offDirectory);
+                } else {
+                    break;
+                }
+                if (blockDirectory->magic != DIRECTORY_MAGIC) {
+                    printf("Bad directory magic 0x%X in footer for '%s'\n", blockDirectory->magic, filename);
+                    blockDirectory = NULL;
+                    break;
+                }
+                // valid block directory
+                if ((footer->offDirectory + footer->dirSize) > fileSize) {
+                    // block directory valid but extends beyond EOF
+                    printf("Bad directory in footer for '%s' - extends beyond EOF\n", filename);
+                    blockDirectory = NULL;
+                    break;
+                } else {
+                    // finally valid block directory found
+                    dirSize = footer->dirSize;
+                }
             }
-            if (blockDirectory->magic != DIRECTORY_MAGIC) {
-                printf("Bad directory magic 0x%X in footer for '%s'\n", blockDirectory->magic, filename);
-                blockDirectory = NULL;
-                break;
-            }
-            // valid block directory
-            if ((footer->offDirectory + footer->dirSize) > fileSize) {
-                // block directory valid but extends beyond EOF
-                printf("Bad directory in footer for '%s' - extends beyond EOF\n", filename);
-                blockDirectory = NULL;
-                break;
-            } else {
-                // finally valid block directory found
-                dirSize = footer->dirSize;
-            }
-        }
-    } while (0);
+        } while (0);
+    }
 
     // verify directory checksum if present
     if (footer && blockDirectory && footer->checksum != 0) {
@@ -574,6 +577,8 @@ static int ReWriteBlocks(const uint8_t *map, size_t fileSize, const fileHeaderV3
         blockSize = BLOCK_SIZE_V3;
     }
 
+    int xxHash = ConfGetValue("xxhash") ? 1 : 0;
+
     // determine scan region of corrupted file
     off_t scanEnd;
     if (srcHeader->offDirectory && srcHeader->offDirectory < fileSize) {
@@ -635,11 +640,29 @@ static int ReWriteBlocks(const uint8_t *map, size_t fileSize, const fileHeaderV3
             break;
         }
 
-        ret = write(dstFd, map + srcOffset, blk->discSize);
-        if (ret != (ssize_t)blk->discSize) {
-            LogError("ReWriteV3: write block %u error: %s", blocksCopied, strerror(errno));
-            writeError = 1;
-            break;
+        {
+            const uint8_t *payload = (const uint8_t *)blk + sizeof(dataBlockV3_t);
+            uint32_t payloadSize = blk->discSize - (uint32_t)sizeof(dataBlockV3_t);
+            dataBlockV3_t hdr = *blk;
+            if (xxHash && payloadSize > 0) {
+                hdr.checksum = XXH3_64bits(payload, payloadSize);
+            } else {
+                hdr.checksum = 0;
+            }
+            ret = write(dstFd, &hdr, sizeof(dataBlockV3_t));
+            if (ret != (ssize_t)sizeof(dataBlockV3_t)) {
+                LogError("ReWriteV3: write block %u header error: %s", blocksCopied, strerror(errno));
+                writeError = 1;
+                break;
+            }
+            if (payloadSize > 0) {
+                ret = write(dstFd, payload, payloadSize);
+                if (ret != (ssize_t)payloadSize) {
+                    LogError("ReWriteV3: write block %u payload error: %s", blocksCopied, strerror(errno));
+                    writeError = 1;
+                    break;
+                }
+            }
         }
 
         if (!AddBlock(&blockList, blk->type, (uint64_t)dstOffset, blk->discSize)) {
@@ -686,16 +709,27 @@ static int ReWriteBlocks(const uint8_t *map, size_t fileSize, const fileHeaderV3
             return 0;
         }
     }
-    free(blockList.entries);
 
     uint32_t dirSize = (uint32_t)(sizeof(blockDirectoryV3_t) + entriesSize);
+
+    // compute directory checksum if xxHash is enabled
+    uint64_t dirChecksum = 0;
+    if (xxHash) {
+        XXH3_state_t *state = XXH3_createState();
+        XXH3_64bits_reset(state);
+        XXH3_64bits_update(state, &dirHdr, sizeof(blockDirectoryV3_t));
+        if (entriesSize > 0) XXH3_64bits_update(state, blockList.entries, entriesSize);
+        dirChecksum = XXH3_64bits_digest(state);
+        XXH3_freeState(state);
+    }
+    free(blockList.entries);
 
     // write footer
     fileFooterV3_t footer = {
         .magic = FOOTER_MAGIC_V3,
         .dirSize = dirSize,
         .offDirectory = (uint64_t)dirOffset,
-        .checksum = 0,  // TODO: xxHash64 over directory region
+        .checksum = dirChecksum,
     };
     ret = write(dstFd, &footer, sizeof(fileFooterV3_t));
     if (ret != (ssize_t)sizeof(fileFooterV3_t)) {

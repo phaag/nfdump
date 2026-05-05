@@ -65,7 +65,7 @@ typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
 typedef void *(*preprocess_proc_t)(uint32_t, data_t, recordHandle_t *, filterOption_t);
 
-// ── Build-time tree node (freed after EmitBytecode)
+// ── Build-time tree node (freed after generateByteCode)
 typedef struct filterElement {
     uint32_t extID;
     uint32_t offset;
@@ -180,7 +180,8 @@ typedef enum {
  *            (aux and dataVal are in a union; no op uses both)
  */
 typedef struct filterInstr_s {
-    uint16_t op;
+    const void *handler; /* direct-threaded label address – goto *inst->handler */
+    uint16_t op;         /* opcode (kept for DumpEngine / DisposeFilter) */
     uint8_t extID;
     uint8_t fnID;
     uint8_t length;
@@ -196,7 +197,12 @@ typedef struct filterInstr_s {
     };
 } filterInstr_t;
 
-_Static_assert(sizeof(filterInstr_t) == 32, "filterInstr_t must be 32 bytes");
+_Static_assert(sizeof(filterInstr_t) == 40, "filterInstr_t must be 40 bytes");
+
+/* Module-global dispatch table for direct threading.
+ * Populated once by InitFilterDispatch() (via RunFilter in init mode)
+ * before any CompileFilter() call.  Never modified after that. */
+static const void *g_jt[FOP__COUNT];
 
 /*
  * Runtime engine.  prog[] is immutable after CompileFilter() and shared
@@ -1266,6 +1272,7 @@ static filterInstr_t buildInstr(const filterElement_t *e, uint16_t onTrue, uint1
                 break;
         }
     }
+    inst.handler = g_jt[inst.op];
     return inst;
 }  // End of buildInstr
 
@@ -1333,7 +1340,7 @@ static uint16_t emitNodes(uint32_t rootElem, const filterElement_t *filter, filt
  * After emission, converts all IPlist_t pointers to IPSet_t and
  * all U64List_t pointers to U64Set_t for fast runtime lookup.
  */
-static filterInstr_t *EmitBytecode(uint32_t rootElem, uint32_t numElems, uint16_t *startNodeOut, uint32_t *progLenOut) {
+static filterInstr_t *generateByteCode(uint32_t rootElem, uint32_t numElems, uint16_t *startNodeOut, uint32_t *progLenOut) {
     /* Allocate program: 2 terminals + one slot per tree node */
     uint32_t maxProg = numElems + 2;
     filterInstr_t *prog = calloc(maxProg, sizeof(filterInstr_t));
@@ -1344,7 +1351,9 @@ static filterInstr_t *EmitBytecode(uint32_t rootElem, uint32_t numElems, uint16_
 
     /* Fixed terminals */
     prog[BC_ACCEPT].op = FOP_ACCEPT;
+    prog[BC_ACCEPT].handler = g_jt[FOP_ACCEPT];
     prog[BC_REJECT].op = FOP_REJECT;
+    prog[BC_REJECT].handler = g_jt[FOP_REJECT];
     uint16_t progLen = 2;
 
     uint16_t *indexMap = malloc(maxProg * sizeof(uint16_t));
@@ -1414,7 +1423,7 @@ static filterInstr_t *EmitBytecode(uint32_t rootElem, uint32_t numElems, uint16_
     *startNodeOut = startNode;
     *progLenOut = progLen;
     return prog;
-}  // End of EmitBytecode
+}  // End of generateByteCode
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * RunFilter – computed-goto bytecode interpreter (GCC/Clang extension).
@@ -1493,12 +1502,21 @@ static int RunFilter(const FilterEngine_t *engine, recordHandle_t *handle) {
         [FOP_PREP_REGEX] = &&L_PREP_REGEX,
     };
 
+    /* Init mode: called once with engine == NULL from InitFilterDispatch().
+     * Copies the local jt[] label addresses into g_jt so that buildInstr()
+     * can embed them directly into each instruction's handler field. */
+    if (__builtin_expect(engine == NULL, 0)) {
+        memcpy(g_jt, jt, sizeof(jt));
+        return 0;
+    }
+
     /* Advance to the next instruction and dispatch.
-     * Each NEXT call site gets its own BTB entry → one prediction per opcode. */
+     * Direct threading: inst->handler holds the label address so dispatch
+     * is a single load + indirect branch – no jt[] table lookup needed. */
 #define NEXT(result)                                           \
     do {                                                       \
         inst = &prog[(result) ? inst->onTrue : inst->onFalse]; \
-        goto *jt[inst->op];                                    \
+        goto * inst->handler;                                  \
     } while (0)
 
     /* Preprocess preamble for FOP_PREP_* handlers.
@@ -1509,13 +1527,13 @@ static int RunFilter(const FilterEngine_t *engine, recordHandle_t *handle) {
         if (_ext == NULL || (filterOption_t)inst->option != OPT_NONE) {                                          \
             if ((unsigned)inst->extID >= MAXLISTSIZE || preprocess_map[inst->extID].function == NULL) {          \
                 inst = &prog[inst->onFalse];                                                                     \
-                goto *jt[inst->op];                                                                              \
+                goto * inst->handler;                                                                            \
             }                                                                                                    \
             data_t _d = {.dataVal = inst->dataVal};                                                              \
             _ext = preprocess_map[inst->extID].function(inst->length, _d, handle, (filterOption_t)inst->option); \
             if (!_ext) {                                                                                         \
                 inst = &prog[inst->onFalse];                                                                     \
-                goto *jt[inst->op];                                                                              \
+                goto * inst->handler;                                                                            \
             }                                                                                                    \
         }                                                                                                        \
         (inPtr) = (uint8_t *)_ext + inst->offset;                                                                \
@@ -1523,7 +1541,7 @@ static int RunFilter(const FilterEngine_t *engine, recordHandle_t *handle) {
 
     const filterInstr_t *const restrict prog = engine->prog;
     const filterInstr_t *inst = &prog[engine->startNode];
-    goto *jt[inst->op];
+    goto * inst->handler;
 
     /* ── terminals ──────────────────────────────────────────────────── */
 L_ACCEPT:
@@ -1963,7 +1981,7 @@ L_PREP_PAYLOAD: {
     uint8_t *_ext = handle->extensionList[inst->extID];
     if (__builtin_expect(!_ext, 0)) {
         inst = &prog[inst->onFalse];
-        goto *jt[inst->op];
+        goto * inst->handler;
     }
     if (preprocess_map[inst->extID].function) {
         data_t _d = {.dataVal = inst->dataVal};
@@ -1989,7 +2007,7 @@ L_PREP_REGEX: {
     uint8_t *_ext = handle->extensionList[inst->extID];
     if (__builtin_expect(!_ext, 0)) {
         inst = &prog[inst->onFalse];
-        goto *jt[inst->op];
+        goto * inst->handler;
     }
     if (preprocess_map[inst->extID].function) {
         data_t _d = {.dataVal = inst->dataVal};
@@ -2068,9 +2086,18 @@ char *ReadFilter(char *filename) {
 
 }  // End of ReadFilter
 
+/* Populate g_jt by calling RunFilter in init mode (engine == NULL).
+ * Must run before generateByteCode() so every buildInstr() call can
+ * embed handler addresses directly into the instruction struct. */
+static void InitFilterDispatch(void) {
+    if (g_jt[FOP_ACCEPT] != NULL) return;
+    RunFilter(NULL, NULL);
+}  // End of InitFilterDispatch
+
 void *CompileFilter(char *FilterSyntax) {
     if (!FilterSyntax) return NULL;
 
+    InitFilterDispatch();
     InitFilter();
     lex_init(FilterSyntax);
     if (yyparse() != 0) {
@@ -2081,7 +2108,7 @@ void *CompileFilter(char *FilterSyntax) {
     // Emit bytecode from the build-time tree
     uint16_t startNode = 0;
     uint32_t progLen = 0;
-    filterInstr_t *prog = EmitBytecode(StartNode, NumBlocks, &startNode, &progLen);
+    filterInstr_t *prog = generateByteCode(StartNode, NumBlocks, &startNode, &progLen);
     if (!prog) return NULL;
 
     /* Free the build-time tree (blocklists were freed by UpdateList;
