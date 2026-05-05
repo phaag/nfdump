@@ -331,36 +331,6 @@ static char *string_trim(char *s) {
     return s;
 }  // end of string_trim
 
-static int valid_ipv4(char *s) {
-    char *c = s;
-    int i = 0;
-    while (*c) {
-        if ((!isdigit(*c) && *c != '.') || i > 15) {
-            return 0;
-        }
-        c++;
-        i++;
-    }
-
-    c = strdup(s);
-    int numbers = 0;
-    char *sep = ".";
-    char *brkt;
-    char *ns = strtok_r(c, sep, &brkt);
-    while (ns) {
-        int num = atoi(ns);
-        if (num > 255) {
-            free(c);
-            return 0;
-        }
-        numbers++;
-        ns = strtok_r(NULL, sep, &brkt);
-    }
-
-    free(c);
-    return numbers == 4;
-}
-
 int main(int argc, char **argv) {
     char *dirName = NULL;
     char *torFileDB = getenv("NFTORDB");

@@ -300,11 +300,14 @@ static char *stripQuotes(char *string) {
 		}
     char *w = strdup(string);
 
-    // strip ", ' and /' from begin/end of string
-    if ( w[0] == 0x27 || w[0] == 0x22 || w[0] == 0x2f ) w++;
-  size_t last = strlen(w) -1;
+    // strip ", ' and / from begin/end of string
+    char *p = w;
+    if ( p[0] == 0x27 || p[0] == 0x22 || p[0] == 0x2f ) p++;
+    size_t last = strlen(p) - 1;
+    if ( p[last] == 0x27 || p[last] == 0x22 || p[last] == 0x2f ) p[last] = '\0';
 
-    if ( w[last] == 0x27 || w[last] == 0x22 || w[last] == 0x2f ) w[last] = '\0';
+    // shift content to base of allocation so the returned pointer is free()-able
+    if ( p != w ) memmove(w, p, strlen(p) + 1);
 
     return w;
 } // End of stripQuotes
