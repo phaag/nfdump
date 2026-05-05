@@ -48,15 +48,8 @@
 int lineno = 1;
 
 
-#ifdef FLEX_SCANNER
 #define YY_NO_UNPUT
 static YY_BUFFER_STATE in_buffer;
-#else
-static char *in_buffer;
-
-#undef getc
-#define getc(fp)  (*in_buffer == 0 ? EOF : *in_buffer++)
-#endif
 
 #define MAX_INCLUDE_DEPTH 10
 YY_BUFFER_STATE include_stack[MAX_INCLUDE_DEPTH];
@@ -68,18 +61,13 @@ struct buffer_info {
 
 int include_stack_ptr = 0;
 
-char	*FilterFilename = NULL;;
+char	*FilterFilename = NULL;
 
 static char *stripQuotes(char *word);
 
-static void __attribute__((noreturn)) yy_fatal_error (yyconst char msg[]);
-
-// static void __attribute__((unused))yyunput (int c, char * yy_bp);
+static void __attribute__((noreturn)) yy_fatal_error (const char msg[]);
 
 %}
-
-N				[0-9]+
-H				(0X|0x)[0-9A-Fa-f]+
 
 %%
 @include		 BEGIN(incl);
@@ -269,11 +257,7 @@ geo\ [a-zA-Z]{2}      {
 %%
 
 void lex_init(char *buf) {
-#ifdef FLEX_SCANNER
 		in_buffer = yy_scan_string(buf);
-#else
-		in_buffer = buf;
-#endif
 		lineno = 1;
 }
 
@@ -281,11 +265,9 @@ void lex_init(char *buf) {
  * Do any cleanup necessary after parsing.
  */
 void lex_cleanup(void) {
-#ifdef FLEX_SCANNER
 		if (in_buffer != NULL)
 				yy_delete_buffer(in_buffer);
 		in_buffer = NULL;
-#endif
 }
 
 int yywrap(void) {

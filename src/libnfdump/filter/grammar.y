@@ -186,7 +186,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token IP IPV4 IPV6 IPTTL NET
 %token SRC DST IN OUT MIN MAX PREV NEXT BGP ROUTER INGRESS EGRESS
 %token CLIENT SERVER
-%token NAT XLATE TUN
+%token NAT TUN
 %token ENGINE ENGINETYPE ENGINEID EXPORTER
 %token DURATION PPS BPS BPP FLAGS
 %token PROTO PORT AS IF VLAN MPLS MAC ICMP ICMPTYPE ICMPCODE
@@ -516,19 +516,19 @@ iplist:	STRING	{
 	}
 
 	| iplist STRING { 
-		if (InsertIPlist($1, $2, -1) == 0 ) YYABORT;
+		$$ = $1; if (InsertIPlist($1, $2, -1) == 0 ) YYABORT;
 	}
 
 	| iplist ',' STRING { 
-		if (InsertIPlist($1, $3, -1) == 0 ) YYABORT;
+		$$ = $1; if (InsertIPlist($1, $3, -1) == 0 ) YYABORT;
 	}
 
 	| iplist STRING '/' NUMBER	{ 
-		if (InsertIPlist($1, $2, $4) == 0 ) YYABORT;
+		$$ = $1; if (InsertIPlist($1, $2, $4) == 0 ) YYABORT;
 	}
 
 	| iplist ',' STRING '/' NUMBER	{ 
-		if (InsertIPlist($1, $3, $5) == 0 ) YYABORT;
+		$$ = $1; if (InsertIPlist($1, $3, $5) == 0 ) YYABORT;
 	}
 	;
 
@@ -537,11 +537,11 @@ u64list: NUMBER {
 	}
 
 	| u64list NUMBER { 
-		if (InsertU64list($1, $2) == 0 ) YYABORT;
+		$$ = $1; if (InsertU64list($1, $2) == 0 ) YYABORT;
 	}
 
 	| u64list ',' NUMBER { 
-		if (InsertU64list($1, $3) == 0 ) YYABORT;
+		$$ = $1; if (InsertU64list($1, $3) == 0 ) YYABORT;
 	}
 	;
 
@@ -916,8 +916,6 @@ static int AddFlagsString(direction_t direction, char *flags) {
   } else {
 		return AddFlagsNumber(direction, CMP_FLAGS, fl);
   }
-
-	// unreached
 } // End of AddFlagsString
 
 static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos) {
@@ -1057,14 +1055,11 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 			yyprintf("Unknown mpls argument: %s", type);
 			return -1;
 	}
-
-	// unreached
-	return -1;
 } // End of AddMPLS
 
 static int AddEthertype(uint64_t etherType) {
 	return NewElement(EXlayer2ID, OFFetherType, SIZEetherType, etherType, CMP_EQ, FUNC_NONE, NULLPtr);
-} // End of AddMAC
+} // End of AddEthertype
 
 static int AddMAC(direction_t direction, char *macString) {
 
@@ -1123,9 +1118,6 @@ static int AddMAC(direction_t direction, char *macString) {
 			yyprintf("Unknown mac argument");
 			return -1;
 	}
-
-	// unreached
-	return -1;
 } // End of AddMAC
 
 static int AddLatency(direction_t direction, uint16_t comp, uint64_t number) {
@@ -1215,9 +1207,8 @@ static int AddACL(direction_t direction, uint16_t comp, uint64_t number) {
 	return Connect_OR (
 		Connect_OR(acl[0], acl[1]), acl[2]
 	);
-	return -1;
 
-} // End of AddASA
+} // End of AddACL
 
 static int AddASApblock(direction_t direction, char *arg) {
 
