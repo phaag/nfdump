@@ -287,17 +287,50 @@ typedef struct FlowKeyV4_s {
     uint32_t dstAddr;
 } FlowKeyV4_t;
 
-static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
+static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow, uint64_t *hash_out);
 
 // include hash function in same compiler unit
 #include "metrohash.c"
+#include "wyhash.h"
 
-// cell index calculation from 32bit hash, depending of hash bit size 'shift'
-#define ___fib_hash(hash, shift) ((hash) * 2654435769U) >> (shift)
+// cell index calculation from 64bit hash, depending of hash bit size 'shift'
+// XOR-fold the 64-bit hash to 32 bits before applying the Fibonacci multiplier
+#define ___fib_hash(hash, shift) (((uint32_t)((hash) ^ ((hash) >> 32))) * 2654435769U) >> (shift)
 
 // flag macros
 #define is_free(flag, i) (flag[i] == 0)
 #define is_used(flag, i) (flag[i] != 0)
+
+// Fast hand-written hash mixers for fixed-size 5-tuple flow keys.
+// IPv4 (FlowKeyV4_t): 16 bytes = 2 x uint64_t.
+// IPv6 (FlowKeyV6_t): 40 bytes = 5 x uint64_t.
+// Uses multiply-xor accumulation with a splitmix64 finalizer.
+// Falls back to metrohash for variable-length custom aggregation keys.
+static inline uint64_t hash_flow_v4(const void *key) {
+    const uint64_t *k = (const uint64_t *)key;
+    uint64_t h = k[0] * 0x9e3779b97f4a7c15ULL ^ k[1] * 0x6c62272e07bb0142ULL;
+    h ^= h >> 30;
+    h *= 0xbf58476d1ce4e5b9ULL;
+    h ^= h >> 27;
+    h *= 0x94d049bb133111ebULL;
+    h ^= h >> 31;
+    return h;
+}
+
+static inline uint64_t hash_flow_v6(const void *key) {
+    const uint64_t *k = (const uint64_t *)key;
+    uint64_t h = k[0] * 0x9e3779b97f4a7c15ULL;
+    h = (h ^ k[1]) * 0x6c62272e07bb0142ULL;
+    h = (h ^ k[2]) * 0xbf58476d1ce4e5b9ULL;
+    h = (h ^ k[3]) * 0x94d049bb133111ebULL;
+    h = (h ^ k[4]) * 0xc4ceb9fe1a85ec53ULL;
+    h ^= h >> 30;
+    h *= 0xbf58476d1ce4e5b9ULL;
+    h ^= h >> 27;
+    h *= 0x94d049bb133111ebULL;
+    h ^= h >> 31;
+    return h;
+}
 
 /*
  * 3way hash:
@@ -317,8 +350,7 @@ typedef struct hashValue_s {
         uint64_t val[2];  // 16 byte static hash value
         void *valPtr;     // value pointer if size > 16bytes
     };
-    uint32_t hash;     // calculated 32bit metrohash
-    uint32_t align;    // calculated 64bit metrohash
+    uint64_t hash;     // calculated 64bit hash (was 32bit + dead align field)
     uint32_t ptrSize;  // if > 0, valPtr points to value
     uint32_t index;    // index into record array for statistics values
 } hashValue_t;
@@ -432,11 +464,11 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
 static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t value, int *insert) {
     if (flowHash->count == flowHash->load_factor) flowHash_resize(flowHash);
 
-    uint32_t hash = value.hash;
+    uint64_t hash = value.hash;
     // cell address
     uint32_t cell = ___fib_hash(hash, flowHash->shift);
 
-    uint8_t flag = 0x80 | (hash & 0x7F);
+    uint8_t flag = 0x80 | (uint8_t)(hash & 0x7F);
     // shortcut for likely unused cell - speed up
     if (is_free(flowHash->flags, cell)) {
         int index = flowHash->count++;
@@ -482,14 +514,14 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t value, in
  *   -1 if value does not exists
  */
 static inline int flowHash_get(flowHash_t *flowHash, const hashValue_t value) {
-    uint32_t hash = value.hash;
+    uint64_t hash = value.hash;
     // cell address
     uint32_t cell = ___fib_hash(hash, flowHash->shift);
 
     // shortcut to speed up if cell is empty
     if (is_free(flowHash->flags, cell)) return -1;
 
-    uint8_t flag = 0x80 | (hash & 0x7F);
+    uint8_t flag = 0x80 | (uint8_t)(hash & 0x7F);
     // cell used, check for correct value
     do {
         // search for matching flag
@@ -750,7 +782,8 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
  * generate dynamic hash value for hast table, depending on -s or -A parameters
  * returns actual keylen for this record.
  */
-static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow) {
+static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow, uint64_t *hash_out) {
+    void *keystart = keymem;  // save key start — keymem is advanced during key build
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
@@ -814,6 +847,8 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
                     memcpy((void *)keymem, inPtr, param->length);
             }
         }
+        // *hash_out = wyhash(keystart, (uint64_t)keyLen, 0);
+        *hash_out = metrohash64_1(keystart, (uint64_t)keyLen, 0);
 
     } else if (swap_flow) {
         // default 5-tuple aggregation for bidirectional flows
@@ -828,6 +863,7 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET;
             keymem += sizeof(FlowKeyV4_t);
             keyLen = sizeof(FlowKeyV4_t);
+            *hash_out = hash_flow_v4(keystart);
         } else if (ipv6Flow) {
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
             memcpy((void *)keyptr->srcAddr, (void *)ipv6Flow->dstAddr, 16);
@@ -838,6 +874,7 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET6;
             keymem += sizeof(FlowKeyV6_t);
             keyLen = sizeof(FlowKeyV6_t);
+            *hash_out = hash_flow_v6(keystart);
         }
     } else {
         // default 5-tuple aggregation
@@ -851,6 +888,7 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET;
             keymem += sizeof(FlowKeyV4_t);
             keyLen = sizeof(FlowKeyV4_t);
+            *hash_out = hash_flow_v4(keystart);
         } else if (ipv6Flow && maxKeyLen > 16) {
             // maxKeyLen > 16 is actually not needed but gcc complains otherwise
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
@@ -862,12 +900,15 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET6;
             keymem += sizeof(FlowKeyV6_t);
             keyLen = sizeof(FlowKeyV6_t);
+            *hash_out = hash_flow_v6(keystart);
         } else {
             // catch all cases, actually not needed.
             LogError("ipv4Flow: %d, ipv6Flow: %d, maxKeyLen: %zu", ipv4Flow != NULL, ipv6Flow != NULL, maxKeyLen);
             memset(keymem, 0, maxKeyLen);
+            *hash_out = 0;  // error path — should not be reached
         }
     }
+
     dbg_printf("New_HashKey() size: %u\n", keyLen);
 
     return keyLen;
@@ -920,11 +961,12 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 
     if (ipv4Flow && aggregationElement->param.extID == EXipv4FlowID) {
         if (aggregationElement->param.offset == OFFsrc4Addr) {
-            uint32_t srcmask = 0xffffffff << (32 - srcMask);
+            // guard against shift-by-32 UB when mask == 0
+            uint32_t srcmask = srcMask ? (0xffffffff << (32 - srcMask)) : 0;
             ipv4Flow->srcAddr &= srcmask;
         }
         if (aggregationElement->param.offset == OFFdst4Addr) {
-            uint32_t dstmask = 0xffffffff << (32 - dstMask);
+            uint32_t dstmask = dstMask ? (0xffffffff << (32 - dstMask)) : 0;
             ipv4Flow->dstAddr &= dstmask;
         }
 
@@ -935,7 +977,8 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
                 uint64_t mask = 0xffffffffffffffffLL << (128 - mask_bits);
                 ipv6Flow->srcAddr[1] &= mask;
             } else {
-                uint64_t mask = 0xffffffffffffffffLL << (64 - mask_bits);
+                // guard against shift-by-64 UB when mask_bits == 0
+                uint64_t mask = mask_bits ? (0xffffffffffffffffLL << (64 - mask_bits)) : 0;
                 ipv6Flow->srcAddr[0] &= mask;
                 ipv6Flow->srcAddr[1] = 0;
             }
@@ -946,7 +989,7 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
                 uint64_t mask = 0xffffffffffffffffLL << (128 - mask_bits);
                 ipv6Flow->dstAddr[1] &= mask;
             } else {
-                uint64_t mask = 0xffffffffffffffffLL << (64 - mask_bits);
+                uint64_t mask = mask_bits ? (0xffffffffffffffffLL << (64 - mask_bits)) : 0;
                 ipv6Flow->dstAddr[0] &= mask;
                 ipv6Flow->dstAddr[1] = 0;
             }
@@ -1218,7 +1261,7 @@ char *ParseAggregateMask(char *print_format, char *arg) {
             } else if (*n == '6') {
                 // IPv6
                 if (subnet < 1 || subnet > 128) {
-                    LogError("Subnet mask length '%d' out of range for IPv4", subnet);
+                    LogError("Subnet mask length '%d' out of range for IPv6", subnet);
                     free(aggrStr);
                     return NULL;
                 }
@@ -1512,7 +1555,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     if (cntFlow) {
         outPackets = cntFlow->outPackets;
         outBytes = cntFlow->outBytes;
-        aggrFlows = cntFlow->flows;
+        aggrFlows = cntFlow->flows ? cntFlow->flows : 1;
     }
 
     void *keymem = NULL;
@@ -1534,7 +1577,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         } else {
             dbg_printf("Recycle: %zu\n", maxKeyLen);
         }
-        keyLen = New_HashKey(mem, recordHandle, 0);
+        keyLen = New_HashKey(mem, recordHandle, 0, &hashValue.hash);
         if (keyLen <= 16) {
             dbg_printf("Copy to local: %u\n", keyLen);
             memcpy(hashValue.val, mem, keyLen);
@@ -1549,12 +1592,10 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         }
     } else {
         dbg_printf("Use local val\n");
-        New_HashKey((void *)hashValue.val, recordHandle, 0);
+        New_HashKey((void *)hashValue.val, recordHandle, 0, &hashValue.hash);
         keyLen = 16;
         keymem = (void *)hashValue.val;
     }
-
-    hashValue.hash = metrohash64_1(keymem, keyLen, 0);
 
     int index = flowHash_get(flowHash, hashValue);
     if (index >= 0) {
@@ -1605,8 +1646,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         // for bidir flows do
 
         // generate reverse hash key to search for bidir flow
-        New_HashKey(keymem, recordHandle, 1);
-        hashValue.hash = metrohash64_1(keymem, keyLen, 0);
+        New_HashKey(keymem, recordHandle, 1, &hashValue.hash);
 
         index = flowHash_get(flowHash, hashValue);
         if (index >= 0) {
@@ -1628,8 +1668,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         } else {
             // no bidir flow found
             // insert original flow into the cache
-            New_HashKey(keymem, recordHandle, 0);
-            hashValue.hash = metrohash64_1(keymem, keyLen, 0);
+            New_HashKey(keymem, recordHandle, 0, &hashValue.hash);
 
             int insert;
             index = flowHash_add(flowHash, hashValue, &insert);
@@ -1700,7 +1739,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         } else {
             dbg_printf("Recycle: %zu\n", maxKeyLen);
         }
-        keyLen = New_HashKey(mem, recordHandle, 0);
+        keyLen = New_HashKey(mem, recordHandle, 0, &hashValue.hash);
         if (keyLen <= 16) {
             dbg_printf("Copy to local: %u\n", keyLen);
             memcpy(hashValue.val, mem, keyLen);
@@ -1715,12 +1754,10 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         }
     } else {
         dbg_printf("Use local val\n");
-        New_HashKey((void *)hashValue.val, recordHandle, 0);
+        New_HashKey((void *)hashValue.val, recordHandle, 0, &hashValue.hash);
         keyLen = 16;
         keymem = (void *)hashValue.val;
     }
-
-    hashValue.hash = metrohash64_1(keymem, keyLen, 0);
 
     int insert;
     int index = flowHash_add(flowHash, hashValue, &insert);
@@ -1941,7 +1978,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
         if (unlikely(NeedSwapGeneric(GuessFlowDirection, genericFlow))) {
             EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
             EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
-            EXinterface_t *interface = (EXinterface_t *)recordHandle.extensionList[EXflowMiscID];
+            EXinterface_t *interface = (EXinterface_t *)recordHandle.extensionList[EXinterfaceID];
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
             EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle.extensionList[EXasInfoID];
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asInfo);
