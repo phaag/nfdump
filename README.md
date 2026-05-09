@@ -80,6 +80,10 @@ sudo make install
 
 This enables CPU-specific optimizations (`-march=native`) and link-time optimization (`-flto`) for improved performance.
 
+### Docker
+
+See _extra/docker/README.md_.
+
 #### Building on CentOS 7.x
 
 Make sure, you have autotools 2.71 installed.
