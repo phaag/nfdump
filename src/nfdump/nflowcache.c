@@ -1512,8 +1512,11 @@ void InsertFlow(recordHandle_t *recordHandle) {
 
     recordHeaderV4_t *recordHeaderV4 = recordHandle->recordHeaderV4;
 
-    FlowHashRecord_t *record = (FlowHashRecord_t *)nfmalloc(sizeof(FlowHashRecord_t));
-    record->flowrecord = (recordHeaderV4_t *)nfmalloc(recordHeaderV4->size);
+    // Single allocation: FlowHashRecord_t immediately followed by the V4 record copy.
+    // Keeps metadata and data on adjacent cache lines; avoids a second random nfmalloc hit
+    // when PrintSortList walks the sort-ordered list.
+    FlowHashRecord_t *record = (FlowHashRecord_t *)nfmalloc(sizeof(FlowHashRecord_t) + recordHeaderV4->size);
+    record->flowrecord = (recordHeaderV4_t *)((uint8_t *)record + sizeof(FlowHashRecord_t));
     memcpy((void *)record->flowrecord, (void *)recordHeaderV4, recordHeaderV4->size);
 
     record->msecFirst = genericFlow->msecFirst;
@@ -1859,8 +1862,19 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < (int)maxindex) max = outputParams->topN;
+    // Prefetch distance: enough iterations to hide ~200-cycle DRAM latency.
+    // FlowHashRecord_t and its V4 copy are contiguous (single nfmalloc), so both
+    // levels are reachable via arithmetic — no pointer dereference needed here.
+    static const int PREFETCH_DIST = 8;
     for (int i = 0; i < max; i++) {
         uint64_t j = ascending ? i : maxindex - 1 - i;
+
+        if (likely(i + PREFETCH_DIST < max)) {
+            uint64_t pj = ascending ? i + PREFETCH_DIST : maxindex - 1 - (i + PREFETCH_DIST);
+            uint8_t *pr = (uint8_t *)SortList[pj].record;
+            __builtin_prefetch(pr, 0, 1);                               // FlowHashRecord_t header
+            __builtin_prefetch(pr + sizeof(FlowHashRecord_t), 0, 1);   // V4 record body
+        }
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
         recordHeaderV4_t *V4record = (flowRecord->flowrecord);

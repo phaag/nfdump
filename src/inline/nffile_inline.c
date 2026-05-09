@@ -96,8 +96,11 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
     // offset table
     uint16_t *offset = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
 
+    // mask to prevet testing each extID
+    uint64_t maxMask = (1LL << MAXEXTENSIONS) - 1;
+
     // Validate each extension
-    uint64_t bitMap = recordHeaderV4->extBitmap;
+    uint64_t bitMap = recordHeaderV4->extBitmap & maxMask;
     while (bitMap) {
         // find lowest set bit (ctz) in bitMap
         uint32_t extID = __builtin_ctzll(bitMap);
@@ -111,19 +114,14 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
             return 0;
         }
 
-        if (extID < MAXEXTENSIONS) {
-            handle->extensionList[extID] = extension;
-        } else {
-            LogError("Mapping record: %" PRIu64 " - Skip unknown extension Type: %u", flowCount, extID);
-            dbg(DumpHex(stdout, (void *)recordHeaderV4, recordHeaderV4->size));
-        }
+        handle->extensionList[extID] = extension;
     }
 
     handle->extensionList[EXheader] = (void *)recordHeaderV4;
     handle->extensionList[EXlocal] = (void *)handle;
 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
-    if (genericFlow && genericFlow->msecFirst == 0) {
+    if (unlikely(genericFlow && genericFlow->msecFirst == 0)) {
         EXnselCommon_t *nselCommon = (EXnselCommon_t *)handle->extensionList[EXnselCommonID];
         if (nselCommon) {
             genericFlow->msecFirst = nselCommon->msecEvent;
@@ -132,7 +130,7 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
 
     // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
     // check first IPv6 as expected less often
-    if (handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID]) {
+    if (unlikely(handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID])) {
         ResolveMultipleIPrecords(handle, flowCount);
     }
 

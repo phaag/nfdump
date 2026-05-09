@@ -1320,7 +1320,6 @@ int main(int argc, char **argv) {
     nfprof_start(&profile_data);
     sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compressType, compressLevel,
                             numWorkers, crypto_ctx);
-    nfprof_end(&profile_data, totalRecords);
 
     if (totalPassed == 0) {
         printf("No matching flows\n");
@@ -1353,6 +1352,8 @@ int main(int argc, char **argv) {
     if (!(flow_stat || element_stat)) {
         PrintEpilog(outputParams);
     }
+
+    nfprof_end(&profile_data, totalRecords);
 
     if (!outputParams->quiet) {
         switch (outputParams->mode) {
