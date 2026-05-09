@@ -45,6 +45,9 @@
 #include <unistd.h>
 
 #include "config.h"
+#ifdef HAVE_LIBBSD
+#include <bsd/stdlib.h>
+#endif
 #include "nfdump.h"
 #include "nffile.h"
 #include "util.h"

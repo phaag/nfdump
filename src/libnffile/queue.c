@@ -43,6 +43,9 @@
 #include <unistd.h>
 
 #include "config.h"
+#ifdef HAVE_LIBBSD
+#include <bsd/stdlib.h>
+#endif
 #include "util.h"
 
 queue_t *queue_init(size_t length) {
