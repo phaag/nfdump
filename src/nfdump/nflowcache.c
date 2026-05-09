@@ -1872,8 +1872,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
         if (likely(i + PREFETCH_DIST < max)) {
             uint64_t pj = ascending ? i + PREFETCH_DIST : maxindex - 1 - (i + PREFETCH_DIST);
             uint8_t *pr = (uint8_t *)SortList[pj].record;
-            __builtin_prefetch(pr, 0, 1);                               // FlowHashRecord_t header
-            __builtin_prefetch(pr + sizeof(FlowHashRecord_t), 0, 1);   // V4 record body
+            __builtin_prefetch(pr, 0, 1);                             // FlowHashRecord_t header
+            __builtin_prefetch(pr + sizeof(FlowHashRecord_t), 0, 1);  // V4 record body
         }
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;

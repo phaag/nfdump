@@ -163,7 +163,7 @@ typedef enum {
 } filterOp_t;
 
 /*
- * Runtime instruction – 32 bytes on 64-bit systems, exactly 2 per cache line.
+ * Runtime instruction – 40 bytes on 64-bit, 36 bytes on 32-bit (= 32 + sizeof(void *)).
  *
  *  op        filterOp_t – selects computed-goto label
  *  extID     index into handle->extensionList[]
@@ -197,7 +197,7 @@ typedef struct filterInstr_s {
     };
 } filterInstr_t;
 
-_Static_assert(sizeof(filterInstr_t) == 40, "filterInstr_t must be 40 bytes");
+_Static_assert(sizeof(filterInstr_t) == 32 + sizeof(void *), "filterInstr_t size mismatch");
 
 /* Module-global dispatch table for direct threading.
  * Populated once by InitFilterDispatch() (via RunFilter in init mode)

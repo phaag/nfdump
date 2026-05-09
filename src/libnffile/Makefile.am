@@ -13,9 +13,7 @@ compress += compress/lz4.c compress/lz4.h compress/lz4hc.c compress/lz4hc.h
 endif
 nffileV3 = nffileV3/nffileV3.c nffileV3/nffileV3.h nffileV3/nfcheck.c nffileV3/nfcheck.h
 nffileV3 += nffileV3/nfread.h nffileV3/nfread.c nffileV3/nfwrite.h nffileV3/nfwrite.c
-if HAVE_LIBSODIUM
 nffileV3 += nffileV3/nfcrypto.c nffileV3/nfcrypto.h
-endif
 nffileV2 = nffileV2/nffileV2.c nffileV2/nffileV2.h nffileV2/uncompress.c nffileV2/uncompress.h
 nfxV4 = queue.c queue.h nfxV4.h nfxV4.c id.h
 nfxV3 = nffileV2/nfxV3.h nffileV2/nfxV3.c

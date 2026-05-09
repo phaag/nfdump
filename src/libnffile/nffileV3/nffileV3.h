@@ -251,6 +251,7 @@ typedef struct flowBlockV3_s {
     BLOCKHEADER;
 
     uint32_t numRecords;       // number of flow records in this block
+    uint32_t align;            // 8 byte alignment
     uint64_t extensionBitmap;  // or'ed bitmask of extID values present in this block
     uint64_t msecFirst;        // earliest first seen record timestamp
     uint64_t msecLast;         // latest last seen record timestamp
