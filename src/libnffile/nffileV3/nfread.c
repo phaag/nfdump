@@ -235,7 +235,7 @@ static void *nfreader(void *arg) {
     pthread_sigmask(SIG_SETMASK, &set, NULL);
 
     const blockDirectoryV3_t *dir = nffile->blockDirectory;
-    unsigned blockCount = 0;
+    dbg(unsigned blockCount = 0);
     const long pageSize = sysconf(_SC_PAGESIZE);
 
     for (uint32_t i = 0; i < dir->numEntries; i++) {
@@ -259,8 +259,7 @@ static void *nfreader(void *arg) {
             break;
         }
 
-        blockCount++;
-        dbg_printf("Blocks: %u\n", blockCount);
+        dbg_printf("Blocks: %u\n", ++blockCount);
 
         // release mmap pages for this block — data has been copied/decompressed
         if (pageSize > 0) {

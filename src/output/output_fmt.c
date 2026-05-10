@@ -2291,7 +2291,7 @@ static void String_ClientLatency(FILE *stream, recordHandle_t *recordHandle) {
     (void)recordHandle;
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
-    fprintf(stream, "%9llu", latency->msecClientNwDelay);
+    fprintf(stream, "%9" PRIu64, latency->msecClientNwDelay);
 
 }  // End of String_ClientLatency
 
@@ -2299,7 +2299,7 @@ static void String_ServerLatency(FILE *stream, recordHandle_t *recordHandle) {
     (void)recordHandle;
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
-    fprintf(stream, "%9llu", latency->msecServerNwDelay);
+    fprintf(stream, "%9" PRIu64, latency->msecServerNwDelay);
 
 }  // End of String_ServerLatency
 
@@ -2307,7 +2307,7 @@ static void String_AppLatency(FILE *stream, recordHandle_t *recordHandle) {
     (void)recordHandle;
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
-    fprintf(stream, "%9llu", latency->msecApplLatency);
+    fprintf(stream, "%9" PRIu64, latency->msecApplLatency);
 
 }  // End of String_AppLatency
 

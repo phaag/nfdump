@@ -43,6 +43,9 @@
 #include <unistd.h>
 
 #include "config.h"
+#ifdef HAVE_LIBBSD
+#include <bsd/stdlib.h>
+#endif
 #include "logging.h"
 #include "util.h"
 

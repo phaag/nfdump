@@ -178,64 +178,6 @@ typedef struct nffile_s {
     pthread_t worker[];     // nfread/nfwrite worker thread;
 } nffileV2_t;
 
-static nffileV2_t *NewFile(uint32_t num_workers) {
-    int compression = 0;
-    int encryption = 0;
-
-    dbg_printf("NewFile() %d workers\n", num_workers);
-    size_t alloc_size = sizeof(nffileV2_t) + num_workers * sizeof(pthread_t);
-
-    // Create struct
-    nffileV2_t *nffile = calloc(1, alloc_size);
-    if (!nffile) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    nffile->numWorkers = num_workers;
-
-    // Init file header
-    nffile->file_header = calloc(1, sizeof(fileHeaderV2_t));
-    if (!nffile->file_header) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(nffile);
-        return NULL;
-    }
-
-    nffile->stat_record = calloc(1, sizeof(stat_record_t));
-    if (!nffile->stat_record) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(nffile->file_header);
-        free(nffile);
-        return NULL;
-    }
-
-    // init data buffer
-    nffile->buff_size = BUFFSIZE;
-
-    //
-    uint32_t QueueSize = 8;
-    nffile->processQueue = queue_init(QueueSize);
-    if (!nffile->processQueue) {
-        free(nffile->file_header);
-        free(nffile->stat_record);
-        free(nffile);
-        return NULL;
-    }
-
-    nffile->file_header->magic = MAGIC;
-    nffile->file_header->version = LAYOUT_VERSION_2;
-    nffile->file_header->compression = compression;
-    nffile->file_header->encryption = encryption;
-
-    nffile->fd = 0;
-
-    nffile->stat_record->msecFirstSeen = 0x7fffffffffffffff;
-
-    pthread_mutex_init(&nffile->wlock, NULL);
-    return nffile;
-
-}  // End of NewFile
-
 static dataBlockV2_t *NewDataBlockV2(void) {
     dbg_printf("Call NewDataBlockV2\n");
     dataBlockV2_t *dataBlock = malloc(BUFFSIZE);

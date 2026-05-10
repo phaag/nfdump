@@ -1062,7 +1062,7 @@ static void *nfreaderV2(void *arg) {
     uint32_t outBlockSize = ctx->blockSize * 2;
     if (outBlockSize < BLOCK_SIZE_V3) outBlockSize = BLOCK_SIZE_V3;
 
-    unsigned blockCount = 0;
+    dbg(unsigned blockCount = 0);
     for (uint32_t i = 0; i < ctx->numBlocks; i++) {
         dataBlockV2_t *v2block = ReadBlockV2(ctx->fd, ctx->compression, ctx->blockSize);
         if (!v2block) {
@@ -1095,7 +1095,7 @@ static void *nfreaderV2(void *arg) {
             dbg_printf("nfreaderV2: processQueue closed\n");
             break;
         }
-        blockCount++;
+        dbg(blockCount++);
     }
 
     close(ctx->fd);

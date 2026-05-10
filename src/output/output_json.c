@@ -472,9 +472,9 @@ static char *stringEXlatency(char *streamPtr, uint8_t *extensionRecord) {
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
     int len = snprintf(streamPtr, lenStream,
-                       "  \"cli_latency\" : %llu,\n"
-                       "  \"srv_latency\" : %llu,\n"
-                       "  \"app_latency\" : %llu,\n",
+                       "  \"cli_latency\" : %" PRIu64,\n"
+                       "  \"srv_latency\" : %" PRIu64,\n"
+                       "  \"app_latency\" : %" PRIu64,\n",
                        latency->msecClientNwDelay, latency->msecServerNwDelay, latency->msecApplLatency);
     streamPtr += len;
 

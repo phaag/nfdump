@@ -2034,7 +2034,7 @@ static char *String_ClientLatency(char *streamPtr, recordHandle_t *recordHandle)
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%3llu", latency->msecClientNwDelay);
+    size_t len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecClientNwDelay);
     streamPtr += len;
 
     return streamPtr;
@@ -2044,7 +2044,7 @@ static char *String_ServerLatency(char *streamPtr, recordHandle_t *recordHandle)
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%3llu", latency->msecServerNwDelay);
+    size_t len = snprintf(streamPtr, lenStream, "%3" PRIu64", latency->msecServerNwDelay);
     streamPtr += len;
 
     return streamPtr;

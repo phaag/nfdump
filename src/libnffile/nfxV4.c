@@ -859,7 +859,7 @@ L_NULL:
 
 void PrintPipeline(pipeline_t *pipeline) {
     printf("TemplateID       : %u\n", pipeline->templateID);
-    printf("Extension bitmap : 0x%llx\n", pipeline->extBitmap);
+    printf("Extension bitmap : 0x%" PRIx64 "\n", pipeline->extBitmap);
     printf("Num extensions   : %u\n", pipeline->numExtensions);
     printf("Num instructions : %i\n", pipeline->numInstructions);
     printf("BaseOffset       : %i\n", pipeline->baseOffset);

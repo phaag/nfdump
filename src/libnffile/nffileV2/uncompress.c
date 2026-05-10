@@ -47,6 +47,9 @@
 #ifdef HAVE_LZ4
 #include <lz4.h>
 #include <lz4hc.h>
+#else
+#include "lz4.h"
+#include "lz4hc.h"
 #endif
 
 #include "logging.h"

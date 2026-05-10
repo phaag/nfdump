@@ -393,7 +393,7 @@ void *__attribute__((noreturn)) linux_packet_thread(void *args) {
 
             size_t size = sizeof(struct pcap_sf_pkthdr) + ppd->tp_snaplen;
             if (DoPacketDump && ok) {
-                if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
+                if ((packetBuffer->bufferSize + size) > BLOCK_SIZE_V3) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
                     queue_push(packetParam->flushQueue, packetBuffer);

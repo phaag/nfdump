@@ -78,9 +78,11 @@ static const char *CompressionType(uint32_t compression) {
                                             : "unknown compression";
 }  // End of CompressionType
 
+#ifdef HAVE_LIBSODIUM
 static const char *EncryptionType(uint32_t enc) {
     return enc == NOT_ENCRYPTED ? "not encrypted" : enc == CHACHA20_POLY1305 ? "ChaCha20-Poly1305" : "unknown encryption";
 }  // End of EncryptionType
+#endif
 
 // =========================================================================
 //  4. VERIFY FILE CONSISTENCY
@@ -394,7 +396,7 @@ int VerifyFileV3(const char *filename, int verbose) {
 
         // block size on disk
         if (dataBlock->discSize == 0) {
-            printf("Block %u: zero size at offset %lld\n", totalBlocks, nextOffset);
+            printf("Block %u: zero size at offset %jd\n", totalBlocks, (intmax_t)nextOffset);
             blockCheckFailed = 1;
             break;
         }
@@ -423,8 +425,8 @@ int VerifyFileV3(const char *filename, int verbose) {
         }
 
         if (verbose)
-            printf("Checkblock: type: %u, offset: %lld, rawSize: %u, discSize: %u, compression: %u, encryption: %u, checksum: 0x%" PRIx64 "\n",
-                   dataBlock->type, nextOffset, dataBlock->rawSize, dataBlock->discSize, dataBlock->compression, dataBlock->encryption,
+            printf("Checkblock: type: %u, offset: %jd, rawSize: %u, discSize: %u, compression: %u, encryption: %u, checksum: 0x%" PRIx64 "\n",
+                   dataBlock->type, (intmax_t)nextOffset, dataBlock->rawSize, dataBlock->discSize, dataBlock->compression, dataBlock->encryption,
                    dataBlock->checksum);
 
         switch (dataBlock->type) {
@@ -462,7 +464,7 @@ int VerifyFileV3(const char *filename, int verbose) {
                 blockStat[BLOCK_TYPE_EXP].compression = dataBlock->compression;
                 break;
             default:
-                printf("Block %u: unknown type %u at offset %lld\n", totalBlocks, dataBlock->type, nextOffset);
+                printf("Block %u: unknown type %u at offset %jd\n", totalBlocks, dataBlock->type, (intmax_t)nextOffset);
                 unknownBlocks++;
                 break;
         }
