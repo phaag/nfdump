@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024-2025, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -27,12 +27,6 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
-#ifdef __x86_64
-#define ALIGN_MASK 0xFFFFFFF8
-#else
-#define ALIGN_MASK 0xFFFFFFFC
-#endif
 
 #include "logging.h"
 #include "spin_lock.h"
@@ -118,6 +112,11 @@ static inline void *nfmalloc(size_t size) {
     // make sure size of memory is aligned
     size_t aligned_size = (((size) + ALIGN_BYTES) & ~ALIGN_BYTES);
 
+    if (unlikely(aligned_size > MemHandler->BlockSize)) {
+        LogError("nfmalloc: requested %zu bytes exceeds block size %zu", size, MemHandler->BlockSize);
+        exit(EXIT_FAILURE);
+    }
+
     GetLock(MemHandler);
     if ((MemHandler->Allocated + aligned_size) <= MemHandler->BlockSize) {
         // enough space available in current memblock
@@ -157,8 +156,9 @@ static inline void *nfmalloc(size_t size) {
 }  // End of nfmalloc
 
 static inline void *nfcalloc(size_t count, size_t size) {
-    void *p = nfmalloc(count * size);
-    memset(p, 0, count * size);
+    size_t total = count * size;
+    void *p = nfmalloc(total);
+    memset(p, 0, total);
     return p;
 
 }  // nfcalloc
