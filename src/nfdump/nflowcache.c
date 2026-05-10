@@ -1411,6 +1411,19 @@ char *ParseAggregateMask(char *print_format, char *arg) {
 
 }  // End of ParseAggregateMask
 
+int SetBidirAggregation(void) {
+    dbg_printf("Enter %s\n", __func__);
+
+    if (aggregateInfo[0] != -1) {
+        LogError("Can not set bidir mode with custom aggregation mask");
+        return 0;
+    }
+    bidir_flows = 1;
+
+    return 1;
+
+}  // End of SetBidirAggregation
+
 // Build a compact record for custom aggregation, to be stored at insert time.
 // Always includes EXgenericFlow and EXcntFlow; includes aggregated extensions present in
 // the original record. Uses a single pre-scan of the original offset table so that the
@@ -1923,6 +1936,81 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
 }  // End of PrintSortList
 
+/*
+ * with option -s record/<orderby>
+ * print record statistics of flow hash ordered by orderby
+ */
+void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
+    dbg_printf("Enter %s\n", __func__);
+
+    uint64_t maxindex;
+
+    // Get sort array
+    SortElement_t *SortList = GetSortList(&maxindex);
+    if (!SortList) {
+        return;
+    }
+
+    // process all the remaining stats, if requested
+    for (int order_index = 0; order_mode[order_index].string != NULL; order_index++) {
+        unsigned int order_bit = 1 << order_index;
+        if (FlowStat_order & order_bit) {
+            for (int i = 0; i < (int)maxindex; i++) {
+                FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
+                /* if we have some different sort orders, which are not directly available in the FlowHashRecord_t
+                 * we need to calculate this value first - such as bpp, bps etc.
+                 */
+                SortList[i].count = order_mode[order_index].record_function(r);
+            }
+
+            blocksort(SortList, maxindex);
+
+            if (!outputParams->quiet) {
+                if (outputParams->mode == MODE_FMT) {
+                    if (outputParams->topN != 0)
+                        printf("Top %i flows ordered by %s:\n", outputParams->topN, order_mode[order_index].string);
+                    else
+                        printf("Top flows ordered by %s:\n", order_mode[order_index].string);
+                }
+            }
+            PrintProlog(outputParams);
+            PrintSortList(SortList, maxindex, outputParams, 0, print_record, PrintDirection);
+        }
+    }
+
+    free(SortList);
+}  // End of PrintFlowStat
+
+/*
+ * With option -a -A ... flow aggregation
+ * print the flow hash, with optionally print order -O
+ */
+void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
+    dbg_printf("Enter %s\n", __func__);
+
+    GuessDirection = GuessDir;
+    uint64_t maxindex;
+    SortElement_t *SortList = GetSortList(&maxindex);
+    if (!SortList) return;
+
+    if (PrintOrder) {
+        // for any -O print mode
+        for (int i = 0; i < (int)maxindex; i++) {
+            FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
+            SortList[i].count = order_mode[PrintOrder].record_function(r);
+        }
+
+        blocksort(SortList, maxindex);
+
+        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
+    } else {
+        // for -a and no -O sorting required
+        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
+    }
+    free(SortList);
+
+}  // End of PrintFlowTable
+
 // Export SortList record to nffile: copy the already-minimal stored record to the output
 // buffer and populate *handle.  For custom aggregation the record was pre-built by
 // BuildMinimalRecord at insert time so no rebuild work is needed here.
@@ -2006,88 +2094,11 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
 
 }  // End of ExportSortList
 
-int SetBidirAggregation(void) {
-    dbg_printf("Enter %s\n", __func__);
-
-    if (aggregateInfo[0] != -1) {
-        LogError("Can not set bidir mode with custom aggregation mask");
-        return 0;
-    }
-    bidir_flows = 1;
-
-    return 1;
-
-}  // End of SetBidirAggregation
-
-// print -s record/xx statistics with as many print orders as required
-void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
-    dbg_printf("Enter %s\n", __func__);
-
-    uint64_t maxindex;
-
-    // Get sort array
-    SortElement_t *SortList = GetSortList(&maxindex);
-    if (!SortList) {
-        return;
-    }
-
-    // process all the remaining stats, if requested
-    for (int order_index = 0; order_mode[order_index].string != NULL; order_index++) {
-        unsigned int order_bit = 1 << order_index;
-        if (FlowStat_order & order_bit) {
-            for (int i = 0; i < (int)maxindex; i++) {
-                FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
-                /* if we have some different sort orders, which are not directly available in the FlowHashRecord_t
-                 * we need to calculate this value first - such as bpp, bps etc.
-                 */
-                SortList[i].count = order_mode[order_index].record_function(r);
-            }
-
-            blocksort(SortList, maxindex);
-
-            if (!outputParams->quiet) {
-                if (outputParams->mode == MODE_FMT) {
-                    if (outputParams->topN != 0)
-                        printf("Top %i flows ordered by %s:\n", outputParams->topN, order_mode[order_index].string);
-                    else
-                        printf("Top flows ordered by %s:\n", order_mode[order_index].string);
-                }
-            }
-            PrintProlog(outputParams);
-            PrintSortList(SortList, maxindex, outputParams, 0, print_record, PrintDirection);
-        }
-    }
-
-    free(SortList);
-}  // End of PrintFlowStat
-
-// print Flow cache
-void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
-    dbg_printf("Enter %s\n", __func__);
-
-    GuessDirection = GuessDir;
-    uint64_t maxindex;
-    SortElement_t *SortList = GetSortList(&maxindex);
-    if (!SortList) return;
-
-    if (PrintOrder) {
-        // for any -O print mode
-        for (int i = 0; i < (int)maxindex; i++) {
-            FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
-            SortList[i].count = order_mode[PrintOrder].record_function(r);
-        }
-
-        blocksort(SortList, maxindex);
-
-        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
-    } else {
-        // for -a and no -O sorting required
-        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
-    }
-    free(SortList);
-
-}  // End of PrintFlowTable
-
+/*
+ * With option -w <file>
+ * Export the flow hash table or the flow list into the given file
+ * with optionall flow order -O ..
+ */
 int ExportFlowTable(nffileV3_t *nffile, int aggregate, int bidir, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
