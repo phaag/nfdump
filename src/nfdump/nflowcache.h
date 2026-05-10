@@ -41,7 +41,7 @@
 #include "nfxV4.h"
 #include "output.h"
 
-#define InitFlowHashBits 23
+#define InitFlowHashBits 19
 
 #define SwapFlow(r)                              \
     {                                            \

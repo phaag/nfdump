@@ -32,7 +32,6 @@
 #include "nflowcache.h"
 
 #include <arpa/inet.h>
-#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
@@ -169,9 +168,8 @@ typedef struct FlowHashRecord {
     struct FlowHashRecord *next;   // record chain for flow list, unused otherwise
 
     uint8_t inFlags;   // tcp in flags
-    uint8_t outFlags;  // tcp out flags XXX unused currently
     uint8_t swap;      // swap flow direction, when printed
-    uint8_t align;     // align 32bit
+    // 6 bytes implicit padding to align msecFirst at offset 24
 
     // time info in msec
     uint64_t msecFirst;  // overall first seen timestamp
@@ -389,7 +387,7 @@ static flowHash_t *flowHash_init(uint32_t bitSize) {
     flowHash->mask = flowHash->capacity - 1;
 
     flowHash->count = 0;
-    flowHash->load_factor = flowHash->capacity >> 1;
+    flowHash->load_factor = flowHash->capacity * 3 / 4;
     flowHash->flags = calloc(flowHash->capacity, sizeof(uint8_t));
     flowHash->cells = calloc(flowHash->capacity, sizeof(hashValue_t));
     flowHash->records = calloc(flowHash->capacity, sizeof(FlowHashRecord_t));
@@ -422,7 +420,7 @@ static void flowHash_free(void) {
  * records remain in same place, but memory gets resized
  */
 static inline void flowHash_resize(flowHash_t *flowHash) {
-    int oldCapacity = flowHash->load_factor = flowHash->capacity;
+    int oldCapacity = flowHash->capacity;
     flowHash->capacity = 1u << (32 - (--flowHash->shift));
     flowHash->mask = flowHash->capacity - 1;
 
@@ -433,7 +431,10 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
     uint8_t *newFlags = calloc(flowHash->capacity, sizeof(uint8_t));
 
     FlowHashRecord_t *newRecords = realloc(flowHash->records, flowHash->capacity * sizeof(FlowHashRecord_t));
-    assert(newFlags && newCells && newRecords);
+    if (!newCells || !newFlags || !newRecords) {
+        LogError("Out of memory: cannot resize flow hash to %u entries", flowHash->capacity);
+        exit(EXIT_FAILURE);
+    }
 
     // rearrange cells and flags, according to hash and new bit width of hash table
     for (int i = 0; i < oldCapacity; i++) {
@@ -449,6 +450,7 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
     flowHash->cells = newCells;
     flowHash->flags = newFlags;
     flowHash->records = newRecords;
+    flowHash->load_factor = flowHash->capacity * 3 / 4;
     free(oldCells);
     free(oldFlags);
 
@@ -483,7 +485,7 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t value, in
     do {
         // find empty cell or cell with correct flags
         while (is_used(flowHash->flags, cell) && (flowHash->flags[cell] != flag))
-            if (++cell == flowHash->capacity) cell = 0;
+            cell = (cell + 1) & flowHash->mask;
 
         if (is_free(flowHash->flags, cell)) {
             // free cell found
@@ -502,7 +504,7 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t value, in
             }
         }
         // hash collision - cell used by another value
-        if (++cell == flowHash->capacity) cell = 0;
+        cell = (cell + 1) & flowHash->mask;
     } while (1);
 
 }  // End of flowHash_add
@@ -526,13 +528,13 @@ static inline int flowHash_get(flowHash_t *flowHash, const hashValue_t value) {
     do {
         // search for matching flag
         while (is_used(flowHash->flags, cell) && (flowHash->flags[cell] != flag))
-            if (++cell == flowHash->capacity) cell = 0;
+            cell = (cell + 1) & flowHash->mask;
 
         if (is_free(flowHash->flags, cell)) return -1;
         if (valCompare(flowHash->cells[cell], value)) return flowHash->cells[cell].index;
 
         // collision - flag matches but compare does not - loop
-        if (++cell == flowHash->capacity) cell = 0;
+        cell = (cell + 1) & flowHash->mask;
     } while (1);
 }
 
@@ -1331,11 +1333,15 @@ char *ParseAggregateMask(char *print_format, char *arg) {
             aggregateInfo[elementCount++] = index;
             size_t len = aggregationTable[index].param.length;
             if (aggregationTable[index].param.af == AF_INET) {
-                // nothing
-            } else if (aggregationTable[index].param.af == AF_INET6) {
-                maxKeyLen += len;
+                // For dual-stack elements the AF_INET6 entry (same name, next in table) will
+                // contribute the larger IPv6 size; only add len for standalone IPv4-only elements.
+                int next = index + 1;
+                if (!(aggregationTable[next].aggrElement &&
+                      strcasecmp(p, aggregationTable[next].aggrElement) == 0)) {
+                    maxKeyLen += len;
+                }
             } else {
-                maxKeyLen += len;
+                maxKeyLen += len;  // AF_INET6 or non-IP: always add
             }
             index++;
         } while (aggregationTable[index].aggrElement && (strcasecmp(p, aggregationTable[index].aggrElement) == 0));
@@ -1549,7 +1555,6 @@ void InsertFlow(recordHandle_t *recordHandle) {
         record->flows = 1;
     }
     record->inFlags = genericFlow->tcpFlags;
-    record->outFlags = 0;
     FlowList.NumRecords++;
 
     record->next = NULL;
@@ -1557,6 +1562,19 @@ void InsertFlow(recordHandle_t *recordHandle) {
     FlowList.tail = &(record->next);
 
 }  // End of InsertFlow
+
+// Store the flow record (pre-built or full copy) into the given hash record.
+// For custom aggregation (staticRebuildMaxSize > 0) builds a compact minimal record;
+// otherwise copies the full original record as-is.
+static inline void StoreFlowRecord(FlowHashRecord_t *hr, recordHeaderV4_t *record) {
+    size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
+    void *p = nfmalloc(allocSize);
+    if (staticRebuildMaxSize)
+        BuildMinimalRecord(p, record, NULL);
+    else
+        memcpy((void *)p, record, record->size);
+    hr->flowrecord = p;
+}  // End of StoreFlowRecord
 
 static void AddBidirFlow(recordHandle_t *recordHandle) {
     dbg_printf("Enter %s\n", __func__);
@@ -1640,26 +1658,23 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         flowHash->records[index].outPackets = outPackets;
         flowHash->records[index].flows = aggrFlows;
         flowHash->records[index].inFlags = genericFlow->tcpFlags;
-        flowHash->records[index].outFlags = 0;
 
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
 
-        {
-            size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
-            void *p = nfmalloc(allocSize);
-            if (staticRebuildMaxSize)
-                BuildMinimalRecord(p, record, NULL);
-            else
-                memcpy((void *)p, record, record->size);
-            flowHash->records[index].flowrecord = p;
-        }
+        StoreFlowRecord(&flowHash->records[index], record);
         flowHash->records[index].swap = NeedSwap(keymem);
 
         // keymen got part of the cache
         mem = NULL;
     } else {
         // for bidir flows do
+
+        // Save forward key (at most sizeof(FlowKeyV6_t) = 40 bytes, stack-allocated).
+        // Eliminates a third New_HashKey recomputation if the reverse lookup also misses.
+        uint8_t savedKey[sizeof(FlowKeyV6_t)];
+        memcpy(savedKey, keymem, keyLen);
+        uint64_t savedHash = hashValue.hash;
 
         // generate reverse hash key to search for bidir flow
         New_HashKey(keymem, recordHandle, 1, &hashValue.hash);
@@ -1671,7 +1686,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             flowHash->records[index].outPackets += inPackets;
             flowHash->records[index].inBytes += outBytes;
             flowHash->records[index].inPackets += outPackets;
-            flowHash->records[index].outFlags |= genericFlow->tcpFlags;
+            flowHash->records[index].inFlags |= genericFlow->tcpFlags;
 
             if (genericFlow->msecFirst < flowHash->records[index].msecFirst) {
                 flowHash->records[index].msecFirst = genericFlow->msecFirst;
@@ -1683,8 +1698,9 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             flowHash->records[index].flows += aggrFlows;
         } else {
             // no bidir flow found
-            // insert original flow into the cache
-            New_HashKey(keymem, recordHandle, 0, &hashValue.hash);
+            // restore forward key from saved copy — no third New_HashKey call needed
+            memcpy(keymem, savedKey, keyLen);
+            hashValue.hash = savedHash;
 
             int insert;
             index = flowHash_add(flowHash, hashValue, &insert);
@@ -1694,20 +1710,11 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             flowHash->records[index].outPackets = outPackets;
             flowHash->records[index].flows = aggrFlows;
             flowHash->records[index].inFlags = genericFlow->tcpFlags;
-            flowHash->records[index].outFlags = 0;
 
             flowHash->records[index].msecFirst = genericFlow->msecFirst;
             flowHash->records[index].msecLast = genericFlow->msecLast;
 
-            {
-                size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
-                void *p = nfmalloc(allocSize);
-                if (staticRebuildMaxSize)
-                    BuildMinimalRecord(p, record, NULL);
-                else
-                    memcpy((void *)p, record, record->size);
-                flowHash->records[index].flowrecord = p;
-            }
+            StoreFlowRecord(&flowHash->records[index], record);
             flowHash->records[index].swap = NeedSwap(keymem);
 
             // keymen got part of the cache
@@ -1801,20 +1808,11 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         flowHash->records[index].outPackets = outPackets;
         flowHash->records[index].flows = aggrFlows;
         flowHash->records[index].inFlags = genericFlow->tcpFlags;
-        flowHash->records[index].outFlags = 0;
 
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
         flowHash->records[index].swap = NeedSwap(keymem);
-        {
-            size_t allocSize = staticRebuildMaxSize ? staticRebuildMaxSize : record->size;
-            void *p = nfmalloc(allocSize);
-            if (staticRebuildMaxSize)
-                BuildMinimalRecord(p, record, NULL);
-            else
-                memcpy((void *)p, record, record->size);
-            flowHash->records[index].flowrecord = p;
-        }
+        StoreFlowRecord(&flowHash->records[index], record);
         mem = NULL;
     }
 
@@ -2038,11 +2036,10 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
 
         // Use newSize from previous iteration as a stable estimate (exact for custom aggregation
         // since all pre-built records have the same layout; avoids the original-record overestimate).
-        if (newSize == 0) newSize = recordHeaderV4->size;
+        newSize = recordHeaderV4->size;
         if (!IsAvailable(dataBlock, blockSize, newSize)) {
             // flush block - get an empty one
             PushBlockV3(nffile->processQueue, dataBlock);
-            dataBlock = NULL;
             InitDataBlock(dataBlock, nffile->fileHeader->blockSize);
         }
 
