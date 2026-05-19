@@ -34,14 +34,7 @@
 #define GetLock(a) spin_lock(((a)->lock))
 #define ReleaseLock(a) spin_unlock(((a)->lock))
 
-#define ALIGN_BYTES      \
-    (offsetof(           \
-         struct {        \
-             char x;     \
-             uint64_t y; \
-         },              \
-         y) -            \
-     1)
+#define ALIGN8(x) (((x) + 7U) & ~7U)
 
 // Each pre-allocated memory block is 10M
 #define DefaultMemBlockSize 10 * 1024 * 1024
@@ -110,7 +103,7 @@ static void nfalloc_free(void) {
 
 static inline void *nfmalloc(size_t size) {
     // make sure size of memory is aligned
-    size_t aligned_size = (((size) + ALIGN_BYTES) & ~ALIGN_BYTES);
+    size_t aligned_size = ALIGN8(size);
 
     if (unlikely(aligned_size > MemHandler->BlockSize)) {
         LogError("nfmalloc: requested %zu bytes exceeds block size %zu", size, MemHandler->BlockSize);

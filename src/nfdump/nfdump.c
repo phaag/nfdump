@@ -76,6 +76,7 @@
 #include "nfprof.h"
 #include "nfstat.h"
 #include "output.h"
+#include "queue.h"
 #include "ssl/ssl.h"
 #include "tor/tor.h"
 #include "util.h"
