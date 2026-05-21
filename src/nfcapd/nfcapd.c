@@ -35,7 +35,6 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <sys/select.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -43,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -147,13 +147,15 @@ static void usage(char *name) {
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files. Passphrase from argument, key file, or interactive prompt.\n"
+        "-N <secs>\t\tUDP transport rekey interval in seconds (requires -K). Default 0 (disabled).\n"
+        "-Q <bits>\t\tUDP anti-replay window in bits (power of 2, 64\u20131024). Default 256.\n"
 #endif
         ,
         name);
 }  // End of usage
 
-#include "nffile_inline.c"
 #include "collector_run_inline.c"
+#include "nffile_inline.c"
 
 static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, PacketCtx_t *pkt_ctx, ssize_t cnt,
                                   struct timeval tv, uint64_t *packets, uint32_t *ignored_packets) {
@@ -229,6 +231,9 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             Process_IPFIX(pkt_ctx->buffer, cnt, fs);
             break;
         case VERSION_NFDUMP:
+        case VERSION_NFD_ENCRYPTED:
+            // Both plain v250 and encrypted v251 are handled by Process_nfd.
+            // Decryption and replay-protection are done inside that function.
             Process_nfd(pkt_ctx->buffer, cnt, fs);
             break;
         default: {
@@ -451,7 +456,10 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
 // Close all open receive sockets (safe to call with nsocks == 0 or socks[i] == -1)
 static void close_sockets(int *socks, int nsocks) {
     for (int i = 0; i < nsocks; i++)
-        if (socks[i] >= 0) { close(socks[i]); socks[i] = -1; }
+        if (socks[i] >= 0) {
+            close(socks[i]);
+            socks[i] = -1;
+        }
 }  // End of close_sockets
 
 int main(int argc, char **argv) {
@@ -480,6 +488,7 @@ int main(int argc, char **argv) {
     char *yaf_file = NULL;
     char *listenport = DEFAULTLISTENPORT;
     crypto_ctx_t *crypto_ctx = NULL;
+    uint8_t *udpSessionKey = NULL;
     uint32_t compressType = NOT_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
     receive_packet = NULL;
@@ -872,6 +881,41 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    // Register UDP session key for v251 decryption if a passphrase was given.
+    if (crypto_ctx) {
+        const char *confSalt = ConfGetString("crypt.salt");
+        if (confSalt) SetUdpSalt(confSalt);
+        udpSessionKey = DeriveUdpSessionKey(crypto_ctx);
+        if (!udpSessionKey) {
+            LogError("nfcapd: failed to derive UDP session key — aborting");
+            close_sockets(socks, nsocks);
+            exit(EXIT_FAILURE);
+        }
+        /* Read anti-replay and rekey parameters from nfdump.conf [common] section.
+         * crypt.antiReplayWindowBits: power of 2 in [64, 1024]; 0 or missing -> default (256).
+         * crypt.rekeyIntervalSecs: epoch duration in seconds; 0 or missing -> disabled. */
+        uint32_t replayWindowBits = ANTI_REPLAY_WINDOW_DEFAULT;
+        int64_t confWindow = ConfGetValue("crypt.antiReplayWindowBits");
+        if (confWindow != 0) {
+            if (confWindow < 64 || confWindow > 1024 || (confWindow & (confWindow - 1)) != 0) {
+                LogError("nfcapd: nfdump.conf crypt.antiReplayWindowBits %" PRId64 " invalid (power of 2 in [64,1024]); using default %u", confWindow,
+                         ANTI_REPLAY_WINDOW_DEFAULT);
+            } else {
+                replayWindowBits = (uint32_t)confWindow;
+            }
+        }
+        uint32_t rekeyIntervalSecs = REKEY_INTERVALSECS_DEFAULT;
+        int64_t confRekey = ConfGetValue("crypt.rekeyIntervalSecs");
+        if (confRekey < 0 || confRekey > 86400 * 7) {
+            LogError("nfcapd: nfdump.conf crypt.rekeyIntervalSecs %" PRId64 " out of range [0, 604800]; use default of %d", confRekey,
+                     REKEY_INTERVALSECS_DEFAULT);
+        } else {
+            rekeyIntervalSecs = (uint32_t)confRekey;
+        }
+        Init_pcapd_udp_crypto(udpSessionKey, replayWindowBits, rekeyIntervalSecs);
+        LogInfo("nfcapd: UDP transport decryption enabled (XChaCha20-Poly1305)");
+    }
+
     if (!CheckSubDir(subdir_index)) {
         close_sockets(socks, nsocks);
         exit(EXIT_FAILURE);
@@ -973,6 +1017,7 @@ int main(int argc, char **argv) {
 
     LogInfo("Terminating nfcapd.");
     remove_pid(pidfile);
+    FreeUdpSessionKey(udpSessionKey);
     FreeCryptoCtx(crypto_ctx);
 
     EndLog();

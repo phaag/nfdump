@@ -57,6 +57,20 @@
 /* module limited globals */
 static int printRecord;
 
+// UDP session key — set once by Init_pcapd_udp_crypto().
+static const uint8_t *g_udpSessionKey = NULL;
+
+/*
+ * Per-source anti-replay window width in bits.  Set once by
+ * Init_pcapd_udp_crypto(); used by GetSourceAntiReplay() when allocating
+ * a new anti_replay_t for a source.
+ */
+static uint32_t g_replayWindowBits = ANTI_REPLAY_WINDOW_DEFAULT;
+
+// Decryption scratch buffer — written by Process_nfd when version == 251.
+// Sized for the largest possible inner payload (65535 bytes).
+static uint8_t g_decryptBuf[65536];
+
 static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
 
 /* functions */
@@ -65,6 +79,43 @@ int Init_pcapd(int verbose) {
     printRecord = verbose;
     return 1;
 }  // End of Init_pcapd
+
+void Init_pcapd_udp_crypto(const uint8_t *sessionKey, uint32_t replayWindowBits, uint32_t rekeyIntervalSecs) {
+    g_udpSessionKey = sessionKey;
+
+    // Validate and snap replay window to a power of 2 in [64, MAX].
+    if (replayWindowBits == 0) replayWindowBits = ANTI_REPLAY_WINDOW_DEFAULT;
+    if (replayWindowBits < 64 || replayWindowBits > ANTI_REPLAY_WINDOW_MAX || (replayWindowBits & (replayWindowBits - 1u)) != 0) {
+        LogError("Init_pcapd_udp_crypto: replay window %u invalid (must be power of 2 in [64,%u]), using default %u", replayWindowBits,
+                 ANTI_REPLAY_WINDOW_MAX, ANTI_REPLAY_WINDOW_DEFAULT);
+        replayWindowBits = ANTI_REPLAY_WINDOW_DEFAULT;
+    }
+    g_replayWindowBits = replayWindowBits;
+
+    // Configure epoch rekeying in the crypto module.
+    SetUdpRekeyInterval(rekeyIntervalSecs);
+
+    LogInfo("nfd_raw: UDP crypto configured — replay window=%u bits, rekey interval=%u s", g_replayWindowBits, rekeyIntervalSecs);
+}  // End of Init_pcapd_udp_crypto
+
+/*
+ * GetSourceAntiReplay — return the per-source anti_replay_t for 'fs',
+ * allocating and zero-initialising it on the first call for this source.
+ * Returns NULL only on allocation failure (extremely unlikely).
+ */
+static anti_replay_t *GetSourceAntiReplay(FlowSource_t *fs) {
+    if (fs->udpAntiReplay) return (anti_replay_t *)fs->udpAntiReplay;
+
+    anti_replay_t *ar = calloc(1, sizeof(anti_replay_t));
+    if (!ar) {
+        LogError("GetSourceAntiReplay: calloc failed for source anti-replay state");
+        return NULL;
+    }
+    ar->windowBits = g_replayWindowBits;
+    // initialized == 0 after calloc — anti_replay_check bootstraps on first packet
+    fs->udpAntiReplay = ar;
+    return ar;
+}  // End of GetSourceAntiReplay
 
 static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
     (void)header;
@@ -198,7 +249,50 @@ static inline recordHeaderV4_t *InsertEXipReceived(void *buffPtr, const recordHe
 }  // End of InsertEXipReceived
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
-    // map pacpd data structure to input buffer
+    // Decrypt version-251 packets before processing
+    if (in_buff_cnt >= 2 && ntohs(*(const uint16_t *)in_buff) == VERSION_NFD_ENCRYPTED) {
+        if (!g_udpSessionKey) {
+            LogError("Process_nfd: received encrypted v251 packet but no UDP session key configured — drop");
+            fs->bad_packets++;
+            return;
+        }
+
+        ssize_t innerLen = UdpDecrypt(g_decryptBuf, sizeof(g_decryptBuf), in_buff, (size_t)in_buff_cnt, g_udpSessionKey);
+        if (innerLen < 0) {
+            // UdpDecrypt already logged the reason (auth failure, bad algo, etc.)
+            fs->bad_packets++;
+            return;
+        }
+
+        if ((size_t)innerLen < sizeof(nfd_header_t)) {
+            LogError("Process_nfd: decrypted inner payload too short (%zd bytes)", innerLen);
+            fs->bad_packets++;
+            return;
+        }
+
+        /* Anti-replay check on the inner sequence number.
+         * MAC verified above, so the sequence is trustworthy.
+         * Window is keyed per FlowSource (per source IP). */
+        anti_replay_t *ar = GetSourceAntiReplay(fs);
+        if (!ar) {
+            // allocation failure — treat as transient error
+            fs->bad_packets++;
+            return;
+        }
+        const nfd_header_t *innerHdr = (const nfd_header_t *)g_decryptBuf;
+        uint32_t seq = ntohl(innerHdr->lastSequence);
+        if (!anti_replay_check(ar, seq)) {
+            LogError("Process_nfd: replay detected from source, seq=%u — drop", seq);
+            fs->bad_packets++;
+            return;
+        }
+
+        // Continue processing the decrypted inner v250 payload
+        in_buff = g_decryptBuf;
+        in_buff_cnt = innerLen;
+    }
+
+    // map pcapd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
 
     exporter_entry_t *exporter = getExporter(fs, pcapd_header);

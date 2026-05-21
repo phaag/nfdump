@@ -60,6 +60,7 @@ typedef struct flowParam_s {
 
     // send flows
     repeater_t *sendHost;
+    uint8_t *udpSessionKey;  // NULL = plaintext, non-NULL = XChaCha20-Poly1305
 
     // options
     bool printRecord;

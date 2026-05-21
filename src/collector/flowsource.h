@@ -61,6 +61,14 @@ typedef struct FlowSource_s {
     exporter_key_t last_key;     // last used exporter key - cache
     exporter_entry_t *last_exp;  // last used exporter entry - cache
     struct timeval received;     // time last packet received
+
+    /*
+     * Per-source anti-replay state for encrypted nfpcapd v251 packets.
+     * Allocated lazily by nfd_raw.c on the first encrypted packet from
+     * this source; freed by freeFlowSource().  NULL when unused.
+     * Opaque pointer — concrete type is anti_replay_t in nfd_udp_crypto.h.
+     */
+    void *udpAntiReplay;
 } FlowSource_t;
 
 // index entry per flow source

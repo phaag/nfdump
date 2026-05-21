@@ -54,6 +54,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "nfd_raw.h"
+#include "nfd_udp_crypto.h"
 #include "nfdump.h"
 #include "nfnet.h"
 #include "nfxV4.h"
@@ -63,26 +64,57 @@
 
 static int printRecord = 0;
 
-static void *sendBuffer = NULL;
+static void *sendBuffer = NULL; /* inner v250 packet: nfd_header_t + records  */
+static void *encBuffer = NULL;  /* encrypted wire buffer for v251 output       */
 static uint32_t sequence = 0;
 
 static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node);
 
-static int SendFlow(repeater_t *sendHost, nfd_header_t *pcapd_header) {
+/*
+ * SendFlow — serialise the in-progress nfd_header buffer and transmit it.
+ *
+ * When udpSessionKey is non-NULL the inner v250 payload is encrypted with
+ * XChaCha20-Poly1305 and sent as a version-251 wire packet.  The plain v250
+ * path is used when udpSessionKey is NULL (backward-compatible).
+ */
+static int SendFlow(repeater_t *sendHost, nfd_header_t *pcapd_header, const uint8_t *udpSessionKey) {
     dbg_printf("Sending %u records\n", pcapd_header->numRecord);
     uint32_t length = pcapd_header->length;
+
+    // Finalise the inner header fields in network byte order
     pcapd_header->length = htons(pcapd_header->length);
     uint32_t seq = sequence++;
     pcapd_header->lastSequence = htonl(seq);
     pcapd_header->numRecord = htonl(pcapd_header->numRecord);
-    // send buffer
-    ssize_t len = sendto(sendHost->sockfd, pcapd_header, length, 0, (struct sockaddr *)&(sendHost->addr), sendHost->addrlen);
-    if (len < 0) {
-        LogError("ERROR: sendto() failed: %s", strerror(errno));
-        return len;
+
+    const void *sendPtr;
+    ssize_t sendLen;
+
+    if (udpSessionKey) {
+        // Encrypted path: build a v251 wire packet in encBuffer
+        sendLen = UdpEncrypt(encBuffer, NFD_ENC_HDR_SIZE + 65536 + NFD_AEAD_TAG_SIZE, sendBuffer, length, udpSessionKey);
+        if (sendLen < 0) {
+            LogError("SendFlow: UdpEncrypt failed — packet not sent");
+            pcapd_header->length = sizeof(nfd_header_t);
+            pcapd_header->numRecord = 0;
+            return -1;
+        }
+        sendPtr = encBuffer;
+    } else {
+        /* Plain path: send the v250 sendBuffer directly */
+        sendLen = (ssize_t)length;
+        sendPtr = sendBuffer;
     }
 
-    // init new header
+    ssize_t ret = sendto(sendHost->sockfd, sendPtr, (size_t)sendLen, 0, (struct sockaddr *)&(sendHost->addr), sendHost->addrlen);
+    if (ret < 0) {
+        LogError("ERROR: sendto() failed: %s", strerror(errno));
+        pcapd_header->length = sizeof(nfd_header_t);
+        pcapd_header->numRecord = 0;
+        return (int)ret;
+    }
+
+    /* Reset the inner header for the next packet */
     pcapd_header->length = sizeof(nfd_header_t);
     pcapd_header->numRecord = 0;
 
@@ -166,7 +198,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     // ── Buffer space check ──
     if (pcapd_header->length + recordSize > 65535) {
-        if (SendFlow(sendHost, pcapd_header) < 0) return 0;
+        if (SendFlow(sendHost, pcapd_header, flowParam->udpSessionKey) < 0) return 0;
     }
 
     // ── Phase 2: write V4 record ──
@@ -353,7 +385,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     if (pcapd_header->length > 1200) {
         // send buffer - prevent fragmentation for next packet
-        if (SendFlow(sendHost, pcapd_header) < 0) return 0;
+        if (SendFlow(sendHost, pcapd_header, flowParam->udpSessionKey) < 0) return 0;
     }
 
     return 1;
@@ -372,6 +404,10 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     flowParam_t *flowParam = (flowParam_t *)thread_data;
 
     sendBuffer = malloc(65535);
+    // encBuffer holds the v251 wire header + ciphertext + Poly1305 tag.
+    // Sized for the maximum inner payload (65535) plus overhead.
+    encBuffer = malloc(NFD_ENC_HDR_SIZE + 65535 + NFD_AEAD_TAG_SIZE);
+
     nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
     memset((void *)pcapd_header, 0, sizeof(nfd_header_t));
     pcapd_header->version = htons(VERSION_NFDUMP);
@@ -387,9 +423,16 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
                 ProcessFlow(flowParam, Node);
                 break;
             case SIGNAL_NODE_SYNC:
-                // skip
+                // Flush any buffered records before sync
+                if (pcapd_header->numRecord > 0) {
+                    SendFlow(flowParam->sendHost, pcapd_header, flowParam->udpSessionKey);
+                }
                 break;
             case SIGNAL_NODE_DONE:
+                // Flush remaining buffered records before closing
+                if (pcapd_header->numRecord > 0) {
+                    SendFlow(flowParam->sendHost, pcapd_header, flowParam->udpSessionKey);
+                }
                 CloseSender(flowParam);
                 done = 1;
                 break;
@@ -401,6 +444,11 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
 
     LogInfo("Terminating flow sending");
     dbg_printf("End flow sendthread[%lu]\n", (long unsigned)flowParam->tid);
+
+    free(sendBuffer);
+    free(encBuffer);
+    sendBuffer = NULL;
+    encBuffer = NULL;
 
     pthread_exit((void *)flowParam);
     /* NOTREACHED */

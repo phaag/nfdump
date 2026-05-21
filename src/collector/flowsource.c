@@ -355,6 +355,7 @@ void expand_exporter_table(exporter_table_t *tab) {
 
 static void freeFlowSource(FlowSource_t *fs) {
     if (fs->exporters.entries) free(fs->exporters.entries);
+    if (fs->udpAntiReplay) free(fs->udpAntiReplay);
     if (fs->backend_ctx) {
         nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
         if (nffile_ctx->datadir) free(nffile_ctx->datadir);

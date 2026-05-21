@@ -35,6 +35,14 @@
 #include <sys/types.h>
 
 #include "collector.h"
+#include "nfd_udp_crypto.h"
+
+/*
+ * VERSION_NFDUMP (250) — plain nfpcapd UDP packet (nfd_header_t + records).
+ * VERSION_NFD_ENCRYPTED (251) — encrypted nfpcapd UDP packet (nfd_enc_header_t
+ *   wire header + ciphertext).  Handled transparently in Process_nfd().
+ */
+#define VERSION_NFD_ENCRYPTED 251
 
 typedef struct nfd_header {
     uint16_t version;       // set to 250 for pcapd
@@ -46,6 +54,22 @@ typedef struct nfd_header {
 
 /* prototypes */
 int Init_pcapd(int verbose);
+
+/*
+ * Init_pcapd_udp_crypto — configure decryption of version-251 nfpcapd packets.
+ *
+ * sessionKey       32-byte Argon2id-derived key (from DeriveUdpSessionKey).
+ *                  Pass NULL to disable decryption (plain v250 only).
+ * replayWindowBits Per-source anti-replay window width in packets.
+ *                  Must be a power of 2 in [64, ANTI_REPLAY_WINDOW_MAX].
+ *                  Pass 0 to use ANTI_REPLAY_WINDOW_DEFAULT (256).
+ * rekeyIntervalSecs Epoch duration for key rotation.  Pass 0 to disable
+ *                  rekeying (single session-key for daemon lifetime).
+ *                  Must match the value given to the sender side.
+ *
+ * Must be called before the first encrypted packet arrives.
+ */
+void Init_pcapd_udp_crypto(const uint8_t *sessionKey, uint32_t replayWindowBits, uint32_t rekeyIntervalSecs);
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

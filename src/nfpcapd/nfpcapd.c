@@ -75,6 +75,7 @@
 #include "flowsend.h"
 #include "logging.h"
 #include "metric.h"
+#include "nfd_udp_crypto.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
 #include "nfnet.h"
@@ -202,6 +203,7 @@ int main(int argc, char *argv[]) {
     uint32_t compressType = UNDEF_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
     crypto_ctx_t *crypto_ctx = NULL;
+    uint8_t *udpSessionKey = NULL;
     snaplen = 1522U;
     bufflen = 0;
     do_daemonize = 0;
@@ -500,6 +502,32 @@ int main(int argc, char *argv[]) {
         if (sendHost->sockfd <= 0) exit(EXIT_FAILURE);
         dbg_printf("Replay flows to host: %s port: %s\n", sendHost->hostname, sendHost->port);
         flowParam.sendHost = sendHost;
+
+        /* Derive UDP transport key if a passphrase was provided via -K.
+         * When -H is active, -K means UDP transport encryption (not file
+         * encryption, since -H and -w are mutually exclusive). */
+        if (crypto_ctx) {
+            const char *confSalt = ConfGetString("crypt.salt");
+            if (confSalt) SetUdpSalt(confSalt);
+            udpSessionKey = DeriveUdpSessionKey(crypto_ctx);
+            if (!udpSessionKey) {
+                LogError("Failed to derive UDP session key — aborting");
+                exit(EXIT_FAILURE);
+            }
+            flowParam.udpSessionKey = udpSessionKey;
+            // Read rekey interval from nfdump.conf [common] section.
+            // crypt.rekeyIntervalSecs = 0 or missing -> rekeying disabled (single session key).
+            uint32_t rekeyIntervalSecs = REKEY_INTERVALSECS_DEFAULT;
+            int64_t confRekey = ConfGetValue("crypt.rekeyIntervalSecs");
+            if (confRekey < 0 || confRekey > 86400 * 7) {
+                LogError("nfpcapd: nfdump.conf crypt.rekeyIntervalSecs %" PRId64 " out of range [0, 604800]; using default %ds", confRekey,
+                         REKEY_INTERVALSECS_DEFAULT);
+            } else {
+                rekeyIntervalSecs = (uint32_t)confRekey;
+            }
+            SetUdpRekeyInterval(rekeyIntervalSecs);
+            LogInfo("UDP transport encryption enabled (XChaCha20-Poly1305)");
+        }
     }
 
 #ifdef __FreeBSD__
@@ -706,6 +734,7 @@ int main(int argc, char *argv[]) {
     if (pidfile) remove_pid(pidfile);
 
     LogInfo("Terminating nfpcapd.");
+    FreeUdpSessionKey(udpSessionKey);
     FreeCryptoCtx(crypto_ctx);
     EndLog();
 
