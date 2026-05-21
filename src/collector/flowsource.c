@@ -138,15 +138,6 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     ip128_2_str(ip, ipStr);
 
     nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)ctx->dynamicSource->backend_ctx;
-    char path[MAXPATHLEN];
-    snprintf(path, MAXPATHLEN - 1, "%s/%s", nffile_ctx->datadir, ipStr);
-    path[MAXPATHLEN - 1] = '\0';
-
-    int err = mkdir(path, 0755);
-    if (err != 0 && errno != EEXIST) {
-        LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
 
     // replace '.' and ':' in ident - old NfSen requirement
     char *ident = strdup(ipStr);
@@ -154,6 +145,17 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     while (*c != '\0') {
         if (*c == '.' || *c == ':') *c = '-';
         c++;
+    }
+
+    char path[MAXPATHLEN];
+    snprintf(path, MAXPATHLEN - 1, "%s/%s", nffile_ctx->datadir, ident);
+    path[MAXPATHLEN - 1] = '\0';
+
+    int err = mkdir(path, 0755);
+    if (err != 0 && errno != EEXIST) {
+        LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(ident);
+        return NULL;
     }
 
     source_array_t *source_array = calloc(1, sizeof(source_array_t) + 1 * sizeof(struct ipList_s));
