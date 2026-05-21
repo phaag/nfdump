@@ -59,8 +59,8 @@ typedef struct {
 } FlowSlot;
 
 /* open-addressing hash table */
-#define LOAD_FACTOR_NUM 7
-#define LOAD_FACTOR_DEN 10
+#define LOAD_FACTOR_NUM 3
+#define LOAD_FACTOR_DEN 4
 #define DefaultHashSize 1024
 
 typedef struct FlowHash_s {

@@ -414,12 +414,14 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
                 return;
             }
             fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
-            if (!fs->nffile) {
+            fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
+            if (!fs->nffile || !fs->swap_nffile) {
                 LogError("Failed to open new collector file");
                 return;
             }
-            fs->dataBlock = WriteBlock(fs->nffile, NULL);
             SetIdent(fs->nffile, fs->Ident);
+            SetIdent(fs->swap_nffile, fs->Ident);
+            fs->dataBlock = WriteBlock(fs->nffile, NULL);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
