@@ -116,7 +116,13 @@ the final directory is concatenated to
 .It Fl p Ar pcapdir
 Optionally stores network packets in pcap compatible files in this directory and rotate files the same as the flow files. Sub hierarchy directories are applied likewise.
 .It Fl H Ar host[/port]
-Send nfdump records to a remote nfcapd collector. Default port is 9995. Flows are no stored locally.
+Send nfdump records to a remote
+.Xr nfcapd 1
+collector via UDP. Default port is 9995. Flows are not stored locally.
+The wire format used is nfdump protocol v250 (plain) or v251 (XChaCha20-Poly1305 encrypted).
+Use
+.Fl K
+to enable encrypted transport.
 .It Fl S Ar num
 Allows to specify an additional directory sub hierarchy to store the data files. The default is 0, no sub hierarchy, which means the files go directly in the base directory (
 .Fl l ).
@@ -165,14 +171,24 @@ Compress flows. Use LZ4 compression in output file.
 .It Fl z=zstd[:level]
 Compress flows. Use zstd compression in output file.
 .It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
-Encrypt all output flow files using ChaCha20-Poly1305 AEAD authenticated encryption.
+Encrypt output flow files (local storage) or the UDP flow transport (remote
+.Fl H
+mode) using ChaCha20-Poly1305 AEAD authenticated encryption.
 Requires
 .Nm
 to be compiled with libsodium support.
-Only applies when storing flows locally
-.Pq Fl w Ar flowdir ;
-has no effect when forwarding records to a remote collector
-.Pq Fl H .
+When forwarding to a remote collector
+.Pq Fl H ,
+.Fl K
+derives a UDP session key and sends flows using nfd wire format v251 (encrypted).
+The receiving
+.Xr nfcapd 1
+must be started with the same passphrase via
+.Fl K .
+When storing flows locally
+.Pq Fl w Ar flowdir ,
+.Fl K
+encrypts each rotated output file with a distinct per-file derived key.
 .Pp
 The passphrase may be supplied in one of three ways:
 .Bl -tag -width Ds

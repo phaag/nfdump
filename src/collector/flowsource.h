@@ -117,6 +117,12 @@ int init_collector_ctx(collector_ctx_t *ctx);
 
 FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned subDir);
 
+/*
+ * newSendFlowSource — create a FlowSource for the UDP send backend (-H).
+ * No datadir or nffile context is allocated; backend_ctx is left NULL.
+ */
+FlowSource_t *newSendFlowSource(const char *ident);
+
 void insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs);
 
 FlowSource_t *GetFlowSource(collector_ctx_t *ctx, const struct sockaddr_storage *nf_sender);

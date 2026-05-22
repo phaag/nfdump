@@ -103,6 +103,28 @@ int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const ch
 
 }  // End of ConfigureDefaultFlowSource
 
+/*
+ * ConfigureSendFlowSource — configure the single FlowSource for the UDP send
+ * backend (-H).  No data directory is required; the FlowSource accepts any
+ * source IP (ctx->any_source).
+ *
+ * Returns 1 on success, 0 on error or if an incompatible source model is
+ * already configured.
+ */
+int ConfigureSendFlowSource(collector_ctx_t *ctx, const char *ident) {
+    if (ctx->dynamicSource || ctx->index.count || ctx->any_source) {
+        LogError("Option -H cannot be combined with -w, -n, or -M");
+        return 0;
+    }
+
+    ctx->any_source = newSendFlowSource(ident);
+    if (!ctx->any_source) return 0;
+
+    LogInfo("Add UDP send flow source: ident: %s", ident);
+    return 1;
+
+}  // End of ConfigureSendFlowSource
+
 // configure fixed IP sources
 // one or multiple -n options
 // returns 1 on success or 0 on error or number of sources == 0

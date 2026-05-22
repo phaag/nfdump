@@ -51,6 +51,7 @@
 .Op Fl 6
 .Op Fl J Ar mcastgroup
 .Op Fl R Ar repeater
+.Op Fl H Ar host[/port]
 .Op Fl A
 .Op Fl B Ar buffsize
 .Op Fl n Ar sourceparam
@@ -166,6 +167,28 @@ is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a
 .Ar port
 may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
 Only one repeater may be defined. Use this method to daisy chain collectors.
+.It Fl H Ar host[/port]
+Forward all collected flows to a remote
+.Xr nfcapd 1
+collector via UDP instead of writing them to local files.
+.Ar host
+is a valid IPv4/IPv6 address or hostname.
+.Ar port
+may be omitted and defaults to 9995.
+The separator between host and port is '/' to avoid ambiguity with IPv6 addresses.
+Flows are sent using nfdump wire format protocol v250 (plain) or v251 (encrypted, see
+.Fl K
+below).
+This option is mutually exclusive with
+.Fl w ,
+.Fl n ,
+and
+.Fl M .
+Dynamic flow sources
+.Pq Fl M
+are not supported when
+.Fl H
+is active.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packages
 is set to the original IP address. This needs
@@ -288,6 +311,11 @@ Changing the level results in smaller files but uses up more time to compress. L
 workers. See -W.
 .It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 Encrypt all output flow files using ChaCha20-Poly1305 AEAD authenticated encryption.
+When used together with
+.Fl H ,
+.Fl K
+instead derives a UDP session key and encrypts all forwarded flow packets
+using XChaCha20-Poly1305 (nfd wire format v251).
 Requires
 .Nm
 to be compiled with libsodium support.

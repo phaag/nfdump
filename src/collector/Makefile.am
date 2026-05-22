@@ -1,10 +1,13 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../netflow $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
 
 noinst_LIBRARIES = libcollector.a
 
 libcollector_a_SOURCES = ip128.c ip128.h repeater.c repeater.h \
-	backend.c backend.h launch.h launch.c  \
+	backend/backend.h \
+	backend/nffile_backend.c backend/nffile_backend.h \
+	backend/remote_backend.c backend/remote_backend.h \
+	launch.h launch.c \
 	flowsource.c flowsource.h collector.c collector.h nfnet.h nfnet.c \
 	yaf_reader.c yaf_reader.h  metric.c metric.h
 

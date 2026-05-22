@@ -58,7 +58,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "backend.h"
+#include "backend/nffile_backend.h"
 #include "barrier.h"
 #include "bookkeeper.h"
 #include "compress/nfcompress.h"

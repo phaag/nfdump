@@ -46,7 +46,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "backend.h"
+#include "backend/nffile_backend.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "config.h"

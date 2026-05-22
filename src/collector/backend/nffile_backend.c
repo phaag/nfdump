@@ -28,7 +28,7 @@
  *
  */
 
-#include "backend.h"
+#include "backend/nffile_backend.h"
 
 #include <errno.h>
 #include <pthread.h>

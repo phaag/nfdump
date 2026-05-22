@@ -61,7 +61,7 @@
 #include <sodium.h>
 #endif
 
-#include "backend.h"
+#include "backend/backend.h"
 #include "barrier.h"
 #include "collector.h"
 #include "compress/nfcompress.h"
@@ -78,6 +78,7 @@
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "pidfile.h"
+#include "nfd_raw.h"
 #include "repeater.h"
 #include "sflow_nfdump.h"
 #include "util.h"
@@ -126,6 +127,7 @@ static void usage(char *name) {
         "-o options \tAdd sfcpad options, separated with ','. Available: 'tun'\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port.\n"
+        "-H host[/port]\tForward collected flows to host or IP address[/port]. Default port 9995.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-x process\tlaunch process after a new file becomes available\n"
         "-W workers\toptionally set the number of workers to compress flows\n"
@@ -144,7 +146,7 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
-        "-K[=passphrase|@keyfile]\tEncrypt output files. Passphrase from argument, key file, or interactive prompt.\n"
+        "-K[=passphrase|@keyfile]\tEncrypt output files (local) or UDP transport (-H). Passphrase from argument, key file, or interactive prompt.\n"
 #endif
         ,
         name);
@@ -188,6 +190,11 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             return;
         }
 
+        if (nffile_backend_ctx == NULL) {
+            (*ignored_packets)++;
+            LogError("Dynamic flow sources are not supported with -H flow forwarding backend");
+            return;
+        }
         if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
             LogError("Failed to initialise backend for new source");
             // XXX should free this flow source
@@ -444,6 +451,8 @@ int main(int argc, char **argv) {
 
     unsigned srcSpoofing = 0;
     repeater_host_t repeater_host = {0};
+    repeater_t *sendHost = NULL;
+    uint8_t *udpSessionKey = NULL;
 
     collector_ctx_t collector_ctx = {0};
     stringlist_t sourceList = {0};
@@ -478,12 +487,34 @@ int main(int argc, char **argv) {
     parse_tun = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:J:K::l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(EXIT_SUCCESS);
                 break;
+            case 'H': {
+                CheckArgLen(optarg, 128);
+                if (sendHost) {
+                    LogError("Only one flow forward host is supported");
+                    exit(EXIT_FAILURE);
+                }
+                sendHost = calloc(1, sizeof(repeater_t));
+                if (!sendHost) {
+                    LogError("calloc() failed");
+                    exit(EXIT_FAILURE);
+                }
+                char *fwdHostname = strdup(optarg);
+                char *fwdPort = "9995";
+                char *fwdp = strchr(fwdHostname, '/');
+                if (fwdp) {
+                    *fwdp++ = '\0';
+                    fwdPort = fwdp;
+                }
+                sendHost->hostname = fwdHostname;
+                sendHost->port = strdup(fwdPort);
+                break;
+            }
             case 'u':
                 userid = optarg;
                 break;
@@ -746,11 +777,22 @@ int main(int argc, char **argv) {
     }
     OptGetBool(sfcapdConfig, "tun", &parse_tun);
 
-    if ((ConfigureDefaultFlowSource(&collector_ctx, Ident, dataDir, subdir_index) == 0) &&
-        (ConfigureFixedFlowSource(&collector_ctx, &sourceList, subdir_index) == 0) &&
-        (ConfigureDynFlowSource(&collector_ctx, dynFlowDir, subdir_index) == 0)) {
-        LogError("Failed to configure a flow source model");
-        exit(EXIT_FAILURE);
+    if (sendHost) {
+        if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {
+            LogError("-H cannot be combined with -w, -n, or -M");
+            exit(EXIT_FAILURE);
+        }
+        if (ConfigureSendFlowSource(&collector_ctx, Ident) == 0) {
+            LogError("Failed to configure send flow source");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        if ((ConfigureDefaultFlowSource(&collector_ctx, Ident, dataDir, subdir_index) == 0) &&
+            (ConfigureFixedFlowSource(&collector_ctx, &sourceList, subdir_index) == 0) &&
+            (ConfigureDynFlowSource(&collector_ctx, dynFlowDir, subdir_index) == 0)) {
+            LogError("Failed to configure a flow source model");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (bindhost && mcastgroup) {
@@ -862,20 +904,58 @@ int main(int argc, char **argv) {
                                                      .subdir = subdir_index,
                                                      .time_extension = time_extension,
                                                      .msgQueue = launcher_ctx ? launcher_ctx->msgQueue : NULL};
+    const nffile_backend_ctx_t *use_nffile_ctx = NULL;
 
-    if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
-        LogError("Failed to initialized nffile backend");
-        close_sockets(socks, nsocks);
-        CloseMetric();
-        remove_pid(pidfile);
-        exit(EXIT_FAILURE);
-    }
-
-    if (!LaunchBackend(&collector_ctx)) {
-        close_sockets(socks, nsocks);
-        CloseMetric();
-        remove_pid(pidfile);
-        exit(EXIT_FAILURE);
+    if (sendHost) {
+        /* UDP send backend (-H): derive session key if -K was given, open socket and start thread. */
+        if (crypto_ctx) {
+            udpSessionKey = DeriveUdpSessionKey(crypto_ctx);
+            if (!udpSessionKey) {
+                LogError("sfcapd: failed to derive UDP session key \342\200\224 aborting");
+                close_sockets(socks, nsocks);
+                CloseMetric();
+                remove_pid(pidfile);
+                exit(EXIT_FAILURE);
+            }
+            LogInfo("sfcapd: UDP transport encryption enabled (XChaCha20-Poly1305)");
+        }
+        sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &sendHost->addr, &sendHost->addrlen);
+        if (sendHost->sockfd <= 0) {
+            LogError("Failed to open UDP send socket to %s/%s", sendHost->hostname, sendHost->port);
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
+        if (Init_udpsend_backend(collector_ctx.any_source, sendHost, udpSessionKey) != 0) {
+            LogError("Failed to initialise UDP send backend");
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
+        if (!Launch_udpsend_backend(collector_ctx.any_source)) {
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        /* nffile backend: write collected flows to disk */
+        if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
+            LogError("Failed to initialized nffile backend");
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
+        if (!LaunchBackend(&collector_ctx)) {
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
+        use_nffile_ctx = &nffile_backend_ctx;
     }
 
     pthread_t repeater_tid = 0;
@@ -914,14 +994,18 @@ int main(int argc, char **argv) {
 
     LogInfo("Startup sfcapd.");
     if (nsocks > 0) {
-        run_network(&collector_ctx, &nffile_backend_ctx, repeater_ctx, socks, nsocks, twin);
+        run_network(&collector_ctx, use_nffile_ctx, repeater_ctx, socks, nsocks, twin);
         close_sockets(socks, nsocks);
     } else {
-        run_file_mode(&collector_ctx, &nffile_backend_ctx, receive_packet, twin);
+        run_file_mode(&collector_ctx, use_nffile_ctx, receive_packet, twin);
     }
 
     // shutdown
-    CloseBackend(&collector_ctx, expire);
+    if (sendHost) {
+        Close_udpsend_backend(collector_ctx.any_source);
+    } else {
+        CloseBackend(&collector_ctx, expire);
+    }
     CloseMetric();
 
     if (repeater_tid) RepeaterShutdown(repeater_ctx);
@@ -931,6 +1015,7 @@ int main(int argc, char **argv) {
 
     LogInfo("Terminating sfcapd.");
     remove_pid(pidfile);
+    FreeUdpSessionKey(udpSessionKey);
     FreeCryptoCtx(crypto_ctx);
 
     EndLog();

@@ -81,6 +81,13 @@ typedef struct cycle_message_s {
 
 int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const char *dataDir, unsigned subDir);
 
+/*
+ * ConfigureSendFlowSource — configure a single any-IP FlowSource for the
+ * UDP send backend (-H).  Incompatible with -w, -n, and -M.
+ * Returns 1 on success, 0 on error.
+ */
+int ConfigureSendFlowSource(collector_ctx_t *ctx, const char *ident);
+
 int ConfigureDynFlowSource(collector_ctx_t *ctx, const char *dynFlowDir, unsigned subDir);
 
 int ConfigureFixedFlowSource(collector_ctx_t *ctx, stringlist_t *sourceList, unsigned subDir);

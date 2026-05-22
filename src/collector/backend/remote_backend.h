@@ -28,58 +28,25 @@
  *
  */
 
-#ifndef _BACKEND_H
-#define _BACKEND_H 1
-
-#include "collector.h"
-#include "flowsource.h"
-#include "nffileV3/nffileV3.h"
-#include "repeater.h"
-
-typedef struct nffile_backend_ctx_s {
-    char Ident[IDENTLEN];  // source identifier
-
-    book_handle_t *book_handle;  // book_handle for statistics of all files
-    char *datadir;               // base dir to store flow files
-    char *tmpFileName;           // name of tmp collection file
-    uint32_t subdir;             // index of sub dir layout - see nffile.h
-    nffileV3_t *nffile;          // nffile handle
-
-    // const args
-    char *time_extension;            // parameter passing
-    uint32_t creator;                // creator - nfcapd or sfcapd
-    uint16_t compressType;           // compression type
-    uint16_t compressLevel;          // compression Level
-    const crypto_ctx_t *crypto_ctx;  // encryption context; NULL = not encrypted
-    int pfd;                         // launcher socket
-
-    // collector param
-    queue_t *blockQueue;  // queue from collector
-    // launcher
-    queue_t *msgQueue;  // queue for launcher
-
-    pthread_t self;
-
-} nffile_backend_ctx_t;
-
-int InitBackend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *init_nffile_ctx);
-
-int LaunchBackend(collector_ctx_t *ctx);
-
-int CloseBackend(const collector_ctx_t *ctx, int expire);
-
-int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffile_ctx);
-
-int Launch_nffile_backend(FlowSource_t *fs);
-
-void close_nffile_backend(FlowSource_t *fs, int expire);
-
-/* -----------------------------------------------------------------------
- * UDP send backend — forwards collected flows to a remote nfcapd instance
- * as nfd v250 (plain) or v251 (XChaCha20-Poly1305 encrypted) UDP packets.
+/*
+ * remote backend — forwards collected flows to a remote nfcapd instance via UDP.
  *
- * Restrictions: single FlowSource only; -M and -n are incompatible.
- * ----------------------------------------------------------------------- */
+ * Sends nfd v250 (plain) or v251 (XChaCha20-Poly1305 encrypted) packets to the
+ * configured destination.  A single FlowSource is supported; -M and -n are
+ * incompatible with this backend.
+ *
+ * The backend is selected when nfcapd is invoked with -H host[/port].
+ */
+
+#ifndef _REMOTE_BACKEND_H
+#define _REMOTE_BACKEND_H 1
+
+#include <pthread.h>
+#include <stdint.h>
+
+#include "flowsource.h"
+#include "queue.h"
+#include "repeater.h"
 
 typedef struct udpsend_backend_ctx_s {
     repeater_t sendHost;          /* UDP target: addr, addrlen, sockfd  */
@@ -90,11 +57,11 @@ typedef struct udpsend_backend_ctx_s {
 } udpsend_backend_ctx_t;
 
 /*
- * Init_udpsend_backend — initialise the send backend for a FlowSource.
+ * Init_udpsend_backend — initialise the UDP send backend for a FlowSource.
  *
  * sendHost      A pre-populated repeater_t with sockfd already opened via
  *               Unicast_send_socket().
- * udpSessionKey 32-byte derived key for v251 encryption; NULL for plain v250.
+ * udpSessionKey 32-byte derived key for v251 AEAD encryption; NULL for plain v250.
  *
  * Sets fs->backend_ctx and fs->blockQueue.
  * Returns 0 on success, 1 on error.
@@ -107,4 +74,4 @@ int Launch_udpsend_backend(FlowSource_t *fs);
 /* Close_udpsend_backend — close queue, join thread, free context. */
 void Close_udpsend_backend(FlowSource_t *fs);
 
-#endif
+#endif /* _REMOTE_BACKEND_H */

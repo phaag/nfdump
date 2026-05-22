@@ -42,7 +42,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "backend.h"
+#include "backend/nffile_backend.h"
 #include "config.h"
 #include "ip128.h"
 #include "logging.h"
@@ -106,6 +106,34 @@ FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned sub
     return fs;
 
 }  // End of newFlowSource
+
+/*
+ * newSendFlowSource — create a FlowSource without a backing nffile directory.
+ *
+ * Used by the UDP send backend path (-H) where collected flows are forwarded
+ * over the network instead of written to a local file.  The caller must
+ * subsequently call Init_udpsend_backend() to attach the backend context.
+ */
+FlowSource_t *newSendFlowSource(const char *ident) {
+    FlowSource_t *fs = calloc(1, sizeof(FlowSource_t));
+    if (!fs) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    fs->exporters.capacity = NUMEXPORTERS;
+    fs->exporters.entries = calloc(fs->exporters.capacity, sizeof(exporter_entry_t));
+    if (!fs->exporters.entries) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(fs);
+        return NULL;
+    }
+
+    strncpy(fs->Ident, ident, IDENTLEN - 1);
+    /* backend_ctx is intentionally NULL here; Init_udpsend_backend() fills it */
+    return fs;
+
+}  // End of newSendFlowSource
 
 void insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs) {
     source_index_t *idx = &ctx->index;
