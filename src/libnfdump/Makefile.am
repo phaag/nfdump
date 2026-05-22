@@ -21,6 +21,6 @@ endif
 lib_LTLIBRARIES = libnfdump.la 
 libnfdump_la_SOURCES = $(filter) $(maxmind) $(tor) $(regex) $(decode) $(digest) ../libnffile/vcs_track.h
 libnfdump_la_LDFLAGS = -release @VERSION@
-libnfdump_la_LIBADD = $(LIBATOMIC)
+libnfdump_la_LIBADD = ../libnffile/libnffile.la $(LIBATOMIC)
  
 CLEANFILES = filter/lex.yy.c filter/grammar.c filter/grammar.h filter/scanner.c filter/scanner.h *.gch

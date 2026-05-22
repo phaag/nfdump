@@ -35,7 +35,7 @@ vcs_track.h: Makefile
 	./gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(bookkeeper) $(version) vcs_track.h
+libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(output) $(daemon) $(barrier) $(bookkeeper) $(version) vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS) $(LIBSODIUM_CFLAGS)
 libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@

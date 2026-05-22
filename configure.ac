@@ -62,7 +62,7 @@ AC_ARG_ENABLE([readpcap], AS_HELP_STRING([--enable-readpcap],[Enable reading of 
 AC_ARG_ENABLE([nfpcapd], AS_HELP_STRING([--enable-nfpcapd],[Enable nfpcapd pcap to netflow collector]), enable_nfpcapd=yes, enable_nfpcapd=no)
 AC_ARG_ENABLE([ja4], AS_HELP_STRING([--enable-ja4],[Build with ja4+ fingerprinting code; https://github.com/FoxIO-LLC/ja4/blob/main/LICENSE]), enable_ja4=yes, enable_ja4=no)
 AC_ARG_ENABLE([native], [AS_HELP_STRING([--enable-native], [Use -march=native if supported for running on local system])], [enable_native=$enableval], [enable_native=no])
-AC_ARG_ENABLE([lto], AS_HELP_STRING([--enable-lto], [Enable link-time optimization (LTO) if supported]), [enable_lto=$enableval], [enable_lto=no])
+AC_ARG_ENABLE([lto], AS_HELP_STRING([--enable-lto], [Enable link-time optimization; auto=enable when supported (default: auto)]), [enable_lto=$enableval], [enable_lto=auto])
 
 
 AM_CONDITIONAL([BUILD_FT2NFDUMP], [test x$enable_ftconv = xyes])
@@ -102,19 +102,35 @@ AS_IF([test x$enable_native != xno], [
 		])
 ])
 
-AS_IF([test "x$enable_lto" = "xyes"], [
-  AC_MSG_CHECKING([whether the compiler supports -flto])
+# --- LTO: auto-enable when compiler+linker support it; warn only if explicitly requested ---
+AS_IF([test "x$enable_lto" != "xno" -a "x$enable_devel" != "xyes"], [
   AX_CHECK_COMPILE_FLAG([-flto], [have_lto_cc=yes], [have_lto_cc=no])
-
-  AC_MSG_CHECKING([whether the linker supports -flto])
   AX_CHECK_LINK_FLAG([-flto], [have_lto_ld=yes], [have_lto_ld=no])
-
   AS_IF([test "x$have_lto_cc" = "xyes" -a "x$have_lto_ld" = "xyes"], [
       AC_MSG_NOTICE([LTO enabled])
       AX_APPEND_FLAG([-flto], [CFLAGS])
       AX_APPEND_FLAG([-flto], [LDFLAGS])
   ], [
-      AC_MSG_WARN([LTO requested but not supported by compiler or linker])
+      AS_IF([test "x$enable_lto" = "xyes"],
+          [AC_MSG_WARN([LTO requested but not supported by compiler or linker])])
+  ])
+])
+
+# --- Dead code elimination: --gc-sections (Linux/*BSD/lld) ---
+# -ffunction-sections/-fdata-sections + --gc-sections is safe for both executables
+# and shared libraries on GNU ld / lld (default-visibility symbols are roots).
+# macOS -dead_strip is intentionally NOT used here: it strips exported symbols
+# from shared libraries (.dylib) that have no callers within the lib itself,
+# breaking the public API of libnffile/libnfdump.
+# LTO already handles dead code elimination on all platforms.
+AS_IF([test "x$enable_devel" != "xyes"], [
+  AX_CHECK_COMPILE_FLAG([-ffunction-sections -fdata-sections], [have_sec_flags=yes], [have_sec_flags=no])
+  AS_IF([test "x$have_sec_flags" = "xyes"], [
+    AX_CHECK_LINK_FLAG([-Wl,--gc-sections], [
+      AX_APPEND_FLAG([-ffunction-sections -fdata-sections], [CFLAGS])
+      AX_APPEND_FLAG([-Wl,--gc-sections], [LDFLAGS])
+      AC_MSG_NOTICE([dead code elimination: -ffunction-sections + --gc-sections])
+    ])
   ])
 ])
 

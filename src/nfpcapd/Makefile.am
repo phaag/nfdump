@@ -10,10 +10,9 @@ pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowhash.c flowhash.h ip_frag.c ip
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap_file.c packet_pcap.h 
 nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
-nfpcapd_SOURCES += ../netflow/nfd_udp_crypto.c ../netflow/nfd_udp_crypto.h
 nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_CPPFLAGS += $(PCAP_CFLAGS) $(ZLIB_CFLAGS)
-nfpcapd_LDADD = ../collector/libcollector.a -lnffile  -lpcap -lm
+nfpcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lpcap -lm
 nfpcapd_LDADD += $(PCAP_LIBS) $(ZLIB_LIBS)
 nfpcapd_LDFLAGS = -L../libnffile
 
