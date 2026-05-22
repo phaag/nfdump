@@ -28,14 +28,16 @@
  *
  */
 
-#ifndef _SEND_V9_H
-#define _SEND_V9_H 1
+#ifndef _SEND_V9_IPFIX_H
+#define _SEND_V9_IPFIX_H 1
 
 #include "nfdump.h"
 #include "send_net.h"
 
 #define NF_F_FLOW_CREATE_TIME_MSEC 152
 #define NF_F_FLOW_END_TIME_MSEC 153
+
+#define IPFIX_TEMPLATE_SET_ID 2 /* IPFIX template set ID (RFC 7011 §3.3.2) */
 
 #define NF9_IN_BYTES 1
 #define NF9_IN_PACKETS 2
@@ -113,4 +115,12 @@ int Close_v9_output(send_peer_t *peer);
 
 int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer);
 
-#endif  // _SEND_V9_H
+/* IPFIX v10 — same wire format for data records; differs in message header
+ * (16-byte IPFIX header vs 20-byte v9 header) and template set ID (2 vs 0). */
+int Init_ipfix_output(send_peer_t *peer);
+
+int Close_ipfix_output(send_peer_t *peer);
+
+int Add_ipfix_output_record(recordHandle_t *recordHandle, send_peer_t *peer);
+
+#endif  // _SEND_V9_IPFIX_H

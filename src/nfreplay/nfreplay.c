@@ -64,10 +64,14 @@
 #include "nfxV4.h"
 #include "send_net.h"
 #include "send_v5.h"
-#include "send_v9.h"
+#include "send_v9_ipfix.h"
 #include "ssl/ssl.h"
 #include "util.h"
 #include "version.h"
+#ifdef HAVE_LIBSODIUM
+#include "nfd_udp_crypto.h"
+#include "nffileV3/nfcrypto.h"
+#endif
 
 #define DEFAULTCISCOPORT "9995"
 #define DEFAULTHOSTNAME "127.0.0.1"
@@ -89,6 +93,9 @@
 static send_peer_t peer;
 static uint32_t recordCnt = 0;
 static uint32_t sequence = 0;
+#ifdef HAVE_LIBSODIUM
+static uint8_t *sessionKey = NULL;
+#endif
 
 /* Function Prototypes */
 static void usage(char *name);
@@ -124,17 +131,24 @@ static void usage(char *name) {
         "-b <bsize>\tSend buffer size.\n"
         "-r <input>\tread from file. default: stdin\n"
         "-f <filter>\tfilter syntaxfile\n"
-        "-v <version>\tUse netflow version to send flows. Either 5 or 9\n"
+        "-v <version>\tUse netflow version to send flows. Either 5, 9, 10 (IPFIX) or 250 (nfdump native).\n"
         "-z <distribution>\tSimulate real time distribution with coefficient\n"
         "-t <time>\ttime window for sending packets\n"
         "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
         name);
+#ifdef HAVE_LIBSODIUM
+    printf(
+        "-K[=<passphrase>|@<keyfile>]\tEncrypt forwarded flows using nfdump crypto protocol.\n"
+        "\t\t\t\tPassphrase from argument, @keyfile, or interactive prompt.\n"
+        "\t\t\t\tUse together with -v 250.\n");
+#endif
 } /* usage */
 
 static void Flush_nfd_header(send_peer_t *peer) {
     size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
     nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
     nfd_header->version = htons(VERSION_NFDUMP);
+    nfd_header->exportTime = htonl((uint32_t)time(NULL));
     nfd_header->length = htons(len);
     sequence++;
     dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
@@ -193,6 +207,17 @@ static int FlushBuffer(int confirm) {
         fflush(stdout);
         fgetc(stdin);
     }
+#ifdef HAVE_LIBSODIUM
+    if (sessionKey) {
+        static uint8_t wireBuf[UDP_PACKET_SIZE + NFD_ENC_HDR_SIZE + NFD_AEAD_TAG_SIZE];
+        ssize_t wireLen = UdpEncrypt(wireBuf, sizeof(wireBuf), peer.send_buffer, len, sessionKey);
+        if (wireLen < 0) {
+            LogError("UdpEncrypt() failed");
+            return -1;
+        }
+        return sendto(peer.sockfd, wireBuf, (size_t)wireLen, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
+    }
+#endif
     return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
@@ -257,15 +282,25 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
     dbg_printf("Init output protocol version: %u\n", netflow_version);
     switch (netflow_version) {
-        case 5:
+        case VERSION_NETFLOW_V5:
             Init_v5_v7_output(&peer);
             break;
-        case 9:
+        case VERSION_NETFLOW_V9:
             if (!Init_v9_output(&peer)) {
                 free(peer.send_buffer);
                 CloseFileV3(nffile);
                 return;
             }
+            break;
+        case VERSION_IPFIX:
+            if (!Init_ipfix_output(&peer)) {
+                free(peer.send_buffer);
+                CloseFileV3(nffile);
+                return;
+            }
+            break;
+        case VERSION_NFDUMP:
+            // init is lazy — Add_nfd_output_record reserves header space on first record
             break;
     }
 
@@ -346,6 +381,9 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
                         case VERSION_NETFLOW_V9:
                             again = Add_v9_output_record(recordHandle, &peer);
                             break;
+                        case VERSION_IPFIX:
+                            again = Add_ipfix_output_record(recordHandle, &peer);
+                            break;
                         case VERSION_NFDUMP:  // nfd raw format
                             again = Add_nfd_output_record(record_ptr, &peer);
                             break;
@@ -375,6 +413,9 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
                                 break;
                             case VERSION_NETFLOW_V9:
                                 again = Add_v9_output_record(recordHandle, &peer);
+                                break;
+                            case VERSION_IPFIX:
+                                again = Add_ipfix_output_record(recordHandle, &peer);
                                 break;
                             case VERSION_NFDUMP:  // nfd raw format
                                 again = Add_nfd_output_record(record_ptr, &peer);
@@ -431,10 +472,13 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
     // flush still remaining records
     switch (netflow_version) {
-        case 5:
+        case VERSION_NETFLOW_V5:
             break;
-        case 9:
+        case VERSION_NETFLOW_V9:
             Close_v9_output(&peer);
+            break;
+        case VERSION_IPFIX:
+            Close_ipfix_output(&peer);
             break;
         case VERSION_NFDUMP:  // nfd raw format
             Close_nfd_output(&peer);
@@ -473,12 +517,20 @@ int main(int argc, char **argv) {
     delay = 1;
     sockbuff_size = 0;
     int verbose = -1;
-    int netflow_version = 9;
+    int netflow_version = VERSION_NETFLOW_V9;
     uint64_t count = 0;
     int confirm = 0;
     int distribution = 0;
+#ifdef HAVE_LIBSODIUM
+    crypto_ctx_t *crypto_ctx = NULL;
+#endif
     int c = 0;
-    while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
+    while ((c = getopt(argc, argv,
+                       "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VY"
+#ifdef HAVE_LIBSODIUM
+                       "K::"
+#endif
+                       )) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -528,8 +580,8 @@ int main(int argc, char **argv) {
             } break;
             case 'v':
                 netflow_version = atoi(optarg);
-                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_NFDUMP) {
-                    LogError("Invalid netflow version: %s. Accept only 5 or 9 or %d", optarg, VERSION_NFDUMP);
+                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_IPFIX && netflow_version != VERSION_NFDUMP) {
+                    LogError("Invalid netflow version: %s. Accept only 5, 9, 10 (IPFIX) or %d", optarg, VERSION_NFDUMP);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -580,6 +632,20 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+#ifdef HAVE_LIBSODIUM
+            case 'K': {
+                char *pp = ParsePassphrase(optarg, "Enter encryption passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                crypto_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!crypto_ctx) {
+                    LogError("Failed to initialize encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+#endif
             default:
                 usage(argv[0]);
                 exit(0);
@@ -593,6 +659,19 @@ int main(int argc, char **argv) {
         filter = argv[optind];
     }
 
+#ifdef HAVE_LIBSODIUM
+    if (crypto_ctx) {
+        if (netflow_version != VERSION_NFDUMP) {
+            LogError("-K requires -v %d (nfdump native protocol)", VERSION_NFDUMP);
+            exit(EXIT_FAILURE);
+        }
+        sessionKey = DeriveUdpSessionKey(crypto_ctx);
+        if (!sessionKey) {
+            LogError("Failed to derive UDP session key");
+            exit(EXIT_FAILURE);
+        }
+    }
+#endif
     if (peer.hostname == NULL) peer.hostname = DEFAULTHOSTNAME;
 
     if (!filter && ffile) {
@@ -627,5 +706,9 @@ int main(int argc, char **argv) {
 
     send_data(engine, flist.timeWindow, count, delay, confirm, netflow_version, distribution);
 
+#ifdef HAVE_LIBSODIUM
+    FreeUdpSessionKey(sessionKey);
+    FreeCryptoCtx(crypto_ctx);
+#endif
     return 0;
 }

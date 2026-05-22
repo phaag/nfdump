@@ -28,7 +28,7 @@
  *
  */
 
-#include "send_v9.h"
+#include "send_v9_ipfix.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -51,6 +51,17 @@
 
 #define NF9_TEMPLATE_FLOWSET_ID 0
 #define NF9_MIN_RECORD_FLOWSET_ID 256
+
+/* IPFIX v10 message header (RFC 7011 §3.1) — 16 bytes.
+ * Differs from the 20-byte NetFlow v9 header: no SysUptime, 'count' is
+ * replaced by total message 'length' in bytes, and version = 10. */
+typedef struct ipfixHeader_s {
+    uint16_t version;              /* = 10                                   */
+    uint16_t length;               /* total message length in bytes          */
+    uint32_t exportTime;           /* seconds since epoch when packet is sent */
+    uint32_t sequenceNumber;       /* cumulative data records before this pkt */
+    uint32_t observationDomainID;  /* exporter observation domain            */
+} ipfixHeader_t;
 
 typedef struct v9Header_s {
     uint16_t version;
@@ -95,8 +106,9 @@ typedef struct outTemplates_s {
 
 typedef struct sender_data_s {
     struct header_s {
-        v9Header_t *v9_header;    // start of v9 packet
-        uint32_t record_count;    // number of records in send buffer
+        v9Header_t *v9_header;      // start of packet — NetFlow v9 view
+        ipfixHeader_t *ipfix_header; // start of packet — IPFIX v10 view (same address)
+        uint32_t record_count;    // number of data records in send buffer
         uint32_t template_count;  // number of templates in send buffer
         uint32_t sequence;
     } header;
@@ -110,6 +122,7 @@ typedef struct sender_data_s {
 
 static outTemplate_t *outTemplates = NULL;
 static sender_data_t *sender_data = NULL;
+static int use_ipfix = 0;  /* 0 = NetFlow v9, 1 = IPFIX v10 */
 
 // Get_valxx, a  macros
 #include "inline.c"
@@ -126,15 +139,19 @@ static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer);
 
 static void CloseDataFlowset(send_peer_t *peer);
 
+static void FinalizePacket(send_peer_t *peer);
+
 static int CheckSendBufferSpace(size_t size, send_peer_t *peer);
 
 int Init_v9_output(send_peer_t *peer) {
+    use_ipfix = 0;
     sender_data = calloc(1, sizeof(sender_data_t));
     if (!sender_data) {
         LogError("calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     sender_data->header.v9_header = (v9Header_t *)peer->send_buffer;
+    sender_data->header.ipfix_header = (ipfixHeader_t *)peer->send_buffer;
     peer->buff_ptr = (void *)((void *)sender_data->header.v9_header + sizeof(v9Header_t));
 
     sender_data->header.v9_header->version = htons(9);
@@ -153,16 +170,39 @@ int Init_v9_output(send_peer_t *peer) {
 
 }  // End of Init_v9_output
 
+int Init_ipfix_output(send_peer_t *peer) {
+    use_ipfix = 1;
+    sender_data = calloc(1, sizeof(sender_data_t));
+    if (!sender_data) {
+        LogError("calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+    sender_data->header.v9_header = (v9Header_t *)peer->send_buffer;
+    sender_data->header.ipfix_header = (ipfixHeader_t *)peer->send_buffer;
+    /* IPFIX header is 16 bytes (4 bytes shorter than v9 due to no SysUptime) */
+    peer->buff_ptr = (void *)((void *)peer->send_buffer + sizeof(ipfixHeader_t));
+
+    sender_data->header.ipfix_header->version = htons(10);
+    sender_data->header.ipfix_header->length = 0;
+    sender_data->header.ipfix_header->exportTime = htonl((uint32_t)time(NULL));
+    sender_data->header.ipfix_header->sequenceNumber = 0;
+    sender_data->header.ipfix_header->observationDomainID = htonl(1);
+    sender_data->header.record_count = 0;
+    sender_data->header.template_count = 0;
+    sender_data->header.sequence = 0;
+
+    sender_data->data_flowset = NULL;
+    sender_data->data_flowset_id = 0;
+
+    return 1;
+
+}  // End of Init_ipfix_output
+
 int Close_v9_output(send_peer_t *peer) {
     if ((sender_data->header.record_count + sender_data->header.template_count) > 0) {
-        dbg_printf("Close v9 output\n");
+        dbg_printf("Close output\n");
         peer->flush = 1;
-        sender_data->header.sequence++;
-        sender_data->header.v9_header->sequence = htonl(sender_data->header.sequence);
-        sender_data->header.v9_header->count = htons(sender_data->header.record_count + sender_data->header.template_count);
-        CloseDataFlowset(peer);
-        dbg_printf("Prepare buffer: sequence: %u, records: %u, templates: %u\n", sender_data->header.sequence, sender_data->header.record_count,
-                   sender_data->header.template_count);
+        FinalizePacket(peer);
         sender_data->header.record_count = 0;
         sender_data->header.template_count = 0;
         return 1;
@@ -171,6 +211,8 @@ int Close_v9_output(send_peer_t *peer) {
     return 0;
 
 }  // End of Close_v9_output
+
+int Close_ipfix_output(send_peer_t *peer) { return Close_v9_output(peer); }  // End of Close_ipfix_output
 
 static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     uint32_t template_id = 0;
@@ -470,7 +512,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     flowset->field[count].type = 0;
     flowset->field[count].length = 0;
 
-    (*t)->template_flowset->flowset_id = htons(NF9_TEMPLATE_FLOWSET_ID);
+    (*t)->template_flowset->flowset_id = htons(use_ipfix ? IPFIX_TEMPLATE_SET_ID : NF9_TEMPLATE_FLOWSET_ID);
     (*t)->flowset_length = 4 * (2 + count);  // + 2 for the header
 
     // add proper padding for 32bit boundary
@@ -700,18 +742,38 @@ static void CloseDataFlowset(send_peer_t *peer) {
     }
 }  // End of CloseDataFlowset
 
+/* FinalizePacket — close the current data flowset (adds 32-bit padding) and
+ * stamp the protocol-specific header fields before FlushBuffer sends it.
+ *
+ * NetFlow v9: increment the per-packet sequence counter, write record count.
+ * IPFIX v10:  write total message length in bytes, exportTime, and the
+ *             cumulative data-record sequence number (RFC 7011 §3.1). */
+static void FinalizePacket(send_peer_t *peer) {
+    CloseDataFlowset(peer);
+    if (use_ipfix) {
+        uint16_t pkt_len = (uint16_t)((uint8_t *)peer->buff_ptr - (uint8_t *)peer->send_buffer);
+        sender_data->header.ipfix_header->length = htons(pkt_len);
+        sender_data->header.ipfix_header->exportTime = htonl((uint32_t)time(NULL));
+        /* sequenceNumber = count of data records exported before this message */
+        sender_data->header.ipfix_header->sequenceNumber = htonl(sender_data->header.sequence);
+        sender_data->header.sequence += sender_data->header.record_count;
+    } else {
+        sender_data->header.sequence++;
+        sender_data->header.v9_header->sequence = htonl(sender_data->header.sequence);
+        sender_data->header.v9_header->count =
+            htons(sender_data->header.record_count + sender_data->header.template_count);
+    }
+    dbg_printf("Prepare buffer: sequence: %u, records: %u, templates: %u\n", sender_data->header.sequence,
+               sender_data->header.record_count, sender_data->header.template_count);
+}  // End of FinalizePacket
+
 static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
     dbg_printf("CheckSendBufferSpace for %zu bytes: ", size);
     if ((peer->buff_ptr + size) > peer->endp) {
         // request buffer flush
         dbg_printf("Check for %zu bytes in send buffer. Flush first.\n", size);
         peer->flush = 1;
-        sender_data->header.sequence++;
-        sender_data->header.v9_header->sequence = htonl(sender_data->header.sequence);
-        sender_data->header.v9_header->count = htons(sender_data->header.record_count + sender_data->header.template_count);
-        CloseDataFlowset(peer);
-        dbg_printf("Prepare buffer: sequence: %u, records: %u, templates: %u\n", sender_data->header.sequence, sender_data->header.record_count,
-                   sender_data->header.template_count);
+        FinalizePacket(peer);
         sender_data->header.record_count = 0;
         sender_data->header.template_count = 0;
         return 0;
@@ -735,16 +797,21 @@ int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
 
     if (!sender_data->header.v9_header->unix_secs) {  // first time a record is added
         dbg_printf("First time setup\n");
-        // boot time is set one day back - assuming that the start time of every flow does not start
-        // earlier
-        uint64_t boot_time = genericFlow->msecFirst - 86400LL * 1000LL;
-        uint32_t unix_secs = boot_time / 1000LL;
-        sender_data->header.v9_header->unix_secs = htonl(unix_secs);
+        if (!use_ipfix) {
+            // v9: set SysUptime base one day back so per-record relative timestamps fit
+            uint64_t boot_time = genericFlow->msecFirst - 86400LL * 1000LL;
+            uint32_t unix_secs = boot_time / 1000LL;
+            sender_data->header.v9_header->unix_secs = htonl(unix_secs);
+        } else {
+            // IPFIX: mark as initialised; exportTime is set fresh on every FinalizePacket
+            sender_data->header.v9_header->unix_secs = htonl(1);
+        }
     }
 
     // check, if Buffer was flushed
     if (peer->buff_ptr == peer->send_buffer) {
-        peer->buff_ptr = (void *)((void *)sender_data->header.v9_header + sizeof(v9Header_t));
+        size_t hdr_size = use_ipfix ? sizeof(ipfixHeader_t) : sizeof(v9Header_t);
+        peer->buff_ptr = (void *)((void *)peer->send_buffer + hdr_size);
     }
 
     time_t now = time(NULL);
@@ -796,3 +863,11 @@ int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
 
     return 0;
 }  // End of Add_v9_output_record
+
+/* Add_ipfix_output_record — IPFIX v10 entry point.
+ * All data-record encoding is identical to NetFlow v9 (same IANA IE numbers
+ * and byte widths for all fields used here); only the message header and
+ * template set ID differ, which are driven by the use_ipfix flag. */
+int Add_ipfix_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
+    return Add_v9_output_record(recordHandle, peer);
+}  // End of Add_ipfix_output_record

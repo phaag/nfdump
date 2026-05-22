@@ -30,7 +30,7 @@
 .Os
 .Sh NAME
 .Nm nfreplay
-.Nd replay binary flow files as netflow version v5 or v9 to a remote host
+.Nd replay binary flow files as netflow v5, v9, IPFIX or nfdump native protocol to a remote host
 .Sh SYNOPSIS
 .Nm 
 .Fl r Ar flowfile
@@ -41,24 +41,26 @@
 .Op Fl 4
 .Op Fl 6
 .Op Fl v Ar version
+.Op Fl K Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
 .Op Fl d Ar usec
 .Op Fl b Ar buffsize
 .Op Fl z Ar num
 .Op Fl c Ar num
-.Op Fl v
-.Op Fl H
+.Op Fl V
+.Op Fl h
 .Op Ar filter
 .Sh DESCRIPTION
 .Nm
-reads binary flow files stored by any nfdump collector and sents the flow records
-to a remote host or a multicast group. 
+reads binary flow files stored by any nfdump collector and sends the flow records
+to a remote host or a multicast group.
 .Pp
 .Nm
-sends the data as netflow v5 or v9 to the remote location.
+sends the data as netflow v5, v9 or as the native nfdump protocol (version 250/251)
+to the remote location.
 .Pp
 .Nm
 accepts a filter to limit the flows to be sent. The filter syntax is equivalent to
-nfdump. 
+nfdump.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -86,11 +88,68 @@ Forces
 to send flows to a IPv6 address only. Can be used if the remote host has
 an IPv4 and IPv6 address record.
 .It Fl v Ar version
-Send flows as netflow version
-.Ar version . 
-Version V5 and v9 are supported. In v5 mode, all additional elements to a 
-stadard v5 record are skipped and 64bit counters are truncated to 32bit. 
-The default is v9. 
+Send flows using the specified wire protocol version.
+Supported versions:
+.Bl -tag -width "250" -compact
+.It 5
+NetFlow v5.
+All extensions beyond the standard v5 record are silently dropped;
+64-bit counters are truncated to 32 bits.
+IPv6 flows are skipped.
+.It 9
+NetFlow v9 (default).
+All nfdump extensions are exported as typed fields inside NF9 flowsets.
+.It 10
+IPFIX (RFC 7011).
+Uses the same information element numbers as NetFlow v9 for all standard
+fields.
+The IPFIX message header (16 bytes) replaces the 20-byte v9 header:
+version is 10, the
+.Em Length
+field carries the total message length in bytes, and the
+.Em Sequence Number
+counts cumulative data records rather than packets.
+Template sets use set ID 2 (vs.\ 0 for v9).
+The receiving
+.Xr nfcapd 1
+must support IPFIX (all nfdump 1.8.x builds do).
+.It 250
+Native nfdump protocol.
+Flow records are forwarded verbatim as raw nfdump V4 records inside an
+.Em nfd_header
+UDP frame (version 250).
+The receiving
+.Xr nfcapd 1
+must run the same nfdump 1.8.x release.
+When
+.Fl K
+is also specified the packet is transparently encrypted and sent as
+protocol version 251.
+.El
+.It Fl K Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
+Encrypt forwarded flows using the nfdump encrypted UDP protocol (version 251).
+Must be used together with
+.Fl v No 250 .
+.Pp
+The passphrase is taken from the optional argument (
+.Fl K Ns = Ns Ar passphrase ) ,
+from a key file (
+.Fl K Ns = Ns @ Ns Ar keyfile ) ,
+or from an interactive prompt when
+.Fl K
+is given without an argument.
+.Pp
+A 32-byte session key is derived from the passphrase via Argon2id (interactive
+cost).
+Each UDP packet is independently encrypted with XChaCha20-Poly1305 using a
+random 192-bit nonce; a 16-byte Poly1305 MAC is appended.
+The receiving
+.Xr nfcapd 1
+must be started with the same passphrase via its
+.Fl K
+option.
+.Pp
+Available only when nfreplay is compiled with libsodium support.
 .It Fl u Ar usec
 Delay each record by
 .Ar usec

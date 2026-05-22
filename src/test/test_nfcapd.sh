@@ -327,10 +327,12 @@ DUMMY_NF="$SCRIPT_DIR/dummy_flows.nf"
 
 if [ ! -x "$NFREPLAY_BIN" ]; then
     skip "live_v9:            nfreplay binary not available"
+    skip "live_ipfix:         nfreplay binary not available"
     skip "live_v5:            nfreplay binary not available"
     skip "live_append_rename: nfreplay binary not available"
 elif [ ! -f "$DUMMY_NF" ]; then
     skip "live_v9:            $DUMMY_NF missing (run runprepare.sh first)"
+    skip "live_ipfix:         $DUMMY_NF missing (run runprepare.sh first)"
     skip "live_v5:            $DUMMY_NF missing (run runprepare.sh first)"
     skip "live_append_rename: $DUMMY_NF missing (run runprepare.sh first)"
 else
@@ -339,6 +341,7 @@ else
 
     if [ -z "$REF_FLOWS" ] || [ "$REF_FLOWS" -eq 0 ]; then
         skip "live_v9:            could not read flow count from $DUMMY_NF"
+        skip "live_ipfix:         could not read flow count from $DUMMY_NF"
         skip "live_v5:            could not read flow count from $DUMMY_NF"
         skip "live_append_rename: could not read flow count from $DUMMY_NF"
     else
@@ -346,8 +349,9 @@ else
         # with runtest.sh (which uses 65530) and OS ephemeral range on Linux.
         BASE_PORT=$(( 49152 + $$ % 16000 ))
         PORT_V9=$(( BASE_PORT ))
-        PORT_V5=$(( BASE_PORT + 1 ))
-        PORT_AP=$(( BASE_PORT + 2 ))
+        PORT_V10=$(( BASE_PORT + 1 ))
+        PORT_V5=$(( BASE_PORT + 2 ))
+        PORT_AP=$(( BASE_PORT + 3 ))
 
         # ── 5a. v9 round-trip ────────────────────────────────────────────────
         # nfreplay cannot encode all record types in every netflow version, so
@@ -379,6 +383,40 @@ else
                     pass "live_v9: ${LIVE_V9_FLOWS} flows (ref=${REF_FLOWS})"
                 else
                     fail "live_v9: ${LIVE_V9_FLOWS:-0} flows, expected >= $v9min (ref=${REF_FLOWS})"
+                fi
+            fi
+        fi
+
+        # ── 5a½. IPFIX v10 round-trip ────────────────────────────────────────────
+        # IPFIX (RFC 7011) uses a 16-byte message header (version=10, total
+        # length in bytes, exportTime, sequence=cumulative data records,
+        # observationDomainID) and template set ID 2 instead of 0.  All
+        # data-record IE numbers are identical to NetFlow v9, so nfcapd
+        # dispatches to Process_IPFIX which handles the same field set.
+        # Accept at least half of REF_FLOWS.
+        LIVE_V10="$WORKDIR/live_ipfix"
+        mkdir -p "$LIVE_V10"
+        nfcapd -p "$PORT_V10" -4 -w "$LIVE_V10" -D \
+               -P "$LIVE_V10/pidfile" -I live_ipfix -v 0 >/dev/null 2>&1
+        sleep 1
+        nfreplay -r "$DUMMY_NF" -v 10 -H 127.0.0.1 -p "$PORT_V10" >/dev/null 2>&1
+        sleep 1
+        kill -TERM "$(cat "$LIVE_V10/pidfile" 2>/dev/null)" 2>/dev/null || true
+        wait_stop "$LIVE_V10/pidfile" 5
+
+        if [ -f "$LIVE_V10/pidfile" ]; then
+            fail "live_ipfix: nfcapd did not terminate within 5 s"
+        else
+            v10f=$(ls "$LIVE_V10"/nfcapd.* 2>/dev/null | head -1)
+            if [ -z "$v10f" ]; then
+                fail "live_ipfix: no output file created"
+            else
+                v10got=$(count_flows "$v10f")
+                v10min=$(( REF_FLOWS / 2 ))
+                if [ "${v10got:-0}" -ge "$v10min" ]; then
+                    pass "live_ipfix: ${v10got} flows (ref=${REF_FLOWS})"
+                else
+                    fail "live_ipfix: ${v10got:-0} flows, expected >= $v10min (ref=${REF_FLOWS})"
                 fi
             fi
         fi
