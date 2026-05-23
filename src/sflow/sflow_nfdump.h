@@ -35,7 +35,7 @@
 #include <sys/types.h>
 
 #include "collector.h"
-#include "sflow_process.h"
+#include "sflow_decode.h"
 
 int Init_sflow(int verbose, char *extensionList);
 

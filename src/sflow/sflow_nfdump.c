@@ -42,7 +42,6 @@
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <setjmp.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -61,7 +60,6 @@
 #include "output_short.h"
 // sFlow v5
 #include "sflow.h"
-#include "sflow_process.h"
 // sFlow v2/4
 #include "id.h"
 #include "sflow_v2v4.h"
@@ -142,6 +140,16 @@ int Init_sflow(int verbose, char *extensionList) {
         BitMapSet(baseBitMap, EXinMacAddrID);
         baseExtensionSize += EXinMacAddrSize;
     }
+    // Layer-2 info: ingress/egress ports, VLAN, VNI, EtherType, IP version
+    if (ExtensionsEnabled[EXlayer2ID]) {
+        BitMapSet(baseBitMap, EXlayer2ID);
+        baseExtensionSize += EXlayer2Size;
+    }
+    // Observation domain/point (ds_class / ds_index from the sFlow sample header)
+    if (ExtensionsEnabled[EXobservationID]) {
+        BitMapSet(baseBitMap, EXobservationID);
+        baseExtensionSize += EXobservationSize;
+    }
 
     return 1;
 }  // End of Init_sflow
@@ -152,19 +160,10 @@ void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int par
 
     memcpy(sample.sourceIP.bytes, fs->ipAddr.bytes, 16);
     dbg_printf("startDatagram =================================\n");
-    // catch SFABORT in sflow code
-    int exceptionVal;
-    if ((exceptionVal = setjmp(sample.env)) == 0) {
-        // TRY
-        sample.datap = (uint32_t *)sample.rawSample;
-        sample.endp = (u_char *)sample.rawSample + sample.rawSampleLen;
-        readSFlowDatagram(&sample, fs, PrintRecord);
-    } else {
-        // CATCH
-        dbg_printf("SFLOW: caught exception: %d\n", exceptionVal);
-        LogError("SFLOW: caught exception: %d", exceptionVal);
-    }
-    dbg_printf("endDatagram	 =================================\n");
+    sample.datap = (uint32_t *)sample.rawSample;
+    sample.endp  = (const uint8_t *)sample.rawSample + sample.rawSampleLen;
+    readSFlowDatagram(&sample, fs, PrintRecord);
+    dbg_printf("endDatagram   =================================\n");
 
 }  // End of Process_sflow
 
@@ -274,7 +273,8 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
     exporter->packets++;
 
-    if (sample->ip_fragmentOffset > 0) {
+    if (sample->ip_fragmentOffset & 0x1FFFu) {
+        // non-first fragment: no valid L4 header, zero out ports
         sample->dcd_sport = 0;
         sample->dcd_dport = 0;
     }
@@ -337,6 +337,19 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     dbg_printf("Tunnel: IPv4: %u, IPv6: %u\n", tun_isV4, tun_isV6);
+
+    // IP info: TTL and fragment flags — only available from raw header (SFLFLOW_HEADER) decode.
+    // Skipped for direct IPv4/IPv6 structs where TTL is not transmitted.
+    if ((sample->dcd_ipTTL != 0 || (sample->ip_fragmentOffset & 0x3FFFu) != 0) && ExtensionsEnabled[EXipInfoID]) {
+        BitMapSet(bitMap, EXipInfoID);
+        extensionSize += EXipInfoSize;
+    }
+
+    // Adjacent AS peers from BGP gateway extended record
+    if ((sample->src_peer_as != 0 || sample->dst_peer_as != 0) && ExtensionsEnabled[EXasAdjacentID]) {
+        BitMapSet(bitMap, EXasAdjacentID);
+        extensionSize += EXasAdjacentSize;
+    }
 
     uint32_t numExtensions = __builtin_popcountll(bitMap);
     size_t tableSize = ALIGN8(numExtensions * sizeof(uint16_t));
@@ -515,6 +528,38 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
                 tunnel->dstAddr[0] = ntohll(ip6[0]);
                 tunnel->dstAddr[1] = ntohll(ip6[1]);
                 tunnel->proto = sample->tun_proto;
+            } break;
+            case EXipInfoID: {
+                // TTL and fragment flags — populated from raw-header decode only
+                EXipInfo_t *ipInfo = (EXipInfo_t *)extension;
+                ipInfo->fragmentFlags = 0;
+                if (sample->ip_fragmentOffset & 0x4000u) ipInfo->fragmentFlags |= 0x40u;  /* DF */
+                if (sample->ip_fragmentOffset & 0x2000u) ipInfo->fragmentFlags |= 0x20u;  /* MF */
+                ipInfo->minTTL = (uint8_t)sample->dcd_ipTTL;
+                ipInfo->maxTTL = (uint8_t)sample->dcd_ipTTL;
+            } break;
+            case EXlayer2ID: {
+                // Layer-2 context: VLANs, physical ports, VNI, EtherType, IP version
+                EXlayer2_t *layer2 = (EXlayer2_t *)extension;
+                layer2->vlanID    = (uint16_t)sample->in_vlan;
+                layer2->postVlanID = (uint16_t)sample->out_vlan;
+                layer2->ingress   = sample->inputPort;
+                layer2->egress    = sample->outputPort;
+                layer2->vxLan     = sample->vni;
+                layer2->etherType = (uint16_t)sample->eth_type;
+                layer2->ipVersion = isV4 ? 4 : (isV6 ? 6 : 0);
+            } break;
+            case EXasAdjacentID: {
+                // BGP peer ASes from the gateway extended record
+                EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)extension;
+                asAdjacent->prevAdjacentAS = sample->src_peer_as;
+                asAdjacent->nextAdjacentAS = sample->dst_peer_as;
+            } break;
+            case EXobservationID: {
+                // sFlow data-source class / index from the sample header
+                EXobservation_t *observation = (EXobservation_t *)extension;
+                observation->domainID = sample->ds_class;
+                observation->pointID  = sample->ds_index;
             } break;
         }
     }
