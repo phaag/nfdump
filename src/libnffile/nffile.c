@@ -698,7 +698,7 @@ static nffile_t *NewFile(uint32_t num_workers) {
     if (!nffile->file_header) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         free(nffile);
-        return NULL; // file_header allocation failed; nffile itself is freed
+        return NULL;  // file_header allocation failed; nffile itself is freed
     }
 
     nffile->stat_record = calloc(1, sizeof(stat_record_t));
@@ -1292,7 +1292,7 @@ dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
 
 void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
     if (dataBlock != NULL) {
-        if (dataBlock->size != 0) {
+        if (dataBlock->size != 0 && dataBlock->NumRecords != 0) {
             queue_push(nffile->processQueue, dataBlock);
         } else {
             FreeDataBlock(dataBlock);
