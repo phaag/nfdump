@@ -146,7 +146,8 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
-        "-K[=passphrase|@keyfile]\tEncrypt output files (local) or UDP transport (-H). Passphrase from argument, key file, or interactive prompt.\n"
+        "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
+        "-k[=passphrase|@keyfile]\tEncrypt UDP transport to -H host (v251). Passphrase from argument, key file, or interactive prompt.\n"
 #endif
         ,
         name);
@@ -447,7 +448,8 @@ int main(int argc, char **argv) {
 #ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
 #endif
-    crypto_ctx_t *crypto_ctx = NULL;
+    crypto_ctx_t *crypto_ctx = NULL;    // -K: backend (file) encryption
+    crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
 
     unsigned srcSpoofing = 0;
     repeater_host_t repeater_host = {0};
@@ -487,7 +489,7 @@ int main(int argc, char **argv) {
     parse_tun = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::k::l:m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z::Z:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -740,13 +742,25 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'K': {
-                char *pp = ParsePassphrase(optarg, "Enter encryption passphrase: ");
+                char *pp = ParsePassphrase(optarg, "Enter backend encryption passphrase: ");
                 if (!pp) exit(EXIT_FAILURE);
                 crypto_ctx = NewCryptoCtx(pp);
                 memset(pp, 0, strlen(pp));
                 free(pp);
                 if (!crypto_ctx) {
-                    LogError("Failed to initialize encryption context");
+                    LogError("Failed to initialize backend encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case 'k': {
+                char *pp = ParsePassphrase(optarg, "Enter UDP transfer passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                transfer_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!transfer_ctx) {
+                    LogError("Failed to initialize UDP transfer encryption context");
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -907,9 +921,9 @@ int main(int argc, char **argv) {
     const nffile_backend_ctx_t *use_nffile_ctx = NULL;
 
     if (sendHost) {
-        /* UDP send backend (-H): derive session key if -K was given, open socket and start thread. */
-        if (crypto_ctx) {
-            udpSessionKey = DeriveUdpSessionKey(crypto_ctx);
+        /* UDP send backend (-H): derive session key if -k was given, open socket and start thread. */
+        if (transfer_ctx) {
+            udpSessionKey = DeriveUdpSessionKey(transfer_ctx);
             if (!udpSessionKey) {
                 LogError("sfcapd: failed to derive UDP session key \342\200\224 aborting");
                 close_sockets(socks, nsocks);
@@ -1016,6 +1030,7 @@ int main(int argc, char **argv) {
     LogInfo("Terminating sfcapd.");
     remove_pid(pidfile);
     FreeUdpSessionKey(udpSessionKey);
+    FreeCryptoCtx(transfer_ctx);
     FreeCryptoCtx(crypto_ctx);
 
     EndLog();

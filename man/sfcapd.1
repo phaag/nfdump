@@ -64,6 +64,7 @@
 .Op Fl X Ar extensionList
 .Op Fl W Ar workers
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+.Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl v Ar level
 .Op Fl V
 .Sh DESCRIPTION
@@ -143,7 +144,7 @@ is a valid IPv4/IPv6 address or hostname.
 may be omitted and defaults to 9995.
 The separator between host and port is '/' to avoid ambiguity with IPv6 addresses.
 Flows are sent using nfdump wire format protocol v250 (plain) or v251 (encrypted, see
-.Fl K
+.Fl k
 below).
 This option is mutually exclusive with
 .Fl w ,
@@ -266,11 +267,6 @@ Changing the level results in smaller files but uses up more time to compress. L
 workers. See -W.
 .It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 Encrypt all output flow files using ChaCha20-Poly1305 AEAD authenticated encryption.
-When used together with
-.Fl H ,
-.Fl K
-instead derives a UDP session key and encrypts all forwarded flow packets
-using XChaCha20-Poly1305 (nfd wire format v251).
 Requires
 .Nm
 to be compiled with libsodium support.
@@ -304,6 +300,39 @@ Encrypted files can be read and decrypted with
 using the same
 .Fl K
 option.
+.It Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+Encrypt the UDP flow transport when forwarding to a remote collector
+.Pq Fl H
+using XChaCha20-Poly1305 AEAD authenticated encryption (nfd wire format v251).
+Requires
+.Nm
+to be compiled with libsodium support.
+.Fl k
+derives a 32-byte session key from the passphrase via Argon2id and sends flows
+as protocol version 251.
+The receiving
+.Xr nfcapd 1
+must be started with the same passphrase via
+.Fl k .
+.Pp
+The passphrase may be supplied in one of three ways:
+.Bl -tag -width Ds
+.It Fl k Ns = Ns Ar passphrase
+Use
+.Ar passphrase
+directly.
+The
+.Ql =
+is required; there must be no space between
+.Fl k
+and the passphrase.
+.It Pf Fl k @ Ar keyfile
+Read the passphrase from the first line of
+.Ar keyfile .
+Trailing newlines are stripped.
+.It Fl k
+(no argument) Prompt interactively from the terminal with echo disabled.
+.El
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.

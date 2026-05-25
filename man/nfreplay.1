@@ -41,7 +41,7 @@
 .Op Fl 4
 .Op Fl 6
 .Op Fl v Ar version
-.Op Fl K Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
+.Op Fl k Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
 .Op Fl d Ar usec
 .Op Fl b Ar buffsize
 .Op Fl z Ar num
@@ -122,21 +122,21 @@ The receiving
 .Xr nfcapd 1
 must run the same nfdump 1.8.x release.
 When
-.Fl K
+.Fl k
 is also specified the packet is transparently encrypted and sent as
 protocol version 251.
 .El
-.It Fl K Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
+.It Fl k Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
 Encrypt forwarded flows using the nfdump encrypted UDP protocol (version 251).
 Must be used together with
 .Fl v No 250 .
 .Pp
 The passphrase is taken from the optional argument (
-.Fl K Ns = Ns Ar passphrase ) ,
+.Fl k Ns = Ns Ar passphrase ) ,
 from a key file (
-.Fl K Ns = Ns @ Ns Ar keyfile ) ,
+.Fl k Ns = Ns @ Ns Ar keyfile ) ,
 or from an interactive prompt when
-.Fl K
+.Fl k
 is given without an argument.
 .Pp
 A 32-byte session key is derived from the passphrase via Argon2id (interactive
@@ -146,7 +146,7 @@ random 192-bit nonce; a 16-byte Poly1305 MAC is appended.
 The receiving
 .Xr nfcapd 1
 must be started with the same passphrase via its
-.Fl K
+.Fl k
 option.
 .Pp
 Available only when nfreplay is compiled with libsodium support.

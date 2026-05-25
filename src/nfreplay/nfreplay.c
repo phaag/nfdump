@@ -138,7 +138,7 @@ static void usage(char *name) {
         name);
 #ifdef HAVE_LIBSODIUM
     printf(
-        "-K[=<passphrase>|@<keyfile>]\tEncrypt forwarded flows using nfdump crypto protocol.\n"
+        "-k[=<passphrase>|@<keyfile>]\tEncrypt forwarded flows using nfdump UDP transport protocol.\n"
         "\t\t\t\tPassphrase from argument, @keyfile, or interactive prompt.\n"
         "\t\t\t\tUse together with -v 250.\n");
 #endif
@@ -522,15 +522,10 @@ int main(int argc, char **argv) {
     int confirm = 0;
     int distribution = 0;
 #ifdef HAVE_LIBSODIUM
-    crypto_ctx_t *crypto_ctx = NULL;
+    crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
 #endif
     int c = 0;
-    while ((c = getopt(argc, argv,
-                       "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VY"
-#ifdef HAVE_LIBSODIUM
-                       "K::"
-#endif
-                       )) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VYk::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -632,20 +627,18 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-#ifdef HAVE_LIBSODIUM
-            case 'K': {
-                char *pp = ParsePassphrase(optarg, "Enter encryption passphrase: ");
+            case 'k': {
+                char *pp = ParsePassphrase(optarg, "Enter UDP transfer passphrase: ");
                 if (!pp) exit(EXIT_FAILURE);
-                crypto_ctx = NewCryptoCtx(pp);
+                transfer_ctx = NewCryptoCtx(pp);
                 memset(pp, 0, strlen(pp));
                 free(pp);
-                if (!crypto_ctx) {
-                    LogError("Failed to initialize encryption context");
+                if (!transfer_ctx) {
+                    LogError("Failed to initialize UDP transfer encryption context");
                     exit(EXIT_FAILURE);
                 }
                 break;
             }
-#endif
             default:
                 usage(argv[0]);
                 exit(0);
@@ -660,12 +653,12 @@ int main(int argc, char **argv) {
     }
 
 #ifdef HAVE_LIBSODIUM
-    if (crypto_ctx) {
+    if (transfer_ctx) {
         if (netflow_version != VERSION_NFDUMP) {
-            LogError("-K requires -v %d (nfdump native protocol)", VERSION_NFDUMP);
+            LogError("-k requires -v %d (nfdump native protocol)", VERSION_NFDUMP);
             exit(EXIT_FAILURE);
         }
-        sessionKey = DeriveUdpSessionKey(crypto_ctx);
+        sessionKey = DeriveUdpSessionKey(transfer_ctx);
         if (!sessionKey) {
             LogError("Failed to derive UDP session key");
             exit(EXIT_FAILURE);
@@ -708,7 +701,7 @@ int main(int argc, char **argv) {
 
 #ifdef HAVE_LIBSODIUM
     FreeUdpSessionKey(sessionKey);
-    FreeCryptoCtx(crypto_ctx);
+    FreeCryptoCtx(transfer_ctx);
 #endif
     return 0;
 }

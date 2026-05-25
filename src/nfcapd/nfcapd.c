@@ -147,8 +147,9 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
-        "-K[=passphrase|@keyfile]\tEncrypt output files. Passphrase from argument, key file, or interactive prompt.\n"
-        "-N <secs>\t\tUDP transport rekey interval in seconds (requires -K). Default 0 (disabled).\n"
+        "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
+        "-k[=passphrase|@keyfile]\tDecrypt incoming UDP transport (v251, from nfpcapd/nfreplay). Passphrase from argument, key file, or interactive prompt.\n"
+        "-N <secs>\t\tUDP transport rekey interval in seconds (requires -k). Default 0 (disabled).\n"
         "-Q <bits>\t\tUDP anti-replay window in bits (power of 2, 64\u20131024). Default 256.\n"
 #endif
         ,
@@ -494,7 +495,8 @@ int main(int argc, char **argv) {
 
     char *yaf_file = NULL;
     char *listenport = DEFAULTLISTENPORT;
-    crypto_ctx_t *crypto_ctx = NULL;
+    crypto_ctx_t *crypto_ctx = NULL;    // -K: backend (file) de/encryption
+    crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport decryption
     uint8_t *udpSessionKey = NULL;
     uint32_t compressType = NOT_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
@@ -523,7 +525,7 @@ int main(int argc, char **argv) {
     numWorkers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::l:m:M:n:p:P:R:s:S:t:u:v:VW:w:x:X:Y:z::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::k::l:m:M:n:p:P:R:s:S:t:u:v:VW:w:x:X:Y:z::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -781,13 +783,25 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'K': {
-                char *pp = ParsePassphrase(optarg, "Enter encryption passphrase: ");
+                char *pp = ParsePassphrase(optarg, "Enter backend encryption passphrase: ");
                 if (!pp) exit(EXIT_FAILURE);
                 crypto_ctx = NewCryptoCtx(pp);
                 memset(pp, 0, strlen(pp));
                 free(pp);
                 if (!crypto_ctx) {
-                    LogError("Failed to initialize encryption context");
+                    LogError("Failed to initialize backend encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case 'k': {
+                char *pp = ParsePassphrase(optarg, "Enter UDP transfer passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                transfer_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!transfer_ctx) {
+                    LogError("Failed to initialize UDP transfer encryption context");
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -921,11 +935,11 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    // Register UDP session key for v251 decryption if a passphrase was given.
-    if (crypto_ctx) {
+    // Register UDP session key for v251 decryption if a passphrase was given via -k.
+    if (transfer_ctx) {
         const char *confSalt = ConfGetString("crypt.salt");
         if (confSalt) SetUdpSalt(confSalt);
-        udpSessionKey = DeriveUdpSessionKey(crypto_ctx);
+        udpSessionKey = DeriveUdpSessionKey(transfer_ctx);
         if (!udpSessionKey) {
             LogError("nfcapd: failed to derive UDP session key — aborting");
             close_sockets(socks, nsocks);
@@ -995,7 +1009,7 @@ int main(int argc, char **argv) {
 
     if (sendHost) {
         /* UDP send backend (-H): open socket and start send thread.
-         * udpSessionKey is already derived from crypto_ctx above if -K was given. */
+         * udpSessionKey is already derived from transfer_ctx above if -k was given. */
         sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &sendHost->addr, &sendHost->addrlen);
         if (sendHost->sockfd <= 0) {
             LogError("Failed to open UDP send socket to %s/%s", sendHost->hostname, sendHost->port);
@@ -1093,6 +1107,7 @@ int main(int argc, char **argv) {
     LogInfo("Terminating nfcapd.");
     remove_pid(pidfile);
     FreeUdpSessionKey(udpSessionKey);
+    FreeCryptoCtx(transfer_ctx);
     FreeCryptoCtx(crypto_ctx);
 
     EndLog();
