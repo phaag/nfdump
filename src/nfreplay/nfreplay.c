@@ -521,9 +521,8 @@ int main(int argc, char **argv) {
     uint64_t count = 0;
     int confirm = 0;
     int distribution = 0;
-#ifdef HAVE_LIBSODIUM
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
-#endif
+
     int c = 0;
     while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VYk::")) != EOF) {
         switch (c) {

@@ -369,6 +369,7 @@ echo "  LIBS               = $LIBS $LZ4_LIBS $ZSTD_LIBS $BZ2_LIBS $RRD_LIBS $FT_
 echo "  Which lz4 code     = $which_lz4"
 echo "  Enable libbz2      = $HAVE_BZ2"
 echo "  Enable libzstd     = $HAVE_ZSTD"
+echo "  With libsodium     = $HAVE_LIBSODIUM"
 echo "  Enable ja4         = $enable_ja4"
 echo "  Enable read pcap   = $enable_readpcap"
 echo "  Build nfpcapd      = $enable_nfpcapd - with gzip pcap-reader: $readzpcap"
