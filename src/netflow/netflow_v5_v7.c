@@ -296,6 +296,11 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
 }  // End of getExporter
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
+    if (in_buff_cnt < NETFLOW_V5_HEADER_LENGTH) {
+        LogError("Process_v5: Too little data for v5/v7 packet: '%lli'", (long long)in_buff_cnt);
+        return;
+    }
+
     // v7 is treated as v5. it differs by the sequencer skip count only
     // map v5 data structure to input buffer
     netflow_v5_header_t *v5_header = (netflow_v5_header_t *)in_buff;
