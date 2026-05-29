@@ -154,6 +154,11 @@ static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
 }  // End of GetExtension
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
+    if (in_buff_cnt < (ssize_t)sizeof(nfd_header_t)) {
+        LogError("Process_nfd: Too little data for nfd header: '%lli'", (long long)in_buff_cnt);
+        return;
+    }
+
     // map pacpd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
 
