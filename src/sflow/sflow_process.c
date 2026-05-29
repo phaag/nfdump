@@ -1607,8 +1607,10 @@ static void readFlowSample_ethernet(SFSample *sample, char *prefix) {
 #endif
 
     sample->eth_len = getData32(sample);
+    if ((uint8_t *)sample->datap + 6 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
     memcpy(sample->eth_src, sample->datap, 6);
     skipBytes(sample, 6);
+    if ((uint8_t *)sample->datap + 6 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
     memcpy(sample->eth_dst, sample->datap, 6);
     skipBytes(sample, 6);
     sample->eth_type = getData32(sample);
@@ -1977,9 +1979,11 @@ static void readExtendedSocket6(SFSample *sample) {
     dbg_printf("extendedType socket6\n");
     sf_log_next32(sample, "socket6_ip_protocol");
     sample->ipsrc.type = SFLADDRESSTYPE_IP_V6;
+    if ((uint8_t *)sample->datap + 16 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
     memcpy(&sample->ipsrc.address.ip_v6, sample->datap, 16);
     skipBytes(sample, 16);
     sample->ipdst.type = SFLADDRESSTYPE_IP_V6;
+    if ((uint8_t *)sample->datap + 16 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
     memcpy(&sample->ipdst.address.ip_v6, sample->datap, 16);
     skipBytes(sample, 16);
     dbg_printf("socket6_local_ip %s\n", printAddress(&sample->ipsrc, buf, 50));
@@ -2001,9 +2005,11 @@ static void readExtendedProxySocket6(SFSample *sample) {
     dbg_printf("extendedType proxy_socket6\n");
     sf_log_next32(sample, "proxy_socket6_ip_protocol");
     ipsrc.type = SFLADDRESSTYPE_IP_V6;
+    if ((uint8_t *)sample->datap + 16 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
     memcpy(&ipsrc.address.ip_v6, sample->datap, 16);
     skipBytes(sample, 16);
     ipdst.type = SFLADDRESSTYPE_IP_V6;
+    if ((uint8_t *)sample->datap + 16 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
     memcpy(&ipdst.address.ip_v6, sample->datap, 16);
     skipBytes(sample, 16);
     dbg_printf("proxy_socket6_local_ip %s\n", printAddress(&ipsrc, buf, 50));
@@ -3280,6 +3286,7 @@ static void readRTFlow(SFSample *sample, FlowSource_t *fs, int verbose) {
                     dbg_printf("rtflow %s = (string) \"%s\"\n", fname, fvalstr);
                     break;
                 case 1:
+                    if ((uint8_t *)sample->datap + 6 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
                     memcpy(fvalmac, sample->datap, 6);
                     skipBytes(sample, 6);
                     printHex(fvalmac, 6, fvalmacstr, 32, 0, 100);
@@ -3292,6 +3299,7 @@ static void readRTFlow(SFSample *sample, FlowSource_t *fs, int verbose) {
                     break;
                 case 3:
                     fvaladdr.type = SFLADDRESSTYPE_IP_V6;
+                    if ((uint8_t *)sample->datap + 16 > sample->endp) SFABORT(sample, SF_ABORT_EOS);
                     memcpy(fvaladdr.address.ip_v6.addr, sample->datap, 16);
                     skipBytes(sample, 16);
                     dbg_printf("rtflow %s = (ip6) %s\n", fname, printAddress(&fvaladdr, fvaladdrstr, 63));

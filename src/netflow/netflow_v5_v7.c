@@ -528,8 +528,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // next header
         v5_header = (netflow_v5_header_t *)v5_record;
 
-        // should never be < 0
-        done = size_left <= 0;
+        // stop if not enough data for another header
+        done = size_left < NETFLOW_V5_HEADER_LENGTH;
 
     }  // End of while !done
 

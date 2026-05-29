@@ -367,8 +367,8 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // next header
         v1_header = (netflow_v1_header_t *)v1_record;
 
-        // should never be < 0
-        done = size_left <= 0;
+        // stop if not enough data for another header
+        done = size_left < NETFLOW_V1_HEADER_LENGTH;
 
     }  // End of while !done
 
