@@ -899,12 +899,11 @@ static void decodeIPV6(SFSample *sample) {
 */
 
 static inline uint32_t getData32_nobswap(SFSample *sample) {
-    uint32_t ans = *(sample->datap)++;
-    /* make sure we didn't run off the end of the datagram.  Thanks to
-   Sven Eschenberg for spotting a bug/overrun-vulnerabilty that was here before. */
-    if ((uint8_t *)sample->datap > sample->endp) {
+    /* check BEFORE dereferencing: need 4 bytes remaining */
+    if ((uint8_t *)sample->datap + 4 > sample->endp) {
         SFABORT(sample, SF_ABORT_EOS);
     }
+    uint32_t ans = *(sample->datap)++;
     return ans;
 }  // End of getData32_nobswap
 
