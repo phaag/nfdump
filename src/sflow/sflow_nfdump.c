@@ -335,7 +335,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         .dstPort = (uint16_t)sample->dcd_dport,
         .msecReceived = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL),
         .inPackets = sample->meanSkipCount,
-        .inBytes = sample->meanSkipCount * sample->sampledPacketSize,
+        .inBytes = (uint64_t)sample->meanSkipCount * (uint64_t)sample->sampledPacketSize,
         .srcTos = sample->dcd_ipTos,
     };
 
