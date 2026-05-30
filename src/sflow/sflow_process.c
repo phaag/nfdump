@@ -557,7 +557,7 @@ static void decodeLinkLayer(SFSample *sample) {
 // uncomment unused variables to keep compiler happy
 static void decode80211MAC(SFSample *sample) {
     uint8_t *start = sample->header;
-    //  uint8_t *end = start + sample->headerLen;
+    uint8_t *end = start + sample->headerLen;
     uint8_t *ptr = start;
 
     /* assume not found */
@@ -616,7 +616,8 @@ static void decode80211MAC(SFSample *sample) {
             if (toDS) {
                 dstMAC = macAddr3;
                 if (fromDS) {
-                    srcMAC = ptr; /* macAddr4.  1,1 => (wireless bridge) */
+                    if (ptr + 6 > end) break; /* truncated: no room for macAddr4 */
+                    srcMAC = ptr;             /* macAddr4.  1,1 => (wireless bridge) */
                     ptr += 6;
                 } else
                     srcMAC = macAddr2; /* 1,0 */
