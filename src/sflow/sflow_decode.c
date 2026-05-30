@@ -833,6 +833,7 @@ static void decodeExtGateway(SFSample *sample) {
     // communities: skip count + array
     uint32_t commLen;
     if (!sfGetU32(sample, &commLen)) return;
+    if (commLen > UINT32_MAX / 4u) { sample->error = SF_ERR_DECODE; return; }
     if (!sfSkip(sample, commLen * 4u)) return;
 
     // localpref: skip
