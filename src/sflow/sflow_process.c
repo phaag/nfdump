@@ -1261,6 +1261,7 @@ static void mplsLabelStack(SFSample *sample, char *fieldName) {
     /* just point at the lablelstack array */
     if (lstk.depth > 0) lstk.stack = (uint32_t *)sample->datap;
     /* and skip over it in the input */
+    if (lstk.depth > UINT32_MAX / 4) SFABORT(sample, SF_ABORT_EOS);
     skipBytes(sample, lstk.depth * 4);
 
 #ifdef DEVEL
@@ -1415,6 +1416,7 @@ static void readExtendedVlanTunnel(SFSample *sample) {
     /* just point at the lablelstack array */
     if (lstk.depth > 0) lstk.stack = (uint32_t *)sample->datap;
     /* and skip over it in the input */
+    if (lstk.depth > UINT32_MAX / 4) SFABORT(sample, SF_ABORT_EOS);
     skipBytes(sample, lstk.depth * 4);
 
 #ifdef DEVEL
