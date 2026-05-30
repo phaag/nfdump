@@ -549,7 +549,7 @@ static struct format_entry_s {
     {"%odid", 0, "obsDomainID", String_observationDomainID},  // observation domainID
     {"%opid", 0, "  obsPointID", String_observationPointID},  // observation pointID
 
-    // EXinmonMetaID
+    // EXpacketMetaID
 
     // EXvrfID
     {"%vrf", 0, "  I-VRF-ID", String_ivrf},            // ingress vrf ID - compatible

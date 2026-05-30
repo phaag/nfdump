@@ -57,6 +57,7 @@
 #include "nfnet.h"
 #include "nfxV4.h"
 #include "output_short.h"
+#include "packet_frame.h"
 #include "util.h"
 
 #define LINEAR_MARKER 512
@@ -196,9 +197,9 @@ static const struct ipfixTranslationMap_s {
     AddElement(IPFIX_PORT_BLOCK_STEP, SIZEnelblockStep, MOVE_NUMBER, EXnatPortBlockID, OFFnelblockStep, "NAT block step"),
     AddElement(IPFIX_PORT_BLOCK_SIZE, SIZEnelblockSize, MOVE_NUMBER, EXnatPortBlockID, OFFnelblockSize, "NAT block size"),
     // inline-monitoring inmon
-    AddElement(IPFIX_dataLinkFrameSize, SIZEinmonFrameSize, MOVE_NUMBER, EXinmonMetaID, OFFinmonFrameSize, "inmon frame size"),
-    AddElement(IPFIX_dataLinkFrameType, SIZEinmonLinkType, MOVE_NUMBER, EXinmonMetaID, OFFinmonLinkType, "inmon link type"),
-    AddElement(IPFIX_dataLinkFrameSection, SIZEinmonFrameSize, MOVE_BYTES, EXinmonFrameID, OFFinmonFrameSize, "inmon packet content"),
+    AddElement(IPFIX_dataLinkFrameSize, SIZEinmonFrameSize, MOVE_NUMBER, EXpacketMetaID, OFFinmonFrameSize, "inmon frame size"),
+    AddElement(IPFIX_dataLinkFrameType, SIZEinmonLinkType, MOVE_NUMBER, EXpacketMetaID, OFFinmonLinkType, "inmon link type"),
+    AddElement(IPFIX_dataLinkFrameSection, VARLENGTH, MOVE_BYTES, EXpacketFrameID, OFFinmonFrameSize, "inmon packet content"),
 
     // for memory efficiency:
     // element ID below LINEAR_MARKER are stored at it's proper index
@@ -1676,21 +1677,30 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             fs->stat_record.numbytes += cntFlow->outBytes;
         }
 
-        /*
-         XXX maybe implemented later
-        // if observation extension is used but no domainID, take it from the ipfix header
-        EXobservation_t *observation = GetExtension(recordHeaderV4, EXobservation);
-        if (observation) {
-            if (observation->domainID == 0) observation->domainID = exporter_entry->info->id;
-        }
+        // Decode IPFIX IE #315 dataLinkFrameSection when present.
+        // We copy the captured frame bytes out before calling DecodePacketFrame()
+        // because DecodePacketFrame() overwrites the record at recordHeaderV4 in-place.
+        EXpacketFrame_t *packetFrame = GetExtension(recordHeaderV4, EXpacketFrame);
+        if (packetFrame) {
+            EXpacketMeta_t *packetMeta = GetExtension(recordHeaderV4, EXpacketMeta);
+            uint16_t linkType = packetMeta ? packetMeta->linkType : DATALINK_ETHERNET;
+            uint16_t origFrameSize = packetMeta ? packetMeta->frameSize : packetFrame->length;
 
-        // XXX decode packet content
-        EXinmonFrame_t *inmonFrame = GetExtension(recordHeaderV4, EXinmonFrame);
-        if (inmonFrame) {
-            // XXX FIX! todo
-            // decode packet
+            // Copy captured bytes to stack buffer before overwriting the record.
+            uint32_t capLen = packetFrame->length;
+            if (capLen > 65536) capLen = 65536;
+            uint8_t frameTmp[capLen];
+            memcpy(frameTmp, packetFrame->packet, capLen);
+
+            int decoded = DecodePacketFrame((void *)recordHeaderV4, buffAvail, frameTmp, capLen, linkType, origFrameSize, runtime.msecReceived,
+                                            exporter_entry->info->sysID, fs);
+            if (decoded > 0) {
+                // Record was rewritten in-place; update the size field pointer.
+                dbg_printf("dataLinkFrameSection: decoded frame, new record size: %d\n", decoded);
+            } else {
+                dbg_printf("dataLinkFrameSection: frame decode failed — keeping raw pipeline record\n");
+            }
         }
-        */
 
         if (printRecord) {
             flow_record_short(stdout, recordHeaderV4);

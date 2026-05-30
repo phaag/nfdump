@@ -73,8 +73,8 @@ enum {
     EXtunnelV4ID,
     EXtunnelV6ID,
     EXobservationID,
-    EXinmonMetaID,
-    EXinmonFrameID,
+    EXpacketMetaID,
+    EXpacketFrameID,
     EXvrfID,
     EXpfinfoID,
     EXlayer2ID,
@@ -558,29 +558,29 @@ typedef struct EXobservation_s {
 } EXobservation_t;
 #define EXobservationSize sizeof(EXobservation_t)
 
-typedef struct EXinmonMeta_s {
+typedef struct EXpacketMeta_s {
     uint16_t frameSize;
     uint16_t linkType;
-#define OFFinmonFrameSize offsetof(EXinmonMeta_t, frameSize)
-#define SIZEinmonFrameSize MemberSize(EXinmonMeta_t, frameSize)
-#define OFFinmonLinkType offsetof(EXinmonMeta_t, linkType)
-#define SIZEinmonLinkType MemberSize(EXinmonMeta_t, linkType)
+#define OFFinmonFrameSize offsetof(EXpacketMeta_t, frameSize)
+#define SIZEinmonFrameSize MemberSize(EXpacketMeta_t, frameSize)
+#define OFFinmonLinkType offsetof(EXpacketMeta_t, linkType)
+#define SIZEinmonLinkType MemberSize(EXpacketMeta_t, linkType)
     uint32_t align;
-} EXinmonMeta_t;
-#define EXinmonMetaSize sizeof(EXinmonMeta_t)
+} EXpacketMeta_t;
+#define EXpacketMetaSize sizeof(EXpacketMeta_t)
 
-typedef struct EXinmonFrame_s {
+typedef struct EXpacketFrame_s {
     uint32_t length;
     uint8_t packet[4];
-} EXinmonFrame_t;
-#define EXinmonFrameSize VARLENGTH
+} EXpacketFrame_t;
+#define EXpacketFrameSize VARLENGTH
 
-typedef struct EXinmon_s {
+typedef struct EXpacket_s {
     uint16_t frameSize;
     uint16_t linkType;
     uint32_t length;
     uint8_t packet[4];
-} EXinmon_t;
+} EXpacket_t;
 
 typedef struct EXvrf_s {
     uint32_t egressVrf;   // EGRESS_VRFID(235)
@@ -755,8 +755,8 @@ static const struct extensionTable_s {
                       EXTENSION(EXasAdjacent),   EXTENSION(EXlatency),     EXTENSION(EXnatXlateV4),     EXTENSION(EXnatXlateV6),
                       EXTENSION(EXnatXlatePort), EXTENSION(EXnselCommon),  EXTENSION(EXnselAcl),        EXTENSION(EXnselUser),
                       EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),     EXTENSION(EXinPayload),      EXTENSION(EXoutPayload),
-                      EXTENSION(EXtunnelV4),     EXTENSION(EXtunnelV6),    EXTENSION(EXobservation),    EXTENSION(EXinmonMeta),
-                      EXTENSION(EXinmonFrame),   EXTENSION(EXvrf),         EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),
+                      EXTENSION(EXtunnelV4),     EXTENSION(EXtunnelV6),    EXTENSION(EXobservation),    EXTENSION(EXpacketMeta),
+                      EXTENSION(EXpacketFrame),   EXTENSION(EXvrf),         EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),
                       EXTENSION(EXflowId),       EXTENSION(EXnokiaNat),    EXTENSION(EXnokiaNatString), EXTENSION(EXipInfo)};
 
 // pipeline example

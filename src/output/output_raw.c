@@ -875,18 +875,18 @@ static void stringsEXpfinfo(FILE *stream, uint8_t *extensionRecord) {
 
 }  // End of stringsEXpfinfo
 
-static void stringsEXinmonMeta(FILE *stream, uint8_t *extensionRecord) {
-    EXinmonMeta_t *inmon = (EXinmonMeta_t *)extensionRecord;
+static void stringsEXpacketMeta(FILE *stream, uint8_t *extensionRecord) {
+    EXpacketMeta_t *packetMeta = (EXpacketMeta_t *)extensionRecord;
     fprintf(stream,
-            "  inmon size   =              %5u\n"
-            "  inmon type   =              %5u\n",
-            inmon->frameSize, inmon->linkType);
-}  // End of stringsEXinmonMeta
+            "  packet size  =              %5u\n"
+            "  link type    =              %5u\n",
+            packetMeta->frameSize, packetMeta->linkType);
+}  // End of stringsEXpacketMeta
 
-static void stringsEXinmonFrame(FILE *stream, uint8_t *extensionRecord) {
-    EXinmonFrame_t *inmon = (EXinmonFrame_t *)extensionRecord;
-    fprintf(stream, "  inmon frame  =              %5u\n", inmon->length);
-}  // End of stringsEXinmonFrame
+static void stringsEXpacketFrame(FILE *stream, uint8_t *extensionRecord) {
+    EXpacketFrame_t *packetFrame = (EXpacketFrame_t *)extensionRecord;
+    fprintf(stream, "  frame length =              %5u\n", packetFrame->length);
+}  // End of stringsEXpacketFrame
 
 static void stringsEXflowId(FILE *stream, uint8_t *extensionRecord) {
     EXflowId_t *flowId = (EXflowId_t *)extensionRecord;
@@ -1093,11 +1093,11 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
             case EXpfinfoID:
                 stringsEXpfinfo(stream, extension);
                 break;
-            case EXinmonMetaID:
-                stringsEXinmonMeta(stream, extension);
+            case EXpacketMetaID:
+                stringsEXpacketMeta(stream, extension);
                 break;
-            case EXinmonFrameID:
-                stringsEXinmonFrame(stream, extension);
+            case EXpacketFrameID:
+                stringsEXpacketFrame(stream, extension);
                 break;
             case EXflowIdID:
                 stringsEXflowId(stream, extension);

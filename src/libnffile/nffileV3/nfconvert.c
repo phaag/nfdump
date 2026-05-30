@@ -142,8 +142,8 @@ static const uint8_t mapV3toV4[MAXV3EXTENSIONS] = {
     [EX3tunIPv4ID] = EXtunnelV4ID,               // 31 → 28 (merged)
     [EX3tunIPv6ID] = EXtunnelV6ID,               // 32 → 29 (merged)
     [EX3observationID] = EXobservationID,        // 33 → 30
-    [EX3inmonMetaID] = EXinmonMetaID,            // 34 → 31
-    [EX3inmonFrameID] = EXinmonFrameID,          // 35 → 32
+    [EX3inmonMetaID] = EXpacketMetaID,            // 34 → 31
+    [EX3inmonFrameID] = EXpacketFrameID,          // 35 → 32
     [EX3vrfID] = EXvrfID,                        // 36 → 33
     [EX3pfinfoID] = EXpfinfoID,                  // 37 → 34
     [EX3layer2ID] = EXlayer2ID,                  // 38 → 35
@@ -760,8 +760,8 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                         h->size += sizeof(*o);
                         break;
                     }
-                    case EXinmonMetaID: {
-                        EXinmonMeta_t *m = (EXinmonMeta_t *)((uint8_t *)h + nextOffset);
+                    case EXpacketMetaID: {
+                        EXpacketMeta_t *m = (EXpacketMeta_t *)((uint8_t *)h + nextOffset);
                         EX3inmonMeta_t *m3 = (EX3inmonMeta_t *)edata;
                         m->frameSize = m3->frameSize;
                         m->linkType = m3->linkType;
@@ -770,8 +770,8 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                         h->size += sizeof(*m);
                         break;
                     }
-                    case EXinmonFrameID: {
-                        EXinmonFrame_t *f = (EXinmonFrame_t *)((uint8_t *)h + nextOffset);
+                    case EXpacketFrameID: {
+                        EXpacketFrame_t *f = (EXpacketFrame_t *)((uint8_t *)h + nextOffset);
                         EX3inmonFrame_t *f3 = (EX3inmonFrame_t *)edata;
                         uint32_t len = 4;  // V3 fixed 4 bytes
                         f->length = len;

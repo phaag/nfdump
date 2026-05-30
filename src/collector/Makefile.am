@@ -9,7 +9,8 @@ libcollector_a_SOURCES = ip128.c ip128.h repeater.c repeater.h \
 	backend/remote_backend.c backend/remote_backend.h \
 	launch.h launch.c \
 	flowsource.c flowsource.h collector.c collector.h nfnet.h nfnet.c \
-	yaf_reader.c yaf_reader.h  metric.c metric.h
+	yaf_reader.c yaf_reader.h  metric.c metric.h \
+	packet_frame.c packet_frame.h
 
 if ENABLE_READPCAP
 libcollector_a_SOURCES += pcap_reader.c pcap_reader.h
