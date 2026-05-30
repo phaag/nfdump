@@ -1092,6 +1092,7 @@ static void readExtendedGateway_v2(SFSample *sample) {
     if (sample->dst_as_path_len > 0) {
         sample->dst_as_path = sample->datap;
         /* and skip over it in the input */
+        if (sample->dst_as_path_len > UINT32_MAX / 4) SFABORT(sample, SF_ABORT_EOS);
         skipBytes(sample, sample->dst_as_path_len * 4);
         /* fill in the dst and dst_peer fields too */
         sample->dst_peer_as = ntohl(sample->dst_as_path[0]);
@@ -1184,6 +1185,7 @@ static void readExtendedGateway(SFSample *sample) {
     /* just point at the communities array */
     if (sample->communities_len > 0) sample->communities = sample->datap;
     /* and skip over it in the input */
+    if (sample->communities_len > UINT32_MAX / 4) SFABORT(sample, SF_ABORT_EOS);
     skipBytes(sample, sample->communities_len * 4);
 
     sample->extended_data_tag |= SASAMPLE_EXTENDED_DATA_GATEWAY;
