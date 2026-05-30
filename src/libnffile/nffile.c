@@ -738,12 +738,6 @@ static nffile_t *NewFile(uint32_t num_workers) {
 static nffile_t *OpenFileStatic(const char *filename, unsigned workerSlots) {
     if (filename == NULL) return NULL;
 
-    // check regular file
-    if (access(filename, F_OK) < 0) {
-        LogError("access() '%s': %s", filename, strerror(errno));
-        return NULL;
-    }
-
     int fd = open(filename, O_RDONLY);
     if (fd < 0) {
         LogError("Error open file: %s", strerror(errno));
