@@ -61,6 +61,9 @@
 
 #define LINEAR_MARKER 512
 
+// Maximum number of fields per template; prevents network-controlled VLA stack overflow
+#define MAX_TEMPLATE_FIELDS 1024
+
 // Get_valxx, a  macros
 #include "inline.c"
 
@@ -935,9 +938,20 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
             return;
         }
 
-        // temp instruction array
-        pipelineInstr_t instruction[2 * count + 2];
-        memset(instruction, 0, sizeof(instruction));
+        if (count > MAX_TEMPLATE_FIELDS) {
+            LogError("Process_ipfix: [%u] template %u field count %u exceeds maximum %u - skip", exporter_entry->info->id, id, count,
+                     MAX_TEMPLATE_FIELDS);
+            size_left -= size_required;
+            DataPtr = DataPtr + size_required + 4;
+            continue;
+        }
+
+        // temp instruction array (heap-allocated to prevent network-controlled stack overflow)
+        pipelineInstr_t *instruction = calloc(2 * count + 2, sizeof(pipelineInstr_t));
+        if (!instruction) {
+            LogError("Process_ipfix: [%u] calloc() failed: %s in %s:%d", exporter_entry->info->id, strerror(errno), __FILE__, __LINE__);
+            return;
+        }
         pipelineInstr_t *instr = instruction;
         pipelineInstr_t *prev = NULL;
 
@@ -960,6 +974,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
                         "Process_ipfix: [%u] Not enough data for template elements! required: %i, "
                         "left: %u",
                         exporter_entry->info->id, size_required, size_left);
+                    free(instruction);
                     return;
                 }
                 EnterpriseNumber = ntohl(e->EnterpriseNumber);
@@ -1022,6 +1037,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
 
         dbg_printf("Processed bytes: %u, common found: %u\n", size_required, commonFound);
         if (commonFound == 0) {
+            free(instruction);
             size_left -= size_required;
             DataPtr = DataPtr + size_required + 4;  // +4 for header
             dbg_printf("Template does not contain common elements - skip\n");
@@ -1068,6 +1084,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
         dbg_printf("Total instructions: %u, template count: %u\n", cnt, count);
 
         pipeline_t *pipeline = PipelineCompile(instruction, id, cnt);
+        free(instruction);
         if (!pipeline) {
             LogError("Process_ipfix: PipelineCompile() failed");
             return;

@@ -62,6 +62,9 @@
 
 #define LINEAR_MARKER 512
 
+// Maximum number of fields per template; prevents network-controlled VLA stack overflow
+#define MAX_TEMPLATE_FIELDS 1024
+
 // Get_valxx, a  macros
 #include "inline.c"
 
@@ -837,9 +840,19 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
             return;
         }
 
-        // temp instruction array
-        pipelineInstr_t instruction[count + 2];  // +2 for IP received, time received
-        memset(instruction, 0, sizeof(instruction));
+        if (count > MAX_TEMPLATE_FIELDS) {
+            LogError("Process_v9: [%u] template %u field count %u exceeds maximum %u - skip", exporter_entry->info->id, id, count,
+                     MAX_TEMPLATE_FIELDS);
+            size_left -= size_required;
+            continue;
+        }
+
+        // temp instruction array (heap-allocated to prevent network-controlled stack overflow)
+        pipelineInstr_t *instruction = calloc(count + 2, sizeof(pipelineInstr_t));  // +2 for IP received, time received
+        if (!instruction) {
+            LogError("Process_v9: [%u] calloc() failed: %s in %s:%d", exporter_entry->info->id, strerror(errno), __FILE__, __LINE__);
+            return;
+        }
         pipelineInstr_t *instr = instruction;
         pipelineInstr_t *prev = NULL;
 
@@ -888,6 +901,7 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
         dbg_printf("Processed: %u, common elements: %u\n", size_required, commonFound);
 
         if (commonFound == 0) {
+            free(instruction);
             size_left -= size_required;
             DataPtr = DataPtr + size_required + 4;  // +4 for header
             dbg_printf("Template does not contain common elements - skip\n");
@@ -930,6 +944,7 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
 
         uint32_t cnt = (instr - instruction);
         pipeline_t *pipeline = PipelineCompile(instruction, id, cnt);
+        free(instruction);
         if (!pipeline) {
             LogError("Process_v9: PipelineCompile() failed");
             return;

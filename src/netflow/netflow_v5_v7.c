@@ -335,6 +335,11 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map v5 data structure to input buffer
     netflow_v5_header_t *v5_header = (netflow_v5_header_t *)in_buff;
 
+    if (in_buff_cnt < NETFLOW_V5_HEADER_LENGTH) {
+        LogError("Process_v5_v7: Packet too short for v5/v7 header: %zi", in_buff_cnt);
+        return;
+    }
+
     exporter_entry_t *exporter = getExporter(fs, v5_header);
     if (!exporter) {
         LogError("Process_v5: Exporter NULL: Abort v5/v7 record processing");
