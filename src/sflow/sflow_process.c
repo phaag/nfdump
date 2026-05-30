@@ -666,6 +666,7 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
         case 6: { /* TCP */
             struct mytcphdr tcp;
             int headerBytes;
+            if (ptr + sizeof(tcp) > end) break;
             memcpy(&tcp, ptr, sizeof(tcp));
             sample->dcd_sport = ntohs(tcp.th_sport);
             sample->dcd_dport = ntohs(tcp.th_dport);
