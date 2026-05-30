@@ -319,7 +319,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
 
             if (cnt == -1) {
                 if (errno != EINTR) {
-                    LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
+                    LogError("recvfrom() error in '%s', line '%d', cnt: %zd:, %s", __FILE__, __LINE__, cnt, strerror(errno));
                     continue;
                 }
             } else {
