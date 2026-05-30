@@ -980,35 +980,38 @@ nffile_t *AppendFile(const char *filename) {
 } /* End of AppendFile */
 
 int RenameAppend(const char *oldName, const char *newName) {
-    if (access(newName, F_OK) == 0) {
-        // file exists already - concat them
-        nffile_t *nffile_w = AppendFile(newName);
-        if (!nffile_w) return -1;
-
-        nffile_t *nffile_r = OpenFile(oldName);
-        if (!nffile_r) return 0;
-
-        // append data blocks
-        while (1) {
-            dataBlock_t *block_header = queue_pop(nffile_r->processQueue);
-            if (block_header == QUEUE_CLOSED)  // EOF
-                break;
-            queue_push(nffile_w->processQueue, block_header);
-        }
-        SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
-        DisposeFile(nffile_r);
-
-        FlushFile(nffile_w);
-        DisposeFile(nffile_w);
-
-        return unlink(oldName);
-    } else {
-        // does not exist
-        return rename(oldName, newName);
+    // Attempt rename directly to avoid TOCTOU race between pre-check and use.
+    if (rename(oldName, newName) == 0) {
+        return 0;
     }
 
-    // unreached
-    return 0;
+    if (errno == ENOENT) {
+        // oldName does not exist
+        return -1;
+    }
+
+    // rename failed for another reason (e.g. cross-device) - fall back to
+    // manual append: open destination, copy blocks from source, then remove source.
+    nffile_t *nffile_w = AppendFile(newName);
+    if (!nffile_w) return -1;
+
+    nffile_t *nffile_r = OpenFile(oldName);
+    if (!nffile_r) return 0;
+
+    // append data blocks
+    while (1) {
+        dataBlock_t *block_header = queue_pop(nffile_r->processQueue);
+        if (block_header == QUEUE_CLOSED)  // EOF
+            break;
+        queue_push(nffile_w->processQueue, block_header);
+    }
+    SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
+    DisposeFile(nffile_r);
+
+    FlushFile(nffile_w);
+    DisposeFile(nffile_w);
+
+    return unlink(oldName);
 
 }  // End of RenameAppend
 
