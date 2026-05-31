@@ -254,7 +254,7 @@ static pf_state_t pf_decode_link(pf_ctx_t *ctx) {
         case DATALINK_ETHERNET: {
             // Ethernet II: 6 dst + 6 src + 2 EtherType = 14 bytes
             if (pf_cursor_size(c) < 14) {
-                LogVerbose("dataLinkFrameSection: Ethernet header too short");
+                LogError("dataLinkFrameSection: Ethernet header too short");
                 return PF_DECODE_SKIP;
             }
             ctx->dec.dstMac = pf_read_mac(c);
@@ -298,7 +298,7 @@ static pf_state_t pf_decode_ethertype(pf_ctx_t *ctx) {
             case ETHERTYPE_VLAN:  // 0x8100
             case 0x88A8: {        // QinQ / 802.1ad
                 if (++ctx->vlanDepth > 4) {
-                    LogVerbose("dataLinkFrameSection: VLAN depth exceeded");
+                    LogError("dataLinkFrameSection: VLAN depth exceeded");
                     return PF_DECODE_SKIP;
                 }
                 uint16_t tci, inner_type;
@@ -449,7 +449,7 @@ static pf_state_t pf_decode_ipv6(pf_ctx_t *ctx) {
 
     struct ip6_hdr ip6;
     if (!pf_cursor_read(c, &ip6, sizeof(ip6))) {
-        LogVerbose("dataLinkFrameSection: IPv6 header too short");
+        LogError("dataLinkFrameSection: IPv6 header too short");
         return PF_DECODE_SKIP;
     }
 
@@ -533,7 +533,7 @@ static pf_state_t pf_decode_tcp(pf_ctx_t *ctx) {
     pf_cursor_t *c = &ctx->cur;
     struct tcphdr tcp;
     if (!pf_cursor_get(c, &tcp, sizeof(tcp))) {
-        LogVerbose("dataLinkFrameSection: TCP header too short");
+        LogError("dataLinkFrameSection: TCP header too short");
         return PF_DECODE_SKIP;
     }
     uint32_t hlen = (uint32_t)tcp.th_off << 2;
@@ -551,7 +551,7 @@ static pf_state_t pf_decode_udp(pf_ctx_t *ctx) {
     pf_cursor_t *c = &ctx->cur;
     struct udphdr udp;
     if (!pf_cursor_read(c, &udp, sizeof(udp))) {
-        LogVerbose("dataLinkFrameSection: UDP header too short");
+        LogError("dataLinkFrameSection: UDP header too short");
         return PF_DECODE_SKIP;
     }
     ctx->dec.srcPort = ntohs(udp.uh_sport);
@@ -957,7 +957,7 @@ int DecodePacketFrame(void *outBuff, size_t buffAvail, const uint8_t *frameData,
 
     // Clamp to our decode buffer size (should never exceed it for valid data)
     if (frameLen > FRAME_DECODE_MAXBYTES) {
-        LogVerbose("dataLinkFrameSection: frame length %u clamped to %u", frameLen, FRAME_DECODE_MAXBYTES);
+        LogInfo("dataLinkFrameSection: frame length %u clamped to %u", frameLen, FRAME_DECODE_MAXBYTES);
         frameLen = FRAME_DECODE_MAXBYTES;
     }
 
