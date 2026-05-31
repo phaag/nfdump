@@ -52,11 +52,9 @@ the OS page cache manage I/O scheduling.
 
 Flow records move from the v3 extension format to **record format v4**.  The key structural
 change is the replacement of a linear element list with a compact **offset table** indexed
-by a 64-bit extension bitmap.  Locating a specific extension—say `EXipv4Flow` or
-`EXasInfo`—no longer requires walking the preceding elements; instead a single
-`__builtin_popcountll` on the bitmap gives the slot index directly, which is a branchless
-O(1) operation that keeps the CPU pipeline and branch predictor in a clean state.  The
-extension set is reorganized between V3 and V4. V3's combined `EXasRouting`
+by a 64-bit extension bitmap.  Locating a specific extension is a branchless
+O(1) operation that keeps the CPU pipeline and branch predictor in a clean state.
+The extension set is reorganized between v3 and v4. v3's combined `EXasRouting`
 and `EXmacAddr` are split into separate IPv4/IPv6 and in/out variants respectively; the
 BGP next-hop and IP next-hop types are removed (their data is covered by the routing
 extensions). Newly added types are `EXinterface`, `EXasInfo`, `EXflowId`, `EXnokiaNat`,
@@ -65,11 +63,32 @@ extensions). Newly added types are `EXinterface`, `EXasInfo`, `EXflowId`, `EXnok
 Both the v3 file format and the v4 record format are now strictly **8-byte aligned**, which avoids unaligned loads and matches the natural granularity of modern 64-bit load/store units.  Block-level compression
 (LZO, LZ4, BZ2, ZSTD) is per-block. The file-level default can be overridden on a per-block basis.
 
+Furthermore the new v3 file format enables data encryption alongside compression, adding
+privacy to stored flow data when required.
+
+Until now, flows were stored to disk on the host where the collector (nfcapd, sfcapd, or nfpcapd)
+was running. All 1.8.x collectors now support forwarding flows to a companion collector on a remote host.
+The forwarded stream can optionally be encrypted in transit, each UDP packet is independently encrypted with a random 192-bit nonce.
+
+New support for IPFIX IE 315:
+IPFIX Information Element 315 (`dataLinkFrameSection`) is a variable-length field defined in RFC 7133
+for exporting sampled Layer-2 packet bytes within IPFIX records. Unlike normal flow records, which carry
+pre-computed statistics, IE 315 carries raw packet data and is typically accompanied by fields such as
+`dataLinkFrameType` (408), `sectionOffset` (409), `sectionExportedOctets` (410), timestamps, and
+sampling metadata. Its primary use cases are packet sampling, troubleshooting, security monitoring,
+and traffic analysis. It is most prominently implemented on Cisco ASR/NCS platforms (marketed as
+"IPFIX 315"). `nfcapd` supports IPFIX IE 315 and fully decodes its payload into a standard nfdump flow record.
+
+Large parts of the code have been rewritten. Notably, the sFlow collector received a new decoder
+that integrates cleanly with the nfdump environment. Much unused and redundant code has been removed.
+
+In general, the code runs faster and is better adapted to today's CPU architectures.
+
 The earliest nfdump version dates back to 2004, the era of **Intel Pentium 4** type CPUs, 1 core, 1–2 threads, DDR2 memory. Nowadays a Core i9 for example has 24 cores and 32 threads and uses DDR5 memory — roughly 50–100× faster than 2004 hardware. Although software designed in 2004 still runs on modern CPUs, the design and architecture can be significantly improved to exploit modern CPU features: adapt data layout to cache lines, optimize code for branch prediction, and avoid pointer chasing. nfdump 1.8.x still focuses on efficiency and speed and has removed a lot of legacy code. However, nfdump-1.7.x is not slow - it was constantly improved over time. The new 1.8.x simply improves and modernizes the code where possible.
 
 The good news: nfdump-1.8.0 retains full **backward read compatibility**. All programs transparently read and process nfdump-1.7.x v2 files, but only write the new nffile v3 format. Some improvements are already implemented, such as a new IPFIX/NetFlow v9 pipeline decoder that improves decode throughput for these protocols. The collector hot path has been redesigned to reduce per-packet overhead.
 
-The other news: nfdump-1.8.0 does not yet implement a full set of new features. The user experience should still feel familiar. Once the code stabilizes and is declared production-ready, new features will be added.
+Note: nfdump-1.8.0 does not yet implement a full set of new features. The user experience should still feel familiar. Once the code stabilizes and is declared production-ready, new features will be added.
 
 This is development code and should **not yet be used in production**. The branch is not yet fully tested. Feedback from real-world testing is very welcome — particularly from users testing their own nfdump workflows.
 
