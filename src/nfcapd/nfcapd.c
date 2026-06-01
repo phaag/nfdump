@@ -54,7 +54,7 @@
 #include "config.h"
 
 #ifdef ENABLE_READPCAP
-#include "pcap_reader.h"
+#include "reader/pcap_reader.h"
 #endif
 
 #ifdef HAVE_LIBSODIUM
@@ -66,7 +66,6 @@
 #include "collector.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
-#include "daemon.h"
 #include "flist.h"
 #include "flowsource.h"
 #include "ip128.h"
@@ -77,16 +76,17 @@
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
+#include "network/nfnet.h"
+#include "network/repeater.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
-#include "nfnet.h"
 #include "nfxV4.h"
-#include "pidfile.h"
-#include "repeater.h"
+#include "process/daemon.h"
+#include "process/pidfile.h"
+#include "reader/yaf_reader.h"
 #include "util.h"
 #include "version.h"
-#include "yaf_reader.h"
 
 #define DEFAULTLISTENPORT "9995"
 
@@ -148,7 +148,8 @@ static void usage(char *name) {
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
-        "-k[=passphrase|@keyfile]\tDecrypt incoming UDP transport (v251, from nfpcapd/nfreplay). Passphrase from argument, key file, or interactive prompt.\n"
+        "-k[=passphrase|@keyfile]\tDecrypt incoming UDP transport (v251, from nfpcapd/nfreplay). Passphrase from argument, key file, or interactive "
+        "prompt.\n"
         "-N <secs>\t\tUDP transport rekey interval in seconds (requires -k). Default 0 (disabled).\n"
         "-Q <bits>\t\tUDP anti-replay window in bits (power of 2, 64\u20131024). Default 256.\n"
 #endif

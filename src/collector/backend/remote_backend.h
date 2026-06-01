@@ -45,8 +45,8 @@
 #include <stdint.h>
 
 #include "flowsource.h"
+#include "network/repeater.h"
 #include "queue.h"
-#include "repeater.h"
 
 typedef struct udpsend_backend_ctx_s {
     repeater_t sendHost;          /* UDP target: addr, addrlen, sockfd  */

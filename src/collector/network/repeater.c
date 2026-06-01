@@ -43,9 +43,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "daemon.h"
 #include "logging.h"
 #include "nfnet.h"
+#include "process/daemon.h"
 #include "queue.h"
 #include "util.h"
 

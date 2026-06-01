@@ -69,7 +69,7 @@
 #include "util.h"
 #include "version.h"
 #ifdef HAVE_LIBSODIUM
-#include "nfd_udp_crypto.h"
+#include "network/nfd_udp_crypto.h"
 #include "nffileV3/nfcrypto.h"
 #endif
 

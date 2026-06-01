@@ -35,7 +35,6 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <sys/select.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -43,6 +42,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -54,7 +54,7 @@
 #include "config.h"
 
 #ifdef ENABLE_READPCAP
-#include "pcap_reader.h"
+#include "reader/pcap_reader.h"
 #endif
 
 #ifdef HAVE_LIBSODIUM
@@ -66,20 +66,20 @@
 #include "collector.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
-#include "daemon.h"
 #include "flist.h"
 #include "flowsource.h"
 #include "ip128.h"
 #include "launch.h"
 #include "logging.h"
 #include "metric.h"
+#include "network/nfnet.h"
+#include "network/repeater.h"
+#include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
-#include "nfnet.h"
 #include "nfxV4.h"
-#include "pidfile.h"
-#include "nfd_raw.h"
-#include "repeater.h"
+#include "process/daemon.h"
+#include "process/pidfile.h"
 #include "sflow_nfdump.h"
 #include "util.h"
 #include "version.h"
@@ -430,7 +430,10 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
 // Close all open receive sockets (safe to call with nsocks == 0 or socks[i] == -1)
 static void close_sockets(int *socks, int nsocks) {
     for (int i = 0; i < nsocks; i++)
-        if (socks[i] >= 0) { close(socks[i]); socks[i] = -1; }
+        if (socks[i] >= 0) {
+            close(socks[i]);
+            socks[i] = -1;
+        }
 }  // End of close_sockets
 
 int main(int argc, char **argv) {

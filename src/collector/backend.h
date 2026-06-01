@@ -33,8 +33,8 @@
 
 #include "collector.h"
 #include "flowsource.h"
+#include "network/repeater.h"
 #include "nffileV3/nffileV3.h"
-#include "repeater.h"
 
 typedef struct nffile_backend_ctx_s {
     char Ident[IDENTLEN];  // source identifier

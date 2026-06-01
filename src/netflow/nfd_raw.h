@@ -35,7 +35,7 @@
 #include <sys/types.h>
 
 #include "collector.h"
-#include "nfd_udp_crypto.h"
+#include "network/nfd_udp_crypto.h"
 
 /*
  * VERSION_NFDUMP (250) — plain nfpcapd UDP packet (nfd_header_t + records).

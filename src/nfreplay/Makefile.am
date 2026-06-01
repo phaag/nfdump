@@ -8,11 +8,11 @@ LDADD = $(DEPS_LIBS)
 replay = send_v5.c send_v5.h send_v9_ipfix.c send_v9_ipfix.h send_net.h send_net.c
 
 nfreplay_SOURCES = nfreplay.c $(replay)
-nfreplay_LDADD = -lnfdump ../netflow/libnetflow.a -lnffile
+nfreplay_LDADD = -lnfdump ../netflow/libnetflow.a ../collector/libcollector.a -lnffile
 nfreplay_LDFLAGS = -L../libnfdump -L../libnffile
 nfreplay_CPPFLAGS = $(AM_CPPFLAGS)
 if HAVE_LIBSODIUM
-nfreplay_CPPFLAGS = $(AM_CPPFLAGS) $(LIBSODIUM_CFLAGS)
+nfreplay_CPPFLAGS += $(LIBSODIUM_CFLAGS)
 nfreplay_LDADD += $(LIBSODIUM_LIBS)
 endif
 CLEANFILES = *.gch

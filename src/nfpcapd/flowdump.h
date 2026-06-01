@@ -37,8 +37,8 @@
 
 #include "collector.h"
 #include "flowhash.h"
-#include "nfnet.h"
-#include "repeater.h"
+#include "network/nfnet.h"
+#include "network/repeater.h"
 
 typedef struct flowParam_s {
     // common thread info struct
