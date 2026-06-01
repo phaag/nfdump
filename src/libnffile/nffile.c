@@ -307,8 +307,13 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     lzo_uint in_len = in_block->size;
     lzo_uint out_len = 0;
 
-    HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+    lzo_align_t *wrkmem = (lzo_align_t *)malloc(LZO1X_1_MEM_COMPRESS);
+    if (wrkmem == NULL) {
+        LogError("Compress_Block_LZO() error malloc failed in %s line %d", __FILE__, __LINE__);
+        return -1;
+    }
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
+    free(wrkmem);
 
     if (r != LZO_E_OK) {
         LogError("Compress_Block_LZO() error compression failed in %s line %d: LZO : %d", __FILE__, __LINE__, r);
