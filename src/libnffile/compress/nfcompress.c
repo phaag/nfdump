@@ -37,6 +37,7 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef HAVE_BZ2
 #include <bzlib.h>
@@ -118,9 +119,14 @@ int Compress_Block_LZO(dataBlockV3_t *in_block, dataBlockV3_t *out_block, size_t
     lzo_uint out_len = 0;
     size_t payload_capacity = out_capacity - sizeof(dataBlockV3_t);
 
-    HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
-
+    lzo_align_t *wrkmem = (lzo_align_t *)malloc(LZO1X_1_MEM_COMPRESS);
+    if (wrkmem == NULL) {
+        LogError("Compress_Block_LZO() error malloc failed in %s line %d", __FILE__, __LINE__);
+        return -1;
+    }
     int r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
+    free(wrkmem);
+
     if (r != LZO_E_OK) {
         LogError("Compress_Block_LZO(): compression failed: %d", r);
         return -1;
