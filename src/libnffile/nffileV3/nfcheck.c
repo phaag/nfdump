@@ -69,6 +69,12 @@
 #define LAYOUT_VERSION_1 1
 #define LAYOUT_VERSION_2 2
 
+static const char *nf_creator[MAX_CREATOR] = {
+    [CREATOR_UNKNOWN] = "unknown",     [CREATOR_NFCAPD] = "nfcapd",       [CREATOR_NFPCAPD] = "nfpcapd",     [CREATOR_SFCAPD] = "sfcapd",
+    [CREATOR_NFDUMP] = "nfdump",       [CREATOR_NFANON] = "nfanon",       [CREATOR_NFPROFILE] = "nfprofile", [CREATOR_GEOLOOKUP] = "geolookup",
+    [CREATOR_FT2NFDUMP] = "ft2nfdump", [CREATOR_TORLOOKUP] = "torlookup",
+};
+
 static const char *CompressionType(uint32_t compression) {
     return compression == NOT_COMPRESSED    ? "not compressed"
            : compression == LZO_COMPRESSED  ? "lzo compressed"
