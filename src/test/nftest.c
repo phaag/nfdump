@@ -61,7 +61,7 @@
 /* MapV4RecordHandle - inline copy from nffile_inline.c to avoid V3 dependencies */
 
 // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
-static inline void ResolveMultipleIPrecords(recordHandle_t *handle, uint64_t flowCount) {
+__attribute__((unused)) static inline void ResolveMultipleIPrecords(recordHandle_t *handle, uint64_t flowCount) {
     dbg_printf("ResolveMultipleIPrecords\n");
     EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
     uint32_t skipID = 0;
@@ -95,7 +95,7 @@ static inline void ResolveMultipleIPrecords(recordHandle_t *handle, uint64_t flo
     if (skipID) {
         handle->extensionList[skipID] = NULL;
     }
-}
+}  // Ed of ResolveMultipleIPrecords
 
 static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *recordHeaderV4, uint64_t flowCount) {
     *handle = (recordHandle_t){.recordHeaderV4 = recordHeaderV4, .numElements = recordHeaderV4->numExtensions, .flowCount = flowCount};
@@ -140,7 +140,7 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
     // using DisableExtension()/EnableExtension()
 
     return 1;
-}
+}  // End of MapV4RecordHandle
 
 /* record buffer for building V4 records */
 #define RECBUF_SIZE 8192
@@ -182,7 +182,7 @@ static uint16_t BuildV4Record(uint8_t *buf, const uint32_t *extIDs, uint32_t num
     }
 
     return h->size;
-}
+}  // End of BuildV4Record
 
 /*
  * Build a V4 record with a variable-length payload extension.
@@ -232,7 +232,7 @@ static uint16_t BuildV4RecordWithPayload(uint8_t *buf, const uint32_t *extIDs, u
     }
 
     return h->size;
-}
+}  // End of BuildV4RecordWithPayload
 
 static void DumpRecord(recordHandle_t *recordHandle) {
     recordHeaderV4_t *h = recordHandle->recordHeaderV4;
@@ -279,7 +279,7 @@ static void DumpRecord(recordHandle_t *recordHandle) {
 
     printf("Geo: ");
     DumpHex(stdout, (void *)recordHandle->geo, sizeof(recordHandle->geo));
-}
+}  // End of DumpRecord
 
 static void CheckFilter(char *filter, recordHandle_t *recordHandle, int expect) {
     void *engine = CompileFilter(filter);
@@ -302,7 +302,7 @@ static void CheckFilter(char *filter, recordHandle_t *recordHandle, int expect) 
         exit(255);
     }
     DisposeFilter(engine);
-}
+}  // End of CheckFilter
 
 /*
  * V4 Extension Enable/Disable Mechanism
@@ -329,14 +329,14 @@ static void DisableExtension(recordHandle_t *handle, uint32_t extID) {
         handle->extensionList[extID] = NULL;
         dbg_printf("Disabled extension %u\n", extID);
     }
-}
+}  // End of DisableExtension
 
 static void EnableExtension(recordHandle_t *handle, uint32_t extID) {
     if (extID < MAXEXTENSIONS && savedExtensions[extID]) {
         handle->extensionList[extID] = savedExtensions[extID];
         dbg_printf("Enabled extension %u\n", extID);
     }
-}
+}  // End of EnableExtension
 
 static void runTest(void) {
     // Allocate buffer for V4 record - large enough for all extensions
