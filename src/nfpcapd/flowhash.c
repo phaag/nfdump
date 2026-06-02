@@ -748,6 +748,12 @@ struct FlowNode *Lookup_Node(struct FlowNode *node) {
     return Hash_Lookup(&FlowHashTable, &node->hotNode.flowKey, hash);
 }  // End of Lookup_FlowTree
 
+// Lookup by raw key without requiring a full FlowNode.
+static struct FlowNode *Lookup_Key(const struct flowKey_s *key) {
+    uint64_t hash = metrohash64_1((const uint8_t *)key, sizeof(struct flowKey_s), FlowHashTable.seed);
+    return Hash_Lookup(&FlowHashTable, key, hash);
+}  // End of Lookup_Key
+
 struct FlowNode *Insert_Node(struct FlowNode *node) {
     const uint8_t *key = (uint8_t *)&node->hotNode.flowKey;
     uint64_t hash = metrohash64_1(key, sizeof(struct flowKey_s), FlowHashTable.seed);
@@ -794,19 +800,18 @@ void Remove_Node(struct FlowNode *node) {
 }  // End of Remove_Node
 
 int Link_RevNode(struct FlowNode *node) {
-    struct FlowNode lookup_node, *rev_node;
-
     dbg_printf("Link node: ");
     dbg_assert(node->coldNode.rev_node == NULL);
-    lookup_node.hotNode.flowKey = (struct flowKey_s){.proto = node->hotNode.flowKey.proto,
-                                                     .version = node->hotNode.flowKey.version,
-                                                     // reverse lookup key to find reverse node
-                                                     .src_addr = node->hotNode.flowKey.dst_addr,
-                                                     .dst_addr = node->hotNode.flowKey.src_addr,
-                                                     .src_port = node->hotNode.flowKey.dst_port,
-                                                     .dst_port = node->hotNode.flowKey.src_port,
-                                                     ._ALIGN = 0};
-    rev_node = Lookup_Node(&lookup_node);
+
+    const struct flowKey_s revKey = {.proto = node->hotNode.flowKey.proto,
+                                     .version = node->hotNode.flowKey.version,
+                                     // reverse lookup key to find reverse node
+                                     .src_addr = node->hotNode.flowKey.dst_addr,
+                                     .dst_addr = node->hotNode.flowKey.src_addr,
+                                     .src_port = node->hotNode.flowKey.dst_port,
+                                     .dst_port = node->hotNode.flowKey.src_port,
+                                     ._ALIGN = 0};
+    struct FlowNode *rev_node = Lookup_Key(&revKey);
     if (rev_node) {
         dbg_printf("Found revnode ");
         // rev node must not be linked already - otherwise there is an inconsistency
