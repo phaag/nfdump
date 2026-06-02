@@ -385,24 +385,20 @@ int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_sta
         // Flush dataBlock, ready for new file
         fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
 
-        // swap nffile for post processor
+        // swap nffile for post processor:
+        //   fs->swap_nffile now holds the completed interval file (will be renamed by RunCycle)
+        //   fs->nffile      now holds the pre-prepared new empty file
         nffile_t *swap_nffile = fs->swap_nffile;
         fs->swap_nffile = fs->nffile;
         fs->nffile = swap_nffile;
-    }
 
-    dbg_printf("Signaling post_processor\n");
-    pthread_cond_signal(&post_args->cond);
-    pthread_mutex_unlock(&post_args->mutex);
-
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         if (done) {
-            // we are done - delete prepared new tmp file
+            // we are done - delete the pre-prepared new tmp file, it is no longer needed
             DeleteFile(fs->nffile);
             fs->nffile = NULL;
         } else {
             if (fs->nffile) {
-                // new handle - flush exporter and sampler records to new file
+                // flush exporter and sampler records into the new file
                 FlushStdRecords(fs);
             } else {
                 // expected a new file handle - cannot continue
@@ -410,6 +406,10 @@ int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_sta
             }
         }
     }
+
+    dbg_printf("Signaling post_processor\n");
+    pthread_cond_signal(&post_args->cond);
+    pthread_mutex_unlock(&post_args->mutex);
 
     return err;
 }  // End of RotateCycle
