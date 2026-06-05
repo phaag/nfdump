@@ -31,6 +31,7 @@
 #ifndef _FILTER_H
 #define _FILTER_H 1
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -92,6 +93,47 @@ typedef struct FilterParam {
     prefix_t prefix;
     int32_t self;
 } FilterParam_t;
+
+/*
+ * Block-level filter constraint.
+ *
+ * Derived from the compiled filter at CompileFilter() time by abstract
+ * interpretation of the build-time filter tree.  Applied before a flow
+ * block is decompressed to skip entire blocks that cannot possibly
+ * contain any matching flow.
+ *
+ * Time constraints use the block-level boundaries:
+ *   block.msecFirst  – min(flow.msecFirst) in block
+ *   block.msecLast   – max(flow.msecLast)  in block
+ *
+ * A constraint value of 0 means "not constrained" (no boundary derived).
+ * When unknown == true the entire constraint is ignored (always keep).
+ *
+ * Future extensions (bloom filters for IP addresses) may be added here
+ * by adding further fields.  FilterBlock() evaluates each populated field
+ * independently and returns 0 (skip) only when at least one field rules
+ * the block out with certainty.
+ */
+typedef struct blockConstraint_s {
+    bool unknown; /* true  → no useful constraint derivable; always keep */
+
+    /* flow start (msecFirst) range: keep block if bF < msecFirst_lt */
+    uint64_t msecFirst_lt; /* keep if block.msecFirst < msecFirst_lt   (0=unset) */
+    uint64_t msecFirst_gt; /* keep if block.msecLast  > msecFirst_gt   (0=unset) */
+
+    /* flow end (msecLast) range:  keep block if bF < msecLast_lt     */
+    uint64_t msecLast_lt; /* keep if block.msecFirst < msecLast_lt    (0=unset) */
+    uint64_t msecLast_gt; /* keep if block.msecLast  > msecLast_gt    (0=unset) */
+
+    /* Future: per-block bloom filter probes for src/dst IP addresses.
+     * Add fields here when block-level bloom filters are stored.
+     * Example:
+     *   bool     hasSrcIP;           // src IP constraint set
+     *   uint64_t srcIP[2];           // probe value (IPv4: srcIP[0]=0)
+     *   bool     hasDstIP;
+     *   uint64_t dstIP[2];
+     */
+} blockConstraint_t;
 
 /*
  * filter functions:
@@ -189,5 +231,25 @@ void lex_init(char *buf);
 void lex_cleanup(void);
 
 int yyparse(void);
+
+/*
+ * Returns the block-level constraint derived during CompileFilter().
+ * The returned pointer is owned by the engine; do not free it.
+ * Returns NULL if engine is NULL.
+ */
+const blockConstraint_t *GetBlockConstraint(const void *engine);
+
+/*
+ * Block-level pre-filter.
+ * Returns 0 if the block can be skipped with certainty (no flow in the
+ * block can match the filter).  Returns 1 if the block must be read.
+ *
+ * blockMsecFirst: earliest flow start timestamp in the block (msec)
+ * blockMsecLast:  latest  flow end   timestamp in the block (msec)
+ *
+ * Pass blockMsecFirst = blockMsecLast = 0 to force "keep" (e.g. for
+ * blocks that carry no time metadata).
+ */
+int FilterBlock(const void *engine, uint64_t blockMsecFirst, uint64_t blockMsecLast);
 
 #endif

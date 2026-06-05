@@ -5,7 +5,7 @@ AM_YFLAGS = -d
 libnfdump_la_CPPFLAGS = -I.. -I../include -I../inline -I../libnffile -Idecode -Isgregex
 
 # libnfdump sources
-filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h ../include/rbtree.h
+filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/filter_int.h filter/block_filter.c ../include/rbtree.h filter/ipconv.c filter/ipconv.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
 digest  = digest/md5.c digest/md5.h digest/sha256.c digest/sha256.h
 maxmind = maxmind/maxmind.c maxmind/maxmind.h maxmind/mmhash.c maxmind/mmhash.h

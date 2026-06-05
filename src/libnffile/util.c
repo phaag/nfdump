@@ -355,6 +355,25 @@ uint64_t ParseTime8601(const char *s) {
 
 }  // End of ParseTime
 
+char *msec2Str(uint64_t msec, char *output_buffer, size_t buffer_size) {
+    if (msec == 0) {
+        snprintf(output_buffer, buffer_size, "0000-00-00 00:00:00.000");
+        return output_buffer;
+    }
+    time_t seconds = (time_t)(msec / 1000);
+    uint16_t remainder_ms = (uint16_t)(msec % 1000);
+
+    struct tm time_info;
+    localtime_r(&seconds, &time_info);
+
+    char time_str[32];
+    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_info);
+
+    snprintf(output_buffer, buffer_size, "%s.%03u", time_str, remainder_ms);
+    return output_buffer;
+
+}  // End of msec2Str
+
 timeWindow_t *ScanTimeFrame(char *tstring) {
     timeWindow_t *timeWindow;
     char *p;

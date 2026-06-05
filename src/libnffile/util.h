@@ -118,6 +118,8 @@ time_t ISO2UNIX(const char *timestring);
 
 uint64_t ParseTime8601(const char *s);
 
+char *msec2Str(uint64_t msec, char *output_buffer, size_t buffer_size);
+
 long getTick(void);
 
 #define PRINT_PLAIN 1

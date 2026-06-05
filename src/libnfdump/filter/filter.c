@@ -34,6 +34,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +46,7 @@
 
 #include "dns/dns.h"
 #include "filter.h"
+#include "filter_int.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
 #include "logging.h"
@@ -54,9 +56,6 @@
 #include "tor/tor.h"
 #include "util.h"
 
-#define MAXBLOCKS 1024
-
-static uint32_t memblocks;
 static uint32_t NumBlocks = 1; /* index 0 reserved */
 static int Extended = 0;
 uint32_t StartNode = 0;
@@ -64,24 +63,6 @@ uint32_t StartNode = 0;
 typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
 typedef void *(*preprocess_proc_t)(uint32_t, data_t, recordHandle_t *, filterOption_t);
-
-// ── Build-time tree node (freed after generateByteCode)
-typedef struct filterElement {
-    uint32_t extID;
-    uint32_t offset;
-    uint32_t length;
-    uint64_t value;
-    uint32_t superblock;
-    uint32_t *blocklist;
-    uint32_t geoLookup;
-    uint32_t numblocks;
-    uint32_t OnTrue, OnFalse;
-    int16_t invert;
-    uint16_t option;
-    comparator_t comp;
-    filterFunction_t function;
-    data_t data;
-} filterElement_t;
 
 // ── Runtime bytecode opcodes
 typedef enum {
@@ -162,41 +143,6 @@ typedef enum {
     FOP__COUNT
 } filterOp_t;
 
-/*
- * Runtime instruction – 40 bytes on 64-bit, 36 bytes on 32-bit (= 32 + sizeof(void *)).
- *
- *  op        filterOp_t – selects computed-goto label
- *  extID     index into handle->extensionList[]
- *  fnID      filterFunction_t – index into flow_procs_map[] for FOP_FUNC_*
- *  length    field byte width (1/2/4/8); 0 = extension-present check
- *  option    filterOption_t – passed to preprocess for FOP_PREP_*
- *  offset    byte offset within the extension struct (fits in uint16_t)
- *  onTrue    program index to jump to when result == 1  (0 = ACCEPT)
- *  onFalse   program index to jump to when result == 0  (1 = REJECT)
- *  value     comparison value or pre-masked network address
- *  aux       data pointer: IPSet_t*, U64Set_t*, char*, srx_Context*, …
- *            – OR –
- *  dataVal   auxiliary integer: subnet mask, geo direction, fn data.dataVal
- *            (aux and dataVal are in a union; no op uses both)
- */
-typedef struct filterInstr_s {
-    const void *handler; /* direct-threaded label address – goto *inst->handler */
-    uint16_t op;         /* opcode (kept for DumpEngine / DisposeFilter) */
-    uint8_t extID;
-    uint8_t fnID;
-    uint8_t length;
-    uint8_t option;
-    uint16_t offset;
-    uint16_t onTrue;
-    uint16_t onFalse;
-    uint32_t _pad; /* explicit padding – keeps value 8-byte aligned */
-    uint64_t value;
-    union {
-        uintptr_t aux;   /* data pointer */
-        int64_t dataVal; /* mask / direction / fnData.dataVal */
-    };
-} filterInstr_t;
-
 _Static_assert(sizeof(filterInstr_t) == 32 + sizeof(void *), "filterInstr_t size mismatch");
 
 /* Module-global dispatch table for direct threading.
@@ -204,20 +150,8 @@ _Static_assert(sizeof(filterInstr_t) == 32 + sizeof(void *), "filterInstr_t size
  * before any CompileFilter() call.  Never modified after that. */
 static const void *g_jt[FOP__COUNT];
 
-/*
- * Runtime engine.  prog[] is immutable after CompileFilter() and shared
- * between the original and all FilterCloneEngine() copies (thread-safe).
- * Only ident is per-clone (strdup'd).
- */
-typedef struct FilterEngine_s {
-    filterInstr_t *prog; /* bytecode program – shared, read-only */
-    uint32_t progLen;    /* number of instructions (includes terminals) */
-    uint32_t startNode;
-    int hasGeoDB;
-    const char *ident;
-} FilterEngine_t;
-
-static filterElement_t *FilterTree = NULL;
+filterElement_t *FilterTree = NULL;
+uint32_t memblocks;
 
 static void UpdateList(uint32_t a, uint32_t b);
 
@@ -2105,6 +2039,13 @@ void *CompileFilter(char *FilterSyntax) {
     }
     lex_cleanup();
 
+    /*
+     * derive block-level constraint from the build-time tree before
+     * generateByteCode() frees it.
+     */
+    blockConstraint_t blockConstraint;
+    ExtractBlockFilter(StartNode, &blockConstraint);
+
     // Emit bytecode from the build-time tree
     uint16_t startNode = 0;
     uint32_t progLen = 0;
@@ -2132,6 +2073,7 @@ void *CompileFilter(char *FilterSyntax) {
         .startNode = startNode,
         .hasGeoDB = 0,
         .ident = "none",
+        .blockConstraint = blockConstraint,
     };
 
     dbg_printf("Engine: bytecode %u instructions, startNode %u\n", progLen, startNode);
@@ -2304,5 +2246,16 @@ void DumpEngine(void *arg) {
             printf(" dataVal=0x%016" PRIx64, (uint64_t)p->dataVal);
         }
         printf("\n");
+    }
+
+    if (engine->blockConstraint.unknown) {
+        printf("\nNo block constrains.\n");
+    } else {
+        char strbuf[64];
+        printf("\nHas block constrains:\n");
+        printf("First seen LT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecFirst_lt, strbuf, 64), engine->blockConstraint.msecFirst_lt);
+        printf("First seen GT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecFirst_gt, strbuf, 64), engine->blockConstraint.msecFirst_gt);
+        printf("Last seen LT : %s(%llu)\n", msec2Str(engine->blockConstraint.msecLast_lt, strbuf, 64), engine->blockConstraint.msecLast_lt);
+        printf("Last seen GT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecLast_gt, strbuf, 64), engine->blockConstraint.msecLast_gt);
     }
 }  // End of DumpEngine

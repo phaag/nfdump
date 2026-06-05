@@ -100,7 +100,7 @@ static uint8_t *sessionKey = NULL;
 /* Function Prototypes */
 static void usage(char *name);
 
-static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
+static void send_data(void *engine, uint64_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
 
@@ -133,7 +133,6 @@ static void usage(char *name) {
         "-f <filter>\tfilter syntaxfile\n"
         "-v <version>\tUse netflow version to send flows. Either 5, 9, 10 (IPFIX) or 250 (nfdump native).\n"
         "-z <distribution>\tSimulate real time distribution with coefficient\n"
-        "-t <time>\ttime window for sending packets\n"
         "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
         name);
 #ifdef HAVE_LIBSODIUM
@@ -242,8 +241,7 @@ static void FreeRecordHandle(recordHandle_t *handle) {
     }
 }  // End of FreeRecordHandle
 
-static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version,
-                      int distribution) {
+static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
     nffileV3_t *nffile;
     uint64_t twin_msecFirst, twin_msecLast;
 
@@ -252,15 +250,8 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     double today = 0, reftime = 0;
     int reducer = 0;
 
-    if (timeWindow) {
-        twin_msecFirst = timeWindow->msecFirst;
-        if (timeWindow->msecLast)
-            twin_msecLast = timeWindow->msecLast;
-        else
-            twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
-    } else {
-        twin_msecFirst = twin_msecLast = 0;
-    }
+    twin_msecFirst = twin_msecLast = 0;
+    int hasBlockFilter = GetBlockConstraint(engine)->unknown == false;
 
     // Get the first file handle
     nffile = GetNextFile();
@@ -332,6 +323,11 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
             LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
+            continue;
+        }
+
+        if (hasBlockFilter && !FilterBlock(engine, dataBlock->msecFirst, dataBlock->msecLast)) {
+            dbg_printf("filter block: skip block (block constraint)\n");
             continue;
         }
 
@@ -500,12 +496,12 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 }  // End of send_data
 
 int main(int argc, char **argv) {
-    char *ffile, *filter, *tstring;
+    char *ffile, *filter;
     unsigned int delay, sockbuff_size;
     flist_t flist;
 
     memset((void *)&flist, 0, sizeof(flist));
-    ffile = filter = tstring = NULL;
+    ffile = filter = NULL;
 
     peer.hostname = NULL;
     peer.shostname = NULL;
@@ -601,7 +597,8 @@ int main(int argc, char **argv) {
                 ffile = optarg;
                 break;
             case 't':
-                tstring = optarg;
+                LogInfo("Option -t is no longer supported. Use 'first seen' and 'last seen' filter expressions.");
+                exit(EXIT_FAILURE);
                 break;
             case 'r':
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
@@ -647,7 +644,7 @@ int main(int argc, char **argv) {
         usage(argv[0]);
         exit(EXIT_FAILURE);
     } else {
-        /* user specified a pcap filter */
+        // user specified filter */
         filter = argv[optind];
     }
 
@@ -688,15 +685,10 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (tstring) {
-        flist.timeWindow = ScanTimeFrame(tstring);
-        if (!flist.timeWindow) exit(EXIT_FAILURE);
-    }
-
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!Init_nffile(1, fileList)) exit(254);
 
-    send_data(engine, flist.timeWindow, count, delay, confirm, netflow_version, distribution);
+    send_data(engine, count, delay, confirm, netflow_version, distribution);
 
 #ifdef HAVE_LIBSODIUM
     FreeUdpSessionKey(sessionKey);

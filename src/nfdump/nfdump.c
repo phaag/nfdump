@@ -93,6 +93,7 @@ typedef struct dataHandle_s {
 
 typedef struct prepareArgs_s {
     queue_t *prepareQueue;
+    const void *engine; /* filter engine – for file/block-level pre-filter */
     uint32_t processedBlocks;
     uint32_t skippedBlocks;
 } prepareArgs_t;
@@ -104,7 +105,6 @@ typedef struct filterArgs_s {
     unsigned hasGeoDB;
     unsigned numWorkers;
     void *engine;
-    timeWindow_t *timeWindow;
     queue_t *prepareQueue;
     queue_t *processQueue;
 } filterArgs_t;
@@ -374,6 +374,7 @@ static void *prepareThread(void *arg) {
     }
     t_firstMsec = nffile->stat_record->msecFirstSeen;
     t_lastMsec = nffile->stat_record->msecLastSeen;
+    int hasBlockFilter = GetBlockConstraint(prepareArgs->engine)->unknown == false;
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
@@ -407,7 +408,13 @@ static void *prepareThread(void *arg) {
 
         switch (dataHandle->dataBlock->type) {
             case BLOCK_TYPE_FLOW:
-                // processed blocks
+                if (hasBlockFilter && !FilterBlock(prepareArgs->engine, dataHandle->dataBlock->msecFirst, dataHandle->dataBlock->msecLast)) {
+                    dbg_printf("prepareThread: skip block (block constraint)\n");
+                    skippedBlocks++;
+                    FreeDataBlock(dataHandle->dataBlock);
+                    dataHandle->dataBlock = NULL;
+                    continue;
+                }
                 break;
             case BLOCK_TYPE_ARRAY:
                 ProcessArrayBlock((arrayBlockV3_t *)dataHandle->dataBlock);
@@ -469,19 +476,6 @@ static void *filterThread(void *arg) {
     void *engine = FilterCloneEngine(filterArgs->engine);
     unsigned hasGeoDB = filterArgs->hasGeoDB;
 
-    timeWindow_t *timeWindow = filterArgs->timeWindow;
-
-    // time window of all matched flows
-    uint64_t twin_msecFirst, twin_msecLast;
-    twin_msecFirst = twin_msecLast = 0;
-    if (timeWindow) {
-        twin_msecFirst = timeWindow->msecFirst;
-        if (timeWindow->msecLast)
-            twin_msecLast = timeWindow->msecLast;
-        else
-            twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
-    }
-
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (recordHandle == NULL) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -529,16 +523,6 @@ static void *filterThread(void *arg) {
                 recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
                 dataRecords++;
                 int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
-                // Time based filter
-                // if no time filter is given, the result is always true
-                if (timeWindow && match) {
-                    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-                    if (genericFlow) {
-                        match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
-                    } else {
-                        match = 0;
-                    }
-                }
 
                 if (match) {
                     // filter netflow record with user supplied filter
@@ -588,14 +572,13 @@ static void *filterThread(void *arg) {
     pthread_exit(NULL);
 }  // End of filterThread
 
-static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers,
-                                  const crypto_ctx_t *crypto_ctx) {
+static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, uint64_t limitRecords,
+                                  outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers, const crypto_ctx_t *crypto_ctx) {
     stat_record_t stat_record = {0};
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
     // launch prepareThread
-    prepareArgs_t prepareArgs = {.prepareQueue = queue_init(8)};
+    prepareArgs_t prepareArgs = {.prepareQueue = queue_init(8), .engine = engine};
     pthread_t tidPrepare;
     int err = pthread_create(&tidPrepare, NULL, prepareThread, (void *)&prepareArgs);
     if (err) {
@@ -608,7 +591,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         .numWorkers = numWorkers,
         .prepareQueue = prepareArgs.prepareQueue,
         .processQueue = queue_init(8),
-        .timeWindow = timeWindow,
         .hasGeoDB = outputParams->hasGeoDB,
     };
     queue_producers(filterArgs.processQueue, numWorkers);
@@ -772,7 +754,7 @@ int main(int argc, char **argv) {
     outputParams_t *outputParams;
     RecordPrinter_t print_record;
     nfprof_t profile_data;
-    char *wfile, *ffile, *filter, *tstring, *stat_type;
+    char *wfile, *ffile, *filter, *stat_type;
     char *print_format;
     char *print_order, *query_type, *configFile, *aggr_fmt;
     int element_stat, fdump;
@@ -788,7 +770,7 @@ int main(int argc, char **argv) {
     long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
     printf("CPUs online %ld\n", nprocs);
 #endif
-    wfile = ffile = filter = tstring = stat_type = NULL;
+    wfile = ffile = filter = stat_type = NULL;
     fdump = aggregate = 0;
     aggregate_mask = 0;
     bidir = 0;
@@ -952,8 +934,8 @@ int main(int argc, char **argv) {
                 ffile = optarg;
                 break;
             case 't':
-                CheckArgLen(optarg, 32);
-                tstring = optarg;
+                LogInfo("Option -t is no longer supported. Use 'first seen' and 'last seen' filter expressions.");
+                exit(EXIT_FAILURE);
                 break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -1160,11 +1142,6 @@ int main(int argc, char **argv) {
         aggregate = 1;
     }
 
-    if (tstring) {
-        flist.timeWindow = ScanTimeFrame(tstring);
-        if (!flist.timeWindow) exit(EXIT_FAILURE);
-    }
-
     if (flist.multiple_dirs == NULL && flist.single_file == NULL && flist.multiple_files == NULL) {
         usage(argv[0]);
         exit(EXIT_SUCCESS);
@@ -1319,8 +1296,8 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compressType, compressLevel,
-                            numWorkers, crypto_ctx);
+    sum_stat =
+        process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, numWorkers, crypto_ctx);
 
     if (totalPassed == 0) {
         printf("No matching flows\n");
@@ -1367,10 +1344,6 @@ int main(int argc, char **argv) {
                     printf("Time window: <unknown>\n");
                 } else {
                     char string[128];
-                    if (flist.timeWindow) {
-                        if (flist.timeWindow->msecFirst && (flist.timeWindow->msecFirst > t_firstMsec)) t_firstMsec = flist.timeWindow->msecFirst;
-                        if (flist.timeWindow->msecLast && (flist.timeWindow->msecLast < t_lastMsec)) t_lastMsec = flist.timeWindow->msecLast;
-                    }
                     uint64_t durationMsec = t_lastMsec - t_firstMsec;
                     printf("Time window: %s, Duration: %s\n", TimeString(t_firstMsec, t_lastMsec),
                            ScaleDuration(string, sizeof(string), durationMsec, outputParams->printPlain, WIDTH_VAR));

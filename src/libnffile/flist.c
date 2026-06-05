@@ -216,8 +216,6 @@ static void *FileLister_thr(void *arg);
 
 static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flist_t *flist);
 
-static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow);
-
 /* Functions */
 
 #if defined __FreeBSD__
@@ -434,7 +432,6 @@ static char *ExpandWildcard(char *path) {
 
 static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
     char *path = flist->multiple_files;
-    timeWindow_t *timeWindow = flist->timeWindow;
     queue_t *file_queue = flist->file_queue;
 
     CleanPath(path);
@@ -812,11 +809,9 @@ static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
                      (dir_entry_filter[fts_level].last_entry && (strcmp(ftsent->fts_name, dir_entry_filter[fts_level].last_entry) > 0))))
                     continue;
 
-                if (CheckTimeWindow(ftsent->fts_path, timeWindow)) {
-                    char *s = strdup(ftsent->fts_path);
-                    dbg_printf("Push file: %s\n", s);
-                    queue_push(file_queue, s);
-                }
+                char *s = strdup(ftsent->fts_path);
+                dbg_printf("Push file: %s\n", s);
+                queue_push(file_queue, s);
                 break;
         }
     }
@@ -940,9 +935,7 @@ static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flis
                 if (sub_dir) {  // subdir found
                     snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", source_dirs->list[i], sub_dir, single_file);
                     s[MAXPATHLEN - 1] = '\0';
-                    if (CheckTimeWindow(s, flist->timeWindow)) {
-                        queue_push(flist->file_queue, strdup(s));
-                    }
+                    queue_push(flist->file_queue, strdup(s));
                 } else {  // no subdir found
                     LogError("stat() error '%s': %s", s, "File not found!");
                 }
@@ -955,9 +948,7 @@ static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flis
             if (!S_ISREG(stat_buf.st_mode)) {
                 LogError("Skip non file entry: '%s'", s);
             } else {
-                if (CheckTimeWindow(s, flist->timeWindow)) {
-                    queue_push(flist->file_queue, strdup(s));
-                }
+                queue_push(flist->file_queue, strdup(s));
             }
         }
     }
@@ -989,9 +980,7 @@ static void *FileLister_thr(void *arg) {
 
         if (source_dirs.num_strings == 0) {
             // single file -r
-            if (CheckTimeWindow(single_file, flist->timeWindow)) {
-                queue_push(flist->file_queue, strdup(single_file));
-            }
+            queue_push(flist->file_queue, strdup(single_file));
         } else {
             // single file -r in multiple dirs -M
             ExpandMultipleDir(&source_dirs, single_file, flist);
@@ -1157,22 +1146,3 @@ int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) 
 
     return ret;
 }  // End of SetupPath
-
-// XXX FIX! - consider to remove
-static int GetStatRecord(char *filename, stat_record_t *stat_record) { return 1; }
-
-static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
-    // no time search window set
-    if (!searchWindow) return 1;
-
-    stat_record_t stat_record;
-    if (!GetStatRecord(filename, &stat_record)) {
-        return 0;
-    }
-
-    if (searchWindow->msecLast && searchWindow->msecLast < stat_record.msecFirstSeen) return 0;
-    if (searchWindow->msecFirst && searchWindow->msecFirst > stat_record.msecLastSeen) return 0;
-
-    return 1;
-
-}  // End of CheckTimeWindow

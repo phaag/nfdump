@@ -42,7 +42,6 @@ typedef struct flist_s {
     char *multiple_files;
     char *multiple_dirs;
     queue_t *file_queue;
-    timeWindow_t *timeWindow;
 } flist_t;
 
 int CheckSubDir(unsigned num);
