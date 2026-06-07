@@ -452,7 +452,7 @@ static void *prepareThread(void *arg) {
 #endif
     }  // while(!done)
 
-    printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
+    dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
     if (abortProcessing) {
         if (nffile) queue_abort(nffile->processQueue);
         queue_abort(prepareQueue);
