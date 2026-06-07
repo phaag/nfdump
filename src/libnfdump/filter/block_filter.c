@@ -31,17 +31,31 @@
 /*
  * Block-level pre-filter.
  *
- * Derives a blockConstraint_t from the build-time filter tree by abstract
- * interpretation, and provides FilterBlock() to skip entire flow blocks
- * before decompression.
+ * Two independent analyses run over the build-time filter tree:
  *
- * Future bloom-filter support (per-block src/dst IP bloom filter probing)
- * should be added here.
+ * 1. Time-range constraint (walkTree / ncAND / ncOR):
+ *    Abstract interpretation of the boolean tree deriving conservative
+ *    bounds on block.msecFirst / block.msecLast.
+ *
+ * 2. IP address constraint (collectIPsFromTree):
+ *    Collects up to BLOCK_IP_MAX exact host addresses from CMP_EQ and
+ *    CMP_IPLIST atoms on EXipv4FlowID / EXipv6FlowID.  At query time
+ *    these are probed against the per-block src/dst bloom filters.
+ *    The block is skipped only when every address is definitively absent
+ *    from the appropriate bloom.
+ *
+ *    OR / AND boolean structure of the filter is not tracked; all IPs
+ *    are collected with OR probe semantics (any hit → keep block).
+ *    This is always conservative: it may keep blocks unnecessarily but
+ *    never skips a block that has a matching flow.
+ *
+ *    CIDR entries (CMP_NET) and inverted atoms are not extracted.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "filter_int.h"
 #include "nfxV4.h"
@@ -288,6 +302,212 @@ static nodeConstraint_t analyseLeaf(const filterElement_t *e) {
     return r;
 }  // End of analyseLeaf
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * IP address extraction.
+ *
+ * collectIPsFromTree() walks the build-time tree with a simple iterative
+ * DFS and gathers exact host addresses for later bloom probing.
+ *
+ * Encoding of IP addresses in filter tree nodes (from grammar.y):
+ *
+ *   IPv4 exact (CMP_EQ):
+ *     extID  = EXipv4FlowID
+ *     offset = OFFsrc4Addr (src) or OFFdst4Addr (dst)
+ *     length = SIZEsrc4Addr (4)
+ *     value  = IPv4 address as uint64_t (low 32 bits, network byte order)
+ *
+ *   IPv6 exact (CMP_EQ): two AND-connected nodes per address
+ *     Node A: extID=EXipv6FlowID, offset=OFFsrc6Addr, length=8,  value=high64
+ *     Node B: extID=EXipv6FlowID, offset=OFFsrc6Addr+8, length=8, value=low64
+ *     Node A's OnTrue points to Node B (non-inverted) or OnFalse (inverted).
+ *
+ *   IPv4/IPv6 list (CMP_IPLIST):
+ *     extID  = EXipv4FlowID or EXipv6FlowID
+ *     offset = OFFsrc4/6Addr (src) or OFFdst4/6Addr (dst)
+ *     data.dataPtr = IPlist_t * (RB-tree of IPListNode) — valid before
+ *                    generateByteCode() converts it to IPSet_t.
+ *     The IPlist_t is shared between the IPv4 and IPv6 filter nodes;
+ *     each node interprets the entries for its own address family.
+ *
+ *   Only non-inverted atoms are extracted (inverted = NOT conditions
+ *   cannot be expressed as bloom probes).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Append an IPv4 address to the constraint list, deduplicating by address.
+ * If the same address already exists with a different direction, the
+ * directions are merged (OR'd) into a single BLOOM_DIR_BOTH entry.
+ */
+static void addIPv4(blockConstraint_t *out, uint8_t dir, uint32_t v4) {
+    for (int i = 0; i < out->ipCount; i++) {
+        if (!out->ips[i].isIPv6 && out->ips[i].v4 == v4) {
+            out->ips[i].dir |= dir;
+            return;
+        }
+    }
+    if (out->ipCount >= BLOCK_IP_MAX) return;
+    out->ips[out->ipCount++] = (blockIPEntry_t){.dir = dir, .isIPv6 = 0, .v4 = v4};
+    out->hasIPConstraint = true;
+}
+
+/*
+ * Append an IPv6 address to the constraint list, deduplicating by address.
+ * v6 points to 16 bytes in network byte order matching EXipv6Flow_t layout.
+ */
+static void addIPv6(blockConstraint_t *out, uint8_t dir, const uint8_t v6[16]) {
+    for (int i = 0; i < out->ipCount; i++) {
+        if (out->ips[i].isIPv6 && memcmp(out->ips[i].v6, v6, 16) == 0) {
+            out->ips[i].dir |= dir;
+            return;
+        }
+    }
+    if (out->ipCount >= BLOCK_IP_MAX) return;
+    blockIPEntry_t *e = &out->ips[out->ipCount++];
+    e->dir = dir;
+    e->isIPv6 = 1;
+    memcpy(e->v6, v6, 16);
+    out->hasIPConstraint = true;
+}
+
+/*
+ * Iterate an IPlist_t RB-tree and extract exact-host entries for IPv4.
+ * Entries where ip[0] != 0 (IPv6-only) are skipped: the IPv6 IPLIST node
+ * will handle them.  CIDR entries (mask != all-ones) are skipped.
+ */
+static void extractFromIPListV4(const IPlist_t *list, uint8_t dir, blockConstraint_t *out) {
+    struct IPListNode *node;
+    RB_FOREACH(node, IPtree, (IPlist_t *)(uintptr_t)list) {
+        if (out->ipCount >= BLOCK_IP_MAX) return;
+        /* Only exact-host entries */
+        if (node->mask[0] != 0xffffffffffffffffULL || node->mask[1] != 0xffffffffffffffffULL) continue;
+        /* IPv4 entries have ip[0]==0; ip[1] holds the address in low 32 bits */
+        if (node->ip[0] != 0) continue;
+        addIPv4(out, dir, (uint32_t)(node->ip[1]));
+    }
+}
+
+/*
+ * Iterate an IPlist_t RB-tree and extract exact-host entries for IPv6.
+ * Entries with ip[0]==0 are IPv4-style entries already handled by the
+ * IPv4 node; skip them here.  CIDR entries are skipped.
+ */
+static void extractFromIPListV6(const IPlist_t *list, uint8_t dir, blockConstraint_t *out) {
+    struct IPListNode *node;
+    RB_FOREACH(node, IPtree, (IPlist_t *)(uintptr_t)list) {
+        if (out->ipCount >= BLOCK_IP_MAX) return;
+        if (node->mask[0] != 0xffffffffffffffffULL || node->mask[1] != 0xffffffffffffffffULL) continue;
+        if (node->ip[0] == 0) continue; /* IPv4 entry — handled by IPv4 node */
+        addIPv6(out, dir, (const uint8_t *)node->ip);
+    }
+}
+
+/*
+ * Examine one filter tree node and, if it is an extractable IP atom,
+ * record the address(es) in *out.
+ *
+ * IPv4 CMP_EQ:   single node, value = address.
+ * IPv6 CMP_EQ:   current node is the high-64-bit half; peek at its
+ *                AND-connected child for the low half, then store both.
+ * CMP_IPLIST:    iterate the shared IPlist_t for the matching family.
+ *
+ * Only non-inverted atoms are collected; inverted = NOT(ip == X) gives
+ * no useful bloom bound.
+ */
+static void extractIPAtom(uint32_t idx, blockConstraint_t *out) {
+    const filterElement_t *e = &FilterTree[idx];
+
+    if (e->invert) return;           /* NOT conditions: no useful bound */
+    if (e->function != FUNC_NONE) return; /* derived functions: skip   */
+
+    /* ── IPv4 exact match ─────────────────────────────────────────── */
+    if (e->extID == EXipv4FlowID && e->comp == CMP_EQ && e->length == SIZEsrc4Addr) {
+        uint8_t dir = (e->offset == OFFsrc4Addr) ? BLOOM_DIR_SRC : BLOOM_DIR_DST;
+        addIPv4(out, dir, (uint32_t)(e->value));
+        return;
+    }
+
+    /* ── IPv6 exact match — high-64-bit half ─────────────────────── */
+    /*
+     * IPv6 addresses are split across two AND-connected nodes by the grammar:
+     *   Node A: offset == OFFsrc6Addr,     value = ipaddr[0] (high 64 bits)
+     *   Node B: offset == OFFsrc6Addr + 8, value = ipaddr[1] (low  64 bits)
+     * Connect_AND sets A.OnTrue = B (non-inverted) before any outer connections
+     * overwrite A's OnFalse.  We detect Node A, verify Node B via OnTrue, and
+     * assemble the full 128-bit address.
+     */
+    if (e->extID == EXipv6FlowID && e->comp == CMP_EQ && e->length == sizeof(uint64_t) &&
+        (e->offset == OFFsrc6Addr || e->offset == OFFdst6Addr)) {
+        uint32_t loIdx = e->OnTrue; /* non-inverted: AND child is at OnTrue */
+        if (loIdx == 0 || loIdx >= (uint32_t)(memblocks * MAXBLOCKS)) return;
+        const filterElement_t *lo = &FilterTree[loIdx];
+        /* Verify the child is the paired low-half node */
+        if (lo->extID != EXipv6FlowID || lo->comp != CMP_EQ ||
+            lo->length != sizeof(uint64_t) || lo->offset != e->offset + sizeof(uint64_t))
+            return;
+        uint8_t dir = (e->offset == OFFsrc6Addr) ? BLOOM_DIR_SRC : BLOOM_DIR_DST;
+        /* Assemble 16-byte address: high half then low half, matching
+         * EXipv6Flow_t layout (uint64_t[2] in native byte order).     */
+        uint8_t v6[16];
+        memcpy(v6,     &e->value,  8);
+        memcpy(v6 + 8, &lo->value, 8);
+        addIPv6(out, dir, v6);
+        return;
+    }
+
+    /* ── IPv4 IP list ─────────────────────────────────────────────── */
+    if (e->extID == EXipv4FlowID && e->comp == CMP_IPLIST && e->data.dataPtr != NULL) {
+        uint8_t dir = (e->offset == OFFsrc4Addr) ? BLOOM_DIR_SRC : BLOOM_DIR_DST;
+        extractFromIPListV4((const IPlist_t *)e->data.dataPtr, dir, out);
+        return;
+    }
+
+    /* ── IPv6 IP list ─────────────────────────────────────────────── */
+    if (e->extID == EXipv6FlowID && e->comp == CMP_IPLIST && e->data.dataPtr != NULL) {
+        uint8_t dir = (e->offset == OFFsrc6Addr) ? BLOOM_DIR_SRC : BLOOM_DIR_DST;
+        extractFromIPListV6((const IPlist_t *)e->data.dataPtr, dir, out);
+        return;
+    }
+}
+
+/*
+ * Iterative DFS over the build-time filter tree starting at 'root'.
+ * Visits every reachable node exactly once and calls extractIPAtom()
+ * on each.  Stops early when BLOCK_IP_MAX addresses have been collected.
+ *
+ * Uses a heap-allocated visited array and stack to avoid unbounded
+ * C-stack usage and to handle DAG sharing correctly.
+ */
+#define IP_COLLECT_STACK_MAX 2048
+
+static void collectIPsFromTree(uint32_t root, blockConstraint_t *out) {
+    if (root == 0 || FilterTree == NULL) return;
+
+    uint32_t maxNodes = (uint32_t)(memblocks * MAXBLOCKS);
+
+    uint8_t *visited = calloc(maxNodes, 1);
+    if (!visited) return;
+
+    /* Fixed-size stack is sufficient: real filter trees are always small. */
+    uint32_t stack[IP_COLLECT_STACK_MAX];
+    int top = 0;
+    stack[top++] = root;
+
+    while (top > 0 && out->ipCount < BLOCK_IP_MAX) {
+        uint32_t idx = stack[--top];
+        if (idx == 0 || idx >= maxNodes) continue;
+        if (visited[idx]) continue;
+        visited[idx] = 1;
+
+        extractIPAtom(idx, out);
+
+        const filterElement_t *e = &FilterTree[idx];
+        if (e->OnFalse && top < IP_COLLECT_STACK_MAX - 1) stack[top++] = e->OnFalse;
+        if (e->OnTrue  && top < IP_COLLECT_STACK_MAX - 1) stack[top++] = e->OnTrue;
+    }
+
+    free(visited);
+}  /* End of collectIPsFromTree */
+
 /*
  * Recursively walk the build-time filter tree rooted at node index 'idx'
  * and return the merged block constraint.
@@ -370,7 +590,7 @@ void ExtractBlockFilter(uint32_t root, blockConstraint_t *out) {
     *out = (blockConstraint_t){.unknown = true};
     if (root == 0 || FilterTree == NULL) return;
 
-    // visited array: one byte per possible node index
+    /* ── Time-range constraint (abstract interpretation) ── */
     uint32_t maxNodes = memblocks * MAXBLOCKS;
     uint8_t *visited = calloc(maxNodes, sizeof(uint8_t));
     if (!visited) return;
@@ -378,13 +598,16 @@ void ExtractBlockFilter(uint32_t root, blockConstraint_t *out) {
     nodeConstraint_t nc = walkTree(root, visited, 0);
     free(visited);
 
-    if (nc.unknown) return;  // leave out->unknown = true
+    if (!nc.unknown) {
+        out->unknown = false;
+        out->msecFirst_lt = nc.msecFirst_lt;
+        out->msecFirst_gt = nc.msecFirst_gt;
+        out->msecLast_lt = nc.msecLast_lt;
+        out->msecLast_gt = nc.msecLast_gt;
+    }
 
-    out->unknown = false;
-    out->msecFirst_lt = nc.msecFirst_lt;
-    out->msecFirst_gt = nc.msecFirst_gt;
-    out->msecLast_lt = nc.msecLast_lt;
-    out->msecLast_gt = nc.msecLast_gt;
+    /* ── IP address extraction for bloom probing ── */
+    collectIPsFromTree(root, out);
 }  // End of ExtractBlockFilter
 
 /*
@@ -400,69 +623,75 @@ const blockConstraint_t *GetBlockConstraint(const void *engine) {
 /*
  * FilterBlock – block-level pre-filter.
  *
- * Returns 0 (skip block) if the block's time boundaries guarantee that no
- * flow record inside can match the filter.  Returns 1 (keep block) in all
- * other cases, including when no useful constraint was derived (unknown).
+ * Two checks are applied in order; either can independently reject the block.
  *
- * blockMsecFirst: min(flow.msecFirst) across all flows in the block.
- * blockMsecLast:  max(flow.msecLast)  across all flows in the block.
+ * ── Time-range check ──
+ * Only active when bc->unknown == false (a useful time constraint exists).
+ * Skipped when blockMsecFirst == blockMsecLast == 0 (no time metadata) or
+ * when blockMsecFirst > blockMsecLast (corrupt header: skip time check only).
  *
- * Each constraint field is checked independently.  All checks must pass
- * (logical AND) for the block to be kept.  A field value of 0 means
- * "not constrained" and is skipped.
+ * ── IP bloom check ──
+ * Active when bc->hasIPConstraint == true AND bh != NULL.
+ * Independent of bc->unknown: a filter "src ip 1.2.3.4" has no time atoms
+ * (unknown==true) but does have an IP constraint.
  *
- * Rule derivation (bF = blockMsecFirst, bL = blockMsecLast):
- *
- *  msecFirst_lt: derived from "flow.msecFirst < T" atoms.
- *    Any flow satisfying this has flow.msecFirst < T.
- *    The block's earliest start is bF, so if bF >= T no flow can satisfy.
- *    → skip if bF >= msecFirst_lt   (keep if bF < msecFirst_lt)
- *
- *  msecFirst_gt: derived from "flow.msecFirst > T" atoms.
- *    Any matching flow has flow.msecFirst > T.
- *    The block's latest end is bL >= flow.msecFirst, so if bL <= T no flow qualifies.
- *    → skip if bL <= msecFirst_gt   (keep if bL > msecFirst_gt)
- *
- *  msecLast_lt: derived from "flow.msecLast < T" atoms.
- *    Any matching flow has flow.msecLast < T.
- *    Since bF <= flow.msecLast, if bF >= T no flow can qualify.
- *    → skip if bF >= msecLast_lt    (keep if bF < msecLast_lt)
- *
- *  msecLast_gt: derived from "flow.msecLast > T" atoms.
- *    Any matching flow has flow.msecLast > T.
- *    Since bL >= flow.msecLast, if bL <= T no flow can qualify.
- *    → skip if bL <= msecLast_gt    (keep if bL > msecLast_gt)
- *
- * Future bloom filter fields would be evaluated here in an analogous way:
- * probe the bloom; if the answer is "definitely not present" return 0.
+ * The block is skipped (return 0) only when EVERY queried IP is definitively
+ * absent from all available bloom filters.  Conservative cases that keep the
+ * block:
+ *   • bh == NULL          (block carries no META bloom records)
+ *   • all bloom ptrs NULL (META records not yet present for this block)
+ *   • no bloom available for an entry's direction/family
+ *   • any probe returns 1 ("probably present")
  */
-int FilterBlock(const void *enginePtr, uint64_t blockMsecFirst, uint64_t blockMsecLast) {
-    if (!enginePtr) return 1;  // no engine → keep
-
-    // corrupt block
-    if (blockMsecFirst > blockMsecLast) return 1;
+int FilterBlock(const void *enginePtr, uint64_t blockMsecFirst, uint64_t blockMsecLast,
+                const bloomHandle_t *bh) {
+    if (!enginePtr) return 1;
 
     const FilterEngine_t *engine = (const FilterEngine_t *)enginePtr;
     const blockConstraint_t *bc = &engine->blockConstraint;
 
-    if (bc->unknown) return 1;  // no useful constraint → keep
+    /* ── Time-range checks ── */
+    if (!bc->unknown && blockMsecFirst <= blockMsecLast) {
+        if (blockMsecFirst != 0 || blockMsecLast != 0) {  // skip if no time metadata
+            if (bc->msecFirst_lt && blockMsecFirst >= bc->msecFirst_lt) return 0;
+            if (bc->msecFirst_gt && blockMsecLast  <= bc->msecFirst_gt) return 0;
+            if (bc->msecLast_lt  && blockMsecFirst >= bc->msecLast_lt)  return 0;
+            if (bc->msecLast_gt  && blockMsecLast  <= bc->msecLast_gt)  return 0;
+        }
+    }
 
-    // blockMsecFirst = 0 and blockMsecLast = 0: no time metadata, keep
-    if (blockMsecFirst == 0 && blockMsecLast == 0) return 1;
+    /* ── IP bloom checks ── */
+    if (bc->hasIPConstraint && bh) {
+        int anyPresent = 0;
+        for (int i = 0; i < bc->ipCount && !anyPresent; i++) {
+            const blockIPEntry_t *e = &bc->ips[i];
+            int entryHasBloom = 0;
 
-    // flow start lower bound: keep if bF < msecFirst_lt
-    if (bc->msecFirst_lt && blockMsecFirst >= bc->msecFirst_lt) return 0;
+            if (!e->isIPv6) {
+                if ((e->dir & BLOOM_DIR_SRC) && bh->srcIPv4bloom) {
+                    entryHasBloom = 1;
+                    if (BloomLookupIPv4(bh->srcIPv4bloom, e->v4)) anyPresent = 1;
+                }
+                if (!anyPresent && (e->dir & BLOOM_DIR_DST) && bh->dstIPv4bloom) {
+                    entryHasBloom = 1;
+                    if (BloomLookupIPv4(bh->dstIPv4bloom, e->v4)) anyPresent = 1;
+                }
+            } else {
+                if ((e->dir & BLOOM_DIR_SRC) && bh->srcIPv6bloom) {
+                    entryHasBloom = 1;
+                    if (BloomLookupIPv6(bh->srcIPv6bloom, e->v6)) anyPresent = 1;
+                }
+                if (!anyPresent && (e->dir & BLOOM_DIR_DST) && bh->dstIPv6bloom) {
+                    entryHasBloom = 1;
+                    if (BloomLookupIPv6(bh->dstIPv6bloom, e->v6)) anyPresent = 1;
+                }
+            }
+            /* No bloom available for this entry's direction/family:
+             * cannot conclude the IP is absent — keep conservatively. */
+            if (!entryHasBloom) anyPresent = 1;
+        }
+        if (!anyPresent) return 0;  // every IP definitively absent → skip
+    }
 
-    // flow start upper bound: keep if bL > msecFirst_gt
-    if (bc->msecFirst_gt && blockMsecLast <= bc->msecFirst_gt) return 0;
-
-    // flow end lower bound: keep if bF < msecLast_lt
-    if (bc->msecLast_lt && blockMsecFirst >= bc->msecLast_lt) return 0;
-
-    // flow end upper bound: keep if bL > msecLast_gt
-    if (bc->msecLast_gt && blockMsecLast <= bc->msecLast_gt) return 0;
-
-    /* Future bloom filter checks go here */
-
-    return 1;  // block may contain matching flows
+    return 1;
 }  // End of FilterBlock

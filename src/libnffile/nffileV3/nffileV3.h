@@ -252,6 +252,27 @@ typedef struct flowBlockV3_s {
 } flowBlockV3_t;
 _Static_assert((sizeof(flowBlockV3_t) & 7) == 0, "flowBlockV3_t for 8 byte aligned");
 
+enum {
+    META_TYPE_NULL = 0,        // unused - undefined
+    META_TYPE_BLOOM_SRC_IPV4,  // bloom filter src IPv4
+    META_TYPE_BLOOM_DST_IPV4,  // bloom filter dst IPv4
+    META_TYPE_BLOOM_SRC_IPV6,  // bloom filter src IPv6
+    META_TYPE_BLOOM_DST_IPV6,  // bloom filter dst IPv6
+    META_MAX_TYPES             // max + 1 block types
+};
+
+/*
+ * meta record header definition
+ * right after the flow block header, one or more meta records can follow
+ * containing block meta and index information such as bloom filters per block etc.
+ */
+typedef struct metaRecordHeader_s {
+    uint16_t type;      // meta header ID
+    uint16_t size;      // size of meta block
+    uint16_t metaType;  // type of meta header
+    uint16_t align;
+} metaRecordHeader_t;
+
 /*
  * array block header
  * Stores numElements, each of elementSize.

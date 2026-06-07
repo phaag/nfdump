@@ -172,7 +172,6 @@ static void usage(char *name) {
         "\t\t/dir/dir1:dir2:dir3 Read the same files from '/dir/dir1' '/dir/dir2' and "
         "'/dir/dir3'.\n"
         "\t\trequests either -r filename or -R firstfile:lastfile without pathnames\n"
-        "-m\t\tdeprecated\n"
         "-O <order> Sort order for aggregated flows - tstart, tend, flows, packets bps pps bbp "
         "etc.\n"
         "-R <expr>\tRead input from sequence of files.\n"
@@ -359,6 +358,8 @@ static void ProcessArrayBlock(arrayBlockV3_t *arrayBlock) {
 
 }  // End of ProcessArrayBlock
 
+/* scanBlockBlooms is defined in nffile_inline.c (included above) */
+
 static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
 
@@ -374,7 +375,9 @@ static void *prepareThread(void *arg) {
     }
     t_firstMsec = nffile->stat_record->msecFirstSeen;
     t_lastMsec = nffile->stat_record->msecLastSeen;
-    int hasBlockFilter = GetBlockConstraint(prepareArgs->engine)->unknown == false;
+    const blockConstraint_t *bc = GetBlockConstraint(prepareArgs->engine);
+    /* hasBlockFilter: true if either a time-range or an IP bloom constraint exists */
+    int hasBlockFilter = bc && (!bc->unknown || bc->hasIPConstraint);
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
@@ -407,15 +410,19 @@ static void *prepareThread(void *arg) {
         }
 
         switch (dataHandle->dataBlock->type) {
-            case BLOCK_TYPE_FLOW:
-                if (hasBlockFilter && !FilterBlock(prepareArgs->engine, dataHandle->dataBlock->msecFirst, dataHandle->dataBlock->msecLast)) {
-                    dbg_printf("prepareThread: skip block (block constraint)\n");
-                    skippedBlocks++;
-                    FreeDataBlock(dataHandle->dataBlock);
-                    dataHandle->dataBlock = NULL;
-                    continue;
+            case BLOCK_TYPE_FLOW: {
+                if (hasBlockFilter) {
+                    bloomHandle_t bh = {0};
+                    if (bc->hasIPConstraint) scanBlockBlooms(dataHandle->dataBlock, &bh);
+                    if (!FilterBlock(prepareArgs->engine, dataHandle->dataBlock->msecFirst, dataHandle->dataBlock->msecLast, &bh)) {
+                        dbg_printf("prepareThread: skip block (block constraint)\n");
+                        skippedBlocks++;
+                        FreeDataBlock(dataHandle->dataBlock);
+                        dataHandle->dataBlock = NULL;
+                        continue;
+                    }
                 }
-                break;
+            } break;
             case BLOCK_TYPE_ARRAY:
                 ProcessArrayBlock((arrayBlockV3_t *)dataHandle->dataBlock);
                 break;
@@ -445,7 +452,7 @@ static void *prepareThread(void *arg) {
 #endif
     }  // while(!done)
 
-    dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
+    printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
     if (abortProcessing) {
         if (nffile) queue_abort(nffile->processQueue);
         queue_abort(prepareQueue);
@@ -519,25 +526,31 @@ static void *filterThread(void *arg) {
             recordCounter++;
 
             // work on our record
-            if (record_ptr->type == V4Record) {
-                recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
-                dataRecords++;
-                int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
+            switch (record_ptr->type) {
+                case V4Record: {
+                    recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
+                    dataRecords++;
+                    int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
 
-                if (match) {
-                    // filter netflow record with user supplied filter
-                    match = FilterRecord(engine, recordHandle);
-                }
-                if (match) {  // record passed all filters
-                    SetFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
-                    passedRecords++;
-                    matched++;
-                } else {
-                    ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
-                }
-                FreeRecordHandle(recordHandle);
-            } else {
-                LogError("Skip unknown record: %" PRIu64 " type %i", recordCounter, record_ptr->type);
+                    if (match) {
+                        // filter netflow record with user supplied filter
+                        match = FilterRecord(engine, recordHandle);
+                    }
+                    if (match) {  // record passed all filters
+                        SetFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
+                        passedRecords++;
+                        matched++;
+                    } else {
+                        ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
+                    }
+                    FreeRecordHandle(recordHandle);
+                } break;
+                case METARecord:
+                    /* bloom META records: used by prepareThread for block-level
+                     * pre-filtering; nothing to do at the per-record stage. */
+                    break;
+                default:
+                    LogError("Skip unknown record: %" PRIu64 " type %i", recordCounter, record_ptr->type);
             }
 
             // Advance pointer by number of bytes for netflow record
@@ -695,6 +708,9 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     FreeRecordHandle(recordHandle);
 
                 } break;
+                case METARecord:
+                    // Skip meta record
+                    break;
                 default: {
                     LogError("Skip unknown record type %i\n", record_ptr->type);
                 }
@@ -942,9 +958,8 @@ int main(int argc, char **argv) {
                 flist.single_file = strdup(optarg);
                 break;
             case 'm':
-                print_order = "tstart";
-                Parse_PrintOrder(print_order);
-                LogError("Option -m deprecated. Use '-O tstart' instead");
+                LogError("Option not supported");
+                exit(EXIT_FAILURE);
                 break;
             case 'M':
                 CheckArgLen(optarg, MAXPATHLEN);

@@ -30,6 +30,7 @@
 
 #include "filter.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -2249,13 +2250,28 @@ void DumpEngine(void *arg) {
     }
 
     if (engine->blockConstraint.unknown) {
-        printf("\nNo block constrains.\n");
+        printf("\nNo time block constrains.\n");
     } else {
         char strbuf[64];
-        printf("\nHas block constrains:\n");
+        printf("\nHas time block constrains:\n");
         printf("First seen LT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecFirst_lt, strbuf, 64), engine->blockConstraint.msecFirst_lt);
         printf("First seen GT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecFirst_gt, strbuf, 64), engine->blockConstraint.msecFirst_gt);
         printf("Last seen LT : %s(%llu)\n", msec2Str(engine->blockConstraint.msecLast_lt, strbuf, 64), engine->blockConstraint.msecLast_lt);
         printf("Last seen GT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecLast_gt, strbuf, 64), engine->blockConstraint.msecLast_gt);
+    }
+    if (engine->blockConstraint.hasIPConstraint) {
+        printf("Found %i IP addresses for block filter\n", engine->blockConstraint.ipCount);
+        const blockIPEntry_t *ipBlock = engine->blockConstraint.ips;
+        for (int i = 0; i < engine->blockConstraint.ipCount; i++) {
+            if (ipBlock[i].isIPv6) {
+                char ipstr[INET6_ADDRSTRLEN];
+                inet_ntop(AF_INET6, ipBlock[i].v6, ipstr, sizeof(ipstr));
+                printf("[%d] IPv6: %16s\n", i, ipstr);
+            } else {
+                char ipstr[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &ipBlock[i].v4, ipstr, sizeof(ipstr));
+                printf("[%d] IPv4: %16s\n", i, ipstr);
+            }
+        }
     }
 }  // End of DumpEngine

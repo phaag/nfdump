@@ -137,6 +137,54 @@ static inline int MapV4RecordHandle(recordHandle_t *handle, recordHeaderV4_t *re
     return 1;
 }  // End of MapV4RecordHandle
 
+/*
+ * scanBlockBlooms — extract bloom-filter pointers from the META records
+ * at the start of a flow block.
+ *
+ * Only compiled when bloom.h has been included before this file
+ * (_BLOOM_H guard).  Translation units that don't need bloom filtering
+ * (nfcapd, exporter, nflowcache, …) include nffile_inline.c without
+ * bloom.h and safely skip this definition.
+ *
+ * If the first record is not a METARecord the block carries no bloom data
+ * and *bloomHandle is zeroed.  Otherwise up to min(4, block->numRecords) consecutive
+ * METARecords are read; the loop stops early at the first non-META type.
+ * Bounding by numRecords prevents reading past the last valid record in
+ * blocks that have fewer than 4 records in total.
+ *
+ * The returned pointers alias memory inside the decompressed block; they
+ * remain valid until the block is freed.
+ */
+#ifdef _BLOOM_H
+static inline void scanBlockBlooms(const flowBlockV3_t *block, bloomHandle_t *bloomHandle) {
+    memset(bloomHandle, 0, sizeof(*bloomHandle));
+    recordHeader_t *r = ResetCursor((flowBlockV3_t *)block);
+    if (r->type != METARecord) return;  // fast path: no bloom META records
+
+    int limit = (int)block->numRecords < 4 ? (int)block->numRecords : 4;
+    for (int i = 0; i < limit; i++) {
+        if (r->type != METARecord) break;
+        metaRecordHeader_t *m = (metaRecordHeader_t *)r;
+        bloomFilter_t *bloom = (bloomFilter_t *)((uint8_t *)m + sizeof(metaRecordHeader_t));
+        switch (m->metaType) {
+            case META_TYPE_BLOOM_SRC_IPV4:
+                bloomHandle->srcIPv4bloom = bloom;
+                break;
+            case META_TYPE_BLOOM_DST_IPV4:
+                bloomHandle->dstIPv4bloom = bloom;
+                break;
+            case META_TYPE_BLOOM_SRC_IPV6:
+                bloomHandle->srcIPv6bloom = bloom;
+                break;
+            case META_TYPE_BLOOM_DST_IPV6:
+                bloomHandle->dstIPv6bloom = bloom;
+                break;
+        }
+        r = (recordHeader_t *)((uint8_t *)r + m->size);
+    }
+}  // End of scanBlockBlooms
+#endif /* _BLOOM_H */
+
 static inline flowBlockV3_t *AppendToBuffer(nffileV3_t *nffile, flowBlockV3_t *dataBlock, void *record, size_t required) {
     if (!IsAvailable(dataBlock, nffile->fileHeader->blockSize, required)) {
         if (dataBlock->type != BLOCK_TYPE_FLOW) {

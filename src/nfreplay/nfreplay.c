@@ -251,7 +251,8 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
     int reducer = 0;
 
     twin_msecFirst = twin_msecLast = 0;
-    int hasBlockFilter = GetBlockConstraint(engine)->unknown == false;
+    const blockConstraint_t *bc = GetBlockConstraint(engine);
+    int hasBlockFilter = bc && (!bc->unknown || bc->hasIPConstraint);
 
     // Get the first file handle
     nffile = GetNextFile();
@@ -322,13 +323,18 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
         }
 
         if (dataBlock->type != BLOCK_TYPE_FLOW) {
-            LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
+            FreeDataBlock(dataBlock);
             continue;
         }
 
-        if (hasBlockFilter && !FilterBlock(engine, dataBlock->msecFirst, dataBlock->msecLast)) {
-            dbg_printf("filter block: skip block (block constraint)\n");
-            continue;
+        if (hasBlockFilter) {
+            bloomHandle_t bh = {0};
+            if (bc->hasIPConstraint) scanBlockBlooms(dataBlock, &bh);
+            if (!FilterBlock(engine, dataBlock->msecFirst, dataBlock->msecLast, &bh)) {
+                dbg_printf("filter block: skip block (block constraint)\n");
+                FreeDataBlock(dataBlock);
+                continue;
+            }
         }
 
         // cnt is the number of blocks, which matched the filter
@@ -420,6 +426,9 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
                     }
 
                 } break;
+                case METARecord:
+                    /* bloom META records: consumed by the block-level pre-filter; skip here */
+                    break;
                 case LegacyRecordType1:
                 case LegacyRecordType2:
                 case ExporterInfoRecordType:

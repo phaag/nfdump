@@ -333,8 +333,9 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
 #endif
         }
     } else {
-        // no encryption
-        if (compression == NOT_COMPRESSED) {
+        // no encryption — normalise UNDEF_COMPRESSED (0) to NOT_COMPRESSED (1)
+        if (compression <= NOT_COMPRESSED) {
+            compression = NOT_COMPRESSED;
             NumThreads = 2;
             queueDepth = DefaultQueueSize;
         } else {

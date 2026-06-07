@@ -66,6 +66,7 @@
 // Identifier for flow records
 #define V3Record 11
 #define V4Record 16
+#define METARecord 17
 
 // record type definition
 #define NbarRecordType 12
@@ -74,7 +75,7 @@
 
 #define SamplerRecordType 15
 
-#define MaxRecordID 17
+#define MaxRecordID 18
 
 // array record types
 // maxmind

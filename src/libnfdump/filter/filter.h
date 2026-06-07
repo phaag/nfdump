@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "bloom.h"
 #include "nfdump.h"
 #include "rbtree.h"
 
@@ -107,15 +108,50 @@ typedef struct FilterParam {
  *   block.msecLast   – max(flow.msecLast)  in block
  *
  * A constraint value of 0 means "not constrained" (no boundary derived).
- * When unknown == true the entire constraint is ignored (always keep).
+ * When unknown == true the entire time constraint is ignored (always keep).
  *
- * Future extensions (bloom filters for IP addresses) may be added here
- * by adding further fields.  FilterBlock() evaluates each populated field
- * independently and returns 0 (skip) only when at least one field rules
- * the block out with certainty.
+ * IP constraints: up to BLOCK_IP_MAX exact host addresses extracted from
+ * filter atoms with CMP_EQ or CMP_IPLIST on EXipv4FlowID / EXipv6FlowID.
+ * At query time each entry is probed against the block's per-direction
+ * bloom filter (src/dst × IPv4/IPv6).  The block is kept if any probe
+ * returns "probably present"; skipped only if all return "definitely not
+ * present".  CIDR (CMP_NET) and inverted atoms are not extracted.
+ *
+ * Byte-order convention (must match the collector's bloom build):
+ *   IPv4  v4   – same uint32_t as EXipv4Flow_t::srcAddr / dstAddr
+ *   IPv6  v6[] – same 16 bytes as EXipv6Flow_t::srcAddr / dstAddr cast
+ *                to uint8_t[16] (i.e. memcpy of uint64_t[2])
  */
+
+/* Maximum number of IP addresses extracted from the filter for bloom probing. */
+#define BLOCK_IP_MAX 32
+
+/*
+ * Direction flags for blockIPEntry_t.
+ * BLOOM_DIR_BOTH is the OR of SRC and DST and means "probe either bloom".
+ */
+#define BLOOM_DIR_SRC  1
+#define BLOOM_DIR_DST  2
+#define BLOOM_DIR_BOTH 3
+
+/*
+ * One IP address entry in the block-level IP constraint.
+ * isIPv6 == 0: IPv4, use .v4 field and probe the per-block IPv4 bloom.
+ * isIPv6 == 1: IPv6, use .v6 field and probe the per-block IPv6 bloom.
+ * dir: which per-block bloom(s) to probe (BLOOM_DIR_SRC / DST / BOTH).
+ */
+typedef struct blockIPEntry_s {
+    uint8_t dir;     /* BLOOM_DIR_SRC / BLOOM_DIR_DST / BLOOM_DIR_BOTH */
+    uint8_t isIPv6;  /* 0 = IPv4, 1 = IPv6                             */
+    uint8_t _pad[2];
+    union {
+        uint32_t v4;     /* IPv4 address (uint32_t, network byte order)  */
+        uint8_t  v6[16]; /* IPv6 address (16 bytes, network byte order)  */
+    };
+} blockIPEntry_t;
+
 typedef struct blockConstraint_s {
-    bool unknown; /* true  → no useful constraint derivable; always keep */
+    bool unknown; /* true  → no useful time constraint; always keep */
 
     /* flow start (msecFirst) range: keep block if bF < msecFirst_lt */
     uint64_t msecFirst_lt; /* keep if block.msecFirst < msecFirst_lt   (0=unset) */
@@ -125,14 +161,13 @@ typedef struct blockConstraint_s {
     uint64_t msecLast_lt; /* keep if block.msecFirst < msecLast_lt    (0=unset) */
     uint64_t msecLast_gt; /* keep if block.msecLast  > msecLast_gt    (0=unset) */
 
-    /* Future: per-block bloom filter probes for src/dst IP addresses.
-     * Add fields here when block-level bloom filters are stored.
-     * Example:
-     *   bool     hasSrcIP;           // src IP constraint set
-     *   uint64_t srcIP[2];           // probe value (IPv4: srcIP[0]=0)
-     *   bool     hasDstIP;
-     *   uint64_t dstIP[2];
-     */
+    /* Per-block bloom IP probe list.
+     * Populated by ExtractBlockFilter() from exact-host and IP-list atoms.
+     * Used by FilterBlock() to probe the block's src/dst × v4/v6 blooms.
+     * hasIPConstraint is false when no IP atoms were extracted.            */
+    bool           hasIPConstraint;
+    uint8_t        ipCount;
+    blockIPEntry_t ips[BLOCK_IP_MAX];
 } blockConstraint_t;
 
 /*
@@ -244,12 +279,22 @@ const blockConstraint_t *GetBlockConstraint(const void *engine);
  * Returns 0 if the block can be skipped with certainty (no flow in the
  * block can match the filter).  Returns 1 if the block must be read.
  *
- * blockMsecFirst: earliest flow start timestamp in the block (msec)
- * blockMsecLast:  latest  flow end   timestamp in the block (msec)
+ * Two independent checks are applied:
  *
- * Pass blockMsecFirst = blockMsecLast = 0 to force "keep" (e.g. for
- * blocks that carry no time metadata).
+ * 1. Time-range check (when blockConstraint.unknown == false):
+ *    blockMsecFirst — min(flow.msecFirst) across all flows in the block (msec)
+ *    blockMsecLast  — max(flow.msecLast)  across all flows in the block (msec)
+ *    Pass 0/0 for blocks with no time metadata (check is skipped).
+ *
+ * 2. IP bloom check (when blockConstraint.hasIPConstraint == true):
+ *    bh — bloom handles read from the block's META records by scanBlockBlooms().
+ *    Pass NULL when the block carries no bloom META records (check is skipped).
+ *    Skip only when every queried IP is definitively absent from the blooms;
+ *    keep conservatively when a bloom pointer is NULL for a required direction.
+ *
+ * The two checks are independent: unknown==true suppresses only the time check.
  */
-int FilterBlock(const void *engine, uint64_t blockMsecFirst, uint64_t blockMsecLast);
+int FilterBlock(const void *engine, uint64_t blockMsecFirst, uint64_t blockMsecLast,
+                const bloomHandle_t *bh);
 
 #endif

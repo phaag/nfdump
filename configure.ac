@@ -345,6 +345,7 @@ AC_CONFIG_FILES([
 	src/nfreader/Makefile 
 	src/maxmind/Makefile
 	src/tor/Makefile
+	src/nfmeta/Makefile
 	src/ft2nfdump/Makefile
 	src/nfsen/Makefile
 	src/test/Makefile

@@ -65,6 +65,11 @@
 
 #include "nfcrypto.h"
 
+typedef struct readerArgs_s {
+    nffileV3_t *nffile;
+    uint32_t tnum;  // threadnum
+} readerArgs_t;
+
 // Decompress a single data block located at entry offset/size in the mmap.
 // Returns a newly allocated block (caller must FreeDataBlock), or NULL on error.
 static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry) {
@@ -226,9 +231,14 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
 }  // End of nfread
 
 static void *nfreader(void *arg) {
-    nffileV3_t *nffile = (nffileV3_t *)arg;
+    readerArgs_t *readerArg = (readerArgs_t *)arg;
+    nffileV3_t *nffile = readerArg->nffile;
+    uint32_t tnum = readerArg->tnum;
+    uint32_t numWorkers = nffile->numWorkers;
+    free(readerArg);
 
-    dbg_printf("nfreader enter: %p\n", (void *)pthread_self());
+    dbg_printf("nfreader enter - tnum: %u, tid: %p\n", tnum, (void *)pthread_self());
+
     // Signal handling
     sigset_t set = {0};
     sigfillset(&set);
@@ -238,7 +248,7 @@ static void *nfreader(void *arg) {
     dbg(unsigned blockCount = 0);
     const long pageSize = sysconf(_SC_PAGESIZE);
 
-    for (uint32_t i = 0; i < dir->numEntries; i++) {
+    for (uint32_t i = tnum; i < dir->numEntries; i += numWorkers) {
         const directoryEntryV3_t *entry = &dir->entries[i];
 
         // skip metadata blocks — already extracted in OpenFileV3
@@ -441,8 +451,12 @@ nffileV3_t *mmapFileV3(const char *filename) {
         return NULL;
     }
 
-    // allocate handle
-    nffileV3_t *nffile = NewFile(1, DefaultQueueSize);
+    // compute, the number of readers from the filesize
+    // 2 readers if file > 512MB
+    uint32_t numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)512) ? 2 : 1;
+    // 4 readers if file > 5GB
+    numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)1024 * (size_t)5) ? 4 : 1;
+    nffileV3_t *nffile = NewFile(numReaders, DefaultQueueSize);
     if (!nffile) {
         LogError("NewFile() error");
         munmap((void *)map, fileSize);
@@ -598,24 +612,38 @@ nffileV3_t *OpenFileV3(const char *filename) {
         return NULL;
     }
 
-    // V2 conversion already started its own reader thread
+    // V2 conversion already started its own single reader thread
     if (nffile->worker[0]) {
         dbg_printf("Skip nfreader as worker active\n");
         return nffile;
     }
 
     // kick off nfreader
-    dbg_printf("Kick off nfreader\n");
-    // there is only 1 reader thread -> slot 0
-    pthread_t tid;
-    int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
-    if (err) {
-        nffile->worker[0] = 0;
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        CloseFileV3(nffile);
-        return NULL;
+    if (nffile->numWorkers > 1) {
+        queue_producers(nffile->processQueue, nffile->numWorkers);
+        dbg_printf("Multiple nfreaders: %u\n", nffile->numWorkers);
     }
-    nffile->worker[0] = tid;
+    for (int i = 0; i < nffile->numWorkers; i++) {
+        dbg_printf("Kick off nfreader: %d\n", i);
+        readerArgs_t *readerArg = malloc(sizeof(readerArgs_t));
+        if (!readerArg) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            CloseFileV3(nffile);
+            return NULL;
+        }
+        readerArg->nffile = nffile;
+        readerArg->tnum = i;
+
+        pthread_t tid;
+        int err = pthread_create(&tid, NULL, nfreader, (void *)readerArg);
+        if (err) {
+            nffile->worker[i] = 0;
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+            CloseFileV3(nffile);
+            return NULL;
+        }
+        nffile->worker[i] = tid;
+    }
     return nffile;
 
 }  // End of OpenFileV3
