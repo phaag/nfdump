@@ -100,19 +100,11 @@ typedef struct prepareArgs_s {
 
 typedef struct filterArgs_s {
     _Atomic unsigned self;
-    _Atomic uint64_t processedRecords;
-    _Atomic uint64_t passedRecords;
     unsigned hasGeoDB;
-    unsigned numWorkers;
     void *engine;
     queue_t *prepareQueue;
     queue_t *processQueue;
 } filterArgs_t;
-
-typedef struct filterStat_s {
-    uint32_t processedRecords;
-    uint32_t passedRecords;
-} filterStat_t;
 
 static uint64_t total_bytes = 0;
 static uint64_t totalRecords = 0;
@@ -489,9 +481,7 @@ static void *filterThread(void *arg) {
         exit(255);
     }
 
-    // counters for this thread
-    uint64_t processedRecords = 0;
-    uint64_t passedRecords = 0;
+    dbg(uint64_t processedRecords = 0);
     while (1) {
         // append data blocks
         dataHandle_t *dataHandle = queue_pop(prepareQueue);
@@ -522,7 +512,7 @@ static void *filterThread(void *arg) {
         uint32_t matched = 0;
         uint32_t dataRecords = 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
-            processedRecords++;
+            dbg(processedRecords++);
             recordCounter++;
 
             // work on our record
@@ -538,7 +528,6 @@ static void *filterThread(void *arg) {
                     }
                     if (match) {  // record passed all filters
                         SetFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
-                        passedRecords++;
                         matched++;
                     } else {
                         ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
@@ -580,10 +569,28 @@ static void *filterThread(void *arg) {
     dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, processedRecords);
 
     free(recordHandle);
-    filterArgs->processedRecords += processedRecords;
-    filterArgs->passedRecords += passedRecords;
     pthread_exit(NULL);
 }  // End of filterThread
+
+static bool LaunchFilterThreads(filterArgs_t *filterArgs, void *engine, int numWorkers, queue_t *inputQueue, int hasGeoDB, pthread_t *tid) {
+    filterArgs->engine = engine;
+    filterArgs->prepareQueue = inputQueue;
+    filterArgs->processQueue = queue_init(8);
+    if (!filterArgs->processQueue) return false;
+    filterArgs->hasGeoDB = hasGeoDB;
+    queue_producers(filterArgs->processQueue, numWorkers);
+
+    for (int i = 0; i < numWorkers; i++) {
+        int err = pthread_create(&tid[i], NULL, filterThread, filterArgs);
+        if (err) {
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+            return false;
+        }
+    }
+
+    return true;
+
+}  // End of LaunchFilterThreads
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, uint64_t limitRecords,
                                   outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers, const crypto_ctx_t *crypto_ctx) {
@@ -599,26 +606,18 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         exit(255);
     }
 
-    filterArgs_t filterArgs = {
-        .engine = engine,
-        .numWorkers = numWorkers,
-        .prepareQueue = prepareArgs.prepareQueue,
-        .processQueue = queue_init(8),
-        .hasGeoDB = outputParams->hasGeoDB,
-    };
-    queue_producers(filterArgs.processQueue, numWorkers);
+    filterArgs_t filterArgs = {0};
+    pthread_t *tid = NULL;
+    queue_t *sourceQueue = prepareArgs.prepareQueue;
 
-    pthread_t *tid = calloc(numWorkers, sizeof(pthread_t));
-    if (!tid) {
-        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(255);
-    }
-    for (int i = 0; i < (int)numWorkers; i++) {
-        int err = pthread_create(&(tid[i]), NULL, filterThread, (void *)&filterArgs);
-        if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+    if (engine) {
+        tid = calloc(numWorkers, sizeof(pthread_t));
+        if (!tid) {
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
+        if (!LaunchFilterThreads(&filterArgs, engine, numWorkers, prepareArgs.prepareQueue, outputParams->hasGeoDB, tid)) exit(255);
+        sourceQueue = filterArgs.processQueue;
     }
 
     nffileV3_t *nffile_w = NULL;
@@ -639,7 +638,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     dbg(uint32_t numBlocks = 0);
     int done = 0;
     while (!done) {
-        dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
+        dataHandle_t *dataHandle = queue_pop(sourceQueue);
         if (dataHandle == QUEUE_CLOSED) {  // no more blocks
             done = 1;
             continue;
@@ -662,8 +661,10 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             if (wfile) {
                 dbg_printf("Flush non flow block type: %u\n", dataBlock->type);
                 PushBlockV3(nffile_w->processQueue, dataBlock);
+            } else {
+                FreeDataBlock(dataBlock);
             }
-
+            free(dataHandle);
             continue;
         }
         for (int i = 0; i < (int)dataBlock->numRecords && !abortProcessing; i++) {
@@ -673,14 +674,15 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case V4Record: {
                     recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
                     // check if filter matched
-                    if (TestFlag(recordHeaderV4->flags, V4_FLAG_PASSED) == 0) goto NEXT;
+                    totalRecords++;
+                    if (engine && TestFlag(recordHeaderV4->flags, V4_FLAG_PASSED) == 0) goto NEXT;
+                    totalPassed++;
 
                     // clear filter flag after use
                     ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
-                    totalRecords++;
                     MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, recordCounter);
                     // check if we are done, if -c option was set
-                    if (limitRecords) abortProcessing = totalRecords >= limitRecords;
+                    if (limitRecords) abortProcessing = totalPassed >= limitRecords;
 
                     UpdateStatRecord(&stat_record, recordHandle);
 
@@ -749,17 +751,18 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
     }
 
-    dbg_printf("processData() wait for filter threads\n");
-    for (int i = 0; i < (int)numWorkers; i++) {
-        err = pthread_join(tid[i], NULL);
-        if (err) {
-            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+    if (tid) {
+        dbg_printf("processData() wait for filter threads\n");
+        for (int i = 0; i < (int)numWorkers; i++) {
+            err = pthread_join(tid[i], NULL);
+            if (err) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+            }
+            dbg_printf("processData() filter thread: %d\n", i);
         }
-        dbg_printf("processData() filter thread: %d\n", i);
+        free(tid);
     }
-    free(tid);
 
-    totalPassed = filterArgs.passedRecords;
     skippedBlocks = prepareArgs.skippedBlocks;
     return stat_record;
 
@@ -1100,19 +1103,21 @@ int main(int argc, char **argv) {
     if (!filter && ffile) {
         filter = ReadFilter(ffile);
         if (filter == NULL) {
-            exit(255);
+            exit(EXIT_FAILURE);
         }
 
         FilterFilename = ffile;
     }
 
     // if no filter is given, set the default ip filter which passes through every flow
-    if (!filter || strlen(filter) == 0) filter = "any";
 
-    void *engine = CompileFilter(filter);
-    if (!engine) {
-        LogError("Compile filter failed!");
-        exit(EXIT_FAILURE);
+    void *engine = NULL;
+    if (filter && strlen(filter) != 0) {
+        engine = CompileFilter(filter);
+        if (!engine) {
+            LogError("Compile filter failed!");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (postFilter) {

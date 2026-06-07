@@ -455,7 +455,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
     // 2 readers if file > 512MB
     uint32_t numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)512) ? 2 : 1;
     // 4 readers if file > 5GB
-    numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)1024 * (size_t)5) ? 4 : 1;
+    numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)1024 * (size_t)4) ? 4 : numReaders;
     nffileV3_t *nffile = NewFile(numReaders, DefaultQueueSize);
     if (!nffile) {
         LogError("NewFile() error");
