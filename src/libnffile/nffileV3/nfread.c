@@ -469,6 +469,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
     nffile->fd = fd;
     nffile->fileName = strdup(filename);
     nffile->fileHeader = fileHeader;
+    nffile->compression = fileHeader->compression;
     nffile->fileFooter = NULL; /* footer was read into a local buffer; not stored in mmap */
     nffile->blockDirectory = blockDirectory;
 

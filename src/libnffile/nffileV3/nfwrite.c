@@ -402,6 +402,7 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
         .nfdVersion = NFDVERSION,
         .created = (uint64_t)time(NULL),
         .creator = creator,
+        .compression = compression,
         .flags = 0,
         .blockSize = BLOCK_SIZE_V3,
         .dirSize = 0,

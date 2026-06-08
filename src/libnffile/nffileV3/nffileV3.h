@@ -73,8 +73,9 @@ typedef struct fileHeaderV3_s {
     uint16_t layoutVersion;  // layout version
     uint32_t nfdVersion;     // version of nfdump that wrote this file
 
-    uint64_t created;  // file creation timestamp
-    uint32_t creator;  // program created this file
+    uint64_t created;      // file creation timestamp
+    uint16_t creator;      // program created this file
+    uint16_t compression;  // default compression for flow blocks
 
     uint32_t flags;      // flags - future use
     uint32_t blockSize;  // max uncompressed block size

@@ -193,7 +193,7 @@ static void process_data(const char *wfile) {
     /* In single-output mode, open the output file once here using the
      * first input file's compression settings.                        */
     if (wfile) {
-        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, LZ4_COMPRESSED, 0, NULL);
+        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
         if (!nffile_w) {
             CloseFileV3(nffile_r);
             return;
@@ -215,7 +215,7 @@ static void process_data(const char *wfile) {
                 return;
             }
             strncpy(srcFile, nffile_r->fileName, sizeof(srcFile) - 1);
-            nffile_w = OpenNewFileTmpV3(srcFile, CREATOR_NFDUMP, LZ4_COMPRESSED, nffile_r->compressionLevel, NULL);
+            nffile_w = OpenNewFileTmpV3(srcFile, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
             if (!nffile_w) {
                 LogError("Failed to open output for %s", srcFile);
                 CloseFileV3(nffile_r);
