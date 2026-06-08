@@ -361,11 +361,11 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     nffile->xxHash = ConfGetValue("xxhash") ? 1 : 0;
 
 #ifdef HAVE_LIBSODIUM
-    nffile->xxHash = 1;  // force xxHash with encryption
     /* freshSalt is populated by DeriveKeyForNewFile() and written to the
      * cryptoHeaderBlock so the reader can re-derive the same key. */
     uint8_t freshSalt[32] = {0};
     if (crypto_ctx) {
+        nffile->xxHash = 1;  // force xxHash with encryption
         nffile->crypto = calloc(1, sizeof(nffile_crypto_t));
         if (!nffile->crypto) {
             LogError("InitNewFileV3: calloc(nffile_crypto_t) failed: %s", strerror(errno));
