@@ -34,7 +34,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl hV
-.Op Fl DIpPifjrLMStVyzZ Ar params
+.Op Fl DIpPifjrLMStVx:yzZ Ar params
 .Sh DESCRIPTION
 .Nm
 is the netflow profiler program for NfSen.
@@ -61,6 +61,14 @@ version and exit.
 Specify the profile data directory
 .It Fl P Ar statdir
 Specify the profile stat directory
+.It Fl x Ar key Ns = Ns Ar value
+Override a single configuration key for this run only.
+May be repeated to override multiple keys.
+See
+.Xr nfdump.conf 5
+for the list of available keys and
+.Xr nfdump 1
+for a full description of the override mechanism.
 .El
 .Sh RETURN VALUES
 .Nm

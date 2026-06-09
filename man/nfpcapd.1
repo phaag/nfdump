@@ -55,6 +55,7 @@
 .Op Fl z=lz4[:level]
 .Op Fl z=zstd[:level]
 .Op Fl W Ar workers
+.Op Fl x Ar key=value
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl V Ar level
@@ -242,12 +243,20 @@ Trailing newlines are stripped.
 (no argument) Prompt interactively from the terminal with echo disabled.
 .El
 .It Fl W Ar num
-Set the number of worker threads. The default depends on the number of cores online. The value must 
+Set the number of worker threads. The default depends on the number of cores online. The value must
 not exceed the number of online CPU cores.
 
 Worker threads are used to compress data blocks when writing flow files to disc.
 Using multiple workers can significantly improve throughput, especially when
 using higher compression levels for lz4 or zstd.
+.It Fl x Ar key Ns = Ns Ar value
+Override a single configuration key for this run only.
+May be repeated to override multiple keys.
+See
+.Xr nfdump.conf 5
+for the list of available keys and
+.Xr nfdump 1
+for a full description of the override mechanism.
 .It Fl V
 Print nfpcapd version and exit.
 .It Fl h

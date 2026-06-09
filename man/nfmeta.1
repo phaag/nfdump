@@ -35,10 +35,12 @@
 .Nm
 .Fl r Ar path
 .Op Fl w Ar outfile
+.Op Fl x Ar key=value
 .Op Fl h
 .Nm
 .Op Fl r Ar path
 .Fl w Ar outfile
+.Op Fl x Ar key=value
 .Op Fl h
 .Sh DESCRIPTION
 .Nm
@@ -88,6 +90,14 @@ operates in in-place mode: each input file is processed into a temporary
 file in the same directory, then atomically renamed over the original on
 success.
 The original file is left untouched if an error occurs during processing.
+.It Fl x Ar key Ns = Ns Ar value
+Override a single configuration key for this run only.
+May be repeated to override multiple keys.
+See
+.Xr nfdump.conf 5
+for the list of available keys and
+.Xr nfdump 1
+for a full description of the override mechanism.
 .It Fl h
 Print a short usage summary and exit.
 .El

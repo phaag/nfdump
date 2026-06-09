@@ -58,7 +58,7 @@
 .Op Fl i Ar ident
 .Op Fl v Ar flowfile
 .Op Fl E Ar flowfile
-.Op Fl x Ar flowfile
+.Op Fl x Ar key=value
 .Op Fl W Ar workers
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl z=<compress>
@@ -711,10 +711,22 @@ and print the file parameters and number of records.
 Print the exporter and sampler list if found in
 .Ar flowfile.
 Additional statistics per exporter are printed with number of flows, packets and sequence errors.
-.It Fl x Ar flowfile
-This options works on nfdump version 1.6.x files only and may get removed in future.
-Scans and prints extension maps located in
-.Ar flowfile
+.It Fl x Ar key Ns = Ns Ar value
+Override a single configuration key for this run only.
+.Ar key
+is the dot-separated path as it appears in
+.Xr nfdump.conf 5
+(e.g.\&
+.Sy maxworkers ,
+.Sy xxhash ,
+.Sy geodb.path ) .
+The option may be repeated to override multiple keys.
+Overrides take precedence over values in the config file and over compiled-in
+program defaults; they do not modify the file on disk.
+If
+.Ar key
+is not known to the config file or program defaults a warning is printed but
+the override is still applied.
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
 .It Fl z=bz2

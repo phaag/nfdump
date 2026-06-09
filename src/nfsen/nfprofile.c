@@ -104,6 +104,7 @@ static void usage(char *name) {
         "-P\t\tprofile stat dir.\n"
         "-s\t\tprofile subdir.\n"
         "-Z\t\tCheck filter syntax and exit.\n"
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
@@ -524,7 +525,7 @@ int main(int argc, char **argv) {
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "Ip:P:hi:f:jr:L:M:S:t:Vyz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "Ip:P:hi:f:jr:L:M:S:t:Vx:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -547,6 +548,10 @@ int main(int argc, char **argv) {
             case 'P':
                 CheckArgLen(optarg, MAXPATHLEN);
                 profile_statdir = optarg;
+                break;
+            case 'x':
+                CheckArgLen(optarg, 256);
+                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
                 break;
             case 'S':
                 CheckArgLen(optarg, 2);

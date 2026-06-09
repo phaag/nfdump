@@ -131,6 +131,7 @@ static void usage(char *name) {
         "-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
         "-w flowdir \tset the flow output directory. (no default) \n"
         "-C <file>\tRead optional config file.\n"
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-p pcapdir \tset the pcapdir directory. (optional) \n"
@@ -238,7 +239,7 @@ int main(int argc, char *argv[]) {
     numWorkers = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:z::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:x:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -258,6 +259,10 @@ int main(int argc, char *argv[]) {
                     if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                     configFile = optarg;
                 }
+                break;
+            case 'x':
+                CheckArgLen(optarg, 256);
+                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
                 break;
             case 'd':
                 doDedup = 1;
