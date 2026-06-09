@@ -274,10 +274,12 @@ static void process_data(const char *wfile) {
             }
             sumSize += record_ptr->size;
 
+            // skip existing meta record, we rebuild them
+            if (record_ptr->type == METARecord) continue;
+
             if (record_ptr->type == V4Record) {
                 memset(&recordHandle, 0, sizeof(recordHandle));
                 MapV4RecordHandle(&recordHandle, record_ptr, ++processed);
-                updateMetaData(&bloomHandle, &recordHandle, &firstSeen, &lastSeen);
             }
 
             /* If the output block is full, flush it and start a fresh one. */
@@ -290,6 +292,7 @@ static void process_data(const char *wfile) {
                 lastSeen = 0;
                 addBloomHandle(dataBlock_w, &bloomHandle);
             }
+            if (record_ptr->type == V4Record) updateMetaData(&bloomHandle, &recordHandle, &firstSeen, &lastSeen);
 
             memcpy(GetCursor(dataBlock_w), record_ptr, record_ptr->size);
             dataBlock_w->numRecords++;
