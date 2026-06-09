@@ -99,7 +99,11 @@
 static _Atomic uint32_t done = 0;
 
 static option_t nfpcapdOption[] = {
-    {.name = "fat", .valBool = 0, .flags = OPTDEFAULT}, {.name = "payload", .valBool = 0, .flags = OPTDEFAULT}, {.name = NULL}};
+    {.type = CONF_BOOL, .key = "opt.fat", .valBool = false},
+    {.type = CONF_BOOL, .key = "opt.payload", .valBool = false},
+    {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.key = NULL},
+};
 
 /*
  * Function prototypes
@@ -467,7 +471,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (ConfOpen(configFile, "nfpcapd") < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(configFile, "nfpcapd", nfpcapdOption) < 0) exit(EXIT_FAILURE);
 
     if (filter) {
         filter = strdup(filter);
@@ -495,11 +499,8 @@ int main(int argc, char *argv[]) {
     readerParam_t readerParam = {0};
     packetParam.doDedup = doDedup;
 
-    if (scanOptions(nfpcapdOption, options) == 0) {
-        exit(EXIT_FAILURE);
-    }
-    OptGetBool(nfpcapdOption, "fat", &flowParam.extendedFlow);
-    OptGetBool(nfpcapdOption, "payload", &flowParam.addPayload);
+    flowParam.extendedFlow = ConfGetBool("opt.fat");
+    flowParam.addPayload = ConfGetBool("opt.payload");
 
     if ((datadir && sendHost) || (!datadir && !sendHost)) {
         LogError("Specify either a local directory or a remote host to dump flows.");

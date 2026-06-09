@@ -96,6 +96,12 @@ typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, 
 /* module limited globals */
 static volatile sig_atomic_t done = 0;
 
+/* nfcpad default config */
+static option_t nfcapdOption[] = {
+    {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.key = NULL},
+};
+
 /* Local function Prototypes */
 static void usage(char *name);
 
@@ -822,7 +828,7 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    if (ConfOpen(configFile, "nfcapd") < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(configFile, "nfcapd", nfcapdOption) < 0) exit(EXIT_FAILURE);
 
     if (init_collector_ctx(&collector_ctx) == 0) {
         exit(EXIT_FAILURE);

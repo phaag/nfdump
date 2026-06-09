@@ -648,7 +648,7 @@ int main(int argc, char **argv) {
     }
 
     // read default config
-    if (ConfOpen(NULL, "nfdump") < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(NULL, "nfdump", NULL) < 0) exit(EXIT_FAILURE);
 
     if (syntax_only) {
         filename = NULL;

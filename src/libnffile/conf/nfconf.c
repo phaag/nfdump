@@ -61,9 +61,18 @@ typedef struct nfconfFile_s {
     toml_table_t *conf;         // handle to top toml table
     toml_table_t *sectionConf;  // handle to requested section
     toml_table_t *commonConf;   // handle to [common] section (fallback)
+    option_t *defaultConf;      // program-supplied defaults (lowest priority)
 } nfconfFile_t;
 
 static nfconfFile_t nfconfFile = {0};
+
+// CLI overrides stored as CONF_STRING; converted to the requested type on access.
+#define CONF_MAX_OVERRIDES 32
+static option_t confOverrides[CONF_MAX_OVERRIDES];
+static int numConfOverrides = 0;
+
+static bool confKeyExists(const char *key);
+static bool confTableGetBool(toml_table_t *root, const char *key, bool *out);
 
 /*
  * Open config file provided
@@ -72,7 +81,7 @@ static nfconfFile_t nfconfFile = {0};
  *  0 no config file
  *  1 successfully read config
  */
-int ConfOpen(char *filename, char *section) {
+int ConfOpen(char *filename, char *section, option_t *defaultConf) {
     // if read prevented
     if (filename && strcmp(filename, NOCONF) == 0) return 0;
 
@@ -117,6 +126,12 @@ int ConfOpen(char *filename, char *section) {
     nfconfFile.conf = conf;
     nfconfFile.sectionConf = sectionConf;  // may be NULL when only [common] exists
     nfconfFile.commonConf = commonConf;
+    nfconfFile.defaultConf = defaultConf;  // may be NULL
+
+    // Verify override table — warn for keys absent from both file and defaults
+    for (int i = 0; i < numConfOverrides; i++) {
+        if (!confKeyExists(confOverrides[i].key)) LogInfo("Config override: unknown key '%s' - using it anyway", confOverrides[i].key);
+    }
 
     // ConfInventory();
     return 1;
@@ -290,21 +305,183 @@ static bool confTableGetInt64(toml_table_t *root, const char *key, int64_t *out)
     return false;
 }  // End of confTableGetInt64
 
+// Check if a key exists in the config file or in the program defaults.
+// Used to decide whether to warn about an unknown -x override.
+static bool confKeyExists(const char *key) {
+    // check program defaults (always available, even without a config file)
+    if (nfconfFile.defaultConf) {
+        for (int i = 0; nfconfFile.defaultConf[i].key != NULL; i++)
+            if (strcmp(nfconfFile.defaultConf[i].key, key) == 0) return true;
+    }
+    if (!nfconfFile.valid) return false;
+    char *s;
+    if (confTableGetString(nfconfFile.sectionConf, key, &s)) {
+        free(s);
+        return true;
+    }
+    if (confTableGetString(nfconfFile.commonConf, key, &s)) {
+        free(s);
+        return true;
+    }
+    int64_t i;
+    if (confTableGetInt64(nfconfFile.sectionConf, key, &i)) return true;
+    if (confTableGetInt64(nfconfFile.commonConf, key, &i)) return true;
+    bool b;
+    if (confTableGetBool(nfconfFile.sectionConf, key, &b)) return true;
+    if (confTableGetBool(nfconfFile.commonConf, key, &b)) return true;
+    return false;
+}  // End of confKeyExists
+
+int ConfSetOverride(const char *confString) {
+    char *dup = strdup(confString);
+    char *eq = strchr(dup, '=');
+    if (!eq) {
+        LogError("Invalid config override '%s': expected key=value", confString);
+        free(dup);
+        return 0;
+    }
+    *eq = '\0';
+    char *key = dup;
+    char *value = eq + 1;
+
+    // update if the key is already in the override table
+    for (int i = 0; i < numConfOverrides; i++) {
+        if (strcmp(confOverrides[i].key, key) == 0) {
+            free(confOverrides[i].valString);
+            confOverrides[i].valString = strdup(value);
+            free(dup);
+            return 1;
+        }
+    }
+
+    if (numConfOverrides >= CONF_MAX_OVERRIDES) {
+        LogError("Config override table full - cannot add key '%s'", key);
+        free(dup);
+        return 0;
+    }
+    confOverrides[numConfOverrides].key = strdup(key);
+    confOverrides[numConfOverrides].type = CONF_STRING;
+    confOverrides[numConfOverrides].valString = strdup(value);
+    numConfOverrides++;
+    free(dup);
+    return 1;
+}  // End of ConfSetOverride
+
+// Scan the defaultConf array for key; return the entry or NULL.
+static const option_t *confDefaultFind(const char *key) {
+    if (!nfconfFile.defaultConf) return NULL;
+    for (int i = 0; nfconfFile.defaultConf[i].key != NULL; i++)
+        if (strcmp(nfconfFile.defaultConf[i].key, key) == 0) return &nfconfFile.defaultConf[i];
+    return NULL;
+}  // End of confDefaultFind
+
+// Walk a dot-separated key path inside a TOML table and return the leaf bool.
+// Accepts both TOML bool (true/false) and TOML int (0/1).
+static bool confTableGetBool(toml_table_t *root, const char *key, bool *out) {
+    if (!root) return false;
+    char *k = strdup(key);
+    char *cur = k;
+    toml_table_t *table = root;
+    char *p = strchr(cur, '.');
+    while (p) {
+        *p = '\0';
+        table = toml_table_table(table, cur);
+        if (!table) {
+            free(k);
+            return false;
+        }
+        cur = p + 1;
+        p = strchr(cur, '.');
+    }
+    if (*cur == '\0') {
+        free(k);
+        return false;
+    }
+    toml_value_t v = toml_table_bool(table, cur);
+    if (v.ok) {
+        free(k);
+        *out = v.u.b;
+        return true;
+    }
+    v = toml_table_int(table, cur);
+    free(k);
+    if (v.ok) {
+        *out = v.u.i != 0;
+        return true;
+    }
+    return false;
+}  // End of confTableGetBool
+
 char *ConfGetString(char *key) {
-    if (!nfconfFile.valid) return NULL;
-    char *val;
-    if (confTableGetString(nfconfFile.sectionConf, key, &val)) return val;
-    if (confTableGetString(nfconfFile.commonConf, key, &val)) return val;
+    // 1. CLI override
+    for (int i = 0; i < numConfOverrides; i++)
+        if (strcmp(confOverrides[i].key, key) == 0) return strdup(confOverrides[i].valString);
+    // 2. config file
+    if (nfconfFile.valid) {
+        char *val;
+        if (confTableGetString(nfconfFile.sectionConf, key, &val)) return val;
+        if (confTableGetString(nfconfFile.commonConf, key, &val)) return val;
+    }
+    // 3. program defaults
+    const option_t *d = confDefaultFind(key);
+    if (d && d->type == CONF_STRING) return strdup(d->valString);
     return NULL;
 }  // End of ConfGetString
 
 int64_t ConfGetValue(char *key) {
-    if (!nfconfFile.valid) return 0;
-    int64_t val;
-    if (confTableGetInt64(nfconfFile.sectionConf, key, &val)) return val;
-    if (confTableGetInt64(nfconfFile.commonConf, key, &val)) return val;
+    // 1. CLI override
+    for (int i = 0; i < numConfOverrides; i++)
+        if (strcmp(confOverrides[i].key, key) == 0) return (int64_t)strtoll(confOverrides[i].valString, NULL, 0);
+    // 2. config file
+    if (nfconfFile.valid) {
+        int64_t val;
+        if (confTableGetInt64(nfconfFile.sectionConf, key, &val)) return val;
+        if (confTableGetInt64(nfconfFile.commonConf, key, &val)) return val;
+    }
+    // 3. program defaults
+    const option_t *d = confDefaultFind(key);
+    if (d) {
+        switch (d->type) {
+            case CONF_INT64:
+                return d->valInt64;
+            case CONF_UINT64:
+                return (int64_t)d->valUint64;
+            case CONF_BOOL:
+                return d->valBool ? 1 : 0;
+            case CONF_STRING:
+                return (int64_t)strtoll(d->valString, NULL, 0);
+        }
+    }
     return 0;
 }  // End of ConfGetValue
+
+bool ConfGetBool(char *key) {
+    // 1. CLI override
+    for (int i = 0; i < numConfOverrides; i++)
+        if (strcmp(confOverrides[i].key, key) == 0) return strtoll(confOverrides[i].valString, NULL, 0) != 0;
+
+    // 2. config file
+    if (nfconfFile.valid) {
+        bool val;
+        if (confTableGetBool(nfconfFile.sectionConf, key, &val)) return val;
+        if (confTableGetBool(nfconfFile.commonConf, key, &val)) return val;
+    }
+    // 3. program defaults
+    const option_t *d = confDefaultFind(key);
+    if (d) {
+        switch (d->type) {
+            case CONF_BOOL:
+                return d->valBool;
+            case CONF_INT64:
+                return d->valInt64 != 0;
+            case CONF_UINT64:
+                return d->valUint64 != 0;
+            case CONF_STRING:
+                return d->valString && strcmp(d->valString, "0") != 0;
+        }
+    }
+    return false;
+}  // End of ConfGetBool
 
 static void ConfPrintTableValue(toml_table_t *sectionConf, const char *tableName, const char *entry) {
     toml_value_t val;
@@ -422,129 +599,3 @@ void ConfInventory(char *confFile) {
     ConfPrintTable(conf, "topLevel");
 
 }  // End of ConfInventory
-
-int ConfGetInt64(option_t *optionList, char *key, int64_t *valInt64) {
-    int i = 0;
-    while (optionList[i].name != NULL) {
-        if (strcmp(optionList[i].name, key) == 0) {
-            if (optionList[i].flags == OPTDEFAULT) {
-                int64_t confInt64 = ConfGetValue(key);
-                *valInt64 = confInt64;
-                return 1;
-            } else {
-                *valInt64 = optionList[i].valInt64;
-                return 1;
-            }
-        }
-        i++;
-    }
-    return 0;
-}  // End of ConfGetInt64
-
-int ConfSetInt64(option_t *optionList, char *key, int64_t valInt64) {
-    int i = 0;
-    while (optionList[i].name != NULL) {
-        if (strcmp(optionList[i].name, key) == 0) {
-            optionList[i].valInt64 = valInt64;
-            optionList[i].flags = OPTSET;
-            return 1;
-        }
-        i++;
-    }
-    return 0;
-}  // End of ConfSetInt64
-
-int ConfGetUint64(option_t *optionList, char *key, uint64_t *valUint64) {
-    int i = 0;
-    while (optionList[i].name != NULL) {
-        if (strcmp(optionList[i].name, key) == 0) {
-            if (optionList[i].flags == OPTDEFAULT) {
-                int64_t confUint64 = ConfGetValue(key);
-                *valUint64 = (uint64_t)confUint64;
-                return 1;
-            } else {
-                *valUint64 = optionList[i].valUint64;
-                return 1;
-            }
-        }
-        i++;
-    }
-    return 0;
-}  // ConfGetUint64
-
-int ConfSetUint64(option_t *optionList, char *key, uint64_t valUint64) {
-    int i = 0;
-    while (optionList[i].name != NULL) {
-        if (strcmp(optionList[i].name, key) == 0) {
-            optionList[i].valUint64 = valUint64;
-            optionList[i].flags = OPTSET;
-            return 1;
-        }
-        i++;
-    }
-    return 0;  // End of
-}  // End of ConfSetUint64
-
-int scanOptions(option_t *optionList, char *options) {
-    if (options == NULL) return 1;
-
-    char *saveptr;
-    char *option = strtok_r(options, ",", &saveptr);
-    while (option != NULL) {
-        int valBool = 1;
-        char *eq = strchr(option, '=');
-        if (eq) {
-            *eq++ = '\0';
-            switch (eq[0]) {
-                case '0':
-                    valBool = 0;
-                    break;
-                case '1':
-                    valBool = 1;
-                    break;
-                default:
-                    LogError("Invalid bool value: %s", eq[0] ? eq : "empty value");
-            }
-        }
-        if (OptSetBool(optionList, option, valBool) == 0) {
-            LogError("Unknown option: %s", option);
-            return 0;
-        }
-        option = strtok_r(NULL, ",", &saveptr);
-    }
-    return 1;
-
-}  // End of scanOption
-
-int OptSetBool(option_t *optionList, char *name, bool valBool) {
-    int i = 0;
-    while (optionList[i].name != NULL) {
-        if (strcmp(optionList[i].name, name) == 0) {
-            optionList[i].valBool = valBool;
-            optionList[i].flags = OPTSET;
-            return 1;
-        }
-        i++;
-    }
-    return 0;
-}  // End of OptSetBool
-
-int OptGetBool(option_t *optionList, char *name, bool *valBool) {
-    int i = 0;
-    while (optionList[i].name != NULL) {
-        if (strcmp(optionList[i].name, name) == 0) {
-            if (optionList[i].flags == OPTDEFAULT) {
-                char confName[64];
-                snprintf(confName, sizeof(confName), "opt.%s", optionList[i].name);
-                int confBool = ConfGetValue(confName);
-                *valBool = confBool;
-                return 1;
-            } else {
-                *valBool = optionList[i].valBool;
-                return 1;
-            }
-        }
-        i++;
-    }
-    return 0;
-}  // End of OptGetBool

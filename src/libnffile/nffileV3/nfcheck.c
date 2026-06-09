@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -397,8 +398,12 @@ int VerifyFileV3(const char *filename, int verbose) {
     off_t scanEnd = fileHeader->offDirectory ? (off_t)fileHeader->offDirectory : fileSize;
     off_t nextOffset = sizeof(fileHeaderV3_t);
 
+    // const char spinner[4] = {'|', '/', '-', '\\'};
+    //  setvbuf(stdout, (char *)NULL, _IONBF, 0);
+
     while ((nextOffset + (off_t)sizeof(dataBlockV3_t)) <= scanEnd) {
         dataBlockV3_t *dataBlock = (dataBlockV3_t *)(map + nextOffset);
+        //    printf("\r%c %5u", spinner[totalBlocks & 0x3], totalBlocks);
 
         // block size on disk
         if (dataBlock->discSize == 0) {
@@ -482,6 +487,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         totalBlocks++;
         nextOffset += dataBlock->discSize;
     }
+    // printf("\n");
 
     if (blockCheckFailed) {
         printf("Found bad data blocks\n");
@@ -585,7 +591,7 @@ static int ReWriteBlocks(const uint8_t *map, size_t fileSize, const fileHeaderV3
         blockSize = BLOCK_SIZE_V3;
     }
 
-    int xxHash = ConfGetValue("xxhash") ? 1 : 0;
+    bool xxHash = ConfGetBool("xxhash");
 
     // determine scan region of corrupted file
     off_t scanEnd;

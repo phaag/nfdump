@@ -37,42 +37,39 @@
 
 #define NOCONF "none"
 
-typedef enum { OPTDEFAULT, OPTSET } optFlags;
+/* Value type tag for option_t.  CONF_BOOL = 0 so zero-initialised entries
+ * (the common case for bool defaults) need no explicit .type field.        */
+typedef enum { CONF_BOOL = 0, CONF_INT64, CONF_UINT64, CONF_STRING } confType_t;
+
 typedef struct option_s {
-    char *name;
+    const char *key;
+    confType_t  type;
     union {
-        int valBool;
-        int64_t valInt64;
+        bool     valBool;
+        int64_t  valInt64;
         uint64_t valUint64;
-        char *valString;
+        char    *valString;
     };
-    optFlags flags;
 } option_t;
 
-int ConfOpen(char *filename, char *section);
+/* Open the config file.  defaultConf is a NULL-key-sentinel-terminated array
+ * of per-program defaults consulted last (lowest priority); pass NULL if the
+ * program has no defaults.                                                   */
+int ConfOpen(char *filename, char *section, option_t *defaultConf);
+
+/* Store a runtime CLI override (-x key=value).                              */
+int ConfSetOverride(const char *confString);
 
 int ConfGetFormatEntry(char *format, char **key, char **value);
 
 int ConfGetExporter(char **ident, char **ip, char **flowdir);
 
-char *ConfGetString(char *key);
-
-int64_t ConfGetValue(char *key);
-
-int ConfGetInt64(option_t *optionList, char *key, int64_t *valInt64);
-
-int ConfSetInt64(option_t *optionList, char *key, int64_t valInt64);
-
-int ConfGetUint64(option_t *optionList, char *key, uint64_t *valUint64);
-
-int ConfSetUint64(option_t *optionList, char *key, uint64_t valUint64);
-
-int scanOptions(option_t *optionList, char *options);
+/* Getters — priority: CLI override > config file > program defaults.
+ * ConfGetString() returns a heap-allocated string; caller must free().      */
+char    *ConfGetString(char *key);
+int64_t  ConfGetValue(char *key);
+bool     ConfGetBool(char *key);
 
 void ConfInventory(char *confFile);
-
-int OptSetBool(option_t *optionList, char *name, bool valBool);
-
-int OptGetBool(option_t *optionList, char *name, bool *valBool);
 
 #endif

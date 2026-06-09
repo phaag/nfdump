@@ -90,7 +90,12 @@
 typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, socklen_t *, struct timeval *);
 
 static option_t sfcapdConfig[] = {
-    {.name = "tun", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
+    {.type = CONF_BOOL, .key = "opt.tun", .valBool = false},
+    {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.key = NULL},
+};
+
+#define SFCAPD_CONFIG_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 /* module limited globals */
 static volatile sig_atomic_t done = 0;
@@ -783,16 +788,13 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    if (ConfOpen(configFile, "sfcapd") < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(configFile, "sfcapd", sfcapdConfig) < 0) exit(EXIT_FAILURE);
 
     if (init_collector_ctx(&collector_ctx) == 0) {
         exit(EXIT_FAILURE);
     }
 
-    if (scanOptions(sfcapdConfig, options) == 0) {
-        exit(EXIT_FAILURE);
-    }
-    OptGetBool(sfcapdConfig, "tun", &parse_tun);
+    parse_tun = ConfGetBool("opt.tun");
 
     if (sendHost) {
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {

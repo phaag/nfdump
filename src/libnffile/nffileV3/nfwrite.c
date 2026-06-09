@@ -358,7 +358,7 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     nffile->compression = compression;
     nffile->compressionLevel = compressionLevel;
     nffile->crypto = NULL;
-    nffile->xxHash = ConfGetValue("xxhash") ? 1 : 0;
+    nffile->xxHash = ConfGetBool("xxhash");
 
 #ifdef HAVE_LIBSODIUM
     /* freshSalt is populated by DeriveKeyForNewFile() and written to the

@@ -139,6 +139,7 @@ static void usage(char *name) {
         "-b\t\tAggregate netflow records as bidirectional flows.\n"
         "-B\t\tAggregate netflow records as bidirectional flows - Guess direction.\n"
         "-C <file>\tRead optional config file.\n"
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-r <file>\tread input from file\n"
         "-w <file>\twrite output to file\n"
         "-f\t\tread netflow filter from file\n"
@@ -833,7 +834,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hK::n:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hK::n:i:jf:qyz::r:v:w:J:M:NImO:P:R:x:XZt:TVv:W:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -871,6 +872,12 @@ int main(int argc, char **argv) {
                 } else {
                     if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                     configFile = optarg;
+                }
+                break;
+            case 'x':
+                CheckArgLen(optarg, 256);
+                if (!ConfSetOverride(optarg)) {
+                    exit(EXIT_FAILURE);
                 }
                 break;
             case 'D':
@@ -1147,7 +1154,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (ConfOpen(configFile, "nfdump") < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(configFile, "nfdump", NULL) < 0) exit(EXIT_FAILURE);
 
     numWorkers = GetNumWorkers(numWorkers);
 

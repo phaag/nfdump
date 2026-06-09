@@ -608,7 +608,7 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    if (ConfOpen(configFile, "nfanon") < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(configFile, "nfanon", NULL) < 0) exit(EXIT_FAILURE);
 
     // check numWorkers depending on cores online
     numWorkers = GetNumWorkers(numWorkers);
