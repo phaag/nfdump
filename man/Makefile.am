@@ -1,6 +1,7 @@
 
 dist_man_MANS = nfcapd.1 sfcapd.1 nfdump.1 nfexpire.1 nfreplay.1 nfanon.1
 dist_man_MANS += geolookup.1 torlookup.1
+dist_man_MANS += nfmeta.1 nfdump.conf.5
 
 if BUILD_FT2NFDUMP
 dist_man_MANS += ft2nfdump.1

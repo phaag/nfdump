@@ -74,8 +74,8 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
 
 # maxworkers
-# Defines the number of working threads for filtering or compressing flows
-# By default a decent number of workers is selected according the number of
+# Defines a fixed number of working threads for filtering or compressing flows
+# By default a decent number of workers is selected based on the number of
 # cores online.
 # maxworkers = 8
 

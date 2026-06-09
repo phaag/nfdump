@@ -485,28 +485,28 @@ bool ConfGetBool(char *key) {
 
 static void ConfPrintTableValue(toml_table_t *sectionConf, const char *tableName, const char *entry) {
     toml_value_t val;
-    val = toml_table_string(sectionConf, entry);
-    if (val.ok) {
-        printf("%s:%-10s string : %s\n", tableName, entry, val.u.s);
-    }
+    // Check types in specificity order: bool, int, double, string.
+    // Use else-if so that integers are not also printed as doubles.
     val = toml_table_bool(sectionConf, entry);
     if (val.ok) {
-        printf("%s:%-10s bool   : %i\n", tableName, entry, val.u.b);
+        printf("%s:%-10s bool   : %s\n", tableName, entry, val.u.b ? "true" : "false");
+    } else {
+        val = toml_table_int(sectionConf, entry);
+        if (val.ok) {
+            printf("%s:%-10s int    : %" PRIi64 "\n", tableName, entry, val.u.i);
+        } else {
+            val = toml_table_double(sectionConf, entry);
+            if (val.ok) {
+                printf("%s:%-10s double : %f\n", tableName, entry, val.u.d);
+            } else {
+                val = toml_table_string(sectionConf, entry);
+                if (val.ok) {
+                    printf("%s:%-10s string : %s\n", tableName, entry, val.u.s);
+                }
+            }
+        }
     }
-    val = toml_table_int(sectionConf, entry);
-    if (val.ok) {
-        printf("%s:%-10s int    : %" PRIi64 "\n", tableName, entry, val.u.i);
-    }
-    val = toml_table_double(sectionConf, entry);
-    if (val.ok) {
-        printf("%s:%-10s double : %f\n", tableName, entry, val.u.d);
-    }
-    val = toml_table_timestamp(sectionConf, entry);
-    if (val.ok) {
-        // printf("%10s time   : %s\n", entry, val.u.ts);
-    }
-
-}  // End of ConfTablePrintValue
+}  // End of ConfPrintTableValue
 
 static void ConfPrintArrayValue(toml_array_t *sectionConf, const char *arrayName, int entry) {
     toml_value_t val;
@@ -575,27 +575,60 @@ static void ConfPrintArray(toml_array_t *sectionConf, const char *arrayName) {
 }  // End of ConfPrintArray
 
 void ConfInventory(char *confFile) {
-    if (!confFile) return;
-
-    FILE *fp = fopen(confFile, "r");
-    if (!fp) {
-        printf("Failed to open config file %s: %s\n", confFile, strerror(errno));
-        return;
+    // --- 1. Program defaults (lowest priority) ---
+    printf("=== Program defaults ===\n");
+    if (nfconfFile.defaultConf && nfconfFile.defaultConf[0].key != NULL) {
+        for (int i = 0; nfconfFile.defaultConf[i].key != NULL; i++) {
+            const option_t *o = &nfconfFile.defaultConf[i];
+            switch (o->type) {
+                case CONF_BOOL:
+                    printf("  %-28s bool   : %s\n", o->key, o->valBool ? "true" : "false");
+                    break;
+                case CONF_INT64:
+                    printf("  %-28s int    : %" PRIi64 "\n", o->key, o->valInt64);
+                    break;
+                case CONF_UINT64:
+                    printf("  %-28s uint   : %" PRIu64 "\n", o->key, o->valUint64);
+                    break;
+                case CONF_STRING:
+                    printf("  %-28s string : \"%s\"\n", o->key, o->valString ? o->valString : "");
+                    break;
+            }
+        }
+    } else {
+        printf("  (none defined)\n");
     }
 
-    printf("Check config file: %s\n", confFile);
-    char errbuf[256];
-    toml_table_t *conf = toml_parse_file(fp, errbuf, sizeof(errbuf));
-    fclose(fp);
-
-    if (!conf) {
-        printf("Failed to parse config file %s: %s\n", confFile, errbuf);
-        return;
+    // --- 2. Config file ---
+    printf("\n=== Config file ===\n");
+    if (confFile) {
+        FILE *fp = fopen(confFile, "r");
+        if (!fp) {
+            printf("  Failed to open %s: %s\n", confFile, strerror(errno));
+        } else {
+            printf("  File: %s\n", confFile);
+            char errbuf[256];
+            toml_table_t *conf = toml_parse_file(fp, errbuf, sizeof(errbuf));
+            fclose(fp);
+            if (!conf) {
+                printf("  Parse error: %s\n", errbuf);
+            } else {
+                printf("  Sections: ");
+                ConfPrintTable(conf, "config");
+            }
+        }
+    } else {
+        printf("  (none specified)\n");
     }
 
-    int len = toml_table_len(conf);
-    printf("Config file %s has %d sections\n", confFile, len);
-    printf("Toplevel table ");
-    ConfPrintTable(conf, "topLevel");
+    // --- 3. CLI overrides (highest priority) ---
+    printf("\n=== CLI overrides (-x) ===\n");
+    if (numConfOverrides > 0) {
+        for (int i = 0; i < numConfOverrides; i++)
+            printf("  %-28s = \"%s\"\n", confOverrides[i].key, confOverrides[i].valString);
+    } else {
+        printf("  (none)\n");
+    }
+    printf("\n");
 
 }  // End of ConfInventory

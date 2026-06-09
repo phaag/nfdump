@@ -114,6 +114,13 @@ static uint32_t skippedBlocks = 0;
 static uint64_t t_firstMsec = 0, t_lastMsec = 0;
 static _Atomic uint32_t abortProcessing = 0;
 
+/* nfdump default config */
+static option_t nfdumpOption[] = {
+    {.type = CONF_STRING, .key = "geodb.path", .valString = "/var/db/mmdb.nf"},
+    {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.key = NULL},
+};
+
 enum processType { FLOWSTAT = 1, ELEMENTSTAT, ELEMENTFLOWSTAT, SORTRECORDS, WRITEFILE, PRINTRECORD, SKIPRECORD };
 
 /* Function Prototypes */
@@ -1093,6 +1100,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (ConfOpen(configFile, "nfdump", nfdumpOption) < 0) exit(EXIT_FAILURE);
     if (configFile && syntax_only) {
         ConfInventory(configFile);
         exit(EXIT_SUCCESS);
@@ -1153,8 +1161,6 @@ int main(int argc, char **argv) {
     if (!InitExporterList()) {
         exit(EXIT_FAILURE);
     }
-
-    if (ConfOpen(configFile, "nfdump", NULL) < 0) exit(EXIT_FAILURE);
 
     numWorkers = GetNumWorkers(numWorkers);
 
