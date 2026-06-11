@@ -43,6 +43,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "nfthread.h"
 #include "conf/nfconf.h"
 #include "logging.h"
 #include "maxmind/maxmind.h"
@@ -165,7 +166,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_ANALYZE);
+    if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {
         if (Init_MaxMind() == 0 || LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {

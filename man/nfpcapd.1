@@ -39,7 +39,7 @@
 .Op Fl B Ar cachesize
 .Op Fl e Ar active,inactive
 .Op Fl I Ar ident
-.Op Fl l Ar flowdir
+.Op Fl w Ar flowdir
 .Op Fl p Ar pcapdir
 .Op Fl H Ar host[/port]
 .Op Fl S Ar num
@@ -127,9 +127,9 @@ Use
 to enable encrypted transport.
 .It Fl S Ar num
 Allows to specify an additional directory sub hierarchy to store the data files. The default is 0, no sub hierarchy, which means the files go directly in the base directory (
-.Fl l ).
+.Fl w ).
 The base directory (
-.Fl l )
+.Fl w )
 is concatenated with the specified sub hierarchy format to form the final data directory. For a full list of hierarchies see nfcapd(1).
 .It Fl t Ar interval
 Specifies the time interval in seconds to rotate files. The default value is 300s ( 5min ). The smallest interval can be set to 2s. The intervals are in sync with wall clock.
@@ -243,12 +243,23 @@ Trailing newlines are stripped.
 (no argument) Prompt interactively from the terminal with echo disabled.
 .El
 .It Fl W Ar num
-Set the number of worker threads. The default depends on the number of cores online. The value must
-not exceed the number of online CPU cores.
-
-Worker threads are used to compress data blocks when writing flow files to disc.
-Using multiple workers can significantly improve throughput, especially when
-using higher compression levels for lz4 or zstd.
+Limit the number of cores used.
+.Ar num
+specifies the the limit of cores to be used for processing and witing flow
+blocks. If omitted, the default is the number of online CPU cores limited by
+internal heuristic.
+.Pp
+For compressed output the practical writer ceiling is roughly one-third
+of available cores for lz4 (L3 cache pressure) and approaches the full
+core count for zstd (compute-bound).
+For uncompressed output, 2 writer threads are always used.
+.Pp
+The writer count can be overridden per-run with
+.Fl x Ar threads.writers=N
+(0 restores the auto-derived count) or via the
+.Em [threads]
+section in
+.Xr nfdump.conf 5 .
 .It Fl x Ar key Ns = Ns Ar value
 Override a single configuration key for this run only.
 May be repeated to override multiple keys.

@@ -35,11 +35,13 @@
 .Nm
 .Fl r Ar path
 .Op Fl w Ar outfile
+.Op Fl W Ar num
 .Op Fl x Ar key=value
 .Op Fl h
 .Nm
 .Op Fl r Ar path
 .Fl w Ar outfile
+.Op Fl W Ar num
 .Op Fl x Ar key=value
 .Op Fl h
 .Sh DESCRIPTION
@@ -90,6 +92,28 @@ operates in in-place mode: each input file is processed into a temporary
 file in the same directory, then atomically renamed over the original on
 success.
 The original file is left untouched if an error occurs during processing.
+.It Fl W Ar num
+Limit the number of cores used for threading.
+.Ar num
+specifies the number of cores to be used for internal threading.
+The number of reader decompression threads is automatically derived
+as
+.Li round(writers / C)
+where
+.Em C
+is the codec's compress/decompress time ratio
+(lz4 \(ap 2, zstd \(ap 5, bz2 \(ap 3),
+keeping the read and write pipelines balanced.
+If omitted, the default is the number of online CPU cores.
+.Pp
+Individual role counts can be overridden per-run with
+.Fl x Ar threads.writers=N
+or
+.Fl x Ar threads.readers=N
+(0 restores the auto-derived count), or via the
+.Em [threads]
+section in
+.Xr nfdump.conf 5 .
 .It Fl x Ar key Ns = Ns Ar value
 Override a single configuration key for this run only.
 May be repeated to override multiple keys.

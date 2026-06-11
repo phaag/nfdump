@@ -36,6 +36,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "nfthread.h"
 #include "nfdump.h"
 #include "queue.h"
 
@@ -378,10 +379,9 @@ typedef struct nffileV3_s {
 
 #define GetCursor(block) ((void *)block + ((dataBlockV3_t *)block)->rawSize)
 
-#define IsAvailable(block, blockSize, requested) (((block)->rawSize + (requested)) < (blockSize))
+#define IsAvailable(block, blockSize, requested) (((block)->rawSize + (requested)) <= (blockSize))
 
-// shared functions — nffileV3.c
-int Init_nffile(uint32_t workers, queue_t *fileList);
+int Init_nffile(threadConfig_t tc, queue_t *fileList);
 
 nffileV3_t *GetNextFile(void);
 

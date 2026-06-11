@@ -45,6 +45,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "nfthread.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
@@ -57,12 +58,15 @@
 
 static _Atomic int blocksInUse;
 
-// default workers
-uint32_t NumWorkers = 2;
+// defaults - need to be overwritten by Init_nffile
+threadConfig_t threadConfig = {
+    .workers = 2,
+    .readerRef = 1,
+};
 
 static queue_t *fileQueue = NULL;
 
-int Init_nffile(uint32_t workers, queue_t *fileList) {
+int Init_nffile(threadConfig_t tc, queue_t *fileList) {
     fileQueue = fileList;
 
     if (!InitCompression()) {
@@ -74,7 +78,7 @@ int Init_nffile(uint32_t workers, queue_t *fileList) {
 
     atomic_init(&blocksInUse, 0);
 
-    NumWorkers = workers;
+    threadConfig = tc;
 
     return 1;
 

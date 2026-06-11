@@ -43,6 +43,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "nfthread.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
@@ -52,6 +53,10 @@
 #include "nfxV4.h"
 #include "queue.h"
 #include "util.h"
+
+// threadConfig: set by Init_nffile; used by mmapFileV3
+// to call DeriveReaderCount(NumReaderRef, actualFileCompression).
+extern threadConfig_t threadConfig;
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
@@ -451,11 +456,14 @@ nffileV3_t *mmapFileV3(const char *filename) {
         return NULL;
     }
 
-    // compute, the number of readers from the filesize
-    // 2 readers if file > 512MB
-    uint32_t numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)512) ? 2 : 1;
-    // 4 readers if file > 5GB
-    numReaders = fileSize > ((size_t)1024 * (size_t)1024 * (size_t)1024 * (size_t)4) ? 4 : numReaders;
+    // Per-file reader count: uses the actual file codec so that e.g. a ZSTD
+    // file opened by a program configured for LZ4 output still gets the right
+    // number of decompression threads.  threadConfig was set at startup by
+    // Init_nffile  (writers for TRANSFORM, filters for ANALYZE, 0 for WRITE_ONLY).
+    uint32_t numReaders = DeriveReaderCount(threadConfig.readerRef, fileHeader->compression);
+    if (blockDirectory->numEntries > 0 && numReaders > blockDirectory->numEntries) numReaders = blockDirectory->numEntries;
+    LogVerbose("mmapFileV3: %u reader threads (readerRef=%u codec=%u)", numReaders, threadConfig.readerRef, fileHeader->compression);
+
     nffileV3_t *nffile = NewFile(numReaders, DefaultQueueSize);
     if (!nffile) {
         LogError("NewFile() error");
@@ -620,6 +628,7 @@ nffileV3_t *OpenFileV3(const char *filename) {
     }
 
     // kick off nfreader
+    printf("nfreaders: %u\n", nffile->numWorkers);
     if (nffile->numWorkers > 1) {
         queue_producers(nffile->processQueue, nffile->numWorkers);
         dbg_printf("Multiple nfreaders: %u\n", nffile->numWorkers);

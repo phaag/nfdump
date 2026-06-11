@@ -62,7 +62,7 @@
 #endif
 
 #include "backend/backend.h"
-#include "barrier.h"
+#include "nfthread.h"
 #include "collector.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
@@ -451,7 +451,7 @@ int main(int argc, char **argv) {
     time_t twin;
     int socks[2], nsocks, family, do_daemonize, expire, verbose, spec_time_extension;
     unsigned subdir_index;
-    int numWorkers;
+    int limitCores;
     char *pcap_file = NULL;
 #ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
@@ -492,7 +492,7 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
     extensionList = NULL;
-    numWorkers = 0;
+    limitCores = 0;
     options = NULL;
     parse_tun = 0;
 
@@ -706,9 +706,9 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                numWorkers = atoi(optarg);
-                if (numWorkers < 0) {
-                    LogError("Invalid number of working threads: %d", numWorkers);
+                limitCores = atoi(optarg);
+                if (limitCores < 0) {
+                    LogError("Invalid number of working threads: %d", limitCores);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -819,8 +819,8 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    numWorkers = GetNumWorkers(numWorkers);
-    if (!Init_nffile(numWorkers, NULL)) exit(254);
+    threadConfig_t tc = GetThreadConfig(limitCores, compressType, TC_ROLE_WRITE_ONLY);
+    if (!Init_nffile(tc, NULL)) exit(254);
 
     if (expire && spec_time_extension) {
         LogError("ERROR, -Z timezone extension breaks expire -e");

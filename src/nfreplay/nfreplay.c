@@ -53,6 +53,7 @@
 #include <stdio_ext.h>
 #endif
 
+#include "nfthread.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "id.h"
@@ -68,6 +69,7 @@
 #include "ssl/ssl.h"
 #include "util.h"
 #include "version.h"
+
 #ifdef HAVE_LIBSODIUM
 #include "network/nfd_udp_crypto.h"
 #include "nffileV3/nfcrypto.h"
@@ -695,7 +697,8 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!Init_nffile(1, fileList)) exit(254);
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_ANALYZE);
+    if (!Init_nffile(threadConfig, fileList)) exit(254);
 
     send_data(engine, count, delay, confirm, netflow_version, distribution);
 

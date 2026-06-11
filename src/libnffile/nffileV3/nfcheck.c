@@ -172,19 +172,20 @@ int VerifyFileV3(const char *filename, int verbose) {
     }
 
     printf("=== Phase 1: Header validation ===\n");
-    printf("File       : %s\n", filename);
-    printf("Size       : %zu\n", fileSize);
-    printf("Version    : %u\n", fileHeader->layoutVersion);
-    printf("Block size : %u\n", fileHeader->blockSize);
-    printf("Creator    : %s(ID:%u)\n", nf_creator[fileHeader->creator], fileHeader->creator);
+    printf("File        : %s\n", filename);
+    printf("Size        : %zu\n", fileSize);
+    printf("Version     : %u\n", fileHeader->layoutVersion);
+    printf("Block size  : %u\n", fileHeader->blockSize);
+    printf("Compression : %u\n", fileHeader->compression);
+    printf("Creator     : %s(ID:%u)\n", nf_creator[fileHeader->creator], fileHeader->creator);
 
     time_t created = (time_t)fileHeader->created;
     struct tm tbuf;
     struct tm *t = localtime_r(&created, &tbuf);
     char tstr[64];
     strftime(tstr, sizeof(tstr), "%Y-%m-%d %H:%M:%S", t);
-    printf("Created    : %s\n", tstr);
-    printf("Encrypted  : %s\n", (fileHeader->flags & FILE_FLAG_ENCRYPTED) ? "yes" : "no");
+    printf("Created     : %s\n", tstr);
+    printf("Encrypted   : %s\n", (fileHeader->flags & FILE_FLAG_ENCRYPTED) ? "yes" : "no");
 
     uint32_t blockSize = fileHeader->blockSize;
     if (blockSize == 0 || blockSize > 64 * ONE_MB) {
@@ -327,21 +328,21 @@ int VerifyFileV3(const char *filename, int verbose) {
         if (!cryptoHdr) {
             printf("  ERROR: FILE_FLAG_ENCRYPTED set but no crypto header block found\n");
         } else {
-            printf("  Version    : %u%s\n", cryptoHdr->version, cryptoHdr->version == CRYPTO_HEADER_V1 ? "" : " (UNSUPPORTED)");
-            printf("  Algorithm  : %s\n", EncryptionType(cryptoHdr->algorithm));
-            printf("  KDF        : %s\n", cryptoHdr->kdfType == KDF_PBKDF2_SHA256 ? "Argon2id (labelled PBKDF2-SHA256)" : "unknown");
-            printf("  KDF iters  : %u%s\n", cryptoHdr->kdfIterations, cryptoHdr->kdfIterations == 0 ? " (use default)" : "");
+            printf("  Version     : %u%s\n", cryptoHdr->version, cryptoHdr->version == CRYPTO_HEADER_V1 ? "" : " (UNSUPPORTED)");
+            printf("  Algorithm   : %s\n", EncryptionType(cryptoHdr->algorithm));
+            printf("  KDF         : %s\n", cryptoHdr->kdfType == KDF_PBKDF2_SHA256 ? "Argon2id (labelled PBKDF2-SHA256)" : "unknown");
+            printf("  KDF iters   : %u%s\n", cryptoHdr->kdfIterations, cryptoHdr->kdfIterations == 0 ? " (use default)" : "");
             if (cryptoHdr->version != CRYPTO_HEADER_V1) {
                 printf("  ERROR: unsupported crypto header version — cannot verify\n");
                 checksumFailed = 1;
             } else {
                 nffile_crypto_t tmpCrypto = {0};
                 if (!DeriveKeyFromFile(cryptoHdr, &tmpCrypto)) {
-                    printf("  Key        : derivation FAILED\n");
+                    printf("  Key         : derivation FAILED\n");
                 } else if (!VerifyEncryptionKey(cryptoHdr, &tmpCrypto)) {
-                    printf("  Key        : WRONG passphrase or corrupt key-check\n");
+                    printf("  Key         : WRONG passphrase or corrupt key-check\n");
                 } else {
-                    printf("  Key        : verified OK\n");
+                    printf("  Key         : verified OK\n");
                     keyVerified = 1;
                 }
 
@@ -349,12 +350,12 @@ int VerifyFileV3(const char *filename, int verbose) {
                 if (keyVerified && footer != NULL) {
                     static const uint8_t zeroMac[32] = {0};
                     if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
-                        printf("  File MAC   : absent (all-zero) — pre-release or unencrypted\n");
+                        printf("  File MAC    : absent (all-zero) — pre-release or unencrypted\n");
                     } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries,
                                              footer->fileMac)) {
-                        printf("  File MAC   : verified OK\n");
+                        printf("  File MAC    : verified OK\n");
                     } else {
-                        printf("  File MAC   : FAILED — file structure may have been tampered with\n");
+                        printf("  File MAC    : FAILED — file structure may have been tampered with\n");
                         checksumFailed = 1;
                     }
                 }

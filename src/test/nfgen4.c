@@ -60,6 +60,7 @@
 #include "id.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "util.h"
 
@@ -255,7 +256,8 @@ int main(int argc, char **argv) {
     baseTime = ISO2UNIX(strdup("201907111030"));
     timeOffset = 0;
 
-    if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_WRITE_ONLY);
+    if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     nffileV3_t *nffile = OpenNewFileV3("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, LEVEL_0, NULL);
     if (!nffile) {

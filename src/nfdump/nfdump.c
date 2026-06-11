@@ -51,7 +51,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "barrier.h"
+#include "nfthread.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "config.h"
@@ -164,7 +164,6 @@ static void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
-        "-l <expr>\tSet limit on packets for line and packed output format.\n"
         "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
         "-L <expr>\tSet limit on bytes for line and packed output format.\n"
         "-I \t\tPrint netflow summary statistics info from file or range of files (-r, -R).\n"
@@ -605,7 +604,8 @@ static bool LaunchFilterThreads(filterArgs_t *filterArgs, void *engine, int numW
 }  // End of LaunchFilterThreads
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, uint64_t limitRecords,
-                                  outputParams_t *outputParams, int compressType, int compressLevel, int numWorkers, const crypto_ctx_t *crypto_ctx) {
+                                  outputParams_t *outputParams, int compressType, int compressLevel, uint32_t numWorkers,
+                                  const crypto_ctx_t *crypto_ctx) {
     stat_record_t stat_record = {0};
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
@@ -793,7 +793,7 @@ int main(int argc, char **argv) {
     char *print_order, *query_type, *configFile, *aggr_fmt;
     int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
-    int print_stat, gnuplot_stat, syntax_only, numWorkers;
+    int print_stat, gnuplot_stat, syntax_only, limitCores;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
@@ -815,7 +815,7 @@ int main(int argc, char **argv) {
     element_stat = 0;
     limitRecords = 0;
     skippedBlocks = 0;
-    numWorkers = 0;
+    limitCores = 0;
     GuessDir = 0;
 
     print_format = NULL;
@@ -1057,9 +1057,9 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                numWorkers = atoi(optarg);
-                if (numWorkers < 0) {
-                    LogError("Invalid number of working threads: %d", numWorkers);
+                limitCores = atoi(optarg);
+                if (limitCores < 0) {
+                    LogError("Invalid number of working threads: %d", limitCores);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -1083,6 +1083,11 @@ int main(int argc, char **argv) {
                 usage(argv[0]);
                 exit(EXIT_SUCCESS);
         }
+    }
+
+    int verbose = 2;
+    if (!InitLog(NOSYSLOG, argv[0], NULL, verbose)) {
+        exit(EXIT_FAILURE);
     }
 
     if (argc - optind > 0) {
@@ -1162,7 +1167,17 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    numWorkers = GetNumWorkers(numWorkers);
+    // Budget split: ~50% filter workers, readers feed them, writers use the rest.
+    // compressType is the output codec (-z flag); pass UNDEF if -w not given.
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, TC_ROLE_ANALYZE);
+    // numWorkers now drives filter/barrier workers; Init_nffile sets NumWorkers=tc.writers
+    // and NumReaderRef=tc.filters so DeriveReaderCount feeds readers correctly per file.
+
+    /*
+    threadConfig = GetThreadConfig(numWorkers, compressType, TC_ROLE_WRITE_ONLY);
+    threadConfig = GetThreadConfig(numWorkers, compressType, TC_ROLE_TRANSFORM);
+    exit(EXIT_SUCCESS);
+    */
 
     if (outputParams->topN < 0) {
         if (flow_stat || element_stat) {
@@ -1188,7 +1203,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(EXIT_FAILURE);
+    if (!fileList || !Init_nffile(threadConfig, fileList)) exit(EXIT_FAILURE);
 
     // Modify compression
     if (ModifyCompress) {
@@ -1336,8 +1351,8 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat =
-        process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, numWorkers, crypto_ctx);
+    sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.filters,
+                            crypto_ctx);
 
     if (totalPassed == 0) {
         printf("No matching flows\n");

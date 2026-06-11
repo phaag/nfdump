@@ -10,13 +10,70 @@
 # if the checksum is != 0, it will be verified when reading the file
 #xxhash = 1
 
+# limitCores: upper bound on the total thread budget when no -W flag is given.
+# 0 (or absent) means "use all online CPU cores" — GetThreadConfig() then
+# splits that budget across readers, writers, and filter/worker threads
+# according to the program role and codec.  A non-zero value caps the budget
+# without overriding individual role counts in the [threads] sub-table below.
+# Prefer the [threads] keys for fine-grained per-role control.
+#
+# Note: the legacy name "maxworkers" is still accepted as a fallback but is
+# superseded by "limitCores".  Use one or the other; limitCores takes priority.
+#limitCores = 0
+#
+# Legacy (still works, lower priority than limitCores):
+#maxworkers = 0
+
 # Tunables for encrypted UDP data transfer
 #crypt.antiReplayWindowBits = 1024   # power of 2 in [64, 1024]; omit for default 256
 #crypt.rekeyIntervalSecs    = 300    # seconds; 0 or omit to disable epoch rekeying
 # 16 byte salt string
 #crypt.salt = "nfpcapd-udp-salt"
 
+[common.threads]
+# Per-role thread counts for the nffile I/O pipeline.
+# All values default to 0 (auto-derived from the budget and codec).
+# A non-zero value is a hard override that bypasses the formula.
+# These may also be set per-program (e.g. [nfdump.threads]) or via
+# the command line: -x threads.writers=6
+#
+# readers  — nfreader decompression threads per input file.
+#            Auto-derived at file-open time as round(readerRef / C) where
+#            C is the codec's compress/decompress time ratio:
+#              LZ4≈2, ZSTD≈5, BZ2≈3, LZO≈2.5
+#            readerRef is writers (TRANSFORM) or filters (ANALYZE).
+#readers = 0
+
+# writers  — nfwriter compression threads per output file.
+#            For WRITE_ONLY programs (nfcapd, sfcapd, nfpcapd) this equals
+#            the budget, capped at the codec ceiling (LZ4→8, ZSTD→12) to
+#            avoid L3 cache thrashing.  For TRANSFORM/ANALYZE the budget
+#            is split among roles so the effective writer count is lower.
+#writers = 0
+
+# filters  — application worker threads:
+#              ANALYZE (nfdump, nfprofile):  filter/aggregation workers
+#              TRANSFORM (nfanon, nfmeta):   anonymization / bloom workers
+#              WRITE_ONLY:                   unused (always 0)
+#            Override with a fixed count when the auto fraction is not ideal.
+#filters = 0
+
 [nfdump]
+# Thread budget split for TC_ROLE_ANALYZE.
+# filterFraction: integer percentage (0–100) of the budget reserved for
+# filter / aggregation workers.  The remaining budget goes to writers;
+# readers are auto-derived from the filter count and the input codec.
+# Default 50.  Raise to 60–70 for large or complex filter expressions.
+#
+# Example: budget=12 cores, LZ4, filterFraction=50
+#   filters=6  readers=3  writers=3
+
+[nfdump.threads]
+#filterFraction = 50
+#readers = 0   # override if DeriveReaderCount gives wrong count for your workload
+#writers = 0
+#filters = 0   # sets filter thread count directly, ignoring filterFraction
+
 # format definitions
 
 # pre-defined format, hard coded into nfdump
@@ -58,32 +115,28 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # if you use tor DB to identify tor exit node IPs - see torlookup(1)
 # tordb.path = "/var/db/tordb.nf"
 
-# maxworkers
-# Defines the number of working threads for filtering or compressing flows
-# By default a decent number of workers is selected according the number of
-# cores online.
-# maxworkers = 8
-
 [nfcapd]
 # define multiple netflow exporters
 # the identification string follow the token 'exporter'
-# 
+#
 # exporter.<ident> = ["ip", "flowdir"]
-# 
+#
 # exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
 # exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
 
-# maxworkers
-# Defines a fixed number of working threads for filtering or compressing flows
-# By default a decent number of workers is selected based on the number of
-# cores online.
-# maxworkers = 8
+# TC_ROLE_WRITE_ONLY: all budget goes to writers, capped at codec ceiling.
+# Use threads.writers to override the cap; readers is unused for collectors.
+
+[nfcapd.threads]
+#writers = 0   # 0 = auto (LZ4 cap→8, ZSTD cap→12, minus 1 for collector thread)
 
 [sfcapd]
 # define -o options
 # enable option tun, if you want to decode tunneling protocols gre and 6in4
 # opt.tun = 1
-# maxworkers = 8
+
+[sfcapd.threads]
+#writers = 0   # same cap logic as [nfcapd.threads]
 
 [nfpcapd]
 # define -o options
@@ -96,7 +149,26 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 
 
 [nfanon]
-# Defines the number of working threads for anonymising and compressing flows.
-# By default a decent number of workers is selected according the number of
-# cores online.
-# maxworkers = 8
+# TC_ROLE_TRANSFORM: budget split among anonymization workers, nffile readers,
+# and nffile writers.  The anonymization worker count is workerFraction% of
+# the budget; the rest is split between readers and writers by codec ratio.
+# Example: budget=12, LZ4, workerFraction=20 → workers=2 readers=3 writers=7
+
+[nfanon.threads]
+# workerFraction: integer percentage (0–100) of budget for anonymization workers.
+# Default 20.  Raise if anonymization is the bottleneck (software AES, no AES-NI).
+#workerFraction = 20
+#readers = 0
+#writers = 0
+#filters = 0   # same as workers for TRANSFORM role
+
+[nfmeta]
+# TC_ROLE_TRANSFORM: same budget split as nfanon.
+# Processing (bloom filter updates) is very fast; worker threads mainly
+# serve to overlap I/O.  The default 20% worker fraction is usually fine.
+# Example: budget=12, LZ4, workerFraction=20 → workers=2 readers=3 writers=7
+
+[nfmeta.threads]
+#workerFraction = 20
+#readers = 0
+#writers = 0

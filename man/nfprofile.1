@@ -34,6 +34,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl hV
+.Op Fl W Ar num
 .Op Fl DIpPifjrLMStVx:yzZ Ar params
 .Sh DESCRIPTION
 .Nm
@@ -61,6 +62,23 @@ version and exit.
 Specify the profile data directory
 .It Fl P Ar statdir
 Specify the profile stat directory
+.It Fl W Ar num
+Set the total thread budget.
+.Ar num
+specifies the target number of writer threads.
+The number of reader decompression threads is automatically derived
+from the budget and the input codec, so the read and write pipelines
+stay balanced.
+If omitted, the default is the number of online CPU cores.
+.Pp
+Individual role counts can be overridden per-run with
+.Fl x Ar threads.writers=N
+or
+.Fl x Ar threads.readers=N
+(0 restores the auto-derived count), or via the
+.Em [threads]
+section in
+.Xr nfdump.conf 5 .
 .It Fl x Ar key Ns = Ns Ar value
 Override a single configuration key for this run only.
 May be repeated to override multiple keys.

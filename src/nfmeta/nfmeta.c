@@ -44,6 +44,7 @@
 #include "flist.h"
 #include "id.h"
 #include "logging.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
 #include "nffile_inline.c"
@@ -317,10 +318,15 @@ static void process_data(const char *wfile) {
 int main(int argc, char **argv) {
     flist_t flist = {0};
     char *wfile = NULL;
+    char *configFile = NULL;
+    int limitCores = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "hr:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "f:hr:w:W:x:")) != EOF) {
         switch (c) {
+            case 'f':
+                configFile = optarg;
+                break;
             case 'h':
                 usage(argv[0]);
                 exit(0);
@@ -339,14 +345,32 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
+            case 'W':
+                CheckArgLen(optarg, 16);
+                limitCores = atoi(optarg);
+                if (limitCores < 0) {
+                    LogError("Invalid number of worker threads: %d", limitCores);
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case 'x':
+                CheckArgLen(optarg, 256);
+                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
+                break;
             default:
                 usage(argv[0]);
                 exit(0);
         }
     }
 
+    if (ConfOpen(configFile, "nfmeta", NULL) < 0) exit(EXIT_FAILURE);
+
+    // Compression is read from each input file; UNDEF lets GetThreadConfig
+    // default to LZ4 assumptions for the I/O split.
+    threadConfig_t tc = GetThreadConfig(limitCores, UNDEF_COMPRESSED, TC_ROLE_TRANSFORM);
+
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(1, fileList)) exit(255);
+    if (!fileList || !Init_nffile(tc, fileList)) exit(255);
 
     process_data(wfile);
     return 0;

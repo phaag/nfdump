@@ -393,12 +393,23 @@ to encrypt stored files and
 .Fl k
 to decrypt incoming transport flows.
 .It Fl W Ar num
-Set the number of worker threads. The default depends on the number of cores online. The value must 
-not exceed the number of online CPU cores.
-
-Worker threads are used to compress data blocks when writing flow files to disc.
-Using multiple workers can significantly improve throughput, especially when
-using higher compression levels for lz4 or zstd.
+Set the total thread budget.
+.Ar num
+specifies the target number of writer threads used to compress data
+blocks when writing flow files to disc.
+If omitted, the default is the number of online CPU cores.
+.Pp
+For compressed output the practical writer ceiling is roughly one-third
+of available cores for lz4 (L3 cache pressure) and approaches the full
+core count for zstd (compute-bound).
+For uncompressed output, 2 writer threads are always used.
+.Pp
+The writer count can be overridden per-run with
+.Fl x Ar threads.writers=N
+(0 restores the auto-derived count) or via the
+.Em [threads]
+section in
+.Xr nfdump.conf 5 .
 .It Fl e
 Sets auto-expire mode. At the end of every rotate interval
 .Fl t

@@ -77,10 +77,23 @@ is used to initialize the anonymizer.
 .It Fl v Ar level
 Set verbose level. A verbose level of 0 disables the actifivy spinner.
 .It Fl W Ar num
-Set the number of worker threads. The default depends on the number of cores online.
-The value must not exceed the number of online CPU cores.
-
-Worker threads are used to anonymize flow records in parallel.
+Set the total thread budget.
+.Ar num
+specifies the target number of worker threads used to anonymize and
+rewrite flow records.
+The number of reader decompression threads is automatically derived
+from the budget and the input file's codec, so the read and write
+pipelines stay balanced.
+If omitted, the default is the number of online CPU cores.
+.Pp
+Individual role counts can be overridden per-run with
+.Fl x Ar threads.writers=N
+or
+.Fl x Ar threads.readers=N
+(0 restores the auto-derived count), or via the
+.Em [threads]
+section in
+.Xr nfdump.conf 5 .
 .It Fl h
 Print help text to stdout and exit.
 .El

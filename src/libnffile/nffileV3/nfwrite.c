@@ -43,6 +43,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "nfthread.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
@@ -66,8 +67,8 @@
 
 #include "nfcrypto.h"
 
-// NumWorkers is set from nffileV3.c via Init_nffile
-extern uint32_t NumWorkers;
+// threadConfig is set from nffileV3.c via Init_nffile
+extern threadConfig_t threadConfig;
 
 static void DeleteFile(nffileV3_t *nffile) {
     if (nffile == NULL) return;
@@ -310,19 +311,19 @@ static uint32_t ceil_power_of_2(uint32_t num) {
 static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint16_t compression, uint16_t compressionLevel,
                                  const crypto_ctx_t *crypto_ctx) {
     /*
-     * Worker and queue sizing:
-     * - Uncompressed + unencrypted: 2 workers sufficient (I/O bound).
-     * - Compressed only: use the user-configured NumWorkers.
-     * - Encrypted: ChaCha20-Poly1305 is ~3× slower than compression alone.
-     *   Use at least 4 workers; deepen the queue proportionally so the
-     *   collector never blocks waiting for a free slot.
+     * NumWorkers was set at program startup by Init_nffile(tc, ...) to
+     * tc.writers — already the role-aware, conf-adjusted writer count.
+     * No need to call GetThreadConfig() here again.
+     *
+     * - Uncompressed + unencrypted: I/O-bound; fixed 2 writers.
+     * - Compressed: use NumWorkers directly.
+     * - Encrypted: ChaCha20-Poly1305 adds ~3× overhead; require at least
+     *   4 writers and deepen the queue so the collector never stalls.
      */
     int useEncryption = (crypto_ctx != NULL);
     uint32_t NumThreads;
     uint32_t queueDepth;
     if (useEncryption) {
-        NumThreads = NumWorkers < 4 ? 4 : NumWorkers;
-        queueDepth = ceil_power_of_2(NumThreads * DefaultQueueSize);
         if (compression <= NOT_COMPRESSED) {
 #ifdef HAVE_ZSTD
             compression = ZSTD_COMPRESSED;
@@ -332,6 +333,8 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             compressionLevel = 0;  // LZ4_compress_default — fast path, no HC
 #endif
         }
+        NumThreads = threadConfig.workers < 4 ? 4 : threadConfig.workers;
+        queueDepth = ceil_power_of_2(NumThreads * DefaultQueueSize);
     } else {
         // no encryption — normalise UNDEF_COMPRESSED (0) to NOT_COMPRESSED (1)
         if (compression <= NOT_COMPRESSED) {
@@ -339,7 +342,7 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             NumThreads = 2;
             queueDepth = DefaultQueueSize;
         } else {
-            NumThreads = NumWorkers;
+            NumThreads = threadConfig.workers;
             queueDepth = DefaultQueueSize;
         }
     }
@@ -471,8 +474,8 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     }
 #endif /* HAVE_LIBSODIUM */
 
-    dbg_printf("InitNewFile: %s, compression: %d, level: %d, workers: %u, %s\n", fileName, nffile->compression, nffile->compressionLevel, NumThreads,
-               crypto_ctx ? "encrypted" : "not encrypted");
+    printf("InitNewFile: %s, compression: %d, level: %d, workers: %u, %s\n", fileName, nffile->compression, nffile->compressionLevel, NumThreads,
+           crypto_ctx ? "encrypted" : "not encrypted");
 
     // kick off nfwriter
     for (int i = 0; i < (int)NumThreads; i++) {

@@ -49,7 +49,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "barrier.h"
+#include "nfthread.h"
 #include "compress/nfcompress.h"
 #include "ftlib.h"
 #include "id.h"
@@ -371,8 +371,8 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    int numWorkers = GetNumWorkers(0);
-    if (!Init_nffile(numWorkers, NULL)) exit(EXIT_FAILURE);
+    threadConfig_t threadConfig = GetThreadConfig(0, compressType, TC_ROLE_TRANSFORM);
+    if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     /* read from fd */
     if (ftio_init(&ftio, fd, FT_IO_FLAG_READ) < 0) fterr_errx(1, "ftio_init(): failed");

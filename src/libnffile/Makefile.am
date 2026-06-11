@@ -26,14 +26,14 @@ endif
 
 output = userio.c userio.h output_short.c output_short.h
 version = version.c version.h
-barrier = barrier.c barrier.h
+nfthread = nfthread.c nfthread.h
 bookkeeper = bookkeeper.c bookkeeper.h
 
 vcs_track.h: Makefile
 	./gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(logging) $(util) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(output) $(barrier) $(bookkeeper) $(version) vcs_track.h
+libnffile_la_SOURCES = $(conf) $(logging) $(util) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(output) $(nfthread) $(bookkeeper) $(version) vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS) $(LIBSODIUM_CFLAGS)
 libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@

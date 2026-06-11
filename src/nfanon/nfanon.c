@@ -47,7 +47,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "barrier.h"
+#include "nfthread.h"
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
@@ -515,7 +515,7 @@ int main(int argc, char **argv) {
     flist_t flist = {0};
 
     char *configFile = NULL;
-    int numWorkers = 0;
+    int limitCores = 0;
     int verbose = -1;
     int anon_src = 1;
     int anon_dst = 1;
@@ -580,9 +580,9 @@ int main(int argc, char **argv) {
                 /* fallthrough */
             case 'W':
                 CheckArgLen(optarg, 16);
-                numWorkers = atoi(optarg);
-                if (numWorkers < 0) {
-                    LogError("Invalid number of working threads: %d", numWorkers);
+                limitCores = atoi(optarg);
+                if (limitCores < 0) {
+                    LogError("Invalid number of working threads: %d", limitCores);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -610,11 +610,15 @@ int main(int argc, char **argv) {
 
     if (ConfOpen(configFile, "nfanon", NULL) < 0) exit(EXIT_FAILURE);
 
-    // check numWorkers depending on cores online
-    numWorkers = GetNumWorkers(numWorkers);
+    // Compression is read from each input file; pass UNDEF so GetThreadConfig
+    // assumes LZ4 (the most common codec) for the startup I/O split.
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, UNDEF_COMPRESSED, TC_ROLE_TRANSFORM);
+    // tc.filters = anonymization worker count; tc.writers drives nffile writers;
+    // tc.readerRef = tc.writers so DeriveReaderCount balances readers vs writers.
+    int numWorkers = (int)threadConfig.filters;
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(255);
+    if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(255);

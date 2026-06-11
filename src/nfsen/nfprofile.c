@@ -44,7 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "barrier.h"
+#include "nfthread.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "filter/filter.h"
@@ -512,7 +512,7 @@ int main(int argc, char **argv) {
 
     uint32_t compressType = 0;
     uint32_t compressLevel = 0;
-    int numWorkers = 0;
+    int limitCores = 0;
     memset((void *)&flist, 0, sizeof(flist));
     profile_datadir = NULL;
     profile_statdir = NULL;
@@ -525,7 +525,7 @@ int main(int argc, char **argv) {
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "Ip:P:hi:f:jr:L:M:S:t:Vx:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "Ip:P:hi:f:jr:L:M:S:t:VW:x:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -560,6 +560,14 @@ int main(int argc, char **argv) {
             case 'V':
                 printf("%s: %s\n", argv[0], versionString());
                 exit(0);
+                break;
+            case 'W':
+                CheckArgLen(optarg, 16);
+                limitCores = atoi(optarg);
+                if (limitCores < 0) {
+                    LogError("Invalid number of working threads: %d", limitCores);
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'f':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -708,9 +716,9 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    numWorkers = GetNumWorkers(numWorkers);
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, TC_ROLE_TRANSFORM);
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(254);
+    if (!fileList || !Init_nffile(threadConfig, fileList)) exit(254);
 
     numChannels =
         InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compressType, compressLevel);
@@ -726,6 +734,7 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    uint32_t numWorkers = threadConfig.filters;
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(EXIT_FAILURE);
 

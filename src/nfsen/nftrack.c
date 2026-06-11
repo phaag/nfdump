@@ -46,7 +46,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "barrier.h"
+#include "nfthread.h"
 #include "config.h"
 #include "exporter.h"
 #include "filter/filter.h"
@@ -425,12 +425,12 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-    int numWorkers = GetNumWorkers(0);
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_TRANSFORM);
 
     port_table = NULL;
     if (flist.multiple_dirs || flist.multiple_files || flist.single_file) {
         queue_t *fileList = SetupInputFileSequence(&flist);
-        if (!Init_nffile(numWorkers, fileList)) exit(254);
+        if (!Init_nffile(threadConfig, fileList)) exit(254);
         port_table = process(engine);
         //		Lister(port_table);
         if (!port_table) {

@@ -59,7 +59,7 @@
 #include <unistd.h>
 
 #include "backend/nffile_backend.h"
-#include "barrier.h"
+#include "nfthread.h"
 #include "bookkeeper.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
     unsigned snaplen, bufflen, do_daemonize, doDedup;
     unsigned subdir_index, expire, cache_size;
     unsigned activeTimeout, inactiveTimeout, metricInterval;
-    int verbose, numWorkers;
+    int verbose, limitCores;
     repeater_t *sendHost;
     time_t t_win;
     char *device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *configFile, *options;
@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
     cache_size = 0;
     activeTimeout = 0;
     inactiveTimeout = 0;
-    numWorkers = 0;
+    limitCores = 0;
 
     int c = 0;
     while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:x:z::")) != EOF) {
@@ -380,9 +380,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                numWorkers = atoi(optarg);
-                if (numWorkers < 0) {
-                    LogError("Invalid number of working threads: %d", numWorkers);
+                limitCores = atoi(optarg);
+                if (limitCores < 0) {
+                    LogError("Invalid number of working threads: %d", limitCores);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -492,7 +492,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    numWorkers = GetNumWorkers(numWorkers);
+    threadConfig_t tc = GetThreadConfig(limitCores, compressType, TC_ROLE_WRITE_ONLY);
 
     flushParam_t flushParam = {.extensionFormat = time_extension};
     flowParam_t flowParam = {
@@ -589,7 +589,7 @@ int main(int argc, char *argv[]) {
 
     FlowSource_t *fs = NULL;
     if (datadir) {
-        if (!Init_nffile(numWorkers, NULL)) exit(EXIT_FAILURE);
+        if (!Init_nffile(tc, NULL)) exit(EXIT_FAILURE);
 
         if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
             LogError("access() failed for %s: %s", pcap_datadir, strerror(errno));

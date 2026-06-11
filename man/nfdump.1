@@ -789,20 +789,33 @@ Without
 .Fl K
 only applies to decrypting input files.
 .It Fl W Ar num
-Set the number of worker threads. The default depends on the number of cores online. The value must 
-not exceed the number of online CPU cores.
-
-Worker threads are used to compress data blocks when writing flow files with
-.Ar -w file .
-Using multiple workers can significantly improve throughput, especially when
-using bz2 compression or higher compression levels for lz4 or zstd.
-
-Worker threads are also used when filtering flows with a given filter expression.
-Increasing the number of workers may improve performance for large or complex
-filters.
-
-Note that nfdump uses additional internal threads for reading and processing
-files. These threads are not user‑configurable.
+Set the total thread budget.
+.Ar num
+specifies the target number of writer threads.
+The number of reader decompression threads is automatically derived as
+.Li round(writers / C)
+where
+.Em C
+is the codec's compress/decompress time ratio
+(lz4 \(ap 2, zstd \(ap 5, bz2 \(ap 3),
+keeping the read and write pipelines balanced.
+Remaining online cores are allocated to filter worker threads.
+If omitted, the default is the number of online CPU cores.
+.Pp
+For compressed output the practical writer ceiling is roughly one-third
+of available cores for lz4 (L3 cache pressure) and approaches the full
+core count for zstd (compute-bound).
+For uncompressed output, 2 writer threads are always used.
+.Pp
+Individual role counts can be overridden per-run with
+.Fl x Ar threads.writers=N ,
+.Fl x Ar threads.readers=N ,
+or
+.Fl x Ar threads.filters=N
+(0 restores the auto-derived count), or persistently via the
+.Em [threads]
+section in
+.Xr nfdump.conf 5 .
 .It Fl J Ar compress
 Change compression for any number of files given by option
 .Fl r Ar flowpath

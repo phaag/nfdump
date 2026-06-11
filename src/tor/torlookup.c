@@ -54,6 +54,7 @@
 #define fts_set fts_set_compat
 #endif
 
+#include "nfthread.h"
 #include "conf/nfconf.h"
 #include "logging.h"
 #include "nffileV3/nffileV3.h"
@@ -359,7 +360,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_ANALYZE);
+    if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {
         char *pathList[2] = {dirName, NULL};
