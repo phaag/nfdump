@@ -49,13 +49,13 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "compress/nfcompress.h"
 #include "ftlib.h"
 #include "id.h"
 #include "logging.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "output_short.h"
 #include "util.h"
@@ -371,7 +371,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    threadConfig_t threadConfig = GetThreadConfig(0, compressType, TC_ROLE_TRANSFORM);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_WRITE_ONLY,
+        .hasReaders = false,
+        .hasWriters = true,
+        .hasWorkers = false,
+        .fixedThreads = 1,
+    };
+    threadConfig_t threadConfig = GetThreadConfigEx(0, compressType, pipeline);
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     /* read from fd */

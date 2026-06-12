@@ -60,9 +60,10 @@
 
 [nfdump]
 # Thread budget split for TC_ROLE_ANALYZE.
-# filterFraction: integer percentage (0–100) of the budget reserved for
-# filter / aggregation workers.  The remaining budget goes to writers;
-# readers are auto-derived from the filter count and the input codec.
+# filterFraction: integer percentage (0–100) used when filter workers and
+# writers are both active.  nfdump enables writer budget only for -w/rewrite
+# runs; read-only filtering gives the spare budget back to filter workers.
+# Readers are auto-derived from the filter count and the input codec.
 # Default 50.  Raise to 60–70 for large or complex filter expressions.
 #
 # Example: budget=12 cores, LZ4, filterFraction=50
@@ -124,8 +125,9 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
 # exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
 
-# TC_ROLE_WRITE_ONLY: all budget goes to writers, capped at codec ceiling.
-# Use threads.writers to override the cap; readers is unused for collectors.
+# TC_ROLE_WRITE_ONLY: budget left after fixed collector threads goes to
+# writers, capped at codec ceiling.  Use threads.writers to override the cap;
+# readers is unused for collectors.
 
 [nfcapd.threads]
 #writers = 0   # 0 = auto (LZ4 cap→8, ZSTD cap→12, minus 1 for collector thread)

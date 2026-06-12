@@ -492,7 +492,14 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    threadConfig_t tc = GetThreadConfig(limitCores, compressType, TC_ROLE_WRITE_ONLY);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_WRITE_ONLY,
+        .hasReaders = false,
+        .hasWriters = datadir != NULL,
+        .hasWorkers = false,
+        .fixedThreads = 2 + (pcapfile != NULL ? 1 : 0) + (pcap_datadir != NULL ? 1 : 0),
+    };
+    threadConfig_t tc = GetThreadConfigEx(limitCores, compressType, pipeline);
 
     flushParam_t flushParam = {.extensionFormat = time_extension};
     flowParam_t flowParam = {

@@ -32,6 +32,7 @@
 #define _NFTHREADS_H 1
 
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {
@@ -48,7 +49,8 @@ typedef struct {
  * TC_ROLE_WRITE_ONLY  nfcapd, sfcapd, nfpcapd, ft2nfdump
  *   Collect → nffile writers only; no file-read pipeline.
  *   Writers are capped at a codec-specific ceiling (LZ4→8, ZSTD→12)
- *   to avoid L3 cache thrashing and to leave CPU for the collector thread.
+ *   to avoid L3 cache thrashing.  Pipeline-aware callers reserve fixed
+ *   non-writer threads before writers are sized.
  *
  * TC_ROLE_TRANSFORM  nfanon, nfmeta
  *   Three-stage: nffile-readers → app-workers → nffile-writers.
@@ -57,14 +59,22 @@ typedef struct {
  *
  * TC_ROLE_ANALYZE  nfdump, nfprofile, nftrack
  *   Read → filter-workers (primary bottleneck) → optional write.
- *   Filter workers receive ~50% of budget; readers are sized to feed
- *   them; writers use whatever remains (floored at 2).
+ *   Filter workers are sized according to the active stages; readers are
+ *   sized to feed them; writers are optional and codec-capped.
  */
 typedef enum {
     TC_ROLE_WRITE_ONLY = 0,
     TC_ROLE_TRANSFORM,
     TC_ROLE_ANALYZE,
 } tcRole_t;
+
+typedef struct {
+    tcRole_t role;
+    bool hasReaders;
+    bool hasWriters;
+    bool hasWorkers;
+    uint32_t fixedThreads;
+} threadPipeline_t;
 
 /*
  * Per-role thread counts returned by GetThreadConfig().
@@ -82,6 +92,7 @@ typedef enum {
  *              ANALYZE    → filters
  *            Stored globally as NumReaderRef; read by mmapFileV3.
  * workers    = writers  (backward-compat alias)
+ * *Override  set when the matching threads.* key forced that count
  */
 typedef struct {
     uint32_t readers;
@@ -89,12 +100,16 @@ typedef struct {
     uint32_t filters;
     uint32_t workers;   /* = writers */
     uint32_t readerRef; /* counterpart for DeriveReaderCount() */
+    uint8_t readersOverride;
+    uint8_t writersOverride;
+    uint8_t filtersOverride;
 } threadConfig_t;
 
 /* --- function prototypes ------------------------------------------------- */
 
 /*
- * GetThreadConfig — the single thread-budget entry point.
+ * GetThreadConfig — compatibility wrapper for role defaults.
+ * GetThreadConfigEx — stage-aware thread-budget entry point.
  *
  * requested   : -W value (0 = auto from sysconf; conf maxworkers caps auto)
  * compression : output codec (0/UNDEF treated as LZ4 default)
@@ -108,6 +123,8 @@ typedef struct {
  *   threads.filterFraction = N   (integer %, default 50; ANALYZE role)
  */
 threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_t role);
+
+threadConfig_t GetThreadConfigEx(uint32_t requested, uint16_t compression, threadPipeline_t pipeline);
 
 /*
  * DeriveReaderCount — per-file nfreader count, called from mmapFileV3().

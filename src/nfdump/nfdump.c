@@ -1172,9 +1172,16 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    // Budget split: ~50% filter workers, readers feed them, writers use the rest.
-    // compressType is the output codec (-z flag); pass UNDEF if -w not given.
-    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, TC_ROLE_ANALYZE);
+    // Budget split: readers feed active filter workers; writers are reserved
+    // only for -w or compression rewrites.
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_ANALYZE,
+        .hasReaders = true,
+        .hasWriters = wfile != NULL || ModifyCompress,
+        .hasWorkers = engine != NULL,
+        .fixedThreads = 2,  // main processing thread + prepareThread
+    };
+    threadConfig_t threadConfig = GetThreadConfigEx(limitCores, compressType, pipeline);
     // numWorkers now drives filter/barrier workers; Init_nffile sets NumWorkers=tc.writers
     // and NumReaderRef=tc.filters so DeriveReaderCount feeds readers correctly per file.
 

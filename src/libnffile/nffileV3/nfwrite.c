@@ -315,10 +315,11 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
      * tc.writers — already the role-aware, conf-adjusted writer count.
      * No need to call GetThreadConfig() here again.
      *
-     * - Uncompressed + unencrypted: I/O-bound; fixed 2 writers.
+     * - Uncompressed + unencrypted: I/O-bound; use the configured writer cap.
      * - Compressed: use NumWorkers directly.
-     * - Encrypted: ChaCha20-Poly1305 adds ~3× overhead; require at least
-     *   4 writers and deepen the queue so the collector never stalls.
+     * - Encrypted: ChaCha20-Poly1305 adds ~3× overhead; auto configs use at
+     *   least 4 writers and deepen the queue.  An explicit threads.writers
+     *   override is honored as-is.
      */
     int useEncryption = (crypto_ctx != NULL);
     uint32_t NumThreads;
@@ -333,13 +334,13 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             compressionLevel = 0;  // LZ4_compress_default — fast path, no HC
 #endif
         }
-        NumThreads = threadConfig.workers < 4 ? 4 : threadConfig.workers;
+        NumThreads = threadConfig.writersOverride ? threadConfig.workers : (threadConfig.workers < 4 ? 4 : threadConfig.workers);
         queueDepth = ceil_power_of_2(NumThreads * DefaultQueueSize);
     } else {
         // no encryption — normalise UNDEF_COMPRESSED (0) to NOT_COMPRESSED (1)
         if (compression <= NOT_COMPRESSED) {
             compression = NOT_COMPRESSED;
-            NumThreads = 2;
+            NumThreads = threadConfig.workers < 1 ? 1 : threadConfig.workers;
             queueDepth = DefaultQueueSize;
         } else {
             NumThreads = threadConfig.workers;

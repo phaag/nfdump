@@ -104,6 +104,37 @@ static float confFraction(const char *key, float fallback) {
     return (float)v / 100.0f;
 }
 
+static uint32_t min_u32(uint32_t a, uint32_t b) {
+    return a < b ? a : b;
+}
+
+static uint32_t max_u32(uint32_t a, uint32_t b) {
+    return a > b ? a : b;
+}
+
+static uint32_t readerEstimate(uint32_t ref, uint16_t compression) {
+    if (ref == 0) return 0;
+
+    float C = compressionRatio(compression);
+    if (C < 1.0f) return 1;
+
+    uint32_t readers = (uint32_t)((float)ref / C + 0.5f);
+    return readers < 1 ? 1 : readers;
+}
+
+static uint32_t addBalancedWorkers(uint32_t baseWorkers, uint32_t spare, uint16_t compression) {
+    if (spare == 0) return baseWorkers;
+
+    float C = compressionRatio(compression);
+    if (C < 1.0f) return baseWorkers + spare;
+
+    uint32_t add = (uint32_t)((float)spare * C / (1.0f + C) + 0.5f);
+    if (add < 1) add = 1;
+    if (add > spare) add = spare;
+
+    return baseWorkers + add;
+}
+
 /* -----------------------------------------------------------------------
  * DeriveReaderCount — per-file nfreader count, called from mmapFileV3().
  * ----------------------------------------------------------------------- */
@@ -122,7 +153,7 @@ uint32_t DeriveReaderCount(uint32_t ref, uint16_t compression) {
 /* -----------------------------------------------------------------------
  * GetThreadConfig — the single thread-budget entry point.
  * ----------------------------------------------------------------------- */
-threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_t role) {
+threadConfig_t GetThreadConfigEx(uint32_t requested, uint16_t compression, threadPipeline_t pipeline) {
     long cores = sysconf(_SC_NPROCESSORS_ONLN);
     if (cores < 1) cores = 2;
 
@@ -143,19 +174,24 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_
     }
 
     float C = compressionRatio(compression);
+    uint32_t alloc = budget;
+    if (pipeline.fixedThreads > 0) {
+        alloc = (budget > pipeline.fixedThreads) ? budget - pipeline.fixedThreads : 1;
+    }
 
-    uint32_t writers, filters, readerRef;
+    uint32_t writers = 0;
+    uint32_t filters = 0;
+    uint32_t readerRef = 0;
 
-    switch (role) {
+    switch (pipeline.role) {
         case TC_ROLE_WRITE_ONLY: {
             /* Collectors have no nffile read pipeline — full budget to writers,
              * but capped at the codec's practical ceiling to avoid L3 thrashing
-             * and to leave at least one core for the collector hot path.       */
-            uint32_t cap = writeCap(compression);
-            uint32_t headroom = ((uint32_t)cores > 1) ? (uint32_t)cores - 1 : 1;
-            writers = budget < cap ? budget : cap;
-            if (writers > headroom) writers = headroom;
-            if (writers < 1) writers = 1;
+             * and to leave CPU for the collector hot path.                    */
+            if (pipeline.hasWriters) {
+                writers = min_u32(alloc, writeCap(compression));
+                if (writers < 1) writers = 1;
+            }
             filters = 0;
             readerRef = 0;
             break;
@@ -167,41 +203,73 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_
              * (anonymization, bloom); split the rest between I/O threads.    */
             float wfrac = confFraction("threads.workerFraction", 0.20f);
 
-            uint32_t workers_n = (uint32_t)((float)budget * wfrac + 0.5f);
-            if (workers_n < 1) workers_n = 1;
-            if (workers_n >= budget) workers_n = (budget > 2) ? budget / 3 : 1;
+            uint32_t workers_n = pipeline.hasWorkers ? (uint32_t)((float)alloc * wfrac + 0.5f) : 0;
+            if (pipeline.hasWorkers && workers_n < 1) workers_n = 1;
+            if (workers_n >= alloc) workers_n = (alloc > 2) ? alloc / 3 : 1;
 
-            uint32_t io = budget - workers_n;
-            if (C < 1.0f) {
-                writers = 2;
-            } else {
+            uint32_t io = alloc > workers_n ? alloc - workers_n : 0;
+            if (pipeline.hasWriters && C < 1.0f) {
+                writers = min_u32(2, max_u32(io, 1));
+            } else if (pipeline.hasWriters) {
                 writers = (uint32_t)((float)io * C / (1.0f + C) + 0.5f);
                 if (writers < 1) writers = 1;
+                uint32_t capped = min_u32(writers, writeCap(compression));
+                if (pipeline.hasWorkers && capped < writers) workers_n += writers - capped;
+                writers = capped;
+            }
+            if (!pipeline.hasWriters && pipeline.hasWorkers) {
+                workers_n = alloc;
+            }
+            if (pipeline.hasWriters && pipeline.hasWorkers) {
+                uint32_t est_r = pipeline.hasReaders ? readerEstimate(writers, compression) : 0;
+                uint32_t used = workers_n + writers + est_r;
+                if (used < alloc) workers_n += alloc - used;
             }
             filters = workers_n;
-            readerRef = writers;  // readers balance the write side
+            readerRef = pipeline.hasReaders ? (pipeline.hasWriters ? writers : filters) : 0;
             break;
         }
 
         case TC_ROLE_ANALYZE: {
             /* Read → filter-workers (primary CPU work) → optional write.
-             * Filter workers receive the majority of the budget; readers are
-             * sized to feed them; writers use what remains (floored at 2).   */
+             * Filter workers are sized for the active stages; readers are
+             * sized to feed them; writers use remaining capped budget.       */
             float ffrac = confFraction("threads.filterFraction", 0.50f);
 
-            filters = (uint32_t)((float)budget * ffrac + 0.5f);
-            if (filters < 2) filters = 2;
-            if (filters > budget) filters = budget;
+            if (pipeline.hasWorkers) {
+                if (pipeline.hasWriters) {
+                    filters = (uint32_t)((float)alloc * ffrac + 0.5f);
+                    if (filters < 1) filters = 1;
+                    if (alloc >= 4 && filters < 2) filters = 2;
+                    if (filters > alloc) filters = alloc;
 
-            /* Estimate readers at startup using write-side codec (re-derived
-             * per-file by DeriveReaderCount with the actual file codec).      */
-            uint32_t est_r = (C < 1.0f) ? 1 : (uint32_t)((float)filters / C + 0.5f);
-            if (est_r < 1) est_r = 1;
+                    uint32_t est_r = pipeline.hasReaders ? readerEstimate(filters, compression) : 0;
+                    uint32_t used = filters + est_r;
+                    writers = (used < alloc) ? alloc - used : 1;
+                    writers = min_u32(writers, writeCap(compression));
+                    if (writers < 1) writers = 1;
 
-            writers = (budget > filters + est_r) ? budget - filters - est_r : 2;
-            if (writers < 2) writers = 2;
+                    if (used + writers < alloc) {
+                        filters = addBalancedWorkers(filters, alloc - used - writers, compression);
+                    }
+                } else if (pipeline.hasReaders) {
+                    if (C < 1.0f) {
+                        filters = alloc > 1 ? alloc - 1 : 1;
+                    } else {
+                        filters = (uint32_t)((float)alloc * C / (1.0f + C) + 0.5f);
+                        if (filters < 1) filters = 1;
+                    }
+                } else {
+                    filters = alloc;
+                }
+            } else if (pipeline.hasWriters) {
+                uint32_t est_r = pipeline.hasReaders ? 1 : 0;
+                writers = (alloc > est_r) ? alloc - est_r : 1;
+                writers = min_u32(writers, writeCap(compression));
+                if (writers < 1) writers = 1;
+            }
 
-            readerRef = filters;  // readers balance the filter workers
+            readerRef = pipeline.hasReaders ? (filters > 0 ? filters : 1) : 0;
             break;
         }
 
@@ -215,6 +283,9 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_
     // Hard per-role conf overrides take priority over the formula
     if (confWriters > 0) writers = (uint32_t)confWriters;
     if (confFilters > 0) filters = (uint32_t)confFilters;
+    if (!pipeline.hasWriters && confWriters <= 0) writers = 0;
+    if (!pipeline.hasWorkers && confFilters <= 0) filters = 0;
+    if (!pipeline.hasReaders) readerRef = 0;
 
     // Startup reader estimate (authoritative count is per-file via DeriveReaderCount)
     uint32_t readers;
@@ -225,9 +296,9 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_
     }
 
     LogVerbose(
-        "GetThreadConfig: role=%u budget=%u codec=%u → "
+        "GetThreadConfig: role=%u budget=%u fixed=%u alloc=%u codec=%u → "
         "writers=%u filters=%u readers(est)=%u readerRef=%u",
-        role, budget, compression, writers, filters, readers, readerRef);
+        pipeline.role, budget, pipeline.fixedThreads, alloc, compression, writers, filters, readers, readerRef);
 
     return (threadConfig_t){
         .readers = readers,
@@ -235,7 +306,23 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_
         .filters = filters,
         .workers = writers,
         .readerRef = readerRef,
+        .readersOverride = confReaders > 0,
+        .writersOverride = confWriters > 0,
+        .filtersOverride = confFilters > 0,
     };
+}  // End of GetThreadConfigEx
+
+threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_t role) {
+    threadPipeline_t pipeline = {
+        .role = role,
+        .hasReaders = role != TC_ROLE_WRITE_ONLY,
+        .hasWriters = role != TC_ROLE_ANALYZE,
+        .hasWorkers = role != TC_ROLE_WRITE_ONLY,
+        .fixedThreads = role == TC_ROLE_WRITE_ONLY ? 1 : 1,
+    };
+    if (role == TC_ROLE_ANALYZE) pipeline.fixedThreads = 2;
+
+    return GetThreadConfigEx(requested, compression, pipeline);
 }  // End of GetThreadConfig
 
 // initialize barrier for numWorkers + 1 controller
