@@ -30,6 +30,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -48,11 +49,19 @@
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
 #include "nffile_inline.c"
+#include "nfthread.h"
 #include "nfxV4.h"
+#include "queue.h"
 #include "util.h"
 
 static void usage(char *name);
-static void process_data(const char *wfile);
+static void process_data(const char *wfile, int numWorkers, int verbose);
+
+typedef struct {
+    queue_t *inputQueue;
+    queue_t *outputQueue;
+    uint32_t blockSize;
+} workerArgs_t;
 
 static void usage(char *name) {
     printf(
@@ -60,7 +69,10 @@ static void usage(char *name) {
         "-h\t\tthis text you see right here\n"
         "-r <path>\tread input from file or directory\n"
         "-w <file>\twrite all output to this file\n"
-        "\t\tif -w is omitted, each input file is replaced in-place\n",
+        "-v <num>\tverbose level\n"
+        "\t\tif -w is omitted, each input file is replaced in-place\n"
+        "-W <num>\tnumber of worker threads (default: auto)\n"
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n",
         name);
 }  // End of usage
 
@@ -122,6 +134,78 @@ static void updateMetaData(bloomHandle_t *bloomHandle, recordHandle_t *recordHan
 }  // End of updateMetaData
 
 /*
+ * Worker thread: pops flow blocks from inputQueue, strips any pre-existing
+ * META records, adds fresh bloom-filter META records, and pushes the
+ * annotated output blocks to outputQueue.
+ */
+static void *workerThread(void *arg) {
+    workerArgs_t *workerArgs = (workerArgs_t *)arg;
+
+    bloomHandle_t bloomHandle = {0};
+    uint64_t firstSeen = UINT64_MAX;
+    uint64_t lastSeen = 0;
+    flowBlockV3_t *dataBlock_w = NewFlowBlock(workerArgs->blockSize);
+    addBloomHandle(dataBlock_w, &bloomHandle);
+
+    flowBlockV3_t *dataBlock_r = queue_pop(workerArgs->inputQueue);
+    while (dataBlock_r != QUEUE_CLOSED) {
+        recordHeaderV4_t *recordPtr = ResetCursor(dataBlock_r);
+
+        uint32_t sumSize = 0;
+        recordHandle_t recordHandle = {0};
+        for (int i = 0; i < (int)dataBlock_r->numRecords; i++) {
+            if ((sumSize + recordPtr->size) > dataBlock_r->rawSize || recordPtr->size < sizeof(recordHeaderV4_t)) {
+                LogError("Corrupt data block. Inconsistent record size in %s line %d", __FILE__, __LINE__);
+                FreeDataBlock(dataBlock_r);
+                FreeDataBlock(dataBlock_w);
+                queue_close(workerArgs->outputQueue);
+                pthread_exit(NULL);
+            }
+            sumSize += recordPtr->size;
+
+            if (recordPtr->type == METARecord) goto NEXT_REC;
+
+            if (!IsAvailable(dataBlock_w, workerArgs->blockSize, recordPtr->size)) {
+                dataBlock_w->msecFirst = (firstSeen != UINT64_MAX) ? firstSeen : 0;
+                dataBlock_w->msecLast = lastSeen;
+                dataBlock_w->extensionBitmap |= dataBlock_r->extensionBitmap;
+                queue_push(workerArgs->outputQueue, dataBlock_w);
+
+                dataBlock_w = NewFlowBlock(workerArgs->blockSize);
+                addBloomHandle(dataBlock_w, &bloomHandle);
+
+                firstSeen = UINT64_MAX;
+                lastSeen = 0;
+            }
+
+            if (recordPtr->type == V4Record) {
+                memset(&recordHandle, 0, sizeof(recordHandle));
+                MapV4RecordHandle(&recordHandle, recordPtr, 0);
+                updateMetaData(&bloomHandle, &recordHandle, &firstSeen, &lastSeen);
+            }
+
+            memcpy(GetCursor(dataBlock_w), recordPtr, recordPtr->size);
+            dataBlock_w->numRecords++;
+            dataBlock_w->rawSize += recordPtr->size;
+
+        NEXT_REC:
+            recordPtr = (recordHeaderV4_t *)((void *)recordPtr + recordPtr->size);
+        }
+
+        dataBlock_w->extensionBitmap |= dataBlock_r->extensionBitmap;
+        FreeDataBlock(dataBlock_r);
+        dataBlock_r = queue_pop(workerArgs->inputQueue);
+    }
+
+    if (dataBlock_w->numRecords) {
+        queue_push(workerArgs->outputQueue, dataBlock_w);
+    }
+    queue_close(workerArgs->outputQueue);
+
+    pthread_exit(NULL);
+}  // End of workerThread
+
+/*
  * Flush the current output block and finalize the output file.
  *
  * wfile == NULL (in-place mode):
@@ -133,11 +217,14 @@ static void updateMetaData(bloomHandle_t *bloomHandle, recordHandle_t *recordHan
  *   Just flush and close; the file stays at wfile.
  *   Pass closeIt=0 to keep the file open across multiple input files.
  */
-static int flushAndClose(nffileV3_t *nffile_w, flowBlockV3_t *dataBlock_w, uint64_t firstSeen, uint64_t lastSeen, const char *wfile,
-                         const char *srcFile, int closeIt) {
-    dataBlock_w->msecFirst = (firstSeen != UINT64_MAX) ? firstSeen : 0;
-    dataBlock_w->msecLast = lastSeen;
-    FlushBlockV3(nffile_w, dataBlock_w);
+/*
+ * Finalize and close nffile_w.  All data blocks have already been pushed to
+ * nffile_w->processQueue by workers; this only needs to write the file footer.
+ *
+ * wfile == NULL (in-place): rename the temp file over srcFile atomically.
+ * wfile != NULL (named output): just close the file.
+ */
+static int flushAndClose(nffileV3_t *nffile_w, const char *wfile, const char *srcFile) {
     FlushFileV3(nffile_w);
 
     if (!wfile) {
@@ -155,7 +242,7 @@ static int flushAndClose(nffileV3_t *nffile_w, flowBlockV3_t *dataBlock_w, uint6
             return 0;
         }
         free(tmpName);
-    } else if (closeIt) {
+    } else {
         CloseFileV3(nffile_w);
     }
     return 1;
@@ -172,7 +259,30 @@ static int flushAndClose(nffileV3_t *nffile_w, flowBlockV3_t *dataBlock_w, uint6
  *   A temporary file is created next to the input via OpenNewFileTmpV3
  *   and renamed atomically over the original on success.
  */
-static void process_data(const char *wfile) {
+/*
+ * process_data — two modes controlled by wfile:
+ *
+ * wfile != NULL: all input files are merged into one output at wfile.
+ *   The output file is opened once; workers are launched and joined once
+ *   per input file but the output file stays open across all of them.
+ *
+ * wfile == NULL: each input file is processed independently (in-place).
+ *   A temporary file is created next to each input via OpenNewFileTmpV3
+ *   and renamed atomically over the original after that file's workers
+ *   have finished.
+ *
+ * For each input file the main thread:
+ *   1. Launches numWorkers worker threads.
+ *   2. Reads every block: non-flow blocks pass through directly;
+ *      flow blocks are pushed to the workers via inputQueue.
+ *   3. Closes inputQueue — workers drain it and terminate, each
+ *      calling queue_close(outputQueue) on exit.
+ *   4. Drains outputQueue until QUEUE_CLOSED, forwarding annotated
+ *      blocks to nffile_w->processQueue.
+ *   5. Joins workers and frees the per-file queues.
+ *   6. Finalizes (and optionally renames) the output file.
+ */
+static void process_data(const char *wfile, int numWorkers, int verbose) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     int blk_count = 0;
     int file_count = 0;
@@ -185,14 +295,19 @@ static void process_data(const char *wfile) {
         return;
     }
 
+    workerArgs_t workerArgs = {0};
     nffileV3_t *nffile_w = NULL;
-    flowBlockV3_t *dataBlock_w = NULL;
-    bloomHandle_t bloomHandle = {0};
-    uint64_t firstSeen = UINT64_MAX, lastSeen = 0;
-    char srcFile[MAXPATHLEN] = {0}; /* original path for in-place rename */
+    char srcFile[MAXPATHLEN] = {0};
+    pthread_t *tids = calloc(numWorkers, sizeof(pthread_t));
+    if (!tids) {
+        LogError("calloc() error: %s", strerror(errno));
+        if (nffile_w) CloseFileV3(nffile_w);
+        CloseFileV3(nffile_r);
+        return;
+    }
+    if (verbose > 1) printf("Use %u workers\n", numWorkers);
 
-    /* In single-output mode, open the output file once here using the
-     * first input file's compression settings.                        */
+    // In single-output mode, open the output file once
     if (wfile) {
         nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
         if (!nffile_w) {
@@ -201,132 +316,168 @@ static void process_data(const char *wfile) {
         }
         SetIdent(nffile_w, nffile_r->ident);
         __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
-        dataBlock_w = NewFlowBlock(nffile_w->fileHeader->blockSize);
-        addBloomHandle(dataBlock_w, &bloomHandle);
-        printf("Output: %s\n", wfile);
+        if (verbose > 1) printf("Output: %s\n", wfile);
+
+        // Launch workers for this file
+        workerArgs = (workerArgs_t){
+            .inputQueue = queue_init(16),
+            .outputQueue = queue_init(16),
+            .blockSize = nffile_r->fileHeader->blockSize,
+        };
+        queue_producers(workerArgs.outputQueue, numWorkers);
+
+        for (int i = 0; i < numWorkers; i++) {
+            int err = pthread_create(&tids[i], NULL, workerThread, &workerArgs);
+            if (err) {
+                LogError("pthread_create() error: %s", strerror(err));
+                exit(255);
+            }
+        }
     }
 
-    int done = 0;
-    while (!done) {
-        /* In per-file mode, open a fresh output file for each new input. */
-        if (!wfile && !nffile_w) {
+    while (nffile_r) {
+        // In per-file mode, open a fresh output file for each input
+        if (!wfile) {
             if (!nffile_r->fileName) {
                 LogError("Cannot determine input file name for in-place replacement");
                 CloseFileV3(nffile_r);
-                return;
+                break;
             }
             strncpy(srcFile, nffile_r->fileName, sizeof(srcFile) - 1);
-            nffile_w = OpenNewFileTmpV3(srcFile, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
+            char tmpPath[MAXPATHLEN];
+            snprintf(tmpPath, sizeof(tmpPath), "%s.XXXXXX", srcFile);
+            nffile_w = OpenNewFileTmpV3(tmpPath, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
             if (!nffile_w) {
                 LogError("Failed to open output for %s", srcFile);
                 CloseFileV3(nffile_r);
-                return;
+                break;
             }
             SetIdent(nffile_w, nffile_r->ident);
             __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
-            dataBlock_w = NewFlowBlock(nffile_w->fileHeader->blockSize);
-            addBloomHandle(dataBlock_w, &bloomHandle);
-            firstSeen = UINT64_MAX;
-            lastSeen = 0;
             file_count++;
-            printf("  %i Processing %s\r", file_count, srcFile);
-        }
+            if (verbose) printf("  %i Processing %s\r", file_count, srcFile);
 
-        flowBlockV3_t *dataBlock_r = ReadBlockV3(nffile_r);
+            // Launch workers for this file
+            workerArgs = (workerArgs_t){
+                .inputQueue = queue_init(16),
+                .outputQueue = queue_init(16),
+                .blockSize = nffile_r->fileHeader->blockSize,
+            };
+            queue_producers(workerArgs.outputQueue, numWorkers);
 
-        if (!dataBlock_r) {
-            /* Current input file exhausted. */
-            if (!wfile) {
-                /* Per-file mode: finalize this output and rename. */
-                if (!flushAndClose(nffile_w, dataBlock_w, firstSeen, lastSeen, NULL, srcFile, 1)) {
-                    CloseFileV3(nffile_r);
-                    return;
+            for (int i = 0; i < numWorkers; i++) {
+                int err = pthread_create(&tids[i], NULL, workerThread, &workerArgs);
+                if (err) {
+                    LogError("pthread_create() error: %s", strerror(err));
+                    exit(255);
                 }
-                nffile_w = NULL; /* reset so next iteration opens a new one */
-                dataBlock_w = NULL;
             }
-
-            CloseFileV3(nffile_r);
-            nffile_r = GetNextFile();
-            if (!nffile_r) {
-                done = 1;
-            }
-            continue;
         }
 
-        if (dataBlock_r->type != BLOCK_TYPE_FLOW) {
-            /* Non-flow blocks (ident, array, exporter, …) pass through unmodified. */
-            PushBlockV3(nffile_w->processQueue, dataBlock_r);
-            continue;
-        }
+        /* Push all blocks from the current input file while concurrently
+         * draining the output queue to prevent deadlock.
+         *
+         * Deadlock scenario without draining:
+         *   inputQueue full  → main blocks on queue_push(inputQueue)
+         *   outputQueue full → workers block on queue_push(outputQueue)
+         *   Nobody drains outputQueue → circular wait.
+         * With queue sizes of 8+8=16, any file with >16 flow blocks can hit this.
+         *
+         * Fix: use queue_try_push so we never block on inputQueue.  When it is
+         * full, drain one output block (blocking) — this unblocks a worker,
+         * which then pops from inputQueue, freeing space for our retry.
+         * After each successful push, also do a non-blocking sweep of any
+         * additional ready output blocks.                                      */
+        while (1) {
+            flowBlockV3_t *dataBlock_r = ReadBlockV3(nffile_r);
+            if (dataBlock_r == NULL) break;
 
-        printf("\r%c", spinner[blk_count & 0x3]);
-        blk_count++;
-
-        recordHandle_t recordHandle = {0};
-        recordHeaderV4_t *record_ptr = ResetCursor(dataBlock_r);
-        uint32_t sumSize = 0;
-        uint64_t processed = 0;
-
-        for (int i = 0; i < (int)dataBlock_r->numRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock_r->rawSize || record_ptr->size < sizeof(recordHeaderV4_t)) {
-                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
-                exit(255);
+            // push non flow blocks directly to file queue
+            if (dataBlock_r->type != BLOCK_TYPE_FLOW) {
+                PushBlockV3(nffile_w->processQueue, dataBlock_r);
+                continue;
             }
-            sumSize += record_ptr->size;
+            if (verbose) printf("\r%c", spinner[blk_count & 0x3]);
+            blk_count++;
 
-            // skip existing meta record, we rebuild them
-            if (record_ptr->type == METARecord) continue;
-
-            if (record_ptr->type == V4Record) {
-                memset(&recordHandle, 0, sizeof(recordHandle));
-                MapV4RecordHandle(&recordHandle, record_ptr, ++processed);
+            /*
+             * Try to push; if inputQueue is full drain one output block
+             * (blocking) until space becomes available
+             */
+            while (queue_try_push(workerArgs.inputQueue, dataBlock_r) == QUEUE_FULL) {
+                flowBlockV3_t *dataBlock_w = queue_pop(workerArgs.outputQueue);
+                if (dataBlock_w != QUEUE_CLOSED) PushBlockV3(nffile_w->processQueue, dataBlock_w);
             }
 
-            /* If the output block is full, flush it and start a fresh one. */
-            if (!IsAvailable(dataBlock_w, nffile_w->fileHeader->blockSize, record_ptr->size)) {
-                dataBlock_w->msecFirst = (firstSeen != UINT64_MAX) ? firstSeen : 0;
-                dataBlock_w->msecLast = lastSeen;
+            // Non-blocking sweep: forward any already-finished output blocks
+            flowBlockV3_t *dataBlock_w = queue_try_pop(workerArgs.outputQueue);
+            while (dataBlock_w != QUEUE_EMPTY && dataBlock_w != QUEUE_CLOSED) {
                 PushBlockV3(nffile_w->processQueue, dataBlock_w);
-                InitDataBlock(dataBlock_w, nffile_w->fileHeader->blockSize);
-                firstSeen = UINT64_MAX;
-                lastSeen = 0;
-                addBloomHandle(dataBlock_w, &bloomHandle);
+                dataBlock_w = queue_try_pop(workerArgs.outputQueue);
             }
-            if (record_ptr->type == V4Record) updateMetaData(&bloomHandle, &recordHandle, &firstSeen, &lastSeen);
-
-            memcpy(GetCursor(dataBlock_w), record_ptr, record_ptr->size);
-            dataBlock_w->numRecords++;
-            dataBlock_w->rawSize += record_ptr->size;
-
-            record_ptr = (recordHeaderV4_t *)((void *)record_ptr + record_ptr->size);
         }
 
-        FreeDataBlock(dataBlock_r);
-    }  // while (!done)
+        // In per-file mode: Signal workers: no more input for this file
+        // finalize and rename before opening the next file. */
+        if (!wfile) {
+            // per file mode
+            queue_close(workerArgs.inputQueue);
+            // drain last blocks
+            flowBlockV3_t *dataBlock_w = queue_pop(workerArgs.outputQueue);
+            while (dataBlock_w != QUEUE_CLOSED) {
+                PushBlockV3(nffile_w->processQueue, dataBlock_w);
+                dataBlock_w = queue_pop(workerArgs.outputQueue);
+            }
 
-    /* Finalize the output. */
-    if (wfile) {
-        /* Single-output mode: flush and close the one output file. */
-        flushAndClose(nffile_w, dataBlock_w, firstSeen, lastSeen, wfile, NULL, 1);
-        printf("\rProcessed %d flow blocks\n", blk_count);
-    } else {
-        printf("\rProcessed %d flow blocks across %d file(s)\n", blk_count, file_count);
+            // join workers
+            for (int i = 0; i < numWorkers; i++) pthread_join(tids[i], NULL);
+
+            if (!flushAndClose(nffile_w, NULL, srcFile)) break;
+            nffile_w = NULL;
+
+            queue_free(workerArgs.inputQueue);
+            queue_free(workerArgs.outputQueue);
+        }
+
+        CloseFileV3(nffile_r);
+        nffile_r = GetNextFile();
     }
+
+    if (wfile && nffile_w) {
+        // single file mode
+        queue_close(workerArgs.inputQueue);
+        // drain last blocks
+        flowBlockV3_t *dataBlock_w = queue_pop(workerArgs.outputQueue);
+        while (dataBlock_w != QUEUE_CLOSED) {
+            PushBlockV3(nffile_w->processQueue, dataBlock_w);
+            dataBlock_w = queue_pop(workerArgs.outputQueue);
+        }
+
+        // join workers
+        for (int i = 0; i < numWorkers; i++) pthread_join(tids[i], NULL);
+
+        flushAndClose(nffile_w, wfile, srcFile);
+        nffile_w = NULL;
+
+        queue_free(workerArgs.inputQueue);
+        queue_free(workerArgs.outputQueue);
+
+        printf("\rProcessed %d flow blocks\n", blk_count);
+    }
+    free(tids);
+    printf("\rProcessed %d flow blocks across %d file(s)\n", blk_count, file_count);
+
 }  // End of process_data
 
 int main(int argc, char **argv) {
     flist_t flist = {0};
     char *wfile = NULL;
-    char *configFile = NULL;
     int limitCores = 0;
+    int verbose = 1;
 
     int c;
-    while ((c = getopt(argc, argv, "f:hr:w:W:x:")) != EOF) {
+    while ((c = getopt(argc, argv, "hr:v:w:W:x:")) != EOF) {
         switch (c) {
-            case 'f':
-                configFile = optarg;
-                break;
             case 'h':
                 usage(argv[0]);
                 exit(0);
@@ -353,9 +504,19 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 'v':
+                CheckArgLen(optarg, 16);
+                verbose = atoi(optarg);
+                if (verbose <= 0 || verbose > 4) {
+                    LogError("log level %i out of range 1..4", verbose);
+                    exit(EXIT_FAILURE);
+                }
+                break;
             case 'x':
                 CheckArgLen(optarg, 256);
-                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
+                if (!ConfSetOverride(optarg)) {
+                    exit(EXIT_FAILURE);
+                }
                 break;
             default:
                 usage(argv[0]);
@@ -363,15 +524,24 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (ConfOpen(configFile, "nfmeta", NULL) < 0) exit(EXIT_FAILURE);
+    if (!InitLog(NOSYSLOG, argv[0], NULL, verbose)) {
+        exit(EXIT_FAILURE);
+    }
 
-    // Compression is read from each input file; UNDEF lets GetThreadConfig
-    // default to LZ4 assumptions for the I/O split.
-    threadConfig_t tc = GetThreadConfig(limitCores, UNDEF_COMPRESSED, TC_ROLE_TRANSFORM);
+    if (ConfOpen(NULL, "nfmeta", NULL) < 0) exit(EXIT_FAILURE);
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(tc, fileList)) exit(255);
+    // Budget split: readers, bloom filter workers, writers
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_TRANSFORM,
+        .hasReaders = true,  // reader threads
+        .hasWriters = true,  // writer threads
+        .hasWorkers = true,  // bloom filter workers
+        .fixedThreads = 1,   // main processing thread - process_data()
+    };
+    threadConfig_t threadConfig = GetThreadConfigEx(limitCores, LZ4_COMPRESSED, pipeline);
+    if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
-    process_data(wfile);
+    process_data(wfile, threadConfig.filters, verbose);
     return 0;
-}
+}  // End of main

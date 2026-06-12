@@ -1185,12 +1185,6 @@ int main(int argc, char **argv) {
     // numWorkers now drives filter/barrier workers; Init_nffile sets NumWorkers=tc.writers
     // and NumReaderRef=tc.filters so DeriveReaderCount feeds readers correctly per file.
 
-    /*
-    threadConfig = GetThreadConfig(numWorkers, compressType, TC_ROLE_WRITE_ONLY);
-    threadConfig = GetThreadConfig(numWorkers, compressType, TC_ROLE_TRANSFORM);
-    exit(EXIT_SUCCESS);
-    */
-
     if (outputParams->topN < 0) {
         if (flow_stat || element_stat) {
             outputParams->topN = 10;

@@ -308,6 +308,9 @@ static bool confTableGetInt64(toml_table_t *root, const char *key, int64_t *out)
 // Check if a key exists in the config file or in the program defaults.
 // Used to decide whether to warn about an unknown -x override.
 static bool confKeyExists(const char *key) {
+    // whitelist threads argument
+    if (strncmp(key, "threads.", 8) == 0) return true;
+
     // check program defaults (always available, even without a config file)
     if (nfconfFile.defaultConf) {
         for (int i = 0; nfconfFile.defaultConf[i].key != NULL; i++)

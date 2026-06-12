@@ -43,13 +43,13 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
 #include "nfconf.h"
 #include "nfdump.h"
 #include "nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "queue.h"
 #include "util.h"
@@ -475,8 +475,8 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
     }
 #endif /* HAVE_LIBSODIUM */
 
-    printf("InitNewFile: %s, compression: %d, level: %d, workers: %u, %s\n", fileName, nffile->compression, nffile->compressionLevel, NumThreads,
-           crypto_ctx ? "encrypted" : "not encrypted");
+    LogVerbose("InitNewFile: %s, compression: %d, level: %d, workers: %u, %s", fileName, nffile->compression, nffile->compressionLevel, NumThreads,
+               crypto_ctx ? "encrypted" : "not encrypted");
 
     // kick off nfwriter
     for (int i = 0; i < (int)NumThreads; i++) {
