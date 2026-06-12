@@ -176,7 +176,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     printf("Size        : %zu\n", fileSize);
     printf("Version     : %u\n", fileHeader->layoutVersion);
     printf("Block size  : %u\n", fileHeader->blockSize);
-    printf("Compression : %u\n", fileHeader->compression);
+    printf("Compression : %s\n", CompressionType(fileHeader->compression));
     printf("Creator     : %s(ID:%u)\n", nf_creator[fileHeader->creator], fileHeader->creator);
 
     time_t created = (time_t)fileHeader->created;

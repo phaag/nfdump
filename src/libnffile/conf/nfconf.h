@@ -43,12 +43,12 @@ typedef enum { CONF_BOOL = 0, CONF_INT64, CONF_UINT64, CONF_STRING } confType_t;
 
 typedef struct option_s {
     const char *key;
-    confType_t  type;
+    confType_t type;
     union {
-        bool     valBool;
-        int64_t  valInt64;
+        bool valBool;
+        int64_t valInt64;
         uint64_t valUint64;
-        char    *valString;
+        char *valString;
     };
 } option_t;
 
@@ -66,10 +66,15 @@ int ConfGetExporter(char **ident, char **ip, char **flowdir);
 
 /* Getters — priority: CLI override > config file > program defaults.
  * ConfGetString() returns a heap-allocated string; caller must free().      */
-char    *ConfGetString(char *key);
-int64_t  ConfGetValue(char *key);
-bool     ConfGetBool(char *key);
+char *ConfGetString(const char *key);
 
-void ConfInventory(char *confFile);
+int64_t ConfGetValue(const char *key);
+
+bool ConfGetBool(const char *key);
+
+void ConfInventory(const char *confFile);
+
+// scan option string
+int scanOptions(option_t *optionList, char *options);
 
 #endif

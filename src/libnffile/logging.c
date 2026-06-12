@@ -113,17 +113,18 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_
 #endif
 
     // if not set - defaults to 1
-    if (verbose_log < 0) verbose_log = 1;
+    if (verbose_log < 0 || verbose_log > 4) verbose_log = 1;
 
     verbose = verbose_log;
     if (want_syslog == NOSYSLOG) {
         use_syslog = 0;
-        if (verbose) {
+        if (verbose > 1) {
             LogInfo("Verbose log level: %d", verbose);
         }
         return 1;
     }
 
+    // setup syslog
     if (!facility || strlen(facility) > 32) {
         fprintf(stdout, "Invalid syslog facility name '%s'!\n", facility);
         return 0;

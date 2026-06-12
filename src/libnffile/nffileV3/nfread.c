@@ -43,13 +43,13 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
 #include "nfconvert.h"
 #include "nfdump.h"
 #include "nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "queue.h"
 #include "util.h"
@@ -628,10 +628,9 @@ nffileV3_t *OpenFileV3(const char *filename) {
     }
 
     // kick off nfreader
-    printf("nfreaders: %u\n", nffile->numWorkers);
     if (nffile->numWorkers > 1) {
         queue_producers(nffile->processQueue, nffile->numWorkers);
-        dbg_printf("Multiple nfreaders: %u\n", nffile->numWorkers);
+        LogVerbose("Use %u nfreaders for %s", nffile->numWorkers, nffile->fileName);
     }
     for (int i = 0; i < nffile->numWorkers; i++) {
         dbg_printf("Kick off nfreader: %d\n", i);

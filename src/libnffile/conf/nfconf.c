@@ -412,7 +412,7 @@ static bool confTableGetBool(toml_table_t *root, const char *key, bool *out) {
     return false;
 }  // End of confTableGetBool
 
-char *ConfGetString(char *key) {
+char *ConfGetString(const char *key) {
     // 1. CLI override
     for (int i = 0; i < numConfOverrides; i++)
         if (strcmp(confOverrides[i].key, key) == 0) return strdup(confOverrides[i].valString);
@@ -428,7 +428,7 @@ char *ConfGetString(char *key) {
     return NULL;
 }  // End of ConfGetString
 
-int64_t ConfGetValue(char *key) {
+int64_t ConfGetValue(const char *key) {
     // 1. CLI override
     for (int i = 0; i < numConfOverrides; i++)
         if (strcmp(confOverrides[i].key, key) == 0) return (int64_t)strtoll(confOverrides[i].valString, NULL, 0);
@@ -455,7 +455,7 @@ int64_t ConfGetValue(char *key) {
     return 0;
 }  // End of ConfGetValue
 
-bool ConfGetBool(char *key) {
+bool ConfGetBool(const char *key) {
     // 1. CLI override
     for (int i = 0; i < numConfOverrides; i++)
         if (strcmp(confOverrides[i].key, key) == 0) return strtoll(confOverrides[i].valString, NULL, 0) != 0;
@@ -574,7 +574,7 @@ static void ConfPrintArray(toml_array_t *sectionConf, const char *arrayName) {
     }
 }  // End of ConfPrintArray
 
-void ConfInventory(char *confFile) {
+void ConfInventory(const char *confFile) {
     // --- 1. Program defaults (lowest priority) ---
     printf("=== Program defaults ===\n");
     if (nfconfFile.defaultConf && nfconfFile.defaultConf[0].key != NULL) {
@@ -624,11 +624,54 @@ void ConfInventory(char *confFile) {
     // --- 3. CLI overrides (highest priority) ---
     printf("\n=== CLI overrides (-x) ===\n");
     if (numConfOverrides > 0) {
-        for (int i = 0; i < numConfOverrides; i++)
-            printf("  %-28s = \"%s\"\n", confOverrides[i].key, confOverrides[i].valString);
+        for (int i = 0; i < numConfOverrides; i++) printf("  %-28s = \"%s\"\n", confOverrides[i].key, confOverrides[i].valString);
     } else {
         printf("  (none)\n");
     }
     printf("\n");
 
 }  // End of ConfInventory
+
+static int OptSetBool(option_t *optionList, char *name, bool valBool) {
+    int i = 0;
+    char optName[64] = "opt.";
+    strncat(optName, name, 59);
+    while (optionList[i].key != NULL) {
+        if (strcmp(optionList[i].key, optName) == 0) {
+            optionList[i].valBool = valBool;
+            return 1;
+        }
+        i++;
+    }
+    return 0;
+}  // End of OptSetBool
+
+int scanOptions(option_t *optionList, char *options) {
+    if (options == NULL) return 1;
+
+    char *option = strtok(options, ",");
+    while (option != NULL) {
+        int valBool = 1;
+        char *eq = strchr(option, '=');
+        if (eq) {
+            *eq++ = '\0';
+            switch (eq[0]) {
+                case '0':
+                    valBool = 0;
+                    break;
+                case '1':
+                    valBool = 1;
+                    break;
+                default:
+                    LogError("Invalid bool value: %s", eq[0] ? eq : "empty value");
+            }
+        }
+        if (OptSetBool(optionList, option, valBool) == 0) {
+            LogError("Unknown option: %s", option);
+            return 0;
+        }
+        option = strtok(NULL, ",");
+    }
+    return 1;
+
+}  // End of scanOption

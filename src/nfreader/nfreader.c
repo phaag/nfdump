@@ -271,7 +271,8 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(1, fileList)) exit(255);
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_ANALYZE);
+    if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
     process_data();
 

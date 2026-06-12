@@ -59,10 +59,10 @@
 #include <unistd.h>
 
 #include "backend/nffile_backend.h"
-#include "nfthread.h"
 #include "bookkeeper.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
+#include "nfthread.h"
 
 #ifdef HAVE_LIBSODIUM
 #include <sodium.h>
@@ -98,7 +98,7 @@
 // global static var: used by interrupt routine
 static _Atomic uint32_t done = 0;
 
-static option_t nfpcapdOption[] = {
+static option_t nfpcapdConfig[] = {
     {.type = CONF_BOOL, .key = "opt.fat", .valBool = false},
     {.type = CONF_BOOL, .key = "opt.payload", .valBool = false},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
@@ -476,7 +476,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (ConfOpen(configFile, "nfpcapd", nfpcapdOption) < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(configFile, "nfpcapd", nfpcapdConfig) < 0) exit(EXIT_FAILURE);
 
     if (filter) {
         filter = strdup(filter);
@@ -504,6 +504,9 @@ int main(int argc, char *argv[]) {
     readerParam_t readerParam = {0};
     packetParam.doDedup = doDedup;
 
+    if (scanOptions(nfpcapdConfig, options) == 0) {
+        exit(EXIT_FAILURE);
+    }
     flowParam.extendedFlow = ConfGetBool("opt.fat");
     flowParam.addPayload = ConfGetBool("opt.payload");
 

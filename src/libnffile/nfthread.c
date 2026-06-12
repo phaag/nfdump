@@ -41,10 +41,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "logging.h"
 #include "nfconf.h"
 #include "nfdump.h"
+#include "nfthread.h"
 #include "util.h"
 
 /* -----------------------------------------------------------------------
@@ -224,7 +224,7 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_
         readers = DeriveReaderCount(readerRef, compression);
     }
 
-    LogInfo(
+    LogVerbose(
         "GetThreadConfig: role=%u budget=%u codec=%u → "
         "writers=%u filters=%u readers(est)=%u readerRef=%u",
         role, budget, compression, writers, filters, readers, readerRef);

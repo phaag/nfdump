@@ -62,7 +62,6 @@
 #endif
 
 #include "backend/backend.h"
-#include "nfthread.h"
 #include "collector.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
@@ -77,6 +76,7 @@
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "process/daemon.h"
 #include "process/pidfile.h"
@@ -794,6 +794,9 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if (scanOptions(sfcapdConfig, options) == 0) {
+        exit(EXIT_FAILURE);
+    }
     parse_tun = ConfGetBool("opt.tun");
 
     if (sendHost) {

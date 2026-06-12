@@ -669,7 +669,7 @@ int main(int argc, char **argv) {
         misc->dstMask = 64;
         EXipReceivedV6_t *rcv = GetExtension(h, EXipReceivedV6);
         uint64_t v6[2];
-        inet_pton(AF_INET6, "fe80::caffe:caffe:1234:1", v6);
+        inet_pton(AF_INET6, "fe80::cafe:cafe:1234:1", v6);
         rcv->ip[0] = ntohll(v6[0]);
         rcv->ip[1] = ntohll(v6[1]);
         EMIT_RECORD(buf, nffile, block, nffile->stat_record);
@@ -1194,7 +1194,7 @@ int main(int argc, char **argv) {
         misc->dstMask = 48;
         EXnatXlateV6_t *xlate = GetExtension(h, EXnatXlateV6);
         uint64_t v6[2];
-        inet_pton(AF_INET6, "2001:db8:nat::1", v6);
+        inet_pton(AF_INET6, "2001:db8:6464::1", v6);
         xlate->xlateSrcAddr[0] = ntohll(v6[0]);
         xlate->xlateSrcAddr[1] = ntohll(v6[1]);
         inet_pton(AF_INET6, "2001:db8::100", v6);

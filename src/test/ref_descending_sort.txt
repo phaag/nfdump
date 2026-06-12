@@ -522,7 +522,7 @@ Flow Record:
   direction    =                  0
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  ip exporter  =   2002::1210:cdef:2346:5
+  ip exporter  =   fe80::cafe:cafe:1234:1
 
 Flow Record: 
   RecordCount  =                 20
@@ -1251,7 +1251,7 @@ Flow Record:
   direction    =                  0
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  src xlt ip   =                ::1
+  src xlt ip   =   2001:db8:6464::1
   dst xlt ip   =      2001:db8::100
   src xlt port =              60000
   dst xlt port =                443

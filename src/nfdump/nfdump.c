@@ -51,10 +51,10 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
 #include "config.h"
+#include "nfthread.h"
 
 #ifdef HAVE_LIBSODIUM
 #include <sodium.h>
@@ -116,7 +116,6 @@ static _Atomic uint32_t abortProcessing = 0;
 
 /* nfdump default config */
 static option_t nfdumpOption[] = {
-    {.type = CONF_STRING, .key = "geodb.path", .valString = "/var/db/mmdb.nf"},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
     {.key = NULL},
 };
@@ -794,7 +793,7 @@ int main(int argc, char **argv) {
     int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, limitCores;
-    int GuessDir, ModifyCompress;
+    int GuessDir, ModifyCompress, verbose;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
     flist_t flist = {0};
@@ -817,6 +816,7 @@ int main(int argc, char **argv) {
     skippedBlocks = 0;
     limitCores = 0;
     GuessDir = 0;
+    verbose = 1;
 
     print_format = NULL;
     print_record = NULL;
@@ -841,7 +841,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hK::n:i:jf:qyz::r:v:w:J:M:NImO:P:R:x:XZt:TVv:W:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZt:TVv:W:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -966,6 +966,14 @@ int main(int argc, char **argv) {
                 printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
             } break;
+            case 'l':
+                CheckArgLen(optarg, 16);
+                verbose = atoi(optarg);
+                if (verbose <= 0 || verbose > 4) {
+                    LogError("log level %i out of range 1..4", verbose);
+                    exit(EXIT_FAILURE);
+                }
+                break;
             case 'N':
                 outputParams->printPlain = 1;
                 break;
@@ -1085,7 +1093,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    int verbose = 2;
     if (!InitLog(NOSYSLOG, argv[0], NULL, verbose)) {
         exit(EXIT_FAILURE);
     }
@@ -1135,8 +1142,6 @@ int main(int argc, char **argv) {
 
         FilterFilename = ffile;
     }
-
-    // if no filter is given, set the default ip filter which passes through every flow
 
     void *engine = NULL;
     if (filter && strlen(filter) != 0) {
