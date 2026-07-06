@@ -60,14 +60,18 @@
 
 [nfdump]
 # Thread budget split for TC_ROLE_ANALYZE.
-# filterFraction: integer percentage (0–100) used when filter workers and
-# writers are both active.  nfdump enables writer budget only for -w/rewrite
-# runs; read-only filtering gives the spare budget back to filter workers.
-# Readers are auto-derived from the filter count and the input codec.
-# Default 50.  Raise to 60–70 for large or complex filter expressions.
+# filterFraction: integer percentage (0–100) controlling the filter/reader split.
+# Write+filter run (-w/-J): this fraction of the budget goes to filter workers;
+#   readers are auto-derived; writers receive the remainder.
+# Read-only run (no -w): overrides the default codec-calibrated C/(1+C) split
+#   between filter workers and readers; spare cores (budget minus filters minus
+#   derived readers) are left idle.
+# Default: unconfigured (50% for write+filter; C/(1+C) for read-only).
+# Raise to 60–70 for large or complex filter expressions.
 #
 # Example: budget=12 cores, LZ4, filterFraction=50
-#   filters=6  readers=3  writers=3
+#   write+filter:  filters=6  readers=3  writers=3
+#   read-only:     filters=6  readers=3
 
 [nfdump.threads]
 #filterFraction = 50

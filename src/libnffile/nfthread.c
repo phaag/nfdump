@@ -234,7 +234,10 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadP
             /* Read → filter-workers (primary CPU work) → optional write.
              * Filter workers are sized for the active stages; readers are
              * sized to feed them; writers use remaining capped budget.       */
-            float ffrac = confFraction("threads.filterFraction", 0.50f);
+            // -1.0 sentinel: distinguishes "not configured" from an explicit value.
+            // The hasWriters path defaults to 0.50; the read-only path defaults to C/(1+C).
+            float ffrac_cfg = confFraction("threads.filterFraction", -1.0f);
+            float ffrac = ffrac_cfg > 0.0f ? ffrac_cfg : 0.50f;
 
             if (pipeline.hasWorkers) {
                 if (pipeline.hasWriters) {
@@ -253,7 +256,13 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadP
                         filters = addBalancedWorkers(filters, alloc - used - writers, compression);
                     }
                 } else if (pipeline.hasReaders) {
-                    if (C < 1.0f) {
+                    if (ffrac_cfg > 0.0f) {
+                        // explicit override: use configured fraction for the filter/reader split
+                        filters = (uint32_t)((float)alloc * ffrac_cfg + 0.5f);
+                        if (filters < 1) filters = 1;
+                        // leave at least 1 core for the reader side
+                        if (filters > alloc - 1) filters = alloc > 1 ? alloc - 1 : 1;
+                    } else if (C < 1.0f) {
                         filters = alloc > 1 ? alloc - 1 : 1;
                     } else {
                         filters = (uint32_t)((float)alloc * C / (1.0f + C) + 0.5f);
