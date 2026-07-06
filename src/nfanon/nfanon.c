@@ -418,21 +418,20 @@ static void *worker_thread(void *arg) {
 
         uint32_t recordCount = 0;
 
+        uint32_t start = ((uint32_t)self * dataBlock->numRecords) / (uint32_t)numWorkers;
+        uint32_t end   = ((uint32_t)(self + 1) * dataBlock->numRecords) / (uint32_t)numWorkers;
+
         recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < (int)dataBlock->numRecords; i++) {
+        for (uint32_t i = 0; i < dataBlock->numRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 goto SKIP;
             }
             sumSize += record_ptr->size;
 
-            // check, if this is our record
-            if ((i % numWorkers) == self) {
-                // our record - work on it
+            if (i >= start && i < end) {
                 recordCount++;
-
-                // work on our record
                 switch (record_ptr->type) {
                     case V4Record:
                         AnonRecord((recordHeaderV4_t *)record_ptr, worker_param->anon_src, worker_param->anon_dst);
@@ -447,6 +446,8 @@ static void *worker_thread(void *arg) {
             }
             // Advance pointer by number of bytes for netflow record
             record_ptr = (recordHeader_t *)((void *)record_ptr + record_ptr->size);
+
+            if (i + 1 >= end) break;  // done with our slice; remaining records belong to other workers
 
         }  // for all records
 
