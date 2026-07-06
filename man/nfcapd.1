@@ -62,7 +62,7 @@
 .Op Fl e
 .Op Fl x Ar command
 .Op Fl X Ar extensionList
-.Op Fl W Ar workers
+.Op Fl W Ar num
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl Y Ar yaf-file
@@ -305,11 +305,11 @@ to use bz2 in a real time capturing.
 .It Fl z=lz4[:level]
 Compress flow files with LZ4 compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
-workers. See -W.
+CPU cores. See -W.
 .It Fl z=zstd[:level]
 Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
-workers. See -W.
+CPU cores. See -W.
 .It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 Encrypt all output flow files using ChaCha20-Poly1305 AEAD authenticated encryption.
 Requires
@@ -393,16 +393,18 @@ to encrypt stored files and
 .Fl k
 to decrypt incoming transport flows.
 .It Fl W Ar num
-Set the total thread budget.
+Set the core limit to
 .Ar num
-specifies the target number of writer threads used to compress data
-blocks when writing flow files to disc.
-If omitted, the default is the number of online CPU cores.
-.Pp
-For compressed output the practical writer ceiling is roughly one-third
-of available cores for lz4 (L3 cache pressure) and approaches the full
-core count for zstd (compute-bound).
-For uncompressed output, 2 writer threads are always used.
+CPU cores.
+The number of writer threads used to compress and write flow files is derived
+automatically from this budget and the chosen codec.
+Setting
+.Ar num
+to 0 (the default) uses all available online CPU cores.
+If
+.Ar num
+exceeds the number of online CPU cores, a warning is logged and the budget
+is clamped to the available core count.
 .Pp
 The writer count can be overridden per-run with
 .Fl x Ar threads.writers=N

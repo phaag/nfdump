@@ -10,10 +10,10 @@
 # if the checksum is != 0, it will be verified when reading the file
 #xxhash = 1
 
-# limitCores: upper bound on the total thread budget when no -W flag is given.
+# limitCores: core limit when no -W flag is given.
 # 0 (or absent) means "use all online CPU cores" — GetThreadConfig() then
-# splits that budget across readers, writers, and filter/worker threads
-# according to the program role and codec.  A non-zero value caps the budget
+# splits the core limit across readers, writers, and filter/worker threads
+# according to the program role and codec.  A non-zero value caps the core limit
 # without overriding individual role counts in the [threads] sub-table below.
 # Prefer the [threads] keys for fine-grained per-role control.
 #

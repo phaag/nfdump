@@ -139,7 +139,7 @@ static void usage(char *name) {
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-P pidfile\tset the PID file\n"
         "-t time frame\tset the time window to rotate pcap/nfcapd file\n"
-        "-W workers\toptionally set the number of workers to compress flows\n"
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-v level\tSet verbose level.\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
@@ -382,8 +382,14 @@ int main(int argc, char *argv[]) {
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
                 if (limitCores < 0) {
-                    LogError("Invalid number of working threads: %d", limitCores);
+                    LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
+                }
+                if (limitCores > 0) {
+                    long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
+                    if (onlineCores > 0 && limitCores > (int)onlineCores)
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
+                                limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'z':

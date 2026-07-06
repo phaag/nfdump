@@ -113,7 +113,8 @@ static void usage(char *name) {
 #ifdef HAVE_INFLUXDB
         "-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
 #endif
-        "-t <time>\ttime for RRD update\n",
+        "-t <time>\ttime for RRD update\n"
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n",
         name);
 } /* usage */
 
@@ -565,8 +566,14 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
                 if (limitCores < 0) {
-                    LogError("Invalid number of working threads: %d", limitCores);
+                    LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
+                }
+                if (limitCores > 0) {
+                    long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
+                    if (onlineCores > 0 && limitCores > (int)onlineCores)
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
+                                limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'f':

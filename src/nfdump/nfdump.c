@@ -192,7 +192,7 @@ static void usage(char *name) {
         "-6\t\tPrint full length of IPv6 addresses in fmt output instead of condensed.\n"
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
         "-v <file>\tverify netflow data file. Print version and blocks.\n"
-        "-W <num>\tOptionally set the number of workers to compress flows\n"
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-t <time>\ttime window for filtering packets\n"
@@ -1075,8 +1075,14 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
                 if (limitCores < 0) {
-                    LogError("Invalid number of working threads: %d", limitCores);
+                    LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
+                }
+                if (limitCores > 0) {
+                    long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
+                    if (onlineCores > 0 && limitCores > (int)onlineCores)
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
+                                limitCores, onlineCores, onlineCores);
                 }
                 break;
             case '6':  // print long IPv6 addr

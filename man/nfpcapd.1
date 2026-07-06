@@ -54,7 +54,7 @@
 .Op Fl z=bz2
 .Op Fl z=lz4[:level]
 .Op Fl z=zstd[:level]
-.Op Fl W Ar workers
+.Op Fl W Ar num
 .Op Fl x Ar key=value
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
@@ -243,16 +243,18 @@ Trailing newlines are stripped.
 (no argument) Prompt interactively from the terminal with echo disabled.
 .El
 .It Fl W Ar num
-Limit the number of cores used.
+Set the core limit to
 .Ar num
-specifies the the limit of cores to be used for processing and witing flow
-blocks. If omitted, the default is the number of online CPU cores limited by
-internal heuristic.
-.Pp
-For compressed output the practical writer ceiling is roughly one-third
-of available cores for lz4 (L3 cache pressure) and approaches the full
-core count for zstd (compute-bound).
-For uncompressed output, 2 writer threads are always used.
+CPU cores.
+The number of writer threads used to compress and write flow files is derived
+automatically from this budget and the chosen codec.
+Setting
+.Ar num
+to 0 (the default) uses all available online CPU cores.
+If
+.Ar num
+exceeds the number of online CPU cores, a warning is logged and the budget
+is clamped to the available core count.
 .Pp
 The writer count can be overridden per-run with
 .Fl x Ar threads.writers=N

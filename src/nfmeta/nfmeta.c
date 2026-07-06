@@ -71,7 +71,7 @@ static void usage(char *name) {
         "-w <file>\twrite all output to this file\n"
         "-v <num>\tverbose level\n"
         "\t\tif -w is omitted, each input file is replaced in-place\n"
-        "-W <num>\tnumber of worker threads (default: auto)\n"
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n",
         name);
 }  // End of usage
@@ -500,8 +500,14 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
                 if (limitCores < 0) {
-                    LogError("Invalid number of worker threads: %d", limitCores);
+                    LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
+                }
+                if (limitCores > 0) {
+                    long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
+                    if (onlineCores > 0 && limitCores > (int)onlineCores)
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
+                                limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'v':

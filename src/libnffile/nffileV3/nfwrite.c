@@ -334,16 +334,16 @@ static nffileV3_t *InitNewFileV3(int fd, char *fileName, uint32_t creator, uint1
             compressionLevel = 0;  // LZ4_compress_default — fast path, no HC
 #endif
         }
-        NumThreads = threadConfig.writersOverride ? threadConfig.workers : (threadConfig.workers < 4 ? 4 : threadConfig.workers);
+        NumThreads = threadConfig.writersOverride ? threadConfig.writers : (threadConfig.writers < 4 ? 4 : threadConfig.writers);
         queueDepth = ceil_power_of_2(NumThreads * DefaultQueueSize);
     } else {
         // no encryption — normalise UNDEF_COMPRESSED (0) to NOT_COMPRESSED (1)
         if (compression <= NOT_COMPRESSED) {
             compression = NOT_COMPRESSED;
-            NumThreads = threadConfig.workers < 1 ? 1 : threadConfig.workers;
+            NumThreads = threadConfig.writers < 1 ? 1 : threadConfig.writers;
             queueDepth = DefaultQueueSize;
         } else {
-            NumThreads = threadConfig.workers;
+            NumThreads = threadConfig.writers;
             queueDepth = DefaultQueueSize;
         }
     }

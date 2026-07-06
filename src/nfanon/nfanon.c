@@ -102,7 +102,7 @@ static void usage(char *name) {
         "-r <path>\tread input from single file or all files in directory.\n"
         "-v level\tSet verbose level.\n"
         "-w <file>\tName of output file. Defaults to input file.\n"
-        "-W <num>\tOptionally set the number of workers to compress flows\n",
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n",
         name);
 } /* usage */
 
@@ -576,14 +576,20 @@ int main(int argc, char **argv) {
                 break;
             case 't':
                 // legacy option - fall through
-                LogError("Legacy option. Use -W <num> to select the number of workers");
+                LogError("Legacy option. Use -W <num> to set core limit");
                 /* fallthrough */
             case 'W':
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
                 if (limitCores < 0) {
-                    LogError("Invalid number of working threads: %d", limitCores);
+                    LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
+                }
+                if (limitCores > 0) {
+                    long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
+                    if (onlineCores > 0 && limitCores > (int)onlineCores)
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
+                                limitCores, onlineCores, onlineCores);
                 }
                 break;
             default:

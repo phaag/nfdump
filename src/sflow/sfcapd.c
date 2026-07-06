@@ -49,6 +49,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #include <time.h>
 
 #include "config.h"
@@ -135,7 +136,7 @@ static void usage(char *name) {
         "-H host[/port]\tForward collected flows to host or IP address[/port]. Default port 9995.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-x process\tlaunch process after a new file becomes available\n"
-        "-W workers\toptionally set the number of workers to compress flows\n"
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
@@ -708,8 +709,14 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
                 if (limitCores < 0) {
-                    LogError("Invalid number of working threads: %d", limitCores);
+                    LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
+                }
+                if (limitCores > 0) {
+                    long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
+                    if (onlineCores > 0 && limitCores > (int)onlineCores)
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
+                                limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'z':

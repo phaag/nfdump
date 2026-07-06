@@ -37,7 +37,7 @@
 .Op Fl w Ar nffile
 .Fl K Ar key
 .Op Fl v Ar level
-.Op Fl W
+.Op Fl W Ar num
 .Op Fl h
 .Sh DESCRIPTION
 .Nm
@@ -77,14 +77,18 @@ is used to initialize the anonymizer.
 .It Fl v Ar level
 Set verbose level. A verbose level of 0 disables the actifivy spinner.
 .It Fl W Ar num
-Set the total thread budget.
+Set the core limit to
 .Ar num
-specifies the target number of worker threads used to anonymize and
-rewrite flow records.
-The number of reader decompression threads is automatically derived
-from the budget and the input file's codec, so the read and write
-pipelines stay balanced.
-If omitted, the default is the number of online CPU cores.
+CPU cores.
+Reader decompression threads, anonymization worker threads, and writer compression
+threads are derived automatically from this budget.
+Setting
+.Ar num
+to 0 (the default) uses all available online CPU cores.
+If
+.Ar num
+exceeds the number of online CPU cores, a warning is logged and the budget
+is clamped to the available core count.
 .Pp
 Individual role counts can be overridden per-run with
 .Fl x Ar threads.writers=N
