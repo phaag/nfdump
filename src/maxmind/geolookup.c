@@ -166,7 +166,14 @@ int main(int argc, char **argv) {
         }
     }
 
-    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_ANALYZE);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_WRITE_ONLY,
+        .hasReaders = false,  // no input nffiles; source data read from MaxMind CSV
+        .hasWriters = true,   // nffile writer threads compress the output DB file
+        .hasWorkers = false,
+        .fixedThreads = 1,    // main build thread
+    };
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {

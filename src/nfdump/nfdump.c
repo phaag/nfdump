@@ -585,7 +585,11 @@ static void *filterThread(void *arg) {
 static bool LaunchFilterThreads(filterArgs_t *filterArgs, void *engine, int numWorkers, queue_t *inQueue, int hasGeoDB, pthread_t *tid) {
     filterArgs->engine = engine;
     filterArgs->inQueue = inQueue;
-    filterArgs->outQueue = queue_init(8);
+    // Queue depth: power-of-2, at least 8, scales with worker count so all
+    // threads stay busy even when the downstream consumer has variable latency.
+    uint32_t qDepth = 8;
+    while (qDepth < (uint32_t)numWorkers * 4) qDepth <<= 1;
+    filterArgs->outQueue = queue_init(qDepth);
     if (!filterArgs->outQueue) return false;
     filterArgs->hasGeoDB = hasGeoDB;
     queue_producers(filterArgs->outQueue, numWorkers);
@@ -609,7 +613,11 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
     // launch prepareThread
-    prepareArgs_t prepareArgs = {.outQueue = queue_init(8), .engine = engine};
+    // Queue depth: power-of-2, at least 8, scales with worker count so the
+    // prepare thread can stay ahead of the filter workers.
+    uint32_t prepQDepth = 8;
+    if (engine) while (prepQDepth < numWorkers * 4) prepQDepth <<= 1;
+    prepareArgs_t prepareArgs = {.outQueue = queue_init(prepQDepth), .engine = engine};
     pthread_t tidPrepare;
     int err = pthread_create(&tidPrepare, NULL, prepareThread, (void *)&prepareArgs);
     if (err) {
@@ -1181,7 +1189,7 @@ int main(int argc, char **argv) {
         .hasWorkers = engine != NULL,
         .fixedThreads = 2,  // main processing thread + prepareThread
     };
-    threadConfig_t threadConfig = GetThreadConfigEx(limitCores, compressType, pipeline);
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, pipeline);
     // numWorkers now drives filter/barrier workers; Init_nffile sets NumWorkers=tc.writers
     // and NumReaderRef=tc.filters so DeriveReaderCount feeds readers correctly per file.
 

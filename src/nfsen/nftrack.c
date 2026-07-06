@@ -425,7 +425,14 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_TRANSFORM);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_ANALYZE,
+        .hasReaders = true,   // nffile reader threads decompress input
+        .hasWriters = false,  // statistics written to DB, not nffile
+        .hasWorkers = false,  // single-threaded statistical processing
+        .fixedThreads = 1,    // main process() loop thread
+    };
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
 
     port_table = NULL;
     if (flist.multiple_dirs || flist.multiple_files || flist.single_file) {

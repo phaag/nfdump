@@ -153,7 +153,7 @@ uint32_t DeriveReaderCount(uint32_t ref, uint16_t compression) {
 /* -----------------------------------------------------------------------
  * GetThreadConfig — the single thread-budget entry point.
  * ----------------------------------------------------------------------- */
-threadConfig_t GetThreadConfigEx(uint32_t requested, uint16_t compression, threadPipeline_t pipeline) {
+threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadPipeline_t pipeline) {
     long cores = sysconf(_SC_NPROCESSORS_ONLN);
     if (cores < 1) cores = 2;
 
@@ -310,19 +310,6 @@ threadConfig_t GetThreadConfigEx(uint32_t requested, uint16_t compression, threa
         .writersOverride = confWriters > 0,
         .filtersOverride = confFilters > 0,
     };
-}  // End of GetThreadConfigEx
-
-threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_t role) {
-    threadPipeline_t pipeline = {
-        .role = role,
-        .hasReaders = role != TC_ROLE_WRITE_ONLY,
-        .hasWriters = role != TC_ROLE_ANALYZE,
-        .hasWorkers = role != TC_ROLE_WRITE_ONLY,
-        .fixedThreads = role == TC_ROLE_WRITE_ONLY ? 1 : 1,
-    };
-    if (role == TC_ROLE_ANALYZE) pipeline.fixedThreads = 2;
-
-    return GetThreadConfigEx(requested, compression, pipeline);
 }  // End of GetThreadConfig
 
 // initialize barrier for numWorkers + 1 controller

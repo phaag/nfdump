@@ -612,7 +612,14 @@ int main(int argc, char **argv) {
 
     // Compression is read from each input file; pass UNDEF so GetThreadConfig
     // assumes LZ4 (the most common codec) for the startup I/O split.
-    threadConfig_t threadConfig = GetThreadConfig(limitCores, UNDEF_COMPRESSED, TC_ROLE_TRANSFORM);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_TRANSFORM,
+        .hasReaders = true,   // nffile reader threads decompress input
+        .hasWriters = true,   // nffile writer threads compress output
+        .hasWorkers = true,   // anonymization worker threads
+        .fixedThreads = 1,    // main process_data() loop thread
+    };
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, UNDEF_COMPRESSED, pipeline);
     // tc.filters = anonymization worker count; tc.writers drives nffile writers;
     // tc.readerRef = tc.writers so DeriveReaderCount balances readers vs writers.
     int numWorkers = (int)threadConfig.filters;

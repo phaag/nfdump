@@ -697,7 +697,14 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_ANALYZE);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_ANALYZE,
+        .hasReaders = true,   // nffile reader threads decompress input
+        .hasWriters = false,  // flows replayed over network, no nffile output
+        .hasWorkers = false,  // single-threaded replay
+        .fixedThreads = 1,    // main replay loop thread
+    };
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
     if (!Init_nffile(threadConfig, fileList)) exit(254);
 
     send_data(engine, count, delay, confirm, netflow_version, distribution);

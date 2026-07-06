@@ -716,7 +716,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, TC_ROLE_TRANSFORM);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_TRANSFORM,
+        .hasReaders = true,   // nffile reader threads decompress input
+        .hasWriters = true,   // nffile writer threads compress channel output
+        .hasWorkers = true,   // profile worker threads
+        .fixedThreads = 1,    // main profiling thread
+    };
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, pipeline);
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(254);
 

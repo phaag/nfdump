@@ -378,7 +378,7 @@ int main(int argc, char **argv) {
         .hasWorkers = false,
         .fixedThreads = 1,
     };
-    threadConfig_t threadConfig = GetThreadConfigEx(0, compressType, pipeline);
+    threadConfig_t threadConfig = GetThreadConfig(0, compressType, pipeline);
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     /* read from fd */

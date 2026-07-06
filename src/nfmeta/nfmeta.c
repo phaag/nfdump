@@ -539,7 +539,7 @@ int main(int argc, char **argv) {
         .hasWorkers = true,  // bloom filter workers
         .fixedThreads = 1,   // main processing thread - process_data()
     };
-    threadConfig_t threadConfig = GetThreadConfigEx(limitCores, LZ4_COMPRESSED, pipeline);
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, LZ4_COMPRESSED, pipeline);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
     process_data(wfile, threadConfig.filters, verbose);

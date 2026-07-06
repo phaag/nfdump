@@ -857,7 +857,16 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    threadConfig_t tc = GetThreadConfig(limitCores, compressType, TC_ROLE_WRITE_ONLY);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_WRITE_ONLY,
+        .hasReaders = false,
+        .hasWriters = true,
+        .hasWorkers = false,
+        .fixedThreads = 1                                        // collector thread
+            + (repeater_host.hostname != NULL ? 1 : 0)          // repeater thread
+            + ((launch_process != NULL || expire) ? 1 : 0),     // launcher thread
+    };
+    threadConfig_t tc = GetThreadConfig(limitCores, compressType, pipeline);
     if (!Init_nffile(tc, NULL)) exit(EXIT_FAILURE);
 
     if (expire && spec_time_extension) {

@@ -108,12 +108,12 @@ typedef struct {
 /* --- function prototypes ------------------------------------------------- */
 
 /*
- * GetThreadConfig — compatibility wrapper for role defaults.
- * GetThreadConfigEx — stage-aware thread-budget entry point.
+ * GetThreadConfig — stage-aware thread-budget entry point.
  *
- * requested   : -W value (0 = auto from sysconf; conf maxworkers caps auto)
+ * requested   : -W value (0 = auto from sysconf; conf limitCores caps auto)
  * compression : output codec (0/UNDEF treated as LZ4 default)
- * role        : program pipeline structure (see tcRole_t)
+ * pipeline    : describes which stages are active and how many threads are
+ *               pre-allocated as fixed infrastructure (see threadPipeline_t)
  *
  * Conf/override keys (via nfdump.conf [threads] section or -x flag):
  *   threads.readers        = N   (0 = auto)
@@ -122,9 +122,7 @@ typedef struct {
  *   threads.workerFraction = N   (integer %, default 20; TRANSFORM role)
  *   threads.filterFraction = N   (integer %, default 50; ANALYZE role)
  */
-threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, tcRole_t role);
-
-threadConfig_t GetThreadConfigEx(uint32_t requested, uint16_t compression, threadPipeline_t pipeline);
+threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadPipeline_t pipeline);
 
 /*
  * DeriveReaderCount — per-file nfreader count, called from mmapFileV3().

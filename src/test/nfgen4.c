@@ -256,7 +256,14 @@ int main(int argc, char **argv) {
     baseTime = ISO2UNIX(strdup("201907111030"));
     timeOffset = 0;
 
-    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, TC_ROLE_WRITE_ONLY);
+    threadPipeline_t pipeline = {
+        .role = TC_ROLE_WRITE_ONLY,
+        .hasReaders = false,
+        .hasWriters = true,
+        .hasWorkers = false,
+        .fixedThreads = 1,
+    };
+    threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     nffileV3_t *nffile = OpenNewFileV3("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, LEVEL_0, NULL);

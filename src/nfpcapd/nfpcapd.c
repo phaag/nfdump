@@ -499,7 +499,7 @@ int main(int argc, char *argv[]) {
         .hasWorkers = false,
         .fixedThreads = 2 + (pcapfile != NULL ? 1 : 0) + (pcap_datadir != NULL ? 1 : 0),
     };
-    threadConfig_t tc = GetThreadConfigEx(limitCores, compressType, pipeline);
+    threadConfig_t tc = GetThreadConfig(limitCores, compressType, pipeline);
 
     flushParam_t flushParam = {.extensionFormat = time_extension};
     flowParam_t flowParam = {
