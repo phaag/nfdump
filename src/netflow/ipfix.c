@@ -1013,7 +1013,18 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
         length = Get_val16(option_template);
         option_template += 2;
         size_left -= 4;
+
+        if (length > (UINT16_MAX - offset)) {
+            LogError("Process_ipfix: [%u] option template field length exceeds uint16 range", exporter_entry->info.id);
+            free(optionTemplate);
+            return;
+        }
         if (i < scope_field_count) {
+            if (length > (UINT16_MAX - scopeSize)) {
+                LogError("Process_ipfix: [%u] option template scope field length exceeds uint16 range", exporter_entry->info.id);
+                free(optionTemplate);
+                return;
+            }
             scopeSize += length;
             dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
         } else {
@@ -1641,11 +1652,15 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
     size_t data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
     // size of record
     size_t option_size = optionTemplate->optionSize;
+    if (option_size == 0 || option_size > size_left) {
+        LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
     // number of records in data
     unsigned numRecords = size_left / option_size;
     dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter_entry->info.id, numRecords, option_size);
 
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+    if (numRecords == 0) {
         LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
@@ -1786,11 +1801,15 @@ static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSour
     size_t data_size = nameOption->name.length + sizeof(uint32_t);
     // size of record
     size_t option_size = optionTemplate->optionSize;
+    if (option_size == 0 || option_size > size_left) {
+        LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
     // number of records in data
     unsigned numRecords = size_left / option_size;
     dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info.id, numRecords, option_size);
 
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+    if (numRecords == 0) {
         LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
