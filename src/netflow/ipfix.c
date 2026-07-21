@@ -879,6 +879,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
         }
 
         removeTemplate(exporter_entry, id);
+        relinkSequencerList(exporter_entry);
         templateList_t *template = newTemplate(exporter_entry, id);
         if (!template) {
             LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
@@ -986,6 +987,7 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
     }
 
     removeTemplate(exporter_entry, tableID);
+    relinkSequencerList(exporter_entry);
     optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
     if (!optionTemplate) {
         LogError("Error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
