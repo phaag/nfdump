@@ -80,7 +80,8 @@ static inline void AnonExporterInfo(exporter_info_record_t *exporter_record);
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst);
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
+                          dataBlock_t **dataBlockPtr);
 
 /* Functions */
 
@@ -301,7 +302,8 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon
 
 }  // End of AnonRecord
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier) {
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
+                          dataBlock_t **dataBlockPtr) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     char *outFile = NULL;
     char *cfile = NULL;
@@ -311,12 +313,14 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     nffile_t *nffile_w = NULL;
 
     dataBlock_t *nextBlock = NULL;
-    dataBlock_t *dataBlock = NULL;
     // map datablock for workers - all workers
     // process the same block but different records
+    // dataBlockPtr lives in the caller's frame (main()), which outlives every worker
+    // thread - workers only stop dereferencing it once WaitWorkersDone() has joined them
+    *dataBlockPtr = NULL;
     for (int i = 0; i < numWorkers; i++) {
         // set new datablock for all workers
-        workerList[i]->dataBlock = &dataBlock;
+        workerList[i]->dataBlock = dataBlockPtr;
     }
 
     // wait for workers ready to start
@@ -326,8 +330,8 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     int done = 0;
     while (!done) {
         // get next data block
-        dataBlock = nextBlock;
-        if (dataBlock == NULL) {
+        *dataBlockPtr = nextBlock;
+        if (*dataBlockPtr == NULL) {
             // nffile_w is NULL for 1st entry in while loop
             if (nffile_w) {
                 FlushFile(nffile_w);
@@ -384,14 +388,14 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             blk_count++;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
-            dataBlock = WriteBlock(nffile_w, dataBlock);
+        if ((*dataBlockPtr)->type != DATA_BLOCK_TYPE_2 && (*dataBlockPtr)->type != DATA_BLOCK_TYPE_3) {
+            LogError("Can't process block type %u. Write block unmodified", (*dataBlockPtr)->type);
+            *dataBlockPtr = WriteBlock(nffile_w, *dataBlockPtr);
             nextBlock = ReadBlock(nffile_r, NULL);
             continue;
         }
 
-        dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->NumRecords);
+        dbg_printf("Next block: %d, Records: %u\n", blk_count, (*dataBlockPtr)->NumRecords);
         // release workers from barrier
         pthread_control_barrier_release(barrier);
 
@@ -402,15 +406,13 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         pthread_controller_wait(barrier);
 
         // write modified block
-        FlushBlock(nffile_w, dataBlock);
+        FlushBlock(nffile_w, *dataBlockPtr);
 
     }  // while
 
     // done! - signal all workers to terminate
-    dataBlock = NULL;
+    *dataBlockPtr = NULL;
     pthread_control_barrier_release(barrier);
-
-    FreeDataBlock(dataBlock);
 
     if (verbose) LogError("Processed %i files", --cnt);
 
@@ -645,7 +647,10 @@ int main(int argc, char **argv) {
 
     // make stdout unbuffered for progress pointer
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
-    process_data(wfile, verbose, workerList, numWorkers, barrier);
+    // dataBlock is declared here, not inside process_data(), so its lifetime covers the
+    // whole time worker threads may still dereference it - up through WaitWorkersDone()
+    dataBlock_t *dataBlock = NULL;
+    process_data(wfile, verbose, workerList, numWorkers, barrier, &dataBlock);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
