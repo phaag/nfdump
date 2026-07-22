@@ -49,8 +49,8 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "config.h"
 
@@ -63,7 +63,6 @@
 #endif
 
 #include "backend/backend.h"
-#include "nfthread.h"
 #include "collector.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
@@ -82,6 +81,7 @@
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "process/daemon.h"
 #include "process/pidfile.h"
@@ -755,8 +755,7 @@ int main(int argc, char **argv) {
                 if (limitCores > 0) {
                     long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
                     if (onlineCores > 0 && limitCores > (int)onlineCores)
-                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
-                                limitCores, onlineCores, onlineCores);
+                        LogInfo("-W %d exceeds %ld online cores; limitCores will be clamped to %ld", limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'z':
@@ -869,9 +868,9 @@ int main(int argc, char **argv) {
         .hasReaders = false,
         .hasWriters = true,
         .hasWorkers = false,
-        .fixedThreads = 1                                        // collector thread
-            + (repeater_host.hostname != NULL ? 1 : 0)          // repeater thread
-            + ((launch_process != NULL || expire) ? 1 : 0),     // launcher thread
+        .fixedThreads = 1                                                // collector thread
+                        + (repeater_host.hostname != NULL ? 1 : 0)       // repeater thread
+                        + ((launch_process != NULL || expire) ? 1 : 0),  // launcher thread
     };
     threadConfig_t tc = GetThreadConfig(limitCores, compressType, pipeline);
     if (!Init_nffile(tc, NULL)) exit(EXIT_FAILURE);

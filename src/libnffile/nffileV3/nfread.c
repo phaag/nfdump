@@ -458,11 +458,24 @@ nffileV3_t *mmapFileV3(const char *filename) {
 
     // Per-file reader count: uses the actual file codec so that e.g. a ZSTD
     // file opened by a program configured for LZ4 output still gets the right
-    // number of decompression threads.  threadConfig was set at startup by
-    // Init_nffile  (writers for TRANSFORM, filters for ANALYZE, 0 for WRITE_ONLY).
-    uint32_t numReaders = DeriveReaderCount(threadConfig.readerRef, fileHeader->compression);
+    // number of decompression threads.  The reference count (what readers must
+    // keep supplied) is derived from the role: ANALYZE→filters, TRANSFORM→writers.
+    // A hard threads.readers conf override bypasses the formula entirely.
+    uint32_t numReaders;
+    if (threadConfig.readersOverride) {
+        numReaders = threadConfig.readers;
+    } else {
+        uint32_t ref;
+        switch (threadConfig.role) {
+            case TC_ROLE_ANALYZE:   ref = threadConfig.filters > 0 ? threadConfig.filters : 1; break;
+            case TC_ROLE_TRANSFORM: ref = threadConfig.writers > 0 ? threadConfig.writers : threadConfig.filters; break;
+            default:                ref = 0; break;
+        }
+        numReaders = DeriveReaderCount(ref, fileHeader->compression);
+    }
     if (blockDirectory->numEntries > 0 && numReaders > blockDirectory->numEntries) numReaders = blockDirectory->numEntries;
-    LogVerbose("mmapFileV3: %u reader threads (readerRef=%u codec=%u)", numReaders, threadConfig.readerRef, fileHeader->compression);
+    LogVerbose("mmapFileV3: %u reader threads (role=%u codec=%u override=%u)", numReaders, threadConfig.role, fileHeader->compression,
+               threadConfig.readersOverride);
 
     nffileV3_t *nffile = NewFile(numReaders, DefaultQueueSize);
     if (!nffile) {
@@ -478,7 +491,7 @@ nffileV3_t *mmapFileV3(const char *filename) {
     nffile->fileName = strdup(filename);
     nffile->fileHeader = fileHeader;
     nffile->compression = fileHeader->compression;
-    nffile->fileFooter = NULL; /* footer was read into a local buffer; not stored in mmap */
+    nffile->fileFooter = NULL;  // footer was read into a local buffer; not stored in mmap
     nffile->blockDirectory = blockDirectory;
 
     nffile->stat_record = calloc(1, sizeof(stat_record_t));

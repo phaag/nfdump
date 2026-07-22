@@ -38,10 +38,9 @@
 # the command line: -x threads.writers=6
 #
 # readers  — nfreader decompression threads per input file.
-#            Auto-derived at file-open time as round(readerRef / C) where
-#            C is the codec's compress/decompress time ratio:
-#              LZ4≈2, ZSTD≈5, BZ2≈3, LZO≈2.5
-#            readerRef is writers (TRANSFORM) or filters (ANALYZE).
+#            Auto-derived at file-open time as round(ref / C) where C is the
+#            codec's compress/decompress time ratio (LZ4≈2, ZSTD≈5, BZ2≈3,
+#            LZO≈2.5) and ref is writers (TRANSFORM) or filters (ANALYZE).
 #readers = 0
 
 # writers  — nfwriter compression threads per output file.
@@ -59,25 +58,10 @@
 #filters = 0
 
 [nfdump]
-# Thread budget split for TC_ROLE_ANALYZE.
-# filterFraction: integer percentage (0–100) controlling the filter/reader split.
-# Write+filter run (-w/-J): this fraction of the budget goes to filter workers;
-#   readers are auto-derived; writers receive the remainder.
-# Read-only run (no -w): overrides the default codec-calibrated C/(1+C) split
-#   between filter workers and readers; spare cores (budget minus filters minus
-#   derived readers) are left idle.
-# Default: unconfigured (50% for write+filter; C/(1+C) for read-only).
-# Raise to 60–70 for large or complex filter expressions.
-#
-# Example: budget=12 cores, LZ4, filterFraction=50
-#   write+filter:  filters=6  readers=3  writers=3
-#   read-only:     filters=6  readers=3
-
 [nfdump.threads]
-#filterFraction = 50
-#readers = 0   # override if DeriveReaderCount gives wrong count for your workload
+#readers = 0
 #writers = 0
-#filters = 0   # sets filter thread count directly, ignoring filterFraction
+#filters = 0
 
 # format definitions
 
@@ -155,26 +139,20 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 
 
 [nfanon]
-# TC_ROLE_TRANSFORM: budget split among anonymization workers, nffile readers,
-# and nffile writers.  The anonymization worker count is workerFraction% of
-# the budget; the rest is split between readers and writers by codec ratio.
-# Example: budget=12, LZ4, workerFraction=20 → workers=2 readers=3 writers=7
+# TC_ROLE_TRANSFORM: budget split among anonymization workers (20%), nffile
+# readers, and nffile writers.  Use threads.filters to override the worker count.
+# Example: budget=12, LZ4 → workers=2 readers=3 writers=7
 
 [nfanon.threads]
-# workerFraction: integer percentage (0–100) of budget for anonymization workers.
-# Default 20.  Raise if anonymization is the bottleneck (software AES, no AES-NI).
-#workerFraction = 20
 #readers = 0
 #writers = 0
 #filters = 0   # same as workers for TRANSFORM role
 
 [nfmeta]
-# TC_ROLE_TRANSFORM: same budget split as nfanon.
-# Processing (bloom filter updates) is very fast; worker threads mainly
-# serve to overlap I/O.  The default 20% worker fraction is usually fine.
-# Example: budget=12, LZ4, workerFraction=20 → workers=2 readers=3 writers=7
+# TC_ROLE_TRANSFORM: same budget split as nfanon (20% workers).
+# Bloom-filter updates are very fast relative to LZ4 compression.
 
 [nfmeta.threads]
-#workerFraction = 20
 #readers = 0
 #writers = 0
+#filters = 0

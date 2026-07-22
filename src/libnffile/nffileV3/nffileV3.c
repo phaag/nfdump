@@ -60,8 +60,8 @@ static _Atomic int blocksInUse;
 
 // defaults - need to be overwritten by Init_nffile
 threadConfig_t threadConfig = {
+    .role = TC_ROLE_ANALYZE,
     .workers = 2,
-    .readerRef = 1,
 };
 
 static queue_t *fileQueue = NULL;

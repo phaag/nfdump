@@ -47,11 +47,11 @@ typedef _Atomic int spinlock_t;
  * Other       : falls back to a no-op (correct, slightly sub-optimal).
  */
 #if defined(__x86_64__) || defined(__i386__)
-#  define cpu_relax() __asm__ volatile("pause" ::: "memory")
+#define cpu_relax() __asm__ volatile("pause" ::: "memory")
 #elif defined(__aarch64__)
-#  define cpu_relax() __asm__ volatile("yield" ::: "memory")
+#define cpu_relax() __asm__ volatile("yield" ::: "memory")
 #else
-#  define cpu_relax() ((void)0)
+#define cpu_relax() ((void)0)
 #endif
 
 /*
@@ -66,19 +66,15 @@ typedef _Atomic int spinlock_t;
  * it released the lock.  The failure order is memory_order_relaxed because no
  * ordering guarantee is needed when we did not acquire anything.
  */
-#define spin_lock(lck)                                                          \
-    do {                                                                        \
-        for (;;) {                                                              \
-            if (atomic_load_explicit(&(lck), memory_order_relaxed) == 0) {     \
-                int zero = 0;                                                   \
-                if (atomic_compare_exchange_weak_explicit(                      \
-                        &(lck), &zero, 1,                                       \
-                        memory_order_acquire,                                   \
-                        memory_order_relaxed))                                  \
-                    break;                                                      \
-            }                                                                   \
-            cpu_relax();                                                        \
-        }                                                                       \
+#define spin_lock(lck)                                                                                                          \
+    do {                                                                                                                        \
+        for (;;) {                                                                                                              \
+            if (atomic_load_explicit(&(lck), memory_order_relaxed) == 0) {                                                      \
+                int zero = 0;                                                                                                   \
+                if (atomic_compare_exchange_weak_explicit(&(lck), &zero, 1, memory_order_acquire, memory_order_relaxed)) break; \
+            }                                                                                                                   \
+            cpu_relax();                                                                                                        \
+        }                                                                                                                       \
     } while (0)
 
 /*

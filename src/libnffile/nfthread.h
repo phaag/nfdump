@@ -68,7 +68,7 @@ typedef enum {
     TC_ROLE_ANALYZE,
 } tcRole_t;
 
-typedef struct {
+typedef struct threadPipeline_s {
     tcRole_t role;
     bool hasReaders;
     bool hasWriters;
@@ -79,30 +79,29 @@ typedef struct {
 /*
  * Per-role thread counts returned by GetThreadConfig().
  *
+ * role       program role — tells mmapFileV3 how to derive the per-file
+ *            reader count from the live writers/filters values:
+ *              WRITE_ONLY → readers = 0
+ *              TRANSFORM  → ref = writers  (readers balance against compressors)
+ *              ANALYZE    → ref = filters  (readers balance against filter workers)
  * writers    nfwriter compression threads  (→ InitNewFileV3 / NumWorkers)
  * filters    application worker threads:
  *              ANALYZE    → filter workers
  *              TRANSFORM  → anonymization / bloom workers
  *              WRITE_ONLY → 0
  * readers    estimated at startup; authoritative count recomputed per-file
- *            by DeriveReaderCount(readerRef, actualFileCompression)
- * readerRef  thread count that readers must balance against:
- *              WRITE_ONLY → 0   (no readers used)
- *              TRANSFORM  → writers
- *              ANALYZE    → filters
- *            Stored globally as NumReaderRef; read by mmapFileV3.
+ *            by DeriveReaderCount(ref, actualFileCompression)
  * workers    = writers  (backward-compat alias)
  * *Override  set when the matching threads.* key forced that count
  */
 typedef struct {
+    tcRole_t role;
     uint32_t readers;
     uint32_t writers;
     uint32_t filters;
     uint32_t workers;   /* = writers */
-    uint32_t readerRef; /* counterpart for DeriveReaderCount() */
     uint8_t readersOverride;
     uint8_t writersOverride;
-    uint8_t filtersOverride;
 } threadConfig_t;
 
 /* --- function prototypes ------------------------------------------------- */

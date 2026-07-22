@@ -139,6 +139,7 @@ static void usage(char *name) {
         "usage %s [options] [\"filter\"]\n"
         "-h\t\tthis text you see right here\n"
         "-V\t\tPrint version and exit.\n"
+        "-l <num>\tSet log level: 0=none, 1=standard, 2=verbose.\n"
         "-a\t\tAggregate netflow data.\n"
         "-A <expr>[/net]\tHow to aggregate: ',' sep list of tags see nfdump(1)\n"
         "\t\tor subnet aggregation: srcip4/24, srcip6/64.\n"
@@ -616,7 +617,8 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     // Queue depth: power-of-2, at least 8, scales with worker count so the
     // prepare thread can stay ahead of the filter workers.
     uint32_t prepQDepth = 8;
-    if (engine) while (prepQDepth < numWorkers * 4) prepQDepth <<= 1;
+    if (engine)
+        while (prepQDepth < numWorkers * 4) prepQDepth <<= 1;
     prepareArgs_t prepareArgs = {.outQueue = queue_init(prepQDepth), .engine = engine};
     pthread_t tidPrepare;
     int err = pthread_create(&tidPrepare, NULL, prepareThread, (void *)&prepareArgs);
@@ -1081,8 +1083,7 @@ int main(int argc, char **argv) {
                 if (limitCores > 0) {
                     long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
                     if (onlineCores > 0 && limitCores > (int)onlineCores)
-                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
-                                limitCores, onlineCores, onlineCores);
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld", limitCores, onlineCores, onlineCores);
                 }
                 break;
             case '6':  // print long IPv6 addr

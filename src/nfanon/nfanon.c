@@ -627,8 +627,6 @@ int main(int argc, char **argv) {
         .fixedThreads = 1,    // main process_data() loop thread
     };
     threadConfig_t threadConfig = GetThreadConfig(limitCores, UNDEF_COMPRESSED, pipeline);
-    // tc.filters = anonymization worker count; tc.writers drives nffile writers;
-    // tc.readerRef = tc.writers so DeriveReaderCount balances readers vs writers.
     int numWorkers = (int)threadConfig.filters;
 
     queue_t *fileList = SetupInputFileSequence(&flist);
