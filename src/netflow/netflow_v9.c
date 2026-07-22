@@ -1070,6 +1070,12 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
                 break;
         }
 
+        // sanity check - prevent loop forever without ever consuming size_left
+        if (sequencer->inLength == 0) {
+            LogError("Process_v9: [%u] zero length data record. Skip record processing", exporter_entry->info.id);
+            return;
+        }
+
         dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %zu, outLength: %zu\n", recordHeaderV3->numElements,
                    recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
 

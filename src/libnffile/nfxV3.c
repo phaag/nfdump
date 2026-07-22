@@ -202,7 +202,7 @@ static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, const void 
         while (inLength > 4) {
             uint16_t subTemplateID = ntohs(*((uint16_t *)inBuff));
             uint16_t subTemplateSize = ntohs(*((uint16_t *)(inBuff + 2)));
-            if (subTemplateSize > inLength) return SEQ_ERROR;
+            if (subTemplateSize == 0 || subTemplateSize > inLength) return SEQ_ERROR;
 
             dbg_printf(" Sub template ID: %u, length: %u\n", subTemplateID, subTemplateSize);
             sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, subTemplateID);
