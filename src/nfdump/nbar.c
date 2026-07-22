@@ -80,9 +80,9 @@ static kh_inline khint_t __HashFunc(const AppInfoHash_t record) {
 KHASH_INIT(NbarAppInfoHash, AppInfoHash_t, char, 0, __HashFunc, __HashEqual)
 static khash_t(NbarAppInfoHash) *NbarAppInfoHash = NULL;
 
-static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
+static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData, size_t available) {
     size_t dataSize = nbarAppInfo->app_id_length + nbarAppInfo->app_name_length + nbarAppInfo->app_desc_length;
-    if (dataSize == 0 || dataSize > 4096) {
+    if (dataSize == 0 || dataSize > 4096 || dataSize > available) {
         LogError("InsertNbarAppInfo(): in %s line %d: data size error %zu", __FILE__, __LINE__, dataSize);
         return;
     }
@@ -117,17 +117,28 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
  */
 static int AddOldNbarRecord(arrayRecordHeader_t *nbarRecord) {
     dbg_printf("Old nbar record:\n");
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
+    if (nbarRecord->size < sizeof(arrayRecordHeader_t)) return 0;
+
+    uint8_t *cursor = (uint8_t *)nbarRecord + sizeof(arrayRecordHeader_t);
+    size_t available = nbarRecord->size - sizeof(arrayRecordHeader_t);
     for (int i = 0; i < nbarRecord->numElements; i++) {
+        if (available < sizeof(elementHeader_t)) return 0;
+        elementHeader_t *elementHeader = (elementHeader_t *)cursor;
+        if (elementHeader->length < sizeof(elementHeader_t) || elementHeader->length > available) return 0;
+
+        size_t payloadSize = elementHeader->length - sizeof(elementHeader_t);
         switch (elementHeader->type) {
             case NbarAppInfoID: {
+                if (payloadSize < sizeof(NbarAppInfo_t)) return 0;
                 NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
-                InsertNbarAppInfo(NbarAppInfo, nbarData);
+                InsertNbarAppInfo(NbarAppInfo, nbarData, payloadSize - sizeof(NbarAppInfo_t));
             } break;
             default:
                 printf("Unknown nbar element id: %u\n", elementHeader->type);
         }
+        cursor += elementHeader->length;
+        available -= elementHeader->length;
     }
 
     return 0;
@@ -146,10 +157,21 @@ int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     // old buggy nbarRecord
     if (nbarRecord->elementSize == 0) return AddOldNbarRecord(nbarRecord);
 
+    size_t headerSize = sizeof(arrayRecordHeader_t) + sizeof(NbarAppInfo_t);
+    if (nbarRecord->size < headerSize) {
+        LogError("Nbar array record too short: %u", nbarRecord->size);
+        return 0;
+    }
+    size_t available = nbarRecord->size - headerSize;
+    if (nbarRecord->numElements > available / nbarRecord->elementSize) {
+        LogError("Nbar array exceeds record size");
+        return 0;
+    }
+
     NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
     uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
     for (int i = 0; i < nbarRecord->numElements; i++) {
-        InsertNbarAppInfo(NbarAppInfo, nbarData);
+        InsertNbarAppInfo(NbarAppInfo, nbarData, nbarRecord->elementSize);
         nbarData += nbarRecord->elementSize;
     }
 

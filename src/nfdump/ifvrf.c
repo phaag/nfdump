@@ -54,7 +54,38 @@ KBTREE_INIT(vrfTree, nameNode_t, nodeCMP)
 static kbtree_t(ifTree) *ifTree = NULL;
 static kbtree_t(vrfTree) *vrfTree = NULL;
 
+static int ValidNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
+    size_t headerSize = sizeof(arrayRecordHeader_t) + sizeof(uint32_t);
+    if (arrayRecordHeader->size < headerSize) {
+        LogError("Name array record too short: %u", arrayRecordHeader->size);
+        return 0;
+    }
+    if (arrayRecordHeader->numElements == 0) return 1;
+    if (arrayRecordHeader->elementSize < sizeof(uint32_t) + 1) {
+        LogError("Name array element too short: %u", arrayRecordHeader->elementSize);
+        return 0;
+    }
+
+    size_t available = arrayRecordHeader->size - headerSize;
+    if (arrayRecordHeader->numElements > available / arrayRecordHeader->elementSize) {
+        LogError("Name array exceeds record size");
+        return 0;
+    }
+
+    uint8_t *element = (uint8_t *)arrayRecordHeader + headerSize;
+    size_t nameSize = arrayRecordHeader->elementSize - sizeof(uint32_t);
+    for (uint16_t i = 0; i < arrayRecordHeader->numElements; i++) {
+        if (!memchr(element + sizeof(uint32_t), '\0', nameSize)) {
+            LogError("Name array element is not terminated");
+            return 0;
+        }
+        element += arrayRecordHeader->elementSize;
+    }
+    return 1;
+}
+
 int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
+    if (!ValidNameRecord(arrayRecordHeader)) return 0;
     if (ifTree == NULL) {
         ifTree = kb_init(ifTree, KB_DEFAULT_SIZE);
         if (!ifTree) {
@@ -88,6 +119,7 @@ int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
 }  // End of AddIfNameRecord
 
 int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
+    if (!ValidNameRecord(arrayRecordHeader)) return 0;
     if (vrfTree == NULL) {
         vrfTree = kb_init(vrfTree, KB_DEFAULT_SIZE);
         if (!vrfTree) {
