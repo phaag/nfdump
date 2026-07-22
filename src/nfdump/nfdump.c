@@ -520,7 +520,16 @@ static void *filterThread(void *arg) {
         recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t matched = 0;
         uint32_t dataRecords = 0;
+        uint32_t sumSize = 0;
+        uint32_t available = dataBlock->rawSize > sizeof(flowBlockV3_t) ? dataBlock->rawSize - sizeof(flowBlockV3_t) : 0;
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
+            // sanity check
+            if (record_ptr->size < sizeof(recordHeader_t) || (sumSize + record_ptr->size) > available) {
+                LogError("Corrupt data file: invalid record size %u at record %" PRIu64, record_ptr->size, recordCounter);
+                break;
+            }
+            sumSize += record_ptr->size;
+
             processedRecords++;
             recordCounter++;
 
@@ -689,7 +698,16 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             free(dataHandle);
             continue;
         }
+        uint32_t sumSize = 0;
+        uint32_t available = dataBlock->rawSize > sizeof(flowBlockV3_t) ? dataBlock->rawSize - sizeof(flowBlockV3_t) : 0;
         for (int i = 0; i < (int)dataBlock->numRecords && !abortProcessing; i++) {
+            // sanity check
+            if (record_ptr->size < sizeof(recordHeader_t) || (sumSize + record_ptr->size) > available) {
+                LogError("Corrupt data file: invalid record size %u at record %" PRIu64, record_ptr->size, recordCounter);
+                break;
+            }
+            sumSize += record_ptr->size;
+
             recordCounter++;
             // process records
             switch (record_ptr->type) {

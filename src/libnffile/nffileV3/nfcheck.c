@@ -418,6 +418,13 @@ int VerifyFileV3(const char *filename, int verbose) {
             blockCheckFailed = 1;
             break;
         }
+
+        // Verify potential corrupted discSize
+        if ((off_t)dataBlock->discSize > (scanEnd - nextOffset)) {
+            printf("Block %u: payload size %u extends beyond file at offset %jd\n", totalBlocks, dataBlock->discSize, (intmax_t)nextOffset);
+            blockCheckFailed = 1;
+            break;
+        }
         // raw blocksize
         if (dataBlock->rawSize > blockSizeFound) {
             blockSizeFound = dataBlock->rawSize;
