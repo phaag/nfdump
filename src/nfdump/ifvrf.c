@@ -55,7 +55,41 @@ KBTREE_INIT(vrfTree, nameNode_t, nodeCMP)
 static kbtree_t(ifTree) *ifTree = NULL;
 static kbtree_t(vrfTree) *vrfTree = NULL;
 
+// numElements * elementSize must fit in the block, and each element's name field must be
+// NUL-terminated within its slot - both are attacker/corruption-controlled on a loaded file,
+// and are later fed to strdup() without any length bound
+static int ValidNameBlock(arrayBlockV3_t *arrayBlock) {
+    size_t headerSize = sizeof(arrayBlockV3_t);
+    if (arrayBlock->rawSize < headerSize) {
+        LogError("Name array block too short: %u", arrayBlock->rawSize);
+        return 0;
+    }
+    if (arrayBlock->numElements == 0) return 1;
+    if (arrayBlock->elementSize < sizeof(uint32_t) + 1) {
+        LogError("Name array element too short: %u", arrayBlock->elementSize);
+        return 0;
+    }
+
+    size_t available = arrayBlock->rawSize - headerSize;
+    if (arrayBlock->numElements > available / arrayBlock->elementSize) {
+        LogError("Name array exceeds block size");
+        return 0;
+    }
+
+    uint8_t *element = ResetCursor(arrayBlock);
+    size_t nameSize = arrayBlock->elementSize - sizeof(uint32_t);
+    for (uint32_t i = 0; i < arrayBlock->numElements; i++) {
+        if (!memchr(element + sizeof(uint32_t), '\0', nameSize)) {
+            LogError("Name array element is not terminated");
+            return 0;
+        }
+        element += arrayBlock->elementSize;
+    }
+    return 1;
+}  // End of ValidNameBlock
+
 int AddIfNameRecords(arrayBlockV3_t *arrayBlock) {
+    if (!ValidNameBlock(arrayBlock)) return 0;
     if (ifTree == NULL) {
         ifTree = kb_init(ifTree, KB_DEFAULT_SIZE);
         if (!ifTree) {
@@ -88,6 +122,7 @@ int AddIfNameRecords(arrayBlockV3_t *arrayBlock) {
 }  // End of AddIfNameRecord
 
 int AddVrfNameRecords(arrayBlockV3_t *arrayBlock) {
+    if (!ValidNameBlock(arrayBlock)) return 0;
     if (vrfTree == NULL) {
         vrfTree = kb_init(vrfTree, KB_DEFAULT_SIZE);
         if (!vrfTree) {

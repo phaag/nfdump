@@ -80,14 +80,19 @@ static kh_inline khint_t __HashFunc(const AppInfoHash_t record) {
 KHASH_INIT(NbarAppInfoHash, AppInfoHash_t, char, 0, __HashFunc, __HashEqual)
 static khash_t(NbarAppInfoHash) *NbarAppInfoHash = NULL;
 
-static void InsertNbarAppInfo(uint8_t *nbarData) {
+static void InsertNbarAppInfo(uint8_t *nbarData, size_t available) {
+    if (available < 3) {
+        LogError("InsertNbarAppInfo(): in %s line %d: element too small for length header", __FILE__, __LINE__);
+        return;
+    }
     uint32_t idLen = nbarData[0];
     uint32_t nameLen = nbarData[1];
     uint32_t descLen = nbarData[2];
     nbarData += 3;
+    available -= 3;
 
     size_t dataSize = idLen + nameLen + descLen;
-    if (dataSize == 0 || dataSize > 4096) {
+    if (dataSize == 0 || dataSize > 4096 || dataSize > available) {
         LogError("InsertNbarAppInfo(): in %s line %d: data size error %zu", __FILE__, __LINE__, dataSize);
         return;
     }
@@ -145,9 +150,19 @@ int AddNbarRecords(arrayBlockV3_t *arrayBlock) {
         }
     }
 
+    if (arrayBlock->rawSize < sizeof(arrayBlockV3_t)) {
+        LogError("Nbar array block too short: %u", arrayBlock->rawSize);
+        return 0;
+    }
+    size_t available = arrayBlock->rawSize - sizeof(arrayBlockV3_t);
+    if (arrayBlock->elementSize == 0 || arrayBlock->numElements > available / arrayBlock->elementSize) {
+        LogError("Nbar array exceeds block size");
+        return 0;
+    }
+
     uint8_t *nbarData = ResetCursor(arrayBlock);
     for (int i = 0; i < (int)arrayBlock->numElements; i++) {
-        InsertNbarAppInfo(nbarData);
+        InsertNbarAppInfo(nbarData, arrayBlock->elementSize);
         nbarData += arrayBlock->elementSize;
     }
 
