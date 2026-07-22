@@ -67,6 +67,13 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
         LogError("Corrupt data file. Extension map id %u too big.\n", commonRecord->ext_map);
         return 0;
     }
+    // a CommonRecordType record can appear before any ExtensionMapType record has been
+    // seen (attacker-controlled record order) - extension_map_list is only allocated by
+    // InitCompat16() once the first map record is processed
+    if (extension_map_list == NULL) {
+        LogError("Corrupt data file. Missing extension map %u. Skip record.\n", commonRecord->ext_map);
+        return 0;
+    }
     if (extension_map_list->slot[map_id] == NULL) {
         LogError("Corrupt data file. Missing extension map %u. Skip record.\n", commonRecord->ext_map);
         return 0;
