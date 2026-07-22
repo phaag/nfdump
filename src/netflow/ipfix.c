@@ -692,6 +692,9 @@ static void removeAllTemplates(exporter_entry_t *exporter_entry) {
         template = next;
     }
 
+    exporter_ipfix->template = NULL;
+    exporter_ipfix->currentTemplate = NULL;
+
 }  // End of removeAllTemplates
 
 static void relinkSequencerList(exporter_entry_t *exporter_entry) {
