@@ -1447,6 +1447,15 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
     if (align) {
         elementSize += 4 - align;
     }
+
+    size_t maxRecords = (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(NbarAppInfo_t)) / elementSize;
+    if ((size_t)numRecords > maxRecords) {
+        LogError("Process_nbar_option: [%u] nbar record count %d would overflow array header - truncating to %zu", exporter_entry->info.id,
+                 numRecords, maxRecords);
+        numRecords = (int)maxRecords;
+        size_left = (uint32_t)((size_t)numRecords * option_size);
+    }
+
     size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(NbarAppInfo_t) + numRecords * elementSize;
     dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
@@ -1582,6 +1591,15 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     if (align) {
         elementSize += 4 - align;
     }
+
+    size_t maxRecords = (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(uint32_t)) / elementSize;
+    if ((size_t)numRecords > maxRecords) {
+        LogError("Process_ifvrf_option: [%u] name record count %d would overflow array header - truncating to %zu", exporter_entry->info.id,
+                 numRecords, maxRecords);
+        numRecords = (int)maxRecords;
+        size_left = (uint32_t)((size_t)numRecords * option_size);
+    }
+
     size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
     dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 

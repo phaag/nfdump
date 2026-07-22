@@ -110,12 +110,12 @@ typedef struct arrayRecordHeader_s {
     x##_t *v = (x##_t *)((void *)h + h->size); \
     memset(v, 0, s);                           \
     h->numElements++;                          \
-    h->size += s;
+    h->size = ((uint32_t)h->size + (s) > UINT16_MAX) ? UINT16_MAX : h->size + (s);
 
 #define PushArrayNextElement(h, p, t) \
     p = (t *)((void *)h + h->size);   \
     h->numElements++;                 \
-    h->size += h->elementSize;
+    h->size = ((uint32_t)h->size + h->elementSize > UINT16_MAX) ? UINT16_MAX : h->size + h->elementSize;
 
 /*
  * Extension element header
