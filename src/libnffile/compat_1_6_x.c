@@ -108,7 +108,11 @@ int Convert_v1fileHeader(nffile_t *nffile, const char *filename, struct stat *st
     nffile->compression_level = 0;
     nffile->file_header->encryption = NOT_ENCRYPTED;
     nffile->file_header->NumBlocks = fileHeaderV1.NumBlocks;
-    if (strlen(fileHeaderV1.ident) > 0) nffile->ident = strdup(fileHeaderV1.ident);
+
+    // fileHeaderV1.ident is a fixed-size array read directly from the file with no
+    // guarantee it is NUL-terminated - bound the scan and the copy to its actual size
+    size_t identLen = strnlen(fileHeaderV1.ident, sizeof(fileHeaderV1.ident));
+    if (identLen > 0) nffile->ident = strndup(fileHeaderV1.ident, identLen);
 
     // read v1 stat record
     stat_recordV1_t stat_recordV1;
