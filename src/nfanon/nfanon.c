@@ -47,7 +47,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
@@ -58,6 +57,7 @@
 #include "nfconf.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "panonymizer.h"
 #include "util.h"
@@ -84,7 +84,8 @@ static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record);
 
 static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst);
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
+                         flowBlockV3_t **dataBlockPtr);
 
 /* Functions */
 
@@ -285,7 +286,8 @@ static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon
 
 }  // End of AnonRecord
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier) {
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
+                         flowBlockV3_t **dataBlockPtr) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     char *outFile = NULL;
     char *cfile = NULL;
@@ -295,12 +297,14 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     nffileV3_t *nffile_w = NULL;
 
     flowBlockV3_t *nextBlock = NULL;
-    flowBlockV3_t *dataBlock = NULL;
     // map datablock for workers - all workers
     // process the same block but different records
+    // dataBlockPtr lives in the caller's frame (main()), which outlives every worker
+    // thread - workers only stop dereferencing it once WaitWorkersDone() has joined them
+    *dataBlockPtr = NULL;
     for (int i = 0; i < numWorkers; i++) {
         // set new datablock for all workers
-        workerList[i]->dataBlock = &dataBlock;
+        workerList[i]->dataBlock = dataBlockPtr;
     }
 
     // wait for workers ready to start
@@ -310,8 +314,8 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     int done = 0;
     while (!done) {
         // get next data block
-        dataBlock = nextBlock;
-        if (dataBlock == NULL) {
+        *dataBlockPtr = nextBlock;
+        if (*dataBlockPtr == NULL) {
             // nffile_w is NULL for 1st entry in while loop
             if (nffile_w) {
                 FlushFileV3(nffile_w);
@@ -370,15 +374,15 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             blk_count++;
         }
 
-        if (dataBlock->type != BLOCK_TYPE_FLOW) {
-            LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
-            PushBlockV3(nffile_w->processQueue, dataBlock);
-            InitDataBlock(dataBlock, nffile_w->fileHeader->blockSize);
+        if ((*dataBlockPtr)->type != BLOCK_TYPE_FLOW) {
+            LogError("Can't process block type %u. Write block unmodified", (*dataBlockPtr)->type);
+            PushBlockV3(nffile_w->processQueue, *dataBlockPtr);
+            InitDataBlock(*dataBlockPtr, nffile_w->fileHeader->blockSize);
             nextBlock = ReadBlockV3(nffile_r);
             continue;
         }
 
-        dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->numRecords);
+        dbg_printf("Next block: %d, Records: %u\n", blk_count, (*dataBlockPtr)->numRecords);
         // release workers from barrier
         pthread_control_barrier_release(barrier);
 
@@ -389,15 +393,13 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         pthread_controller_wait(barrier);
 
         // write modified block
-        PushBlockV3(nffile_w->processQueue, dataBlock);
+        PushBlockV3(nffile_w->processQueue, *dataBlockPtr);
 
     }  // while
 
     // done! - signal all workers to terminate
-    dataBlock = NULL;
+    *dataBlockPtr = NULL;
     pthread_control_barrier_release(barrier);
-
-    FreeDataBlock(dataBlock);
 
     if (verbose) LogError("Processed %i files", --cnt);
 
@@ -419,7 +421,7 @@ static void *worker_thread(void *arg) {
         uint32_t recordCount = 0;
 
         uint32_t start = ((uint32_t)self * dataBlock->numRecords) / (uint32_t)numWorkers;
-        uint32_t end   = ((uint32_t)(self + 1) * dataBlock->numRecords) / (uint32_t)numWorkers;
+        uint32_t end = ((uint32_t)(self + 1) * dataBlock->numRecords) / (uint32_t)numWorkers;
 
         recordHeader_t *record_ptr = ResetCursor(dataBlock);
         uint32_t sumSize = 0;
@@ -589,8 +591,7 @@ int main(int argc, char **argv) {
                 if (limitCores > 0) {
                     long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
                     if (onlineCores > 0 && limitCores > (int)onlineCores)
-                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
-                                limitCores, onlineCores, onlineCores);
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld", limitCores, onlineCores, onlineCores);
                 }
                 break;
             default:
@@ -621,10 +622,10 @@ int main(int argc, char **argv) {
     // assumes LZ4 (the most common codec) for the startup I/O split.
     threadPipeline_t pipeline = {
         .role = TC_ROLE_TRANSFORM,
-        .hasReaders = true,   // nffile reader threads decompress input
-        .hasWriters = true,   // nffile writer threads compress output
-        .hasWorkers = true,   // anonymization worker threads
-        .fixedThreads = 1,    // main process_data() loop thread
+        .hasReaders = true,  // nffile reader threads decompress input
+        .hasWriters = true,  // nffile writer threads compress output
+        .hasWorkers = true,  // anonymization worker threads
+        .fixedThreads = 1,   // main process_data() loop thread
     };
     threadConfig_t threadConfig = GetThreadConfig(limitCores, UNDEF_COMPRESSED, pipeline);
     int numWorkers = (int)threadConfig.filters;
@@ -649,7 +650,9 @@ int main(int argc, char **argv) {
 
     // make stdout unbuffered for progress pointer
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
-    process_data(wfile, verbose, workerList, numWorkers, barrier);
+    // dataBlock for all workers
+    flowBlockV3_t *dataBlock = NULL;
+    process_data(wfile, verbose, workerList, numWorkers, barrier, &dataBlock);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
