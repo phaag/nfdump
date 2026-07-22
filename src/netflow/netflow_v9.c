@@ -1042,7 +1042,22 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
             p = p + 2;
             uint16_t length = Get_val16(p);
             p = p + 2;
+
+            // offset/scopeSize are uint16_t and accumulate attacker-controlled field lengths;
+            // reject templates that would wrap them, since a wrapped (too small) optionSize
+            // no longer upper-bounds the individual field lengths recorded below, which are
+            // later used unchecked as memcpy()/read lengths against the received data set
+            if (length > (uint16_t)(UINT16_MAX - offset)) {
+                LogError("Process_v9: [%u] option template field length exceeds uint16 range", exporter_entry->info->id);
+                free(optionTemplate);
+                return;
+            }
             if (i < (int)nr_scopes) {
+                if (length > (uint16_t)(UINT16_MAX - scopeSize)) {
+                    LogError("Process_v9: [%u] option template scope field length exceeds uint16 range", exporter_entry->info->id);
+                    free(optionTemplate);
+                    return;
+                }
                 scopeSize += length;
                 dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
             } else {
@@ -1631,11 +1646,15 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
     size_t data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
     // size of record
     size_t option_size = optionTemplate->optionSize;
+    if (option_size == 0 || option_size > size_left) {
+        LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
     // number of records in data
     int numRecords = size_left / option_size;
     dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
 
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+    if (numRecords == 0) {
         LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
@@ -1784,11 +1803,15 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
     // size of record
     size_t option_size = optionTemplate->optionSize;
+    if (option_size == 0 || option_size > size_left) {
+        LogError("Process_ifvrf_option: option size error: option size: %zu, size left: %u", option_size, size_left);
+        return;
+    }
     // number of records in data
     int numRecords = size_left / option_size;
     dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter_entry->info->id, numRecords, option_size);
 
-    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+    if (numRecords == 0) {
         LogError("Process_ifvrf_option: option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
