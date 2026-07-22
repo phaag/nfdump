@@ -572,8 +572,28 @@ static int ReadAppendix(nffile_t *nffile) {
         }
         void *buff_ptr = (void *)((void *)block_header + sizeof(dataBlock_t));
 
+        // fast-reject a NumRecords that can't possibly fit
+        // when the block declares an absurd record count
+        if (block_header->NumRecords > block_header->size / sizeof(record_header_t)) {
+            LogError("Error processing appendix records: NumRecords %u exceeds block size %u", block_header->NumRecords, block_header->size);
+            FreeDataBlock(block_header);
+            return 0;
+        }
+
         for (int j = 0; j < (int)block_header->NumRecords; j++) {
+            if (processed + sizeof(record_header_t) > block_header->size) {
+                LogError("Error processing appendix records: record header exceeds block size");
+                FreeDataBlock(block_header);
+                return 0;
+            }
             record_header_t *record_header = (record_header_t *)buff_ptr;
+
+            // sanity check
+            if (record_header->size < sizeof(record_header_t) || processed + record_header->size > block_header->size) {
+                LogError("Error processing appendix records: invalid record size %u", record_header->size);
+                FreeDataBlock(block_header);
+                return 0;
+            }
             void *data = (void *)record_header + sizeof(record_header_t);
             uint16_t dataSize = record_header->size - sizeof(record_header_t);
             dbg_printf("appendix record: %u - type: %u, size: %u\n", j, record_header->type, record_header->size);
@@ -581,7 +601,9 @@ static int ReadAppendix(nffile_t *nffile) {
                 case TYPE_IDENT:
                     dbg_printf("Read ident from appendix block\n");
                     if (nffile->ident) free(nffile->ident);
-                    if (record_header->size < IDENTLEN) {
+                    // require the string to be NUL-terminated within its own declared data,
+                    // otherwise strdup() would read past this record looking for one
+                    if (record_header->size < IDENTLEN && dataSize > 0 && memchr(data, '\0', dataSize)) {
                         nffile->ident = strdup(data);
                     } else {
                         nffile->ident = NULL;
@@ -601,11 +623,6 @@ static int ReadAppendix(nffile_t *nffile) {
             }
             processed += record_header->size;
             buff_ptr += record_header->size;
-            if (processed > block_header->size) {
-                LogError("Error processing appendix records: processed %zu > block size %u", processed, block_header->size);
-                FreeDataBlock(block_header);
-                return 0;
-            }
         }
         FreeDataBlock(block_header);
     }
@@ -1865,12 +1882,24 @@ int QueryFile(char *filename, int verbose) {
         unsigned blockSize = 0;
         unsigned numRecords = 0;
         if (readBlock->type == DATA_BLOCK_TYPE_4) {  // array block
-            recordHeader_t *recordHeader = (recordHeader_t *)read_ptr;
-            blockSize += sizeof(recordHeader_t);
-            LogError("Array block: Record type: %u, size: %u", recordHeader->type, recordHeader->size);
             while (blockSize < readBlock->size) {
-                blockSize += recordHeader->size;
+                if ((blockSize + sizeof(recordHeader_t)) > readBlock->size) {
+                    LogError("Record header exceeds block size: %u", readBlock->size);
+                    close(fd);
+                    return 0;
+                }
+                recordHeader_t *recordHeader = (recordHeader_t *)(read_ptr + blockSize);
                 numRecords++;
+
+                // sanity check
+                if (recordHeader->size < sizeof(recordHeader_t) || (blockSize + recordHeader->size) > readBlock->size) {
+                    LogError("Record size %u extends beyond block size: %u", recordHeader->size, readBlock->size);
+                    close(fd);
+                    return 0;
+                }
+                if (verbose)
+                    printf("Array record %u, type: %u, size: %u - block offset: %u\n", numRecords, recordHeader->type, recordHeader->size, blockSize);
+                blockSize += recordHeader->size;
             }
             if (blockSize != readBlock->size) {
                 LogError("Error in block: %u, counted array size: %u != header size: %u\n", numBlocks, blockSize, readBlock->size);
