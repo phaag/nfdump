@@ -40,6 +40,7 @@
 .Op Fl R Ar filelist
 .Op Fl M Ar dirlist
 .Op Fl O Ar order
+.Op Fl P Ar filter
 .Op Fl t Ar timewin
 .Op Fl c Ar num
 .Op Fl a
@@ -194,6 +195,13 @@ Sort according to end time of flows
 .It Cm duration
 Sort according to duration of flows
 .El
+.It Fl P Ar filter
+Apply a post filter to the resulting flow table. Unlike the regular netflow filter, which is
+applied while reading the flow records, this filter is applied after flow analysis - stat
+generation or aggregation - and before the records are printed. This allows filtering on
+values which only exist after aggregation or statistics, such as the aggregated flows,
+packets or bytes counters of an aggregated record. The filter syntax is identical to the
+regular netflow filter syntax.
 .It Fl t Ar timewin
 Set time window to process flows. This option is considered legacy and may be replaced
 with a
