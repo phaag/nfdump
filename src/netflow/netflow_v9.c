@@ -790,7 +790,18 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
         p = p + 2;
         uint16_t length = Get_val16(p);
         p = p + 2;
+
+        if (length > (UINT16_MAX - offset)) {
+            LogError("Process_v9: [%u] option template field length exceeds uint16 range", exporter_entry->info.id);
+            free(optionTemplate);
+            return;
+        }
         if (i < nr_scopes) {
+            if (length > (UINT16_MAX - scopeSize)) {
+                LogError("Process_v9: [%u] option template scope field length exceeds uint16 range", exporter_entry->info.id);
+                free(optionTemplate);
+                return;
+            }
             scopeSize += length;
             dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
         } else {
