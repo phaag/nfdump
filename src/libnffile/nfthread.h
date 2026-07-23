@@ -80,26 +80,25 @@ typedef struct threadPipeline_s {
  * Per-role thread counts returned by GetThreadConfig().
  *
  * role       program role — tells mmapFileV3 how to derive the per-file
- *            reader count from the live writers/filters values:
+ *            reader count from the live writers/workers values:
  *              WRITE_ONLY → readers = 0
  *              TRANSFORM  → ref = writers  (readers balance against compressors)
- *              ANALYZE    → ref = filters  (readers balance against filter workers)
+ *              ANALYZE    → ref = workers  (readers balance against filter workers)
  * writers    nfwriter compression threads  (→ InitNewFileV3 / NumWorkers)
- * filters    application worker threads:
- *              ANALYZE    → filter workers
- *              TRANSFORM  → anonymization / bloom workers
- *              WRITE_ONLY → 0
+ * workers    application worker threads. Each program interprets these as
+ *            whatever its middle pipeline stage is:
+ *              ANALYZE    (nfdump, nfprofile, nftrack) → filter workers
+ *              TRANSFORM  (nfanon, nfmeta)             → anonymization / bloom workers
+ *              WRITE_ONLY (nfcapd, nfpcapd, ...)       → 0
  * readers    estimated at startup; authoritative count recomputed per-file
  *            by DeriveReaderCount(ref, actualFileCompression)
- * workers    = writers  (backward-compat alias)
  * *Override  set when the matching threads.* key forced that count
  */
 typedef struct {
     tcRole_t role;
     uint32_t readers;
     uint32_t writers;
-    uint32_t filters;
-    uint32_t workers;   /* = writers */
+    uint32_t workers;
     uint8_t readersOverride;
     uint8_t writersOverride;
 } threadConfig_t;
@@ -117,9 +116,7 @@ typedef struct {
  * Conf/override keys (via nfdump.conf [threads] section or -x flag):
  *   threads.readers        = N   (0 = auto)
  *   threads.writers        = N   (0 = auto)
- *   threads.filters        = N   (0 = auto)
- *   threads.workerFraction = N   (integer %, default 20; TRANSFORM role)
- *   threads.filterFraction = N   (integer %, default 50; ANALYZE role)
+ *   threads.workers        = N   (0 = auto)
  */
 threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadPipeline_t pipeline);
 

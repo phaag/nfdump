@@ -748,7 +748,7 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    uint32_t numWorkers = threadConfig.filters;
+    uint32_t numWorkers = threadConfig.workers;
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(EXIT_FAILURE);
 

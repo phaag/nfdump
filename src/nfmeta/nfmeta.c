@@ -548,6 +548,6 @@ int main(int argc, char **argv) {
     threadConfig_t threadConfig = GetThreadConfig(limitCores, LZ4_COMPRESSED, pipeline);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
-    process_data(wfile, threadConfig.filters, verbose);
+    process_data(wfile, threadConfig.workers, verbose);
     return 0;
 }  // End of main

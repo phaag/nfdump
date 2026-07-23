@@ -467,8 +467,8 @@ nffileV3_t *mmapFileV3(const char *filename) {
     } else {
         uint32_t ref;
         switch (threadConfig.role) {
-            case TC_ROLE_ANALYZE:   ref = threadConfig.filters > 0 ? threadConfig.filters : 1; break;
-            case TC_ROLE_TRANSFORM: ref = threadConfig.writers > 0 ? threadConfig.writers : threadConfig.filters; break;
+            case TC_ROLE_ANALYZE:   ref = threadConfig.workers > 0 ? threadConfig.workers : 1; break;
+            case TC_ROLE_TRANSFORM: ref = threadConfig.writers > 0 ? threadConfig.writers : threadConfig.workers; break;
             default:                ref = 0; break;
         }
         numReaders = DeriveReaderCount(ref, fileHeader->compression);

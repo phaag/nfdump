@@ -628,7 +628,7 @@ int main(int argc, char **argv) {
         .fixedThreads = 1,   // main process_data() loop thread
     };
     threadConfig_t threadConfig = GetThreadConfig(limitCores, UNDEF_COMPRESSED, pipeline);
-    int numWorkers = (int)threadConfig.filters;
+    int numWorkers = (int)threadConfig.workers;
 
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);

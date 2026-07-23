@@ -50,18 +50,18 @@
 #            is split among roles so the effective writer count is lower.
 #writers = 0
 
-# filters  — application worker threads:
+# workers  — application worker threads:
 #              ANALYZE (nfdump, nfprofile):  filter/aggregation workers
 #              TRANSFORM (nfanon, nfmeta):   anonymization / bloom workers
 #              WRITE_ONLY:                   unused (always 0)
 #            Override with a fixed count when the auto fraction is not ideal.
-#filters = 0
+#workers = 0
 
 [nfdump]
 [nfdump.threads]
 #readers = 0
 #writers = 0
-#filters = 0
+#workers = 0
 
 # format definitions
 
@@ -140,13 +140,13 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 
 [nfanon]
 # TC_ROLE_TRANSFORM: budget split among anonymization workers (20%), nffile
-# readers, and nffile writers.  Use threads.filters to override the worker count.
+# readers, and nffile writers.  Use threads.workers to override the worker count.
 # Example: budget=12, LZ4 → workers=2 readers=3 writers=7
 
 [nfanon.threads]
 #readers = 0
 #writers = 0
-#filters = 0   # same as workers for TRANSFORM role
+#workers = 0
 
 [nfmeta]
 # TC_ROLE_TRANSFORM: same budget split as nfanon (20% workers).
@@ -155,4 +155,4 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 [nfmeta.threads]
 #readers = 0
 #writers = 0
-#filters = 0
+#workers = 0

@@ -1216,7 +1216,7 @@ int main(int argc, char **argv) {
     };
     threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType, pipeline);
     // numWorkers now drives filter/barrier workers; Init_nffile sets NumWorkers=tc.writers
-    // and NumReaderRef=tc.filters so DeriveReaderCount feeds readers correctly per file.
+    // and NumReaderRef=tc.workers so DeriveReaderCount feeds readers correctly per file.
 
     if (outputParams->topN < 0) {
         if (flow_stat || element_stat) {
@@ -1390,7 +1390,7 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.filters,
+    sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.workers,
                             crypto_ctx);
 
     if (totalPassed == 0) {
