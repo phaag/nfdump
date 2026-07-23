@@ -174,11 +174,11 @@ size_t CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize) {
 
 static sequencer_t *GetSubTemplateSequencer(sequencer_t *sequencer, uint16_t templateID) {
     sequencer_t *self = sequencer;
-    while (sequencer->next != self && sequencer->templateID != templateID) {
+    while (sequencer != NULL && sequencer->next != self && sequencer->templateID != templateID) {
         sequencer = sequencer->next;
     }
 
-    if (sequencer->templateID == templateID) {
+    if (sequencer != NULL && sequencer->templateID == templateID) {
         dbg_printf("Sub template sequencer found for id: %u %u\n", templateID, sequencer->templateID);
         return sequencer;
     } else {
