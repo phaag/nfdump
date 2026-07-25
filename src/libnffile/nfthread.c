@@ -123,12 +123,12 @@ uint32_t DeriveReaderCount(uint32_t ref, uint16_t compression) {
     if (info->readerCost == 0) return 1;  // NOT_COMPRESSED: 1 reader always enough
 
     uint32_t r = (4 * ref + info->readerCost) / (2 * info->readerCost);  // round(ref / C)
-    if (r < 1) r = 1;
-    // For compressed files with at least 2 workers to supply, use at least 2
-    // readers.  A single reader can become a latency bottleneck under page-fault
-    // spikes even when the C ratio says one suffices; the second reader is cheap
-    // because readers are not subtracted from the alloc budget.
-    if (ref >= 2 && r < 2) r = 2;
+    // Any compressed file gets at least 2 readers, even with a single downstream
+    // consumer (e.g. plain listing with no filter workers): decompression can
+    // overlap across two threads instead of serializing behind one, and a lone
+    // reader is a latency bottleneck under page-fault spikes.  The second reader
+    // is essentially free because readers are not subtracted from the alloc budget.
+    if (r < 2) r = 2;
     return min_u32(r, info->maxReaders);
 }  // End of DeriveReaderCount
 
@@ -290,16 +290,22 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadP
     }
     uint32_t readers = confReaders > 0 ? (uint32_t)confReaders : DeriveReaderCount(ref, compression);
 
+    // Bookkeeping: cores from the budget that neither writers nor workers claimed.
+    // Readers are excluded — they were never deducted from alloc to begin with.
+    uint32_t claimed = workers + writers;
+    uint32_t freeAlloc = alloc > claimed ? alloc - claimed : 0;
+
     LogVerbose(
         "GetThreadConfig: role=%s coresUsed=%u fixed=%u alloc=%u codec=%u → "
-        "writers=%u workers=%u readers(est)=%u ref=%u",
-        roleDescriptor[pipeline.role], coresUsed, pipeline.fixedThreads, alloc, compression, writers, workers, readers, ref);
+        "writers=%u workers=%u readers(est)=%u ref=%u free=%u",
+        roleDescriptor[pipeline.role], coresUsed, pipeline.fixedThreads, alloc, compression, writers, workers, readers, ref, freeAlloc);
 
     return (threadConfig_t){
         .role = pipeline.role,
         .readers = readers,
         .writers = writers,
         .workers = workers,
+        .alloc = freeAlloc,
         .readersOverride = confReaders > 0,
         .writersOverride = confWriters > 0,
     };

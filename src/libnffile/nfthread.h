@@ -92,6 +92,16 @@ typedef struct threadPipeline_s {
  *              WRITE_ONLY (nfcapd, nfpcapd, ...)       → 0
  * readers    estimated at startup; authoritative count recomputed per-file
  *            by DeriveReaderCount(ref, actualFileCompression)
+ * alloc      cores from the budget (coresUsed − fixedThreads) that neither
+ *            writers nor workers claimed — readers are never counted here,
+ *            since they are not deducted from the budget in the first place.
+ *            This is normally small (the formulas try to spend the whole
+ *            budget) but can be sizeable when a cap or an idle stage leaves
+ *            cores unused — e.g. WRITE_ONLY past the writer cap, or a plain
+ *            read-only listing with no filter engine and no writers at all.
+ *            A caller that wants to spin up extra ad-hoc threads of its own
+ *            can check — and is free to decrement — this value; it is a
+ *            snapshot at GetThreadConfig() time, not a live-updated counter.
  * *Override  set when the matching threads.* key forced that count
  */
 typedef struct {
@@ -99,6 +109,7 @@ typedef struct {
     uint32_t readers;
     uint32_t writers;
     uint32_t workers;
+    uint32_t alloc;
     uint8_t readersOverride;
     uint8_t writersOverride;
 } threadConfig_t;
