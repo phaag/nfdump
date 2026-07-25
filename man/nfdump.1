@@ -40,7 +40,7 @@
 .Op Fl R Ar filelist
 .Op Fl M Ar dirlist
 .Op Fl O Ar order
-.Op Fl t Ar timewin
+.Op Fl P Ar postfilter
 .Op Fl c Ar num
 .Op Fl a
 .Op Fl A Ar aggregation
@@ -56,7 +56,7 @@
 .Op Fl q
 .Op Fl N
 .Op Fl i Ar ident
-.Op Fl v Ar flowfile
+.Op Fl v Ar mode
 .Op Fl E Ar flowfile
 .Op Fl x Ar key=value
 .Op Fl W Ar num
@@ -195,14 +195,20 @@ Sort according to end time of flows
 .It Cm duration
 Sort according to duration of flows
 .El
-.It Fl t Ar timewin
-Set time window to process flows. This option is considered legacy and may be replaced
-with a
+.It Fl t
+Removed. Use
 .Ar filter
-primitive
-in future releases. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
-Any parts of the time spec may be omitted e.g YYYY/MM/dd expands to YYYY/MM/dd.00:00:00-infinity
-and processes all flow from a given day onwards. 
+primitives
+.Sq first seen
+and
+.Sq last seen
+to select a time window instead.
+.It Fl P Ar postfilter
+Apply
+.Ar postfilter
+to already aggregated or statistics output records before printing, using the same
+filter syntax as
+.Ar filter .
 .It Fl c Ar num
 Limit the number of records to be processed to the first
 .Ar num
@@ -703,10 +709,17 @@ Change the ident label in the file, specified by
 .Fl r
 to
 .Ar ident
-.It Fl v Ar flowfile
-Verify the consistency of
-.Ar flowfile
-and print the file parameters and number of records.
+.It Fl v Ar mode
+Verify or repair the file given by
+.Fl r Ar flowfile .
+.Ar mode
+is one of
+.Sq check
+(verify consistency and print file parameters and record count),
+.Sq check-verbose
+(same, with per-block detail), or
+.Sq repair
+(rewrite the file, fixing recoverable inconsistencies).
 .It Fl E Ar flowfile
 Print the exporter and sampler list if found in
 .Ar flowfile.

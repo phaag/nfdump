@@ -165,7 +165,7 @@ static void usage(char *name) {
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
-        "-L <expr>\tSet limit on bytes for line and packed output format.\n"
+        "-P <expr>\tPost-filter: apply <expr> to aggregated/statistics output before printing.\n"
         "-I \t\tPrint netflow summary statistics info from file or range of files (-r, -R).\n"
         "-g \t\tPrint gnuplot stat line for each nfcapd file (-r, -R).\n"
         "-M <expr>\tRead input from multiple directories.\n"
@@ -192,12 +192,11 @@ static void usage(char *name) {
         "\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
         "-6\t\tPrint full length of IPv6 addresses in fmt output instead of condensed.\n"
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
-        "-v <file>\tverify netflow data file. Print version and blocks.\n"
+        "-v <mode>\tVerify or repair the file given by -r <file>. mode: check, check-verbose, repair.\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
-        "-t <time>\ttime window for filtering packets\n"
-        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n"
+        "-t\t\tRemoved. Use 'first seen'/'last seen' filter expressions instead.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tDecrypt encrypted input files (and encrypt output with -w). Passphrase from argument, key file, or interactive "
         "prompt.\n"
@@ -869,7 +868,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZt:TVv:W:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZtTVW:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
