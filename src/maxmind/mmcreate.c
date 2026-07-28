@@ -77,6 +77,38 @@ static char *ipFieldNames[] = {"network",
                                "is_anycast",
                                NULL};
 
+// like strsep(), but respects double-quoted fields that may contain commas,
+// e.g. "Bournemouth, Christchurch and Poole" in the locations CSV. Quotes are stripped.
+static char *csvNextField(char **stringp) {
+    char *s = *stringp;
+    if (s == NULL) return NULL;
+
+    char *field;
+    if (*s == '"') {
+        field = s + 1;
+        char *end = strchr(field, '"');
+        if (end == NULL) {
+            // malformed quoting - treat rest of line as the field
+            *stringp = NULL;
+            return field;
+        }
+        *end = '\0';
+        s = end + 1;
+        s = (*s == ',') ? s + 1 : NULL;
+    } else {
+        field = s;
+        char *comma = strchr(s, ',');
+        if (comma) {
+            *comma = '\0';
+            s = comma + 1;
+        } else {
+            s = NULL;
+        }
+    }
+    *stringp = s;
+    return field;
+}  // End of csvNextField
+
 static void stripLine(char *line) {
     char *eol = strchr(line, '\r');
     if (eol) *eol = '\0';
@@ -158,7 +190,7 @@ static int loadLocalMap(char *fileName) {
         char *l = line;
         char *field = NULL;
         int i = 0;
-        while ((field = strsep(&l, ",")) != NULL) {
+        while ((field = csvNextField(&l)) != NULL) {
             switch (i) {
                 case 0:  // geoname_id
                     locationInfo.localID = atoi(field);
@@ -265,17 +297,20 @@ static int loadIPV4tree(char *fileName) {
                 case 1:  // geoname_id
                     ipV4Node.info.localID = atoi(field);
                     break;
+                case 2:  // registered_country_geoname_id - fallback when geoname_id is empty
+                    if (ipV4Node.info.localID == 0) ipV4Node.info.localID = atoi(field);
+                    break;
                 case 4:  // is_proxy
                     ipV4Node.info.proxy = strcmp(field, "1") == 0 ? 1 : 0;
                     break;
                 case 5:  // is_sat
                     ipV4Node.info.sat = strcmp(field, "1") == 0 ? 1 : 0;
                     break;
-                case 7:  // longitude
-                    ipV4Node.info.longitude = atof(field);
-                    break;
-                case 8:  // latitude
+                case 7:  // latitude
                     ipV4Node.info.latitude = atof(field);
+                    break;
+                case 8:  // longitude
+                    ipV4Node.info.longitude = atof(field);
                     break;
                 case 9:  // accuracy
                     ipV4Node.info.accuracy = atoi(field);
@@ -355,17 +390,20 @@ static int loadIPV6tree(char *fileName) {
                 case 1:  // geoname_id
                     ipV6Node.info.localID = atoi(field);
                     break;
+                case 2:  // registered_country_geoname_id - fallback when geoname_id is empty
+                    if (ipV6Node.info.localID == 0) ipV6Node.info.localID = atoi(field);
+                    break;
                 case 4:  // is_proxy
                     ipV6Node.info.proxy = strcmp(field, "1") == 0 ? 1 : 0;
                     break;
                 case 5:  // is_sat
                     ipV6Node.info.sat = strcmp(field, "1") == 0 ? 1 : 0;
                     break;
-                case 7:  // longitude
-                    ipV6Node.info.longitude = atof(field);
-                    break;
-                case 8:  // latitude
+                case 7:  // latitude
                     ipV6Node.info.latitude = atof(field);
+                    break;
+                case 8:  // longitude
+                    ipV6Node.info.longitude = atof(field);
                     break;
                 case 9:  // accuracy
                     ipV6Node.info.accuracy = atoi(field);
