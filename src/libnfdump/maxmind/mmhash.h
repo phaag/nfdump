@@ -40,11 +40,13 @@ typedef struct locationKey_s {
 } locationKey_t;
 
 #define CityLength 36
+#define TimeZoneLength 40
 typedef struct locationInfo_s {
     uint32_t localID;
     char continent[4];
     char country[4];
     char city[CityLength];
+    char timeZone[TimeZoneLength];
 } locationInfo_t;
 
 typedef struct ipLocationInfo_s {

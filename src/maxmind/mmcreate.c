@@ -237,6 +237,12 @@ static int loadLocalMap(char *fileName) {
                         strcpy(locationInfo.city, "unknown");
                     }
                     break;
+                case 12:  // time_zone
+                    if (strlen(field) > (TimeZoneLength - 1)) {
+                        field[TimeZoneLength - 1] = '\0';
+                    }
+                    strcpy(locationInfo.timeZone, field);
+                    break;
                     // default: do nothing - skip extra (new?) fields
             }
             i++;
