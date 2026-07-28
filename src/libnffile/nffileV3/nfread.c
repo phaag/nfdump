@@ -635,7 +635,9 @@ nffileV3_t *OpenFileV3(const char *filename) {
     }
 
     // V2 conversion already started its own single reader thread
-    if (nffile->worker[0]) {
+    // numWorkers may be 0 (e.g. a file opened with no readers requested), in which
+    // case worker[] has zero allocated elements - guard before indexing worker[0].
+    if (nffile->numWorkers > 0 && nffile->worker[0]) {
         dbg_printf("Skip nfreader as worker active\n");
         return nffile;
     }

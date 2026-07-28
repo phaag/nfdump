@@ -48,7 +48,7 @@
 #include "util.h"
 
 static const struct roleDescriptor_s {
-    char *roleString;
+    const char *roleString;
 } roleDescriptor[] = {
     [TC_ROLE_WRITE_ONLY] = {"TC_ROLE_WRITE_ONLY"},
     [TC_ROLE_TRANSFORM] = {"TC_ROLE_TRANSFORM"},
@@ -82,12 +82,12 @@ typedef struct {
 } codecInfo_t;
 
 static const codecInfo_t codecTable[] = {
-    [0] = {4, 8, 8},    // UNDEF: assume LZ4
-    [1] = {0, 2, 1},    // NOT_COMPRESSED: I/O bound
-    [2] = {5, 8, 8},    // LZO
-    [3] = {6, 8, 8},    // BZ2
-    [4] = {4, 8, 8},    // LZ4
-    [5] = {10, 12, 16}, // ZSTD: compute-bound, scales more
+    [0] = {4, 8, 8},     // UNDEF: assume LZ4
+    [1] = {0, 2, 1},     // NOT_COMPRESSED: I/O bound
+    [2] = {5, 8, 8},     // LZO
+    [3] = {6, 8, 8},     // BZ2
+    [4] = {4, 8, 8},     // LZ4
+    [5] = {10, 12, 16},  // ZSTD: compute-bound, scales more
 };
 #define CODEC_TABLE_LEN (sizeof(codecTable) / sizeof(codecTable[0]))
 
@@ -283,9 +283,14 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadP
     uint32_t ref = 0;
     if (pipeline.hasReaders) {
         switch (pipeline.role) {
-            case TC_ROLE_ANALYZE:   ref = workers > 0 ? workers : 1; break;
-            case TC_ROLE_TRANSFORM: ref = writers > 0 ? writers : workers; break;
-            default: break;
+            case TC_ROLE_ANALYZE:
+                ref = workers > 0 ? workers : 1;
+                break;
+            case TC_ROLE_TRANSFORM:
+                ref = writers > 0 ? writers : workers;
+                break;
+            default:
+                break;
         }
     }
     uint32_t readers = confReaders > 0 ? (uint32_t)confReaders : DeriveReaderCount(ref, compression);

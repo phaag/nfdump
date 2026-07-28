@@ -166,12 +166,16 @@ int main(int argc, char **argv) {
         }
     }
 
+    // -d/-w builds the geo DB from MaxMind CSV text and writes one output nffile - no
+    // nffile reading involved. Any other invocation (-G lookup, whois, AS lookup) loads
+    // an existing nffile geo DB via LoadMaxMind() and needs reader threads for that.
+    int buildMode = (dirName != NULL);
     threadPipeline_t pipeline = {
-        .role = TC_ROLE_WRITE_ONLY,
-        .hasReaders = false,  // no input nffiles; source data read from MaxMind CSV
-        .hasWriters = true,   // nffile writer threads compress the output DB file
+        .role = buildMode ? TC_ROLE_WRITE_ONLY : TC_ROLE_ANALYZE,
+        .hasReaders = !buildMode,
+        .hasWriters = buildMode,
         .hasWorkers = false,
-        .fixedThreads = 1,    // main build thread
+        .fixedThreads = 1,  // main thread
     };
     threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
