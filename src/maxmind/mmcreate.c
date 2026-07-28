@@ -279,7 +279,7 @@ static int loadIPV4tree(char *fileName) {
                     ipV4Node.info.accuracy = atoi(field);
                     break;
                 case 10:  // is_anycast
-                    if (atoi(field) != 0) printf("Found anycast info: %d\n", atoi(field));
+                    // skip for now
                     break;
             }
             i++;
