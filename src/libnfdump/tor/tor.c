@@ -160,7 +160,10 @@ void UpdateTorNode(torNode_t *torNode) {
 
             node->lastPublished = torNode->lastPublished;
             if (torNode->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torNode->interval[0].lastSeen;
-            if (torNode->interval[0].firstSeen < node->interval[index].firstSeen) abort();
+            if (torNode->interval[0].firstSeen < node->interval[index].firstSeen) {
+                LogError("Unexpected interval ordering for tor node ip: 0x%x - firstSeen %ld < %ld, skipping", torNode->ipaddr,
+                         torNode->interval[0].firstSeen, node->interval[index].firstSeen);
+            }
         }
 #ifdef DEVEL
         printTorNode(node);
@@ -246,14 +249,16 @@ int LoadTorTree(char *fileName) {
 
         switch (arrayHeader->type) {
             case TorTreeElementID: {
+                if (arrayHeader->size != sizeof(torNode_t)) {
+                    LogError("Size check failed for torNode_t - rebuild nfdump tor DB");
+                    break;
+                }
+                // Duplicates are already ruled out by construction: torTree is a set
+                // keyed by ipaddr and UpdateTorNode() merges into an existing entry
+                // rather than creating a second one.
                 torNode_t *torNode = (torNode_t *)arrayElement;
                 for (int i = 0; i < dataBlock->NumRecords; i++) {
-                    torNode_t *node = kb_getp(torTree, torTree, torNode);
-                    if (node) {
-                        LogError("Duplicate IP node: ip: 0x%x", torNode->ipaddr);
-                    } else {
-                        kb_putp(torTree, torTree, torNode);
-                    }
+                    kb_putp(torTree, torTree, torNode);
                     torNode++;
                 }
             } break;

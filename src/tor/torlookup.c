@@ -93,10 +93,12 @@ static void usage(char *name) {
 }  // End of usage
 
 // parse integer from string, up to eos char
-// update string after reading
+// update string after reading; sets *timeString to NULL on any parse error
+// so subsequent chained calls short-circuit instead of dereferencing NULL
 static int inline getNumber(char **timeString, char eos) {
     int number = 0;
     char *s = *timeString;
+    if (s == NULL) return 0;
 
     char *eosp = strchr(s, eos);
     if (eosp) *eosp++ = '\0';
@@ -104,6 +106,7 @@ static int inline getNumber(char **timeString, char eos) {
         if (*s >= '0' && *s <= '9') {
             number = 10 * number + (*s - 0x30);
         } else {
+            *timeString = NULL;
             return 0;
         }
         s++;
@@ -147,20 +150,24 @@ static time_t ReadTime(char *timestring) {
 }
 
 static int scanLine(char *line, torNode_t *torNode) {
-    if (strstr(line, TAG_EXITNODE) != NULL) {
+    if (strncmp(line, TAG_EXITNODE, strlen(TAG_EXITNODE)) == 0) {
         memset((void *)torNode, 0, sizeof(torNode_t));
-    } else if (strstr(line, TAG_PUBLISHED) != NULL) {
+    } else if (strncmp(line, TAG_PUBLISHED, strlen(TAG_PUBLISHED)) == 0) {
         char *timestring = line + strlen(TAG_PUBLISHED) + 1;
         time_t lastPublished = ReadTime(timestring);
         torNode->lastPublished = lastPublished;
         torNode->interval[0].firstSeen = torNode->lastPublished;
-    } else if (strstr(line, TAG_LASTSTATUS) != NULL) {
+    } else if (strncmp(line, TAG_LASTSTATUS, strlen(TAG_LASTSTATUS)) == 0) {
         char *timestring = line + strlen(TAG_LASTSTATUS) + 1;
         time_t lastStatus = ReadTime(timestring);
         if (lastStatus > torNode->interval[0].lastSeen) torNode->interval[0].lastSeen = lastStatus;
-    } else if (strstr(line, TAG_EXITADDRESS) != NULL) {
+    } else if (strncmp(line, TAG_EXITADDRESS, strlen(TAG_EXITADDRESS)) == 0) {
         char *ipstring = line + strlen(TAG_EXITADDRESS) + 1;
         char *timestring = strchr(ipstring, ' ');
+        if (!timestring) {
+            LogError("Malformed ExitAddress line: %s", line);
+            return 0;
+        }
         *timestring++ = '\0';
         uint32_t ip = 0;
         int ret = inet_pton(PF_INET, ipstring, &ip);

@@ -3,7 +3,7 @@
 # Script to update nfdump toDB.
 
 # Where to put local download data
-TMPDIR="/tmp/tor_raw_data.$$"
+TMPDIR=$(mktemp -d /tmp/tor_raw_data.XXXXXX) || { echo "mktemp failed"; exit 1; }
 
 # Use the nfdump tor DB environment variable NFTORDB if set
 # or put the default name it in current directory
@@ -84,8 +84,6 @@ echo "Get tor node exit list for the last $NUM_MONTHS months"
 
 # tmp data dir
 cur=$(pwd)
-test -d $TMPDIR && rm -rf $TMPDIR
-mkdir $TMPDIR
 
 cd $TMPDIR
 fetch_files $NUM_MONTHS
