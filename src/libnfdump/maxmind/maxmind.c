@@ -54,7 +54,7 @@
 #define arrayElementSizeCheck(type)                                          \
     if (arrayHeader->size != sizeof(type##_t)) {                             \
         LogError("Size check failed for %s - rebuild nfdump geo DB", #type); \
-        return 0;                                                            \
+        goto fail;                                                          \
     }
 
 #define PushArrayHeader(dataBlock, arrayType, arraySize)   \
@@ -292,7 +292,7 @@ int LoadMaxMind(char *fileName) {
         size_t expected = (arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
         if (expected != dataBlock->size) {
             LogError("Array size calculated: %zu != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
-            return 0;
+            goto fail;
         }
 
         switch (arrayHeader->type) {
@@ -334,4 +334,10 @@ int LoadMaxMind(char *fileName) {
     DisposeFile(nffile);
 
     return 1;
+
+fail:
+    FreeDataBlock(dataBlock);
+    DisposeFile(nffile);
+    return 0;
+
 }  // End of LoadMaxMind

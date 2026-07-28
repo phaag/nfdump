@@ -72,6 +72,7 @@ static char *ipFieldNames[] = {"network",
                                "latitude",
                                "longitude",
                                "accuracy_radius",
+                               "is_anycast",
                                NULL};
 
 static void stripLine(char *line) {
@@ -119,9 +120,9 @@ static FILE *checkFile(char *fileName, char **fieldNames) {
 
 }  // End of checkFile
 
-static void strCopyReplace(char *dst, char *src) {
-    int i = 0;
-    for (i = 0; src[i] != 0; i++) {
+static void strCopyReplace(char *dst, char *src, size_t dstSize) {
+    size_t i = 0;
+    for (i = 0; src[i] != 0 && i < dstSize - 1; i++) {
         // convert " to ' in org name, otherwise it breaks json output
         if (src[i] == '"')
             dst[i] = '\'';
@@ -130,6 +131,11 @@ static void strCopyReplace(char *dst, char *src) {
     }
     dst[i] = '\0';
 }  // End of strCopyReplace
+
+// build a 64bit prefix mask; bits must be in [0,64]
+static inline uint64_t mask64(uint32_t bits) {
+    return bits == 0 ? 0ULL : (bits >= 64 ? 0xffffffffffffffffULL : (0xffffffffffffffffULL << (64 - bits)));
+}  // End of mask64
 
 static int loadLocalMap(char *fileName) {
     FILE *fp = checkFile(fileName, localFieldNames);
@@ -166,7 +172,7 @@ static int loadLocalMap(char *fileName) {
                 case 4:  // country_iso_code
                     if (strlen(field) > 3) {
                         LogError("Unexpected country_iso_code length: %lu", strlen(field));
-                        locationInfo.continent[0] = '\0';
+                        locationInfo.country[0] = '\0';
                     } else {
                         strcpy(locationInfo.country, field);
                     }
@@ -192,7 +198,7 @@ static int loadLocalMap(char *fileName) {
                     } else if (divisionName && strlen(divisionName) > 0) {
                         strcpy(locationInfo.city, divisionName);
                     } else if (countryName && strlen(countryName) > 0) {
-                        strCopyReplace(locationInfo.city, countryName);
+                        strCopyReplace(locationInfo.city, countryName, sizeof(locationInfo.city));
                     } else {
                         strcpy(locationInfo.city, "unknown");
                     }
@@ -234,14 +240,22 @@ static int loadIPV4tree(char *fileName) {
             switch (i) {
                 case (0): {
                     char *cidr = strchr(field, '/');
+                    if (!cidr) {
+                        LogError("Missing '/' in IPv4 network field: %s", field);
+                        goto nextV4Line;
+                    }
                     *cidr = '\0';
                     uint32_t net, netBits, mask;
                     int ret = inet_pton(PF_INET, field, &net);
                     if (ret != 1) {
                         LogError("Not an IPv4 network: %s\n", field);
-                        continue;
+                        goto nextV4Line;
                     }
                     netBits = atoi(++cidr);
+                    if (netBits < 1 || netBits > 32) {
+                        LogError("Invalid IPv4 prefix length /%u for network %s", netBits, field);
+                        goto nextV4Line;
+                    }
                     mask = 0xffffffff << (32 - netBits);
                     ipV4Node.network = ntohl(net);
                     ipV4Node.netmask = mask;
@@ -264,11 +278,15 @@ static int loadIPV4tree(char *fileName) {
                 case 9:  // accuracy
                     ipV4Node.info.accuracy = atoi(field);
                     break;
+                case 10:  // is_anycast
+                    if (atoi(field) != 0) printf("Found anycast info: %d\n", atoi(field));
+                    break;
             }
             i++;
         }
         PutIPv4Node(&ipV4Node);
         cnt++;
+    nextV4Line:;
     }
     printf("Loaded %u entries into IPV4 tree\n", cnt);
 
@@ -300,21 +318,29 @@ static int loadIPV6tree(char *fileName) {
             switch (i) {
                 case (0): {
                     char *cidr = strchr(field, '/');
+                    if (!cidr) {
+                        LogError("Missing '/' in IPv6 network field: %s", field);
+                        goto nextV6Line;
+                    }
                     *cidr = '\0';
                     uint32_t netBits;
                     uint64_t net[2], mask[2];
                     int ret = inet_pton(PF_INET6, field, net);
                     if (ret != 1) {
                         LogError("Not an IPv6 network: %s\n", field);
-                        continue;
+                        goto nextV6Line;
                     }
                     netBits = atoi(++cidr);
+                    if (netBits < 1 || netBits > 128) {
+                        LogError("Invalid IPv6 prefix length /%u for network %s", netBits, field);
+                        goto nextV6Line;
+                    }
 
                     if (netBits > 64) {
                         mask[0] = 0xffffffffffffffffLL;
-                        mask[1] = 0xffffffffffffffffLL << (64 - netBits);
+                        mask[1] = mask64(netBits - 64);
                     } else {
-                        mask[0] = 0xffffffffffffffffLL << (64 - netBits);
+                        mask[0] = mask64(netBits);
                         mask[1] = 0;
                     }
 
@@ -342,12 +368,16 @@ static int loadIPV6tree(char *fileName) {
                 case 9:  // accuracy
                     ipV6Node.info.accuracy = atoi(field);
                     break;
+                case 10:  // is_anycast
+                    // skip
+                    break;
             }
             i++;
         }
 
         PutIPv6Node(&ipV6Node);
         cnt++;
+    nextV6Line:;
     }
     printf("Loaded %u entries into IPV6 tree\n", cnt);
 
@@ -383,6 +413,10 @@ static int loadASV4tree(char *fileName) {
 
         // cidr
         char *cidr = strchr(field, '/');
+        if (!cidr) {
+            LogError("Missing '/' in ASv4 network field: %s", field);
+            continue;
+        }
         *cidr = '\0';
         uint32_t net, netBits, mask;
         int ret = inet_pton(PF_INET, field, &net);
@@ -391,6 +425,10 @@ static int loadASV4tree(char *fileName) {
             continue;
         }
         netBits = atoi(++cidr);
+        if (netBits < 1 || netBits > 32) {
+            LogError("Invalid IPv4 prefix length /%u for network %s", netBits, field);
+            continue;
+        }
         mask = 0xffffffff << (32 - netBits);
         // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
         asV4Node_t asV4Node = {.network = ntohl(net), .netmask = mask};
@@ -414,10 +452,8 @@ static int loadASV4tree(char *fileName) {
         }
 
         // extract org name
-        strCopyReplace(asV4Node.orgName, field);
-        asV4Node.orgName[orgNameLength - 1] = '\0';
-        strCopyReplace(asOrgNode.orgName, field);
-        asOrgNode.orgName[orgNameLength - 1] = '\0';
+        strCopyReplace(asV4Node.orgName, field, sizeof(asV4Node.orgName));
+        strCopyReplace(asOrgNode.orgName, field, sizeof(asOrgNode.orgName));
 
         // insert node
         PutasV4Node(&asV4Node);
@@ -459,6 +495,10 @@ static int loadASV6tree(char *fileName) {
 
         // cidr
         char *cidr = strchr(field, '/');
+        if (!cidr) {
+            LogError("Missing '/' in ASv6 network field: %s", field);
+            continue;
+        }
         *cidr = '\0';
         uint32_t netBits;
         uint64_t net[2], mask[2];
@@ -468,12 +508,16 @@ static int loadASV6tree(char *fileName) {
             continue;
         }
         netBits = atoi(++cidr);
+        if (netBits < 1 || netBits > 128) {
+            LogError("Invalid IPv6 prefix length /%u for network %s", netBits, field);
+            continue;
+        }
 
         if (netBits > 64) {
             mask[0] = 0xffffffffffffffffLL;
-            mask[1] = 0xffffffffffffffffLL << (64 - netBits);
+            mask[1] = mask64(netBits - 64);
         } else {
-            mask[0] = 0xffffffffffffffffLL << (64 - netBits);
+            mask[0] = mask64(netBits);
             mask[1] = 0;
         }
 
@@ -493,10 +537,8 @@ static int loadASV6tree(char *fileName) {
         field = sep;
 
         // extract org name
-        strCopyReplace(asV6Node.orgName, field);
-        asV6Node.orgName[orgNameLength - 1] = '\0';
-        strCopyReplace(asOrgNode.orgName, field);
-        asOrgNode.orgName[orgNameLength - 1] = '\0';
+        strCopyReplace(asV6Node.orgName, field, sizeof(asV6Node.orgName));
+        strCopyReplace(asOrgNode.orgName, field, sizeof(asOrgNode.orgName));
 
         PutasV6Node(&asV6Node);
         PutASorgNode(&asOrgNode);

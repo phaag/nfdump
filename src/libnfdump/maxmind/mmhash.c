@@ -175,71 +175,51 @@ void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
 }  // End of LoadLocalInfo
 
 void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords) {
+    // Duplicates are already detected and reported by PutIPv4Node() when the
+    // geo DB is built from the maxmind CSVs (mmcreate.c). The .nf file loaded
+    // here was already vetted at that point, so no need to check for duplicate records.
     kbtree_t(ipV4Tree) *ipV4Tree = mmHandle->ipV4Tree;
     for (int i = 0; i < NumRecords; i++) {
-        ipV4Node_t *node = kb_getp(ipV4Tree, ipV4Tree, ipV4Node);
-        if (node) {
-            LogError("Duplicate IP node: ip: 0x%x, mask: 0x%x", ipV4Node->network, ipV4Node->netmask);
-        } else {
-            kb_putp(ipV4Tree, ipV4Tree, ipV4Node);
-        }
+        kb_putp(ipV4Tree, ipV4Tree, ipV4Node);
         ipV4Node++;
     }
 
 }  // End of LoadIPv4Tree
 
 void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
+    // see LoadIPv4Tree() - duplicates already checked at DB build time
     kbtree_t(ipV6Tree) *ipV6Tree = mmHandle->ipV6Tree;
     for (int i = 0; i < NumRecords; i++) {
-        ipV6Node_t *node = kb_getp(ipV6Tree, ipV6Tree, ipV6Node);
-        if (node) {
-            LogError("Duplicate IPV6 node: ip: 0x%" PRIx64 " %" PRIx64 ", mask: 0x%" PRIx64 " %" PRIx64, ipV6Node->network[0], ipV6Node->network[1],
-                     ipV6Node->netmask[0], ipV6Node->netmask[1]);
-        } else {
-            kb_putp(ipV6Tree, ipV6Tree, ipV6Node);
-        }
+        kb_putp(ipV6Tree, ipV6Tree, ipV6Node);
         ipV6Node++;
     }
 
 }  // End of LoadIPv6Tree
 
 void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
+    // see LoadIPv4Tree() - duplicates already checked at DB build time
     kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
     for (int i = 0; i < NumRecords; i++) {
-        asV4Node_t *node = kb_getp(asV4Tree, asV4Tree, asV4Node);
-        if (node) {
-            LogError("Insert: %d Duplicate ASv4 node: ip: 0x%x, mask: 0x%x", i, asV4Node->network, asV4Node->netmask);
-        } else {
-            kb_putp(asV4Tree, asV4Tree, asV4Node);
-        }
+        kb_putp(asV4Tree, asV4Tree, asV4Node);
         asV4Node++;
     }
 }  // End of LoadASV4Tree
 
 void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
+    // see LoadIPv4Tree() - duplicates already checked at DB build time
     kbtree_t(asV6Tree) *asV6Tree = mmHandle->asV6Tree;
     for (int i = 0; i < NumRecords; i++) {
-        asV6Node_t *node = kb_getp(asV6Tree, asV6Tree, asV6Node);
-        if (node) {
-            LogError("Insert: %d, Duplicate ASV6 node: ip: 0x%" PRIx64 " %" PRIx64 ", mask: 0x%" PRIx64 " %" PRIx64, i, asV6Node->network[0],
-                     asV6Node->network[1], asV6Node->netmask[0], asV6Node->netmask[1]);
-        } else {
-            kb_putp(asV6Tree, asV6Tree, asV6Node);
-        }
+        kb_putp(asV6Tree, asV6Tree, asV6Node);
         asV6Node++;
     }
 
 }  // End of LoadASV6Tree
 
 void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords) {
+    // see LoadIPv4Tree() - duplicates already checked at DB build time
     kbtree_t(asOrgTree) *asOrgTree = mmHandle->asOrgTree;
     for (int i = 0; i < NumRecords; i++) {
-        asOrgNode_t *node = kb_getp(asOrgTree, asOrgTree, asOrgNode);
-        if (node) {
-            LogError("Insert: %d Duplicate ASorg node: as: %d", i, asOrgNode->as);
-        } else {
-            kb_putp(asOrgTree, asOrgTree, asOrgNode);
-        }
+        kb_putp(asOrgTree, asOrgTree, asOrgNode);
         asOrgNode++;
     }
 }  // End of LoadASorgTree
