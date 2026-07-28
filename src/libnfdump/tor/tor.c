@@ -286,7 +286,10 @@ void UpdateTorV4Node(torV4Node_t *torV4Node) {
 
             node->lastPublished = torV4Node->lastPublished;
             if (torV4Node->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torV4Node->interval[0].lastSeen;
-            if (torV4Node->interval[0].firstSeen < node->interval[index].firstSeen) abort();
+            if (torV4Node->interval[0].firstSeen < node->interval[index].firstSeen) {
+                LogError("Unexpected interval ordering for torV4 node ip: 0x%x - firstSeen %ld < %ld, skipping", torV4Node->ipaddr,
+                          torV4Node->interval[0].firstSeen, node->interval[index].firstSeen);
+            }
         }
         node->roles |= torV4Node->roles;
     } else {
@@ -313,7 +316,10 @@ void UpdateTorV6Node(torV6Node_t *torV6Node) {
             }
             node->lastPublished = torV6Node->lastPublished;
             if (torV6Node->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torV6Node->interval[0].lastSeen;
-            if (torV6Node->interval[0].firstSeen < node->interval[index].firstSeen) abort();
+            if (torV6Node->interval[0].firstSeen < node->interval[index].firstSeen) {
+                LogError("Unexpected interval ordering for torV6 node - firstSeen %ld < %ld, skipping", torV6Node->interval[0].firstSeen,
+                          node->interval[index].firstSeen);
+            }
         }
         node->roles |= torV6Node->roles;
     } else {

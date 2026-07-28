@@ -54,10 +54,10 @@
 #define fts_set fts_set_compat
 #endif
 
-#include "nfthread.h"
 #include "conf/nfconf.h"
 #include "logging.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "tor/tor.h"
 #include "util.h"
 
@@ -100,10 +100,12 @@ static void usage(char *name) {
 }  // End of usage
 
 // parse integer from string, up to eos char
-// update string after reading
+// update string after reading; sets *timeString to NULL on any parse error
+// so subsequent chained calls short-circuit instead of dereferencing NULL
 static int inline getNumber(char **timeString, char eos) {
     int number = 0;
     char *s = *timeString;
+    if (s == NULL) return 0;
 
     char *eosp = strchr(s, eos);
     if (eosp) *eosp++ = '\0';
@@ -111,6 +113,7 @@ static int inline getNumber(char **timeString, char eos) {
         if (*s >= '0' && *s <= '9') {
             number = 10 * number + (*s - 0x30);
         } else {
+            *timeString = NULL;
             return 0;
         }
         s++;
@@ -154,19 +157,19 @@ static time_t ReadTime(char *timestring) {
 }
 
 static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) {
-    if (strstr(line, TAG_EXITNODE) != NULL) {
+    if (strncmp(line, TAG_EXITNODE, strlen(TAG_EXITNODE)) == 0) {
         /* Signal processFile to commit the previous block and reset state */
         return -1;
-    } else if (strstr(line, TAG_PUBLISHED) != NULL) {
+    } else if (strncmp(line, TAG_PUBLISHED, strlen(TAG_PUBLISHED)) == 0) {
         char *timestring = line + strlen(TAG_PUBLISHED) + 1;
         time_t lastPublished = ReadTime(timestring);
         torV4Node->lastPublished = lastPublished;
         torV4Node->interval[0].firstSeen = lastPublished;
-    } else if (strstr(line, TAG_LASTSTATUS) != NULL) {
+    } else if (strncmp(line, TAG_LASTSTATUS, strlen(TAG_LASTSTATUS)) == 0) {
         char *timestring = line + strlen(TAG_LASTSTATUS) + 1;
         time_t lastStatus = ReadTime(timestring);
         if (lastStatus > torV4Node->interval[0].lastSeen) torV4Node->interval[0].lastSeen = lastStatus;
-    } else if (strstr(line, TAG_EXITADDRESS) != NULL) {
+    } else if (strncmp(line, TAG_EXITADDRESS, strlen(TAG_EXITADDRESS)) == 0) {
         char *ipstring = line + strlen(TAG_EXITADDRESS) + 1;
         char *timestring = strchr(ipstring, ' ');
         if (!timestring) return 0;
@@ -360,12 +363,14 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Set thread pipeline according the mode: Build torDB or lookup IP
+    int buildMode = (dirName != NULL);
     threadPipeline_t pipeline = {
-        .role = TC_ROLE_WRITE_ONLY,
-        .hasReaders = false,  // no input nffiles; source data traversed from Tor CSV
-        .hasWriters = true,   // nffile writer threads compress the output DB file
+        .role = buildMode ? TC_ROLE_WRITE_ONLY : TC_ROLE_ANALYZE,
+        .hasReaders = !buildMode,
+        .hasWriters = buildMode,
         .hasWorkers = false,
-        .fixedThreads = 1,    // main build thread
+        .fixedThreads = 1,  // main thread
     };
     threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
