@@ -869,7 +869,7 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, outputParam
         uint32_t type = __builtin_ctzll(bitMap);
         bitMap &= bitMap - 1;
 
-        ptrdiff_t offset = offsetTable[slot];
+        ptrdiff_t offset = offsetTable[slot++];
         uint8_t *extension = recordBase + offset;
 
         switch (type) {
