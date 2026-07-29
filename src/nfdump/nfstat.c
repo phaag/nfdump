@@ -161,6 +161,8 @@ static struct StatParameter_s {
     {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NULL},
     {"srctz", "                            Src Timezone", {EXlocal, OFFsrcTZ, SizesrcTZ, 0}, IS_TZ, SRC_TZ_PreProcess},
     {"dsttz", "                            Dst Timezone", {EXlocal, OFFdstTZ, SizedstTZ, 0}, IS_TZ, DST_TZ_PreProcess},
+    {"tz", "                                Timezone", {EXlocal, OFFsrcTZ, SizesrcTZ, 0}, IS_TZ, SRC_TZ_PreProcess},
+    {"tz", NULL, {EXlocal, OFFdstTZ, SizedstTZ, 0}, IS_TZ, DST_TZ_PreProcess},
     {"inif", "Input If", {EXinterfaceID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
     {"outif", "Output If", {EXinterfaceID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NULL},
     {"if", "Interface", {EXinterfaceID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},

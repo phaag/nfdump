@@ -96,7 +96,8 @@ written back into a binary flow file, which again may be processed with
 can enrich the listing of flows with geo location information and AS information,
 unless AS information is already available in the flow records. IP addresses can be
 tagged with a two letter country code, or with a longer location label containing
-the geographic region, country and city.  The geo location and AS information is
+the geographic region, country and city, as well as with the IANA time zone name
+of the resolved location. The geo location, time zone and AS information is
 retrieved from the optional
 .Ar geoDB
 database, created by the
@@ -446,6 +447,10 @@ Two letter src geo country code of src IP address
 Two letter dst geo country code of dst IP address
 .It Cm geo
 Two letter src/dst geo country code of src/dst IP address
+.It Cm srctz
+IANA time zone name of src IP address
+.It Cm dsttz
+IANA time zone name of dst IP address
 .It Cm nhip
 next hop IP addresses
 .It Cm nhbip
@@ -1048,9 +1053,29 @@ is not specified with
 .Cm src
 or
 .Cm dst
-the source or destination geo location code may match. Please note: country codes, which match 
+the source or destination geo location code may match. Please note: country codes, which match
 .Nm
 filter language reserved words such as IN, LT etc must be explicitly quoted to be recognized as string.
+.Pp
+.It Cm tz Ar string
+.It Cm src tz Ar string
+.It Cm dst tz Ar string
+True, if the IANA time zone name resolved by geolookup of the source or destination IP address matches
+.Ar string ,
+e.g.
+.Sy America/New_York
+or
+.Sy Europe/Berlin .
+This filter works only, if a valid geoDB is specified. See geo location option above. The time zone
+name corresponds to the maxmind DB
+.Sy time_zone
+field. If
+.Cm tz
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination time zone may match.
 .Pp
 .It Cm tun ip Ar ipaddr
 .It Cm src tun ip Ar ipaddr
@@ -1138,7 +1163,7 @@ the input or output interface may match.
 .It Cm prev as Ar comp num
 .It Cm next as Ar comp num
 True if the comparison of the respective AS fields matches
-.As num
+.Ar num
 .Nm
 supports 32-bit AS numbers every where.
 Without
@@ -1931,6 +1956,10 @@ dst IP 2 letter country code
 src IP geo location info
 .It Cm %dloc
 dst IP geo location info
+.It Cm %stz
+src IP time zone
+.It Cm %dtz
+dst IP time zone
 .It Cm %sasn
 src AS organisation name
 .It Cm %dasn

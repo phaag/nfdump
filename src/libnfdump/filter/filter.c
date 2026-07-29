@@ -167,6 +167,7 @@ static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, r
 static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t tzLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
@@ -196,6 +197,7 @@ static struct flow_procs_map_s {
                             [FUNC_TOR_LOOKUP] = {"TOR Lookup", torLookup_function},
                             [FUNC_JA3] = {"ja3", NULL},
                             [FUNC_TTL_EQUAL] = {"min/max TTL equal", ttlEqual_function},
+                            [FUNC_TZ_LOOKUP] = {"TZ Lookup", tzLookup_function},
                             {NULL, NULL}};
 
 static struct preprocess_s {
@@ -350,6 +352,23 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
 
     return as;
 }  // End of mmASLookup_function
+
+static uint64_t tzLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    uint16_t tz = *((uint16_t *)dataPtr);
+    if (tz) return tz;
+
+    uint32_t direction = data.dataVal;
+    if (ipv4Flow) {
+        tz = direction == DIR_SRC ? LookupV4TZindex(ipv4Flow->srcAddr) : LookupV4TZindex(ipv4Flow->dstAddr);
+    } else if (ipv6Flow) {
+        tz = direction == DIR_SRC ? LookupV6TZindex(ipv6Flow->srcAddr) : LookupV6TZindex(ipv6Flow->dstAddr);
+    }
+    *((uint16_t *)dataPtr) = tz;
+
+    return tz;
+}  // End of tzLookup_function
 
 static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];

@@ -209,7 +209,10 @@ geo\ [a-zA-Z]{2}      {
                     yylval.s = stripQuotes(yytext);
 	                  return GEOSTRING;
 								}
-
+tz\ [a-zA-Z0-9/_-]+      {
+                    yylval.s = stripQuotes(yytext);
+	                  return TZSTRING;
+								}
 \n			{ lineno++; }
 .				{ return yytext[0]; }
 			

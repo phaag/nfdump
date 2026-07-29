@@ -38,6 +38,10 @@
 /*
  * Common interface header for the maxmind library
  */
+
+// sentinel returned by LookupV4UtcOffset()/LookupV6UtcOffset() when no GeoDB/location match is found
+#define UTC_OFFSET_UNKNOWN INT32_MIN
+
 int LoadMaxMind(char *fileName);
 
 int SaveMaxMind(char *fileName);
@@ -56,6 +60,11 @@ const char *LookupV4Timezone(uint32_t ip);
 
 const char *LookupV6Timezone(uint64_t ip[2]);
 
+// UTC offset in minutes, standard (non-DST) time. Returns UTC_OFFSET_UNKNOWN if no GeoDB/location match is found.
+int32_t LookupV4UtcOffset(uint32_t ip);
+
+int32_t LookupV6UtcOffset(uint64_t ip[2]);
+
 // O(1) index into the interned timeZone name table built by BuildTZCache().
 // Returns 0 ("unknown timezone") if no GeoDB/location match is found.
 uint16_t LookupV4TZindex(uint32_t ip);
@@ -64,6 +73,8 @@ uint16_t LookupV6TZindex(uint64_t ip[2]);
 
 // Resolve an index returned by LookupV4TZindex()/LookupV6TZindex() back to its zone name string.
 const char *LookupTZname(uint16_t index);
+
+uint16_t LookupTZindex(const char *tzName);
 
 uint32_t LookupV4AS(uint32_t ip);
 

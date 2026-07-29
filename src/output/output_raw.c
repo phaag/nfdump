@@ -203,7 +203,26 @@ static void stringEXtunIPv6(FILE *stream, EXtunnelV6_t *tunnel, EXgenericFlow_t 
 
 }  // End of stringEXtunIPv6
 
-static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord) {
+// Format a standard-time UTC offset (minutes) as "UTC+5", "UTC-6:30" etc.
+static void formatUtcOffset(int32_t minutes, char *buf, size_t len) {
+    if (minutes == UTC_OFFSET_UNKNOWN) {
+        snprintf(buf, len, "unknown");
+        return;
+    }
+
+    char sign = minutes < 0 ? '-' : '+';
+    int32_t absMinutes = minutes < 0 ? -minutes : minutes;
+    int32_t hh = absMinutes / 60;
+    int32_t mm = absMinutes % 60;
+    if (mm == 0) {
+        snprintf(buf, len, "UTC%c%d", sign, hh);
+    } else {
+        snprintf(buf, len, "UTC%c%d:%02d", sign, hh, mm);
+    }
+
+}  // End of formatUtcOffset
+
+static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord, bool hasGeoDB) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionRecord;
     EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
     EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
@@ -235,9 +254,21 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, uint8_
             "  dst addr     =   %16s%s%s%s%s\n",
             as, strlen(sloc) ? ": " : "", sloc, strlen(stor) ? " - " : "", stor, ds, strlen(dloc) ? ": " : "", dloc, strlen(dtor) ? " - " : "", dtor);
 
+    if (hasGeoDB) {
+        const char *stz = LookupV4Timezone(ipv4Flow->srcAddr);
+        const char *dtz = LookupV4Timezone(ipv4Flow->dstAddr);
+        char soff[16], doff[16];
+        formatUtcOffset(LookupV4UtcOffset(ipv4Flow->srcAddr), soff, sizeof(soff));
+        formatUtcOffset(LookupV4UtcOffset(ipv4Flow->dstAddr), doff, sizeof(doff));
+        fprintf(stream,
+                "  src tz       =   %16s: %s\n"
+                "  dst tz       =   %16s: %s\n",
+                stz != NULL ? stz : "unknown timezone", soff, dtz != NULL ? dtz : "unknown timezone", doff);
+    }
+
 }  // End of stringsEXipv4Flow
 
-static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord) {
+static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, uint8_t *extensionRecord, bool hasGeoDB) {
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionRecord;
     EXtunnelV4_t *tunV4 = (EXtunnelV4_t *)recordHandle->extensionList[EXtunnelV4ID];
     EXtunnelV6_t *tunV6 = (EXtunnelV6_t *)recordHandle->extensionList[EXtunnelV6ID];
@@ -271,6 +302,18 @@ static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, uint8_
             "  src addr     =   %16s%s%s%s\n"
             "  dst addr     =   %16s%s%s%s\n",
             as, strlen(sloc) ? ": " : "", sloc, stor, ds, strlen(dloc) ? ": " : "", dloc, dtor);
+
+    if (hasGeoDB) {
+        const char *stz = LookupV6Timezone(ipv6Flow->srcAddr);
+        const char *dtz = LookupV6Timezone(ipv6Flow->dstAddr);
+        char soff[16], doff[16];
+        formatUtcOffset(LookupV6UtcOffset(ipv6Flow->srcAddr), soff, sizeof(soff));
+        formatUtcOffset(LookupV6UtcOffset(ipv6Flow->dstAddr), doff, sizeof(doff));
+        fprintf(stream,
+                "  src tz       =   %16s: %s\n"
+                "  dst tz       =   %16s: %s\n",
+                stz != NULL ? stz : "unknown timezone", soff, dtz != NULL ? dtz : "unknown timezone", doff);
+    }
 
 }  // End of stringsEXipv6Flow
 
@@ -1001,10 +1044,10 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
                 stringEXgenericFlow(stream, recordHandle, extension);
                 break;
             case EXipv4FlowID:
-                stringsEXipv4Flow(stream, recordHandle, extension);
+                stringsEXipv4Flow(stream, recordHandle, extension, outputParam->hasGeoDB);
                 break;
             case EXipv6FlowID:
-                stringsEXipv6Flow(stream, recordHandle, extension);
+                stringsEXipv6Flow(stream, recordHandle, extension, outputParam->hasGeoDB);
                 break;
             case EXinterfaceID:
                 stringsEXinterface(stream, recordHandle, extension);

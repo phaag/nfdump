@@ -1144,10 +1144,47 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (!filter && ffile) {
+        filter = ReadFilter(ffile);
+        if (filter == NULL) {
+            exit(EXIT_FAILURE);
+        }
+
+        FilterFilename = ffile;
+    }
+
     if (ConfOpen(configFile, "nfdump", nfdumpOption) < 0) exit(EXIT_FAILURE);
     if (configFile && syntax_only) {
         ConfInventory(configFile);
         exit(EXIT_SUCCESS);
+    }
+
+    if (geo_file == NULL) {
+        geo_file = ConfGetString("geodb.path");
+    }
+    if (geo_file && strcmp(geo_file, "none") == 0) {
+        geo_file = NULL;
+    }
+    if (geo_file) {
+        if (!CheckPath(geo_file, S_IFREG) || !LoadMaxMind(geo_file)) {
+            LogError("Error reading geo location DB file %s", geo_file);
+            exit(EXIT_FAILURE);
+        }
+        outputParams->hasGeoDB = true;
+    }
+
+    if (tor_file == NULL) {
+        tor_file = ConfGetString("tordb.path");
+    }
+    if (tor_file && strcmp(tor_file, "none") == 0) {
+        tor_file = NULL;
+    }
+    if (tor_file) {
+        if (!CheckPath(tor_file, S_IFREG) || !LoadTorTree(tor_file)) {
+            LogError("Error reading tor info DB file %s", tor_file);
+            exit(EXIT_FAILURE);
+        }
+        outputParams->hasTorDB = true;
     }
 
     if (query_type) {
@@ -1165,14 +1202,6 @@ int main(int argc, char **argv) {
             LogError("Unknown mode to verify file: %s. Use -v check, or -v repair", query_type);
         }
         exit(EXIT_SUCCESS);
-    }
-    if (!filter && ffile) {
-        filter = ReadFilter(ffile);
-        if (filter == NULL) {
-            exit(EXIT_FAILURE);
-        }
-
-        FilterFilename = ffile;
     }
 
     void *engine = NULL;
@@ -1292,33 +1321,6 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    if (geo_file == NULL) {
-        geo_file = ConfGetString("geodb.path");
-    }
-    if (geo_file && strcmp(geo_file, "none") == 0) {
-        geo_file = NULL;
-    }
-    if (geo_file) {
-        if (!CheckPath(geo_file, S_IFREG) || !LoadMaxMind(geo_file)) {
-            LogError("Error reading geo location DB file %s", geo_file);
-            exit(EXIT_FAILURE);
-        }
-        outputParams->hasGeoDB = true;
-    }
-
-    if (tor_file == NULL) {
-        tor_file = ConfGetString("tordb.path");
-    }
-    if (tor_file && strcmp(tor_file, "none") == 0) {
-        tor_file = NULL;
-    }
-    if (tor_file) {
-        if (!CheckPath(tor_file, S_IFREG) || !LoadTorTree(tor_file)) {
-            LogError("Error reading tor info DB file %s", tor_file);
-            exit(EXIT_FAILURE);
-        }
-        outputParams->hasTorDB = true;
-    }
     if ((aggregate || flow_stat || print_order) && !Init_FlowCache(outputParams->hasGeoDB)) exit(250);
 
     if (aggregate && (flow_stat || element_stat)) {

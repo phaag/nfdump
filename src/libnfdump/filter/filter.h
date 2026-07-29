@@ -192,6 +192,7 @@ typedef enum {
     FUNC_TOR_LOOKUP,   // function code for optional tor node  lookup
     FUNC_JA3,          // function code for ja3 calc
     FUNC_TTL_EQUAL,    // function code for comparing min/max TTL
+    FUNC_TZ_LOOKUP,    // function code for optional maxmind timezone lookup
 } filterFunction_t;
 
 typedef enum {

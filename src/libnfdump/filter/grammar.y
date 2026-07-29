@@ -54,6 +54,7 @@
 #include "ja3/ja3.h"
 #include "dns/dns.h"
 #include "ja4/ja4.h"
+#include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "util.h"
 
@@ -150,6 +151,8 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt);
 
 static int AddGeo(direction_t direction, char *geo);
 
+static int AddTZ(direction_t direction, char *geo);
+
 static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t number);
 
 static int AddVRF(direction_t direction, uint16_t comp, uint64_t number);
@@ -196,6 +199,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token SEEN
 %token <s> STRING
 %token <s> GEOSTRING
+%token <s> TZSTRING
 %token <value> NUMBER
 %type <value> expr
 %type <param> dqual minmax term comp
@@ -446,6 +450,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| dqual GEOSTRING {
 		$$.self = AddGeo($1.direction, $2); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual TZSTRING {
+		$$.self = AddTZ($1.direction, $2); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| OBSERVATION STRING STRING comp NUMBER {
@@ -1545,6 +1553,43 @@ static int AddGeo(direction_t direction, char *geo) {
 
 	return ret;
 } // End of AddGeo
+
+static int AddTZ(direction_t direction, char *tz) {
+
+	// tz => "tz America/Chicago" -> remove leading "tz " (3 chars)
+	tz += 3;
+
+	data_t data = {.dataVal = direction};
+	int ret = -1;
+	uint64_t tzVal = LookupTZindex(tz);
+	if ( tzVal == 0 ) {
+		yyprintf("Unknown timezone %s", tz);
+		return -1;
+	}
+
+	// srcTZ/dstTZ are not part of the raw flow record - they are resolved on
+	// demand from the src/dst IP via FUNC_TZ_LOOKUP, same as AS lookups.
+	switch (direction) {
+		case DIR_SRC:
+			ret = NewElement(EXlocal, OFFsrcTZ, SizesrcTZ, tzVal, CMP_EQ, FUNC_TZ_LOOKUP, data);
+			break;
+		case DIR_DST:
+			ret = NewElement(EXlocal, OFFdstTZ, SizedstTZ, tzVal, CMP_EQ, FUNC_TZ_LOOKUP, data);
+			break;
+		case DIR_UNSPEC: {
+			data_t srcData = {.dataVal = DIR_SRC};
+			data_t dstData = {.dataVal = DIR_DST};
+			ret = Connect_OR(
+				NewElement(EXlocal, OFFsrcTZ, SizesrcTZ, tzVal, CMP_EQ, FUNC_TZ_LOOKUP, srcData),
+				NewElement(EXlocal, OFFdstTZ, SizedstTZ, tzVal, CMP_EQ, FUNC_TZ_LOOKUP, dstData)
+			);
+			} break;
+		default:
+			yyprintf("Unknown tz specifier");
+	}
+
+	return ret;
+} // End of AddTZ
 
 static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t number) {
 

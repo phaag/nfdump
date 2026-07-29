@@ -275,6 +275,10 @@ static void String_SrcLocation(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_DstLocation(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_SrcTimezone(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_DstTimezone(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_SrcASorganisation(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_DstASorganisation(FILE *stream, recordHandle_t *recordHandle);
@@ -584,6 +588,8 @@ static struct format_entry_s {
     {"%dc", 0, "DC", String_DstCountry},                                // dst IP 2 letter country code
     {"%sloc", 0, "Src IP location info", String_SrcLocation},           // src IP geo location info
     {"%dloc", 0, "Dst IP location info", String_DstLocation},           // dst IP geo location info
+    {"%stz", 0, "Src IP time zone", String_SrcTimezone},                // src IP time zone
+    {"%dtz", 0, "Dst IP time zone", String_DstTimezone},                // dst IP time zone
     {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organisation string
     {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},      // dst IP AS organisation string
     {"%stor", 0, "STor", String_SrcTor},                                // src IP 2 letter tor node info
@@ -2428,6 +2434,36 @@ static void String_DstLocation(FILE *stream, recordHandle_t *recordHandle) {
         fprintf(stream, "<no location info>");
 
 }  // End of String_DstLocation
+
+static void String_SrcTimezone(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    const char *timeZone = NULL;
+    if (ipv4Flow) {
+        timeZone = LookupV4Timezone(ipv4Flow->srcAddr);
+    } else if (ipv6Flow) {
+        timeZone = LookupV6Timezone(ipv6Flow->srcAddr);
+    }
+
+    fprintf(stream, "%s", timeZone != NULL ? timeZone : "unknown timezone");
+
+}  // End of String_SrcTimezone
+
+static void String_DstTimezone(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    const char *timeZone = NULL;
+    if (ipv4Flow) {
+        timeZone = LookupV4Timezone(ipv4Flow->dstAddr);
+    } else if (ipv6Flow) {
+        timeZone = LookupV6Timezone(ipv6Flow->dstAddr);
+    }
+
+    fprintf(stream, "%s", timeZone != NULL ? timeZone : "unknown timezone");
+
+}  // End of String_DstTimezone
 
 static void String_SrcASorganisation(FILE *stream, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];

@@ -213,7 +213,7 @@ static mmFlat_t *mmFlat = NULL;
 #define MAX_TZ_CACHE 1024
 static char tzNameTable[MAX_TZ_CACHE][TimeZoneLength] = {[0] = "unknown timezone"};
 static uint16_t tzNameCount = 1;
-static khash_t(tzIndexMap) * tzIndexByLocalID = NULL;
+static khash_t(tzIndexMap) *tzIndexByLocalID = NULL;
 
 static uint16_t internTZname(const char *tzName) {
     for (uint16_t i = 0; i < tzNameCount; i++) {
@@ -672,6 +672,20 @@ const char *LookupV4Timezone(uint32_t ip) {
 
 }  // End of LookupV4Timezone
 
+int32_t LookupV4UtcOffset(uint32_t ip) {
+    if (!mmFlat || !mmFlat->ipV4Arr) return UTC_OFFSET_UNKNOWN;
+
+    ipV4Node_t *ipV4Node = flatSearchV4(mmFlat->ipV4Arr, mmFlat->ipV4Count, ip);
+    if (!ipV4Node) return UTC_OFFSET_UNKNOWN;
+
+    locationKey_t locationKey = {.key = ipV4Node->info.localID};
+    khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
+    if (k == kh_end(mmHandle->localMap)) return UTC_OFFSET_UNKNOWN;
+
+    return kh_value(mmHandle->localMap, k).utcOffset;
+
+}  // End of LookupV4UtcOffset
+
 uint16_t LookupV4TZindex(uint32_t ip) {
     if (!mmFlat || !mmFlat->ipV4Arr || !tzIndexByLocalID) return 0;
 
@@ -699,6 +713,20 @@ const char *LookupV6Timezone(uint64_t ip[2]) {
 
 }  // End of LookupV6Timezone
 
+int32_t LookupV6UtcOffset(uint64_t ip[2]) {
+    if (!mmFlat || !mmFlat->ipV6Arr) return UTC_OFFSET_UNKNOWN;
+
+    ipV6Node_t *ipV6Node = flatSearchV6(mmFlat->ipV6Arr, mmFlat->ipV6Count, ip);
+    if (!ipV6Node) return UTC_OFFSET_UNKNOWN;
+
+    locationKey_t locationKey = {.key = ipV6Node->info.localID};
+    khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
+    if (k == kh_end(mmHandle->localMap)) return UTC_OFFSET_UNKNOWN;
+
+    return kh_value(mmHandle->localMap, k).utcOffset;
+
+}  // End of LookupV6UtcOffset
+
 uint16_t LookupV6TZindex(uint64_t ip[2]) {
     if (!mmFlat || !mmFlat->ipV6Arr || !tzIndexByLocalID) return 0;
 
@@ -711,6 +739,14 @@ uint16_t LookupV6TZindex(uint64_t ip[2]) {
     return kh_value(tzIndexByLocalID, k);
 
 }  // End of LookupV6TZindex
+
+uint16_t LookupTZindex(const char *tzName) {
+    for (uint16_t i = 0; i < tzNameCount; i++) {
+        if (strcmp(tzNameTable[i], tzName) == 0) return i;
+    }
+    return 0;
+
+}  // End of LookupTZindex
 
 const char *LookupTZname(uint16_t index) {
     if (index >= tzNameCount) return "invalid timezone";
