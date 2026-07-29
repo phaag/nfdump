@@ -47,6 +47,7 @@ typedef struct locationInfo_s {
     char country[4];
     char city[CityLength];
     char timeZone[TimeZoneLength];
+    int32_t utcOffset;  // minutes, standard (non-DST) time, resolved from timeZone at DB build time
 } locationInfo_t;
 
 typedef struct ipLocationInfo_s {
@@ -159,6 +160,12 @@ void WriteFlatCache(const char *flatPath);
 int LoadFlatCache(const char *flatPath);
 
 int InitFlatArrays(void);
+
+// Build the RAM-only timeZone name <-> index cache from the currently loaded
+// locations. Must be called once after location data is fully populated -
+// i.e. at the end of LoadFlatCache() and at the end of LoadMaxMind()'s slow
+// path. Not part of the on-disk format.
+void BuildTZCache(void);
 
 void FreeMaxMind(void);
 

@@ -413,6 +413,7 @@ int LoadMaxMind(char *fileName) {
     CloseFileV3(nffile);
 
     SortFlatArrays();
+    BuildTZCache();
 
     // write flat cache for fast-path use next time (best effort)
     if (useFlatCache) WriteFlatCache(flatPath);

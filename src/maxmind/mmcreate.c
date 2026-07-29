@@ -36,8 +36,10 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "logging.h"
@@ -108,6 +110,71 @@ static char *csvNextField(char **stringp) {
     *stringp = s;
     return field;
 }  // End of csvNextField
+
+// Resolve the standard (non-DST) UTC offset for an IANA zone name, in minutes.
+// Samples Jan 1 and Jul 1 of a fixed reference year and picks whichever sample
+// has tm_isdst == 0, which covers both hemispheres. Returns 0 (UTC) if the
+// zone name cannot be resolved by the local tzdata.
+static int32_t resolveUtcOffsetMinutes(const char *tzName) {
+    if (tzName == NULL || tzName[0] == '\0') return 0;
+
+    char *saved = getenv("TZ");
+    char *savedCopy = saved ? strdup(saved) : NULL;
+
+    setenv("TZ", tzName, 1);
+    tzset();
+
+    time_t jan = 1704067200;  // 2024-01-01T00:00:00Z
+    time_t jul = 1719792000;  // 2024-07-01T00:00:00Z
+    struct tm tmJan, tmJul;
+    localtime_r(&jan, &tmJan);
+    localtime_r(&jul, &tmJul);
+
+    int32_t offset;
+    if (tmJan.tm_isdst == 0) {
+        offset = (int32_t)(tmJan.tm_gmtoff / 60);
+    } else if (tmJul.tm_isdst == 0) {
+        offset = (int32_t)(tmJul.tm_gmtoff / 60);
+    } else {
+        // unexpected: zone reports DST active at both samples - fall back to Jan
+        offset = (int32_t)(tmJan.tm_gmtoff / 60);
+    }
+
+    if (savedCopy) {
+        setenv("TZ", savedCopy, 1);
+        free(savedCopy);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+
+    return offset;
+}  // End of resolveUtcOffsetMinutes
+
+// Memoize resolveUtcOffsetMinutes() by zone name. The locations CSV has ~450
+// distinct time_zone values repeated across ~80k rows; tzset() re-reads and
+// re-parses the zoneinfo file on every call, so resolving per-row instead of
+// per-zone measurably inflates DB build time. Linear scan is fine here - the
+// table stays in the low hundreds of entries.
+#define MAX_TZ_CACHE 1024
+static char tzCacheName[MAX_TZ_CACHE][TimeZoneLength];
+static int32_t tzCacheOffset[MAX_TZ_CACHE];
+static int tzCacheCount = 0;
+
+static int32_t cachedUtcOffsetMinutes(const char *tzName) {
+    for (int i = 0; i < tzCacheCount; i++) {
+        if (strcmp(tzCacheName[i], tzName) == 0) return tzCacheOffset[i];
+    }
+
+    int32_t offset = resolveUtcOffsetMinutes(tzName);
+    if (tzCacheCount < MAX_TZ_CACHE) {
+        strncpy(tzCacheName[tzCacheCount], tzName, TimeZoneLength - 1);
+        tzCacheName[tzCacheCount][TimeZoneLength - 1] = '\0';
+        tzCacheOffset[tzCacheCount] = offset;
+        tzCacheCount++;
+    }
+    return offset;
+}  // End of cachedUtcOffsetMinutes
 
 static void stripLine(char *line) {
     char *eol = strchr(line, '\r');
@@ -242,6 +309,7 @@ static int loadLocalMap(char *fileName) {
                         field[TimeZoneLength - 1] = '\0';
                     }
                     strcpy(locationInfo.timeZone, field);
+                    locationInfo.utcOffset = cachedUtcOffsetMinutes(field);
                     break;
                     // default: do nothing - skip extra (new?) fields
             }

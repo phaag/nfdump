@@ -54,6 +54,10 @@
 
 KHASH_INIT(localMap, locationKey_t, locationInfo_t, 1, kh_hash_func, kh_hash_equal)
 
+// localID -> interned timeZone index. RAM-only, built by BuildTZCache() after
+// location data is loaded - not part of the on-disk format.
+KHASH_MAP_INIT_INT(tzIndexMap, uint16_t)
+
 // ipV4Tree node compare function
 // nextmask = 0 => IP to search
 // mask IP to search with netmask and compare network
@@ -198,6 +202,44 @@ typedef struct mmFlat_s {
 } mmFlat_t;
 
 static mmFlat_t *mmFlat = NULL;
+
+/* -----------------------------------------------------------------------
+ * timeZone name interning, built once by BuildTZCache() after location data
+ * is loaded (see LoadFlatCache() and LoadMaxMind()'s slow path). RAM-only -
+ * not persisted, not part of the on-disk format. Lets per-flow lookups store
+ * a small stable uint16_t index instead of repeatedly string-comparing the
+ * full timeZone name.
+ * ----------------------------------------------------------------------- */
+#define MAX_TZ_CACHE 1024
+static char tzNameTable[MAX_TZ_CACHE][TimeZoneLength] = {[0] = "unknown timezone"};
+static uint16_t tzNameCount = 1;
+static khash_t(tzIndexMap) * tzIndexByLocalID = NULL;
+
+static uint16_t internTZname(const char *tzName) {
+    for (uint16_t i = 0; i < tzNameCount; i++) {
+        if (strcmp(tzNameTable[i], tzName) == 0) return i;
+    }
+
+    uint16_t index = tzNameCount;
+    if (tzNameCount < MAX_TZ_CACHE) {
+        strncpy(tzNameTable[tzNameCount], tzName, TimeZoneLength - 1);
+        tzNameCount++;
+    }
+    return index;
+}  // End of internTZname
+
+void BuildTZCache(void) {
+    if (tzIndexByLocalID) return;  // already built
+
+    tzIndexByLocalID = kh_init(tzIndexMap);
+    for (locationInfo_t *loc = NextLocation(FIRSTNODE); loc != NULL; loc = NextLocation(NEXTNODE)) {
+        uint16_t tzIndex = internTZname(loc->timeZone);
+        int absent;
+        khint_t k = kh_put(tzIndexMap, tzIndexByLocalID, loc->localID, &absent);
+        if (absent) kh_value(tzIndexByLocalID, k) = tzIndex;
+    }
+    dbg_printf("BuildTZCache: %u distinct time zones\n", tzNameCount);
+}  // End of BuildTZCache
 
 // comparators for qsort (sort by network address ascending)
 static int cmpIpV4(const void *a, const void *b) {
@@ -616,6 +658,65 @@ void LookupV6Location(uint64_t ip[2], char *location, size_t len) {
 
 }  // End of LookupV6Location
 
+const char *LookupV4Timezone(uint32_t ip) {
+    if (!mmFlat || !mmFlat->ipV4Arr) return NULL;
+
+    ipV4Node_t *ipV4Node = flatSearchV4(mmFlat->ipV4Arr, mmFlat->ipV4Count, ip);
+    if (!ipV4Node) return NULL;
+
+    locationKey_t locationKey = {.key = ipV4Node->info.localID};
+    khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
+    if (k == kh_end(mmHandle->localMap)) return NULL;
+
+    return kh_value(mmHandle->localMap, k).timeZone;
+
+}  // End of LookupV4Timezone
+
+uint16_t LookupV4TZindex(uint32_t ip) {
+    if (!mmFlat || !mmFlat->ipV4Arr || !tzIndexByLocalID) return 0;
+
+    ipV4Node_t *ipV4Node = flatSearchV4(mmFlat->ipV4Arr, mmFlat->ipV4Count, ip);
+    if (!ipV4Node) return 0;
+
+    khint_t k = kh_get(tzIndexMap, tzIndexByLocalID, ipV4Node->info.localID);
+    if (k == kh_end(tzIndexByLocalID)) return 0;
+
+    return kh_value(tzIndexByLocalID, k);
+
+}  // End of LookupV4TZindex
+
+const char *LookupV6Timezone(uint64_t ip[2]) {
+    if (!mmFlat || !mmFlat->ipV6Arr) return NULL;
+
+    ipV6Node_t *ipV6Node = flatSearchV6(mmFlat->ipV6Arr, mmFlat->ipV6Count, ip);
+    if (!ipV6Node) return NULL;
+
+    locationKey_t locationKey = {.key = ipV6Node->info.localID};
+    khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
+    if (k == kh_end(mmHandle->localMap)) return NULL;
+
+    return kh_value(mmHandle->localMap, k).timeZone;
+
+}  // End of LookupV6Timezone
+
+uint16_t LookupV6TZindex(uint64_t ip[2]) {
+    if (!mmFlat || !mmFlat->ipV6Arr || !tzIndexByLocalID) return 0;
+
+    ipV6Node_t *ipV6Node = flatSearchV6(mmFlat->ipV6Arr, mmFlat->ipV6Count, ip);
+    if (!ipV6Node) return 0;
+
+    khint_t k = kh_get(tzIndexMap, tzIndexByLocalID, ipV6Node->info.localID);
+    if (k == kh_end(tzIndexByLocalID)) return 0;
+
+    return kh_value(tzIndexByLocalID, k);
+
+}  // End of LookupV6TZindex
+
+const char *LookupTZname(uint16_t index) {
+    if (index >= tzNameCount) return "invalid timezone";
+    return tzNameTable[index];
+}  // End of LookupTZname
+
 uint32_t LookupV4AS(uint32_t ip) {
     if (!mmFlat || !mmFlat->asV4Arr) return 0;
     asV4Node_t *n = flatSearchAsV4(mmFlat->asV4Arr, mmFlat->asV4Count, ip);
@@ -985,6 +1086,8 @@ int LoadFlatCache(const char *flatPath) {
 
     dbg_printf("LoadFlatCache: mmap'd %s: loc=%u ipv4=%u ipv6=%u asv4=%u asv6=%u asorg=%u\n", flatPath, mmFlat->locCount, mmFlat->ipV4Count,
                mmFlat->ipV6Count, mmFlat->asV4Count, mmFlat->asV6Count, mmFlat->asOrgCount);
+
+    BuildTZCache();
     return 1;
 }  // End of LoadFlatCache
 
@@ -999,6 +1102,11 @@ int InitFlatArrays(void) {
 }  // End of InitFlatArrays
 
 void FreeMaxMind(void) {
+    if (tzIndexByLocalID) {
+        kh_destroy(tzIndexMap, tzIndexByLocalID);
+        tzIndexByLocalID = NULL;
+        tzNameCount = 1;
+    }
     if (mmFlat) {
         if (mmFlat->mmapBase) {
             munmap(mmFlat->mmapBase, mmFlat->mmapSize);

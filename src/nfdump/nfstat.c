@@ -76,7 +76,8 @@ typedef enum {
     IS_JA4,
     IS_JA4S,
     IS_GEO,
-    IS_ASORG
+    IS_ASORG,
+    IS_TZ
 } elementType_t;
 
 typedef enum { DESCENDING = 0, ASCENDING } direction_t;
@@ -90,6 +91,8 @@ typedef enum { DESCENDING = 0, ASCENDING } direction_t;
 typedef void *(*func_preproc)(void *inPtr, recordHandle_t *);
 static void *SRC_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *SRC_TZ_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *DST_TZ_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle);
@@ -147,15 +150,17 @@ static struct StatParameter_s {
     {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
     {"dir", "Dir", {EXflowMiscID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
     {"srcas", "Src AS", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
-    {"srcasn", "                                 Organisation (AS num)", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"srcasn", "                                 Organisation AS num  ", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
     {"dstas", "Dst AS", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
-    {"dstasn", "                                 Organisation (AS num)", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
+    {"dstasn", "                                 Organisation AS num  ", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"as", "AS", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
     {"as", NULL, {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
-    {"asn", "                                 Organisation (AS num)", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"asn", "                                 Organisation AS num  ", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
     {"asn", NULL, {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, NULL},
     {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NULL},
+    {"srctz", "                            Src Timezone", {EXlocal, OFFsrcTZ, SizesrcTZ, 0}, IS_TZ, SRC_TZ_PreProcess},
+    {"dsttz", "                            Dst Timezone", {EXlocal, OFFdstTZ, SizedstTZ, 0}, IS_TZ, DST_TZ_PreProcess},
     {"inif", "Input If", {EXinterfaceID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
     {"outif", "Output If", {EXinterfaceID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NULL},
     {"if", "Interface", {EXinterfaceID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
@@ -727,6 +732,34 @@ static inline void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle)
     return inPtr;
 }  // End of SRC_AS_PreProcess
 
+static inline void *SRC_TZ_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    if (HasGeoDB == 0) return inPtr;
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    if (ipv4Flow) {
+        recordHandle->srcTZ = LookupV4TZindex(ipv4Flow->srcAddr);
+    } else if (ipv6Flow) {
+        recordHandle->srcTZ = LookupV6TZindex(ipv6Flow->srcAddr);
+    }
+
+    return inPtr;
+}  // End of SRC_TZ_PreProcess
+
+static inline void *DST_TZ_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    if (HasGeoDB == 0) return inPtr;
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    if (ipv4Flow) {
+        recordHandle->dstTZ = LookupV4TZindex(ipv4Flow->dstAddr);
+    } else if (ipv6Flow) {
+        recordHandle->dstTZ = LookupV6TZindex(ipv6Flow->dstAddr);
+    }
+
+    return inPtr;
+}  // End of DST_TZ_PreProcess
+
 static inline void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -1152,7 +1185,13 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         } break;
         case IS_ASORG: {
             const char *org = LookupASorg(hashKey->v1);
-            snprintf(valstr, 64, "%45s (%6" PRIi64 ")", org != NULL ? org : "unknown", hashKey->v1);
+            if (hashKey->v1 > 0)
+                snprintf(valstr, 64, "%45.45s AS%-6" PRIi64, org != NULL ? org : "unknown", hashKey->v1);
+            else
+                snprintf(valstr, 64, "%45.45s         ", org != NULL ? org : "unknown");
+        } break;
+        case IS_TZ: {
+            snprintf(valstr, 64, "%40.40s", LookupTZname((uint16_t)hashKey->v1));
         } break;
     }
     valstr[63] = 0;
@@ -1344,7 +1383,10 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
         } break;
         case IS_GEO: {
             snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
-        }
+        } break;
+        case IS_TZ: {
+            snprintf(valstr, 64, "%s", LookupTZname((uint16_t)hashKey->v1));
+        } break;
     }
     valstr[63] = 0;
 
@@ -1446,6 +1488,9 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
             snprintf(valstr, 40, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
                      (unsigned long long)hashKey->v1 & 1);
         } break;
+        case IS_TZ: {
+            snprintf(valstr, 40, "%s", LookupTZname((uint16_t)hashKey->v1));
+        } break;
     }
 
     valstr[39] = 0;
@@ -1545,7 +1590,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     } else {
                         if (outputParams->hasGeoDB) {
                             printf(
-                                "Date first seen             Duration     Proto %21s    Flows(%%)     %sPackets(%%)      %sBytes(%%)         pps    "
+                                "Date first seen             Duration     Proto %21s    Flows(%%)     %sPackets(%%)       %sBytes(%%)         pps    "
                                 "  "
                                 "bps   "
                                 "bpp\n",

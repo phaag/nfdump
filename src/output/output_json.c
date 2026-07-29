@@ -181,10 +181,15 @@ static char *stringEXipv4Flow(char *streamPtr, uint8_t *extensionRecord) {
     LookupV4Location(ipv4Flow->srcAddr, sloc, 128);
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
 
+    const char *stz = LookupV4Timezone(ipv4Flow->srcAddr);
+    const char *dtz = LookupV4Timezone(ipv4Flow->dstAddr);
+
     AddElementString("src4_addr", sa);
     AddElementString("dst4_addr", da);
     AddElementString("src4_geo", sloc);
     AddElementString("dst4_geo", dloc);
+    AddElementString("src4_tz", stz != NULL ? stz : "unknown");
+    AddElementString("dst4_tz", dtz != NULL ? dtz : "unknown");
 
     return streamPtr;
 }  // End of stringEXipv4Flow
@@ -205,10 +210,15 @@ static char *stringEXipv6Flow(char *streamPtr, uint8_t *extensionRecord) {
     LookupV6Location(ipv6Flow->srcAddr, sloc, 128);
     LookupV6Location(ipv6Flow->dstAddr, dloc, 128);
 
+    const char *stz = LookupV6Timezone(ipv6Flow->srcAddr);
+    const char *dtz = LookupV6Timezone(ipv6Flow->dstAddr);
+
     AddElementString("src6_addr", sa);
     AddElementString("dst6_addr", da);
     AddElementString("src6_geo", sloc);
     AddElementString("dst6_geo", dloc);
+    AddElementString("src6_tz", stz != NULL ? stz : "unknown");
+    AddElementString("dst6_tz", dtz != NULL ? dtz : "unknown");
 
     return streamPtr;
 }  // End of stringEXipv6Flow

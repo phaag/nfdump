@@ -52,6 +52,19 @@ void LookupV4Location(uint32_t ip, char *location, size_t len);
 
 void LookupV6Location(uint64_t ip[2], char *location, size_t len);
 
+const char *LookupV4Timezone(uint32_t ip);
+
+const char *LookupV6Timezone(uint64_t ip[2]);
+
+// O(1) index into the interned timeZone name table built by BuildTZCache().
+// Returns 0 ("unknown timezone") if no GeoDB/location match is found.
+uint16_t LookupV4TZindex(uint32_t ip);
+
+uint16_t LookupV6TZindex(uint64_t ip[2]);
+
+// Resolve an index returned by LookupV4TZindex()/LookupV6TZindex() back to its zone name string.
+const char *LookupTZname(uint16_t index);
+
 uint32_t LookupV4AS(uint32_t ip);
 
 uint32_t LookupV6AS(uint64_t ip[2]);

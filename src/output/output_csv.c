@@ -290,6 +290,10 @@ static char *String_SrcLocation(char *streamPtr, recordHandle_t *recordHandle);
 
 static char *String_DstLocation(char *streamPtr, recordHandle_t *recordHandle);
 
+static char *String_SrcTimezone(char *streamPtr, recordHandle_t *recordHandle);
+
+static char *String_DstTimezone(char *streamPtr, recordHandle_t *recordHandle);
+
 static char *String_SrcASorganisation(char *streamPtr, recordHandle_t *recordHandle);
 
 static char *String_DstASorganisation(char *streamPtr, recordHandle_t *recordHandle);
@@ -568,6 +572,8 @@ static struct format_entry_s {
     {"%dc", 0, "dstGeo", String_DstCountry},           // dst IP 2 letter country code
     {"%sloc", 0, "srcLocation", String_SrcLocation},   // src IP geo location info
     {"%dloc", 0, "dstLocation", String_DstLocation},   // dst IP geo location info
+    {"%stz", 0, "srcTimezone", String_SrcTimezone},    // src IP timezone
+    {"%dtz", 0, "dstTimezone", String_DstTimezone},    // dst IP timezone
     {"%sasn", 0, "srcOrg", String_SrcASorganisation},  // src IP AS organistaion string
     {"%dasn", 0, "dstOrg", String_DstASorganisation},  // dst IP AS organisation string
     {"%stor", 0, "srcTor", String_SrcTor},             // src IP 2 letter tor node info
@@ -2188,6 +2194,38 @@ static char *String_DstLocation(char *streamPtr, recordHandle_t *recordHandle) {
 
     return streamPtr;
 }  // End of String_DstLocation
+
+static char *String_SrcTimezone(char *streamPtr, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    const char *timeZone = NULL;
+    if (ipv4Flow) {
+        timeZone = LookupV4Timezone(ipv4Flow->srcAddr);
+    } else if (ipv6Flow) {
+        timeZone = LookupV6Timezone(ipv6Flow->srcAddr);
+    }
+
+    AddString(timeZone != NULL ? timeZone : "unknown timezone");
+
+    return streamPtr;
+}  // End of String_SrcTimezone
+
+static char *String_DstTimezone(char *streamPtr, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    const char *timeZone = NULL;
+    if (ipv4Flow) {
+        timeZone = LookupV4Timezone(ipv4Flow->dstAddr);
+    } else if (ipv6Flow) {
+        timeZone = LookupV6Timezone(ipv6Flow->dstAddr);
+    }
+
+    AddString(timeZone != NULL ? timeZone : "unknown timezone");
+
+    return streamPtr;
+}  // End of String_DstTimezone
 
 static char *String_SrcASorganisation(char *streamPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
