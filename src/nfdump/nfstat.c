@@ -146,12 +146,12 @@ static struct StatParameter_s {
     {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
     {"dir", "Dir", {EXflowMiscID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
     {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
-    {"srcasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"srcasn", "                                 Organisation AS num  ", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
     {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
-    {"dstasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
+    {"dstasn", "                                 Organisation AS num  ", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
     {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
-    {"asn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"asn", "                                 Organisation AS num  ", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
     {"asn", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, NULL},
     {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NULL},
@@ -1151,7 +1151,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         } break;
         case IS_ASORG: {
             const char *org = LookupASorg(hashKey->v1);
-            snprintf(valstr, 64, "%45s (%6" PRIi64 ")", org != NULL ? org : "unknown", hashKey->v1);
+            if (hashKey->v1 > 0)
+                snprintf(valstr, 64, "%45.45s AS%-6" PRIi64, org != NULL ? org : "unknown", hashKey->v1);
+            else
+                snprintf(valstr, 64, "%45.45s         ", org != NULL ? org : "unknown");
         } break;
     }
     valstr[63] = 0;
