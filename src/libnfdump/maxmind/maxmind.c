@@ -52,6 +52,43 @@
 #include "mmhash.h"
 #include "nffileV3/nffileV3.h"
 #include "util.h"
+#include "vcs_track.h"
+
+/* -----------------------------------------------------------------------
+ * The master geoDB file (built by `geolookup -d <csvDir> -w <file>`, loaded
+ * here by LoadMaxMind()) is an ordinary nffileV3 file - the same compressed,
+ * block-structured container format used for regular flow data files - not
+ * a bespoke format of its own. That makes it portable across machines/CPU
+ * architectures and reusable as-is by every existing nffileV3 tool (nfdump
+ * -r, verification, compression, etc.), and gives the geoDB LZ4 compression
+ * for free (see OpenNewFileV3()'s LZ4_COMPRESSED argument in SaveMaxMind()).
+ *
+ * Where it differs from a flow file: instead of BLOCK_TYPE_FLOW blocks
+ * holding variable-length flow records, it holds six BLOCK_TYPE_ARRAY blocks
+ * (arrayBlockV3_t), each a flat, fixed-element-size C array - one array per
+ * lookup table this module maintains in RAM:
+ *
+ *   LocalInfoElementID   locationInfo_t[]  geoname_id -> continent/country/
+ *                                          city/timeZone/utcOffset
+ *   IPV4treeElementID    ipV4Node_t[]      IPv4 network/mask -> geoname_id +
+ *                                          proxy/sat/lat/long/accuracy
+ *   IPV6treeElementID    ipV6Node_t[]      same, for IPv6 networks
+ *   ASV4treeElementID    asV4Node_t[]      IPv4 network/mask -> AS number +
+ *                                          org name
+ *   ASV6treeElementID    asV6Node_t[]      same, for IPv6 networks
+ *   ASOrgtreeElementID   asOrgNode_t[]     AS number -> org name (dedup'd,
+ *                                          one entry per AS regardless of
+ *                                          how many networks announce it)
+ *
+ * A table's rows may spill across several array blocks if they don't fit
+ * nffile's blockSize, but never mix element types within one block
+ * (dataBlock->elementType/elementSize identify what a block holds). Element
+ * structs are memcpy'd in/out verbatim (Store*() / Load*Tree()), so - same
+ * as the .flat cache in mmhash.c - this file's contents are tied to the
+ * exact struct layout that wrote it; LoadMaxMind() checks each block's
+ * elementSize against sizeof() of the expected struct and logs "rebuild
+ * nfdump geo DB" rather than trusting a mismatched block.
+ * ----------------------------------------------------------------------- */
 
 #define arrayElementSizeCheck(type)                                          \
     if (arrayHeader->rawSize != sizeof(type##_t)) {                          \
@@ -329,6 +366,12 @@ int LoadMaxMind(char *fileName) {
         LogError("LoadMaxMind: Failed to open maxmind db file");
         return 0;
     }
+    if (nffile->fileHeader->nfdVersion < NFDVERSION) {
+        CloseFileV3(nffile);
+        LogError("LoadMaxMind: GeoDB file %s not compatible. Rebuild geoDB file.", fileName);
+        return 0;
+    }
+
     int done = 0;
     arrayBlockV3_t *dataBlock = NULL;
     while (!done) {

@@ -150,9 +150,45 @@ static mmHandle_t *mmHandle = NULL;
 
 /* -----------------------------------------------------------------------
  * Flat sorted-array cache
- * One single mmap'd file (<nffile>.flat) holds a compact binary image of
- * all five sorted tables.  The localMap khash is rebuilt from the raw
- * locationInfo section on every load (linear scan, no decompression).
+ *
+ * <nffile>.flat is a machine-local, uncompressed sibling of the portable
+ * nffileV3 master geoDB (see maxmind.c) built once by WriteFlatCache() and
+ * then mmap'd read-only on every subsequent LoadMaxMind() call, avoiding the
+ * decompress-and-rebuild-the-trees cost every time nfdump starts. It is a
+ * pure derived cache: safe to delete at any time, and LoadMaxMind()
+ * transparently falls back to decompressing the master file and rewriting
+ * this cache if it is missing, stale (older than the master file's mtime),
+ * or fails validation.
+ *
+ * On-disk layout, all offsets relative to the start of the file:
+ *
+ *   [ mmFlatHeader_t ]                     fixed-size header (see below)
+ *   [ locationInfo_t   locArr[locCount]  ]  section 0 - MMFLAT_SEC_LOC
+ *   [ ipV4Node_t       ipV4Arr[ipV4Count]]  section 1 - MMFLAT_SEC_IPV4
+ *   [ ipV6Node_t       ipV6Arr[ipV6Count]]  section 2 - MMFLAT_SEC_IPV6
+ *   [ asV4Node_t       asV4Arr[asV4Count]]  section 3 - MMFLAT_SEC_ASV4
+ *   [ asV6Node_t       asV6Arr[asV6Count]]  section 4 - MMFLAT_SEC_ASV6
+ *   [ asOrgNode_t      asOrgArr[asOrgCount]]section 5 - MMFLAT_SEC_ASORG
+ *
+ * The header carries a magic/version pair plus, per section, its element
+ * size, element count and byte offset (mmFlatSection_t) - so sections are
+ * located by the header, not assumed to be contiguous/in this exact order,
+ * though WriteFlatCache() always lays them out in this order with no gaps.
+ * Each section is simply the raw, memcpy-able C array of the corresponding
+ * struct, already sorted ascending by network/AS (SortFlatArrays()) so
+ * flatSearchV4()/flatSearchAsV4()/etc. can binary-search it directly out of
+ * the mapping with zero deserialization.
+ *
+ * Because sections are raw struct dumps, this file's layout is tied to the
+ * exact struct definitions (and this build's padding/alignment) that wrote
+ * it - LoadFlatCache() checks each section's recorded elemSize against
+ * sizeof() of the corresponding struct and rejects the file on any mismatch,
+ * which is what actually invalidates a stale cache after a struct change
+ * (there is deliberately no separate format-version bump for that; see the
+ * MMFLAT_VERSION comment below). LoadFlatCache() additionally verifies every
+ * section's offset+count*elemSize fits inside the actual file size before
+ * trusting it, since this file can be loaded directly (`-G foo.flat`) and a
+ * truncated or corrupted one must not be able to walk the mmap out of bounds.
  * ----------------------------------------------------------------------- */
 #define MMFLAT_MAGIC 0x4D4D464CU  // 'M','M','F','L'
 #define MMFLAT_VERSION 1U
@@ -1018,7 +1054,11 @@ void WriteFlatCache(const char *flatPath) {
 
     char tmpPath[PATH_MAX];
     snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", flatPath);
-    int fd = open(tmpPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    // Remove any stale tmp file/symlink left over from a previous run, then
+    // create fresh with O_EXCL so a pre-existing symlink at this path (e.g.
+    // planted in a shared/world-writable cache dir) can't redirect the write.
+    unlink(tmpPath);
+    int fd = open(tmpPath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
         LogError("WriteFlatCache: open(%s): %s", tmpPath, strerror(errno));
         return;
@@ -1090,6 +1130,27 @@ int LoadFlatCache(const char *flatPath) {
         munmap(m, mapSize);
         return 0;
     }
+
+    /* validate every section actually fits inside the mapped file before trusting
+     * its offset/count to build pointers - a truncated or crafted .flat file
+     * (loadable directly via -G foo.flat) must not let flatSearch*() walk past
+     * the mapping. elemSize is already known-small at this point (checked above),
+     * so count * elemSize cannot overflow; offset is checked first so the
+     * subsequent "mapSize - offset" is always well-defined. */
+#define CHECK_SEC(IDX)                                                                                      \
+    if (hdr.sec[IDX].offset > mapSize || (uint64_t)hdr.sec[IDX].count * hdr.sec[IDX].elemSize > mapSize - hdr.sec[IDX].offset) { \
+        LogError("LoadFlatCache: section %d exceeds file size - corrupt or truncated cache file '%s'", IDX, flatPath);          \
+        munmap(m, mapSize);                                                                                                      \
+        return 0;                                                                                                                \
+    }
+
+    CHECK_SEC(MMFLAT_SEC_LOC);
+    CHECK_SEC(MMFLAT_SEC_IPV4);
+    CHECK_SEC(MMFLAT_SEC_IPV6);
+    CHECK_SEC(MMFLAT_SEC_ASV4);
+    CHECK_SEC(MMFLAT_SEC_ASV6);
+    CHECK_SEC(MMFLAT_SEC_ASORG);
+#undef CHECK_SEC
 
     mmFlat = calloc(1, sizeof(mmFlat_t));
     if (!mmFlat) {

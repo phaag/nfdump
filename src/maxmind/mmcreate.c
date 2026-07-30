@@ -339,7 +339,7 @@ static int loadIPV4tree(char *fileName) {
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
         stripLine(line);
         // printf("%s\n", line);
-        ipV4Node_t ipV4Node;
+        ipV4Node_t ipV4Node = {0};
         char *l = line;
         char *field = NULL;
         int i = 0;
@@ -420,7 +420,7 @@ static int loadIPV6tree(char *fileName) {
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
         stripLine(line);
         // printf("%s\n", line);
-        ipV6Node_t ipV6Node;
+        ipV6Node_t ipV6Node = {0};
         char *l = line;
         char *field = NULL;
         int i = 0;
