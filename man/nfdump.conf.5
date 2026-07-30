@@ -1,0 +1,493 @@
+.\" Copyright (c) 2025-2026, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFDUMP.CONF 5
+.Os
+.Sh NAME
+.Nm nfdump.conf
+.Nd configuration file for the nfdump flow-tools suite
+.Sh SYNOPSIS
+.Pa %prefix/etc/nfdump.conf
+.Sh DESCRIPTION
+.Nm
+is the shared configuration file for all programs in the nfdump suite:
+.Xr nfdump 1 ,
+.Xr nfcapd 1 ,
+.Xr sfcapd 1 ,
+.Xr nfpcapd 1 ,
+and
+.Xr nfanon 1 .
+It is written in
+.Sy TOML
+(Tom's Obvious Minimal Language) format.
+.Pp
+The file is optional.
+If it is absent no error is reported; each program falls back to its
+compiled-in defaults.
+.Sh OPTION PROCESSING ORDER
+Each configurable parameter is resolved through the following priority
+chain, from lowest to highest:
+.Bl -enum
+.It
+.Sy Program defaults
+\(em values compiled into the program binary.
+These apply when nothing else overrides them.
+.It
+.Sy Config file
+\(em the file opened by
+.Fl C
+or the default path, parsed at start-up.
+A value here overrides the compiled-in default.
+.It
+.Sy CLI override
+\(em a
+.Fl x Ar key Ns = Ns Ar value
+argument on the command line.
+This takes precedence over both the config file and the program default
+and is effective only for the duration of the process.
+.El
+.Sh FILE FORMAT
+.Nm
+uses
+.Sy TOML 1.0
+syntax.
+Lines beginning with
+.Sq #
+are comments.
+Keys and values are separated by
+.Sq = .
+String values must be enclosed in double quotes.
+Integer and boolean values are unquoted.
+.Pp
+The file is divided into named
+.Em sections
+enclosed in square brackets.
+Keys defined inside a section apply only to the program that reads that
+section.
+Keys defined in the special
+.Sx [common]
+section apply to all programs and serve as a shared fallback.
+.Sh SECTIONS
+.Ss [common]
+Settings in
+.Sy [common]
+are read by every program in the suite.
+A program-specific section takes precedence over
+.Sy [common]
+when the same key appears in both.
+.Ss [nfdump]
+Settings for
+.Xr nfdump 1 .
+.Ss [nfcapd]
+Settings for
+.Xr nfcapd 1 .
+.Ss [sfcapd]
+Settings for
+.Xr sfcapd 1 .
+.Ss [nfpcapd]
+Settings for
+.Xr nfpcapd 1 .
+.Ss [nfanon]
+Settings for
+.Xr nfanon 1 .
+.Ss [nfmeta]
+Settings for
+.Xr nfmeta 1 .
+.Sh KNOWN KEYS
+.Ss Common keys (valid in [common] or any program section)
+.Bl -tag -width "crypt.rekeyIntervalSecs"
+.It Sy xxhash
+Boolean integer (0 or 1).
+When set to 1, an xxHash checksum is appended to each written data block
+and verified on every read.
+Detecting silent data corruption comes at a small CPU cost.
+Default: 0.
+.It Sy limitCores
+Integer.
+Sets the core limit when no
+.Fl W
+flag is given on the command line.
+The value 0 (or the absent key) means
+.Dq use all online CPU cores .
+.Sy GetThreadConfig()
+then splits the core limit across readers, writers, and filter/worker threads
+according to the program role and the active compression codec.
+A non-zero
+.Sy limitCores
+caps the budget without overriding individual role counts.
+Prefer the
+.Sx [threads]
+sub-table keys for fine-grained per-role control.
+.Pp
+The legacy key name
+.Sy maxworkers
+is still accepted as a fallback: if
+.Sy limitCores
+is absent or 0, the code falls back to
+.Sy maxworkers .
+New configurations should use
+.Sy limitCores .
+.Pp
+Both supersede the previous behaviour where the default was
+.Li cores/2
+clamped to [2,\~8].
+.It Sy crypt.salt
+16-byte string.
+Shared salt used for encrypted UDP data transfer between
+.Xr nfpcapd 1
+or
+.Xr nfcapd 1
+and a receiving collector.
+Both sender and receiver must use the same value.
+.It Sy crypt.antiReplayWindowBits
+Integer.
+Size of the anti-replay window for encrypted UDP transport, as a power of 2
+in the range [64,\~1024].
+Default: 256.
+.It Sy crypt.rekeyIntervalSecs
+Integer.
+Interval in seconds at which the session key is rotated.
+Set to 0 to disable epoch rekeying.
+Default: 0.
+.El
+.Ss [threads] sub-table keys (valid in [common.threads] or [program.threads])
+The
+.Sy threads
+sub-table refines how
+.Sy GetThreadConfig()
+allocates threads within the budget.
+All values default to 0, meaning the role formula is applied.
+A non-zero value is a hard override that bypasses the formula entirely.
+These keys are accepted inside any section's
+.Sy threads
+sub-table, for example
+.Li [common.threads] ,
+.Li [nfdump.threads] ,
+or
+.Li [nfanon.threads] .
+They can also be set per-run via the command line:
+.Fl x Ar threads.writers=6 .
+.Bl -tag -width "threads.writers"
+.It Sy threads.readers
+Integer.
+Number of nfreader decompression threads launched per input file.
+When 0, the count is derived at file-open time as
+.Li round(ref\~/\~C) ,
+where
+.Em ref
+is
+.Sy writers
+for TC_ROLE_TRANSFORM programs (nfanon, nfmeta) or
+.Sy filters
+for TC_ROLE_ANALYZE programs (nfdump, nfprofile, nftrack), and
+.Em C
+is the codec's compress/decompress time ratio
+(LZ4\~\(ap\~2, ZSTD\~\(ap\~5, BZ2\~\(ap\~3, LZO\~\(ap\~2.5).
+Default: 0 (auto).
+.It Sy threads.writers
+Integer.
+Number of nfwriter compression threads per output file.
+For TC_ROLE_WRITE_ONLY programs (nfcapd, sfcapd, nfpcapd) the budget is
+used in full, capped at a codec-specific ceiling:
+LZ4\~\(->8, ZSTD\~\(->12, uncompressed\~\(->2.
+The cap leaves one core for the collector's hot-path thread and avoids
+L3 cache saturation under LZ4.
+For TC_ROLE_TRANSFORM and TC_ROLE_ANALYZE the budget is shared among roles,
+so the effective writer count is proportionally lower.
+Default: 0 (auto).
+.It Sy threads.workers
+Integer.
+Number of application worker threads.
+The meaning depends on the program role:
+.Bl -tag -width "TC_ROLE_ANALYZE" -compact
+.It Sy TC_ROLE_ANALYZE
+Filter and aggregation workers in
+.Xr nfdump 1 ,
+.Xr nfprofile 1 ,
+.Xr nftrack 1 .
+These are the primary CPU bottleneck.
+.It Sy TC_ROLE_TRANSFORM
+Anonymization workers in
+.Xr nfanon 1
+or bloom-indexing workers in
+.Xr nfmeta 1 .
+.It Sy TC_ROLE_WRITE_ONLY
+Unused (always 0 regardless of this setting).
+.El
+Default: 0 (auto).
+.El
+.Ss [nfdump] keys
+.Bl -tag -width "geodb.flatpath"
+.It Sy geodb.path
+String.
+Path to the compiled nfdump MaxMind GeoIP2 database file (see
+.Xr geolookup 1 ) .
+.It Sy geodb.flatpath
+String.
+Path to the flat-file cache directory for the geoDB, used to speed up
+repeated lookups.
+.It Sy tordb.path
+String.
+Path to the compiled nfdump Tor exit-node database (see
+.Xr torlookup 1 ) .
+.It Sy tordb.flatpath
+String.
+Path to the flat-file cache directory for the Tor database.
+.It Sy fmt. Ns Ar name
+String.
+Define or redefine a named output format.
+.Ar name
+is the format identifier used with
+.Fl o Ar fmt: Ns Ar name .
+The value is a format string as described in
+.Xr nfdump 1 .
+.It Sy csv. Ns Ar name
+String.
+Define or redefine a named CSV output format, used with
+.Fl o Ar csv: Ns Ar name .
+.El
+.Ss [nfcapd] keys
+.Bl -tag -width "exporter.ident"
+.It Sy exporter. Ns Ar ident
+Array of two strings: the exporter IP address and the flow directory.
+Multiple exporters may be defined by using different
+.Ar ident
+values.
+.El
+.Ss [sfcapd] keys
+.Bl -tag -width "opt.tun"
+.It Sy opt.tun
+Boolean integer (0 or 1).
+Enable decoding of tunnelling protocols (GRE and 6-in-4).
+Default: 0.
+.El
+.Ss [nfpcapd] keys
+.Bl -tag -width "opt.payload"
+.It Sy opt.fat
+Boolean integer (0 or 1).
+Capture extended flow information (FAT flows).
+Default: 0.
+.It Sy opt.payload
+Boolean integer (0 or 1).
+Capture packet payload data.
+Default: 0.
+.It Sy buffSize
+Integer.
+BPF capture buffer size in bytes on BSD systems.
+Must be at least 32768 and should be a multiple of the system page size
+(4096).
+Default: 1048576 (1\~MB).
+.El
+.Ss [nfanon] keys
+TC_ROLE_TRANSFORM: 20% of the budget is reserved for anonymization workers;
+the remainder is split between nffile readers and writers by codec ratio.
+Use
+.Sy threads.workers
+to override the worker count directly.
+.Ss [nfmeta] keys
+TC_ROLE_TRANSFORM: same 20% split as nfanon.
+Bloom-filter updates are fast relative to LZ4 compression, so the default
+is almost always sufficient.
+Use
+.Sy threads.workers
+to override the worker count directly.
+.Sh PROGRAM DEFAULTS
+Each program has a set of compiled-in default values for its own keys.
+These defaults are active even when no configuration file is present.
+They represent the lowest priority in the option resolution chain:
+a value found in the configuration file or supplied via
+.Fl x
+always takes precedence.
+.Pp
+The defaults for the boolean program options are:
+.Bl -tag -width "opt.payload (nfpcapd)"
+.It Sy opt.tun Pq sfcapd
+0 (disabled)
+.It Sy opt.fat Pq nfpcapd
+0 (disabled)
+.It Sy opt.payload Pq nfpcapd
+0 (disabled)
+.El
+.Sh CONFIGURATION FILE SELECTION
+Programs search for the configuration file in the following order:
+.Bl -enum
+.It
+The file given with
+.Fl C Ar file .
+If the special value
+.Sq none
+is passed to
+.Fl C ,
+configuration-file processing is skipped entirely.
+.It
+The path in the environment variable
+.Ev NFCONF .
+.It
+The compiled-in default path
+.Pa %prefix/etc/nfdump.conf .
+If that file does not exist, no error is reported and program defaults
+are used.
+.El
+.Sh CLI OVERRIDES
+Any configuration key can be overridden at run time without modifying the
+configuration file.
+Use the
+.Fl x Ar key Ns = Ns Ar value
+option, which is accepted by all programs in the suite.
+The option may be repeated to override multiple keys:
+.Bd -literal -offset indent
+nfdump -x limitCores=4 -x xxhash=1 -r data.nf
+.Ed
+.Pp
+.Ar key
+must be the exact dot-separated key path as it would appear in the
+configuration file.
+.Ar value
+is always interpreted as a string and converted to the appropriate type
+when the key is read (integer via
+.Xr strtoll 3 ,
+boolean as non-zero integer).
+.Pp
+If
+.Ar key
+is not present in the configuration file and has no compiled-in default,
+a warning is logged but the override is accepted and remains effective
+for the duration of the process.
+.Pp
+Overrides are processed after the configuration file is opened, so they
+take effect for every key lookup that follows.
+They do not modify the configuration file on disk.
+.Sh EXAMPLES
+.Ss Minimal common settings
+.Bd -literal -offset indent
+[common]
+xxhash = 1
+limitCores = 4
+.Ed
+.Ss nfdump with custom formats and GeoIP
+.Bd -literal -offset indent
+[nfdump]
+geodb.path = "/var/db/mmdb.nf"
+tordb.path = "/var/db/tordb.nf"
+
+# redefine the built-in 'line' format
+fmt.line = "%ts %td %pr %sap -> %dap %pkt %byt %fl"
+
+# add a custom format
+fmt.compact = "%ts %pr %sap -> %dap %byt"
+.Ed
+.Ss nfcapd with named exporters
+.Bd -literal -offset indent
+[nfcapd]
+exporter.upstream = ["192.168.1.1",  "/var/nflow/upstream"]
+exporter.peer     = ["192.168.1.10", "/var/nflow/peer"]
+
+[nfcapd.threads]
+writers = 6
+.Ed
+.Ss nfpcapd with payload capture enabled
+.Bd -literal -offset indent
+[nfpcapd]
+opt.fat     = 1
+opt.payload = 1
+buffSize    = 2097152
+.Ed
+.Ss Encrypted UDP transfer
+.Bd -literal -offset indent
+[common]
+crypt.salt                = "my-secret-salt-16"
+crypt.antiReplayWindowBits = 512
+crypt.rekeyIntervalSecs   = 300
+.Ed
+.Ss Thread tuning
+Cap nfdump filter workers at 8 and fix writer count to 4 regardless of cores:
+.Bd -literal -offset indent
+[nfdump.threads]
+filters = 8
+writers = 4
+.Ed
+.Pp
+On a 64-core server running nfcapd with LZ4, the automatic cap is 8 writers.
+Override to allow more writers (with matching SSD throughput):
+.Bd -literal -offset indent
+[nfcapd.threads]
+writers = 12
+.Ed
+.Pp
+Fix the anonymization worker count when CryptoPAN runs without AES-NI
+(on a 16-core host, 4 workers instead of the default 3):
+.Bd -literal -offset indent
+[nfanon.threads]
+filters = 4
+.Ed
+.Pp
+Per-run override without modifying the file \(em fix 6 writers for one nfdump run:
+.Bd -literal -offset indent
+nfdump -x threads.writers=6 -r data.nf -w out.nf
+.Ed
+.Ss Overriding a single key from the command line
+Enable block checksums for one run without touching the config file:
+.Bd -literal -offset indent
+nfdump -x xxhash=1 -r data.nf -w output.nf
+.Ed
+.Pp
+Override limitCores and an unknown key (the latter produces a warning):
+.Bd -literal -offset indent
+nfcapd -x limitCores=4 -x debug.verbose=1 -w /var/nflow
+.Ed
+.Ss Disable config file entirely
+.Bd -literal -offset indent
+nfdump -C none -r data.nf
+.Ed
+.Sh ENVIRONMENT
+.Bl -tag -width "NFCONF"
+.It Ev NFCONF
+If set, its value is used as the path to the configuration file when no
+.Fl C
+option is given.
+Takes precedence over the compiled-in default path.
+.El
+.Sh FILES
+.Bl -tag -width "%prefix/etc/nfdump.conf.dist"
+.It Pa %prefix/etc/nfdump.conf
+Default configuration file location.
+.It Pa %prefix/etc/nfdump.conf.dist
+Annotated example configuration distributed with the package.
+Copy this file to
+.Pa nfdump.conf
+and uncomment the desired settings as a starting point.
+.El
+.Sh SEE ALSO
+.Xr nfdump 1 ,
+.Xr nfcapd 1 ,
+.Xr sfcapd 1 ,
+.Xr nfpcapd 1 ,
+.Xr nfanon 1 ,
+.Xr nfmeta 1 ,
+.Xr geolookup 1 ,
+.Xr torlookup 1
