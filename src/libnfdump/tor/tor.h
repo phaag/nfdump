@@ -61,6 +61,7 @@ typedef struct torV4Node_s {
     time_t lastPublished;
     interval_t interval[MAXINTERVALS];
 } torV4Node_t;
+_Static_assert((sizeof(torV4Node_t) & 7) == 0, "torV4Node_t for 8 byte aligned");
 
 typedef struct torV6Node_s {
     uint64_t network[2];  // IPv6 address: [0] high 64-bit, [1] low 64-bit, host byte order
@@ -71,6 +72,7 @@ typedef struct torV6Node_s {
     time_t lastPublished;
     interval_t interval[MAXINTERVALS];
 } torV6Node_t;
+_Static_assert((sizeof(torV6Node_t) & 7) == 0, "torV6Node_t for 8 byte aligned");
 
 int Init_TorLookup(void);
 

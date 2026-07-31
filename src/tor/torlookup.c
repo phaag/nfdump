@@ -109,9 +109,13 @@ static int inline getNumber(char **timeString, char eos) {
 
     char *eosp = strchr(s, eos);
     if (eosp) *eosp++ = '\0';
+    // cap digit count well under INT_MAX/10 to avoid signed overflow (UB) on
+    // a malformed/corrupted field with an excessive run of digits
+    int digits = 0;
     while (*s != '\0') {
-        if (*s >= '0' && *s <= '9') {
+        if (*s >= '0' && *s <= '9' && digits < 9) {
             number = 10 * number + (*s - 0x30);
+            digits++;
         } else {
             *timeString = NULL;
             return 0;
@@ -156,21 +160,36 @@ static time_t ReadTime(char *timestring) {
     return epoch;
 }
 
+// Return a pointer to the text following "<tag> " within line, or NULL if
+// line is too short to safely skip past the tag + its separator byte.
+// A bare strncmp() match only guarantees the tag's own bytes are present -
+// not that anything follows it - so this must be checked before doing
+// line + strlen(tag) + 1 pointer arithmetic on a getline() buffer.
+static char *tagArg(char *line, const char *tag) {
+    size_t tagLen = strlen(tag);
+    if (strlen(line) <= tagLen) return NULL;
+    return line + tagLen + 1;
+}
+
 static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) {
+    char *tagPos;
     if (strncmp(line, TAG_EXITNODE, strlen(TAG_EXITNODE)) == 0) {
         /* Signal processFile to commit the previous block and reset state */
         return -1;
     } else if (strncmp(line, TAG_PUBLISHED, strlen(TAG_PUBLISHED)) == 0) {
-        char *timestring = line + strlen(TAG_PUBLISHED) + 1;
+        char *timestring = tagArg(line, TAG_PUBLISHED);
+        if (!timestring) return 0;
         time_t lastPublished = ReadTime(timestring);
         torV4Node->lastPublished = lastPublished;
         torV4Node->interval[0].firstSeen = lastPublished;
     } else if (strncmp(line, TAG_LASTSTATUS, strlen(TAG_LASTSTATUS)) == 0) {
-        char *timestring = line + strlen(TAG_LASTSTATUS) + 1;
+        char *timestring = tagArg(line, TAG_LASTSTATUS);
+        if (!timestring) return 0;
         time_t lastStatus = ReadTime(timestring);
         if (lastStatus > torV4Node->interval[0].lastSeen) torV4Node->interval[0].lastSeen = lastStatus;
     } else if (strncmp(line, TAG_EXITADDRESS, strlen(TAG_EXITADDRESS)) == 0) {
-        char *ipstring = line + strlen(TAG_EXITADDRESS) + 1;
+        char *ipstring = tagArg(line, TAG_EXITADDRESS);
+        if (!ipstring) return 0;
         char *timestring = strchr(ipstring, ' ');
         if (!timestring) return 0;
         *timestring++ = '\0';
@@ -199,10 +218,15 @@ static int scanLine(char *line, torV4Node_t *torV4Node, torV6Node_t *torV6Node) 
             return 2;
         }
         LogError("Unparseable IP address: %s", ipstring);
-    } else if (strstr(line, TAG_ROLE) != NULL) {
+    } else if ((tagPos = strstr(line, TAG_ROLE)) != NULL) {
         /* Parse comma-separated role tokens and set bitmask on both nodes.
-         * Known roles: Guard Exit HSDir Auth Fast Stable Middle */
-        char *roles = line + strlen(TAG_ROLE) + 1;
+         * Known roles: Guard Exit HSDir Auth Fast Stable Middle
+         * TAG_ROLE is matched with strstr() (may occur anywhere in the
+         * line), unlike the other tags which are matched with strncmp()
+         * at offset 0 - so the argument must be computed from the actual
+         * match position (tagPos), not from the start of the line. */
+        char *roles = tagArg(tagPos, TAG_ROLE);
+        if (!roles) return 0;
         uint8_t mask = 0;
         char *tok = strtok(roles, ",\n\r");
         while (tok) {

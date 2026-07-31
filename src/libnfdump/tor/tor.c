@@ -49,6 +49,7 @@
 #include "logging.h"
 #include "nffileV3/nffileV3.h"
 #include "util.h"
+#include "vcs_track.h"
 
 // include after
 #include "kbtree.h"
@@ -81,11 +82,14 @@ static kbtree_t(torV6Tree) *torV6Tree = NULL;
 #define TORFLAT_VERSION 2U
 
 typedef struct torFlatHeader_s {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t v4count;
-    uint32_t v6count;
+    uint32_t magic;       // magic tag for flat file
+    uint32_t version;     // layout version
+    uint32_t nfdVersion;  // nfdump verion, which created this file
+    uint32_t v4count;     // ipv4 count
+    uint32_t v6count;     // ipv6 count
+    uint32_t align;       // align this header to 8 bytes
 } torFlatHeader_t;
+_Static_assert((sizeof(torFlatHeader_t) & 7) == 0, "torFlatHeader_t for 8 byte aligned");
 
 static torV4Node_t *torV4Array = NULL;  // base of sorted IPv4 array
 static uint32_t torV4Count = 0;
@@ -136,16 +140,20 @@ static inline void hostnet_to_inet6(const uint64_t net[2], struct in6_addr *addr
 static void torWriteFlatCache(const char *flatPath) {
     char tmpPath[PATH_MAX];
     snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", flatPath);
-
-    int fd = open(tmpPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    // Remove any stale tmp file/symlink left over from a previous run, then
+    // create fresh with O_EXCL so a pre-existing symlink at this path (e.g.
+    // planted in a shared/world-writable cache dir) can't redirect the write.
+    unlink(tmpPath);
+    int fd = open(tmpPath, O_WRONLY | O_CREAT | O_EXCL, 0644);
     if (fd < 0) {
-        LogError("WriteFlatCache: open(%s): %s", tmpPath, strerror(errno));
+        LogError("torWriteFlatCache: open(%s): %s", tmpPath, strerror(errno));
         return;
     }
 
-    torFlatHeader_t hdr = {
+    torFlatHeader_t torFlatHeader = {
         .magic = TORFLAT_MAGIC,
         .version = TORFLAT_VERSION,
+        .nfdVersion = NFDVERSION,
         .v4count = torV4Count,
         .v6count = torV6Count,
     };
@@ -154,7 +162,7 @@ static void torWriteFlatCache(const char *flatPath) {
 #define WRITE_BUF(ptr, sz) \
     if (ok && write(fd, (ptr), (sz)) != (ssize_t)(sz)) ok = 0
 
-    WRITE_BUF(&hdr, sizeof(hdr));
+    WRITE_BUF(&torFlatHeader, sizeof(torFlatHeader));
     if (torV4Count) WRITE_BUF(torV4Array, torV4Count * sizeof(torV4Node_t));
     if (torV6Count) WRITE_BUF(torV6Array, torV6Count * sizeof(torV6Node_t));
 
@@ -288,7 +296,7 @@ void UpdateTorV4Node(torV4Node_t *torV4Node) {
             if (torV4Node->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torV4Node->interval[0].lastSeen;
             if (torV4Node->interval[0].firstSeen < node->interval[index].firstSeen) {
                 LogError("Unexpected interval ordering for torV4 node ip: 0x%x - firstSeen %ld < %ld, skipping", torV4Node->ipaddr,
-                          torV4Node->interval[0].firstSeen, node->interval[index].firstSeen);
+                         torV4Node->interval[0].firstSeen, node->interval[index].firstSeen);
             }
         }
         node->roles |= torV4Node->roles;
@@ -318,7 +326,7 @@ void UpdateTorV6Node(torV6Node_t *torV6Node) {
             if (torV6Node->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torV6Node->interval[0].lastSeen;
             if (torV6Node->interval[0].firstSeen < node->interval[index].firstSeen) {
                 LogError("Unexpected interval ordering for torV6 node - firstSeen %ld < %ld, skipping", torV6Node->interval[0].firstSeen,
-                          node->interval[index].firstSeen);
+                         node->interval[index].firstSeen);
             }
         }
         node->roles |= torV6Node->roles;
@@ -423,7 +431,23 @@ static int torLoadFlatCache(const char *flatPath) {
         return 0;
     }
 
-    size_t mapSize = sizeof(torFlatHeader_t) + (size_t)hdr.v4count * sizeof(torV4Node_t) + (size_t)hdr.v6count * sizeof(torV6Node_t);
+    // mmap the actual file size - never a size computed from the (untrusted)
+    // header counts - and verify those counts fit inside it before trusting
+    // them to build array pointers into the mapping.
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        LogError("fstat() failed for %s: %s", flatPath, strerror(errno));
+        close(fd);
+        return 0;
+    }
+    size_t mapSize = (size_t)st.st_size;
+    size_t needed = sizeof(torFlatHeader_t) + (size_t)hdr.v4count * sizeof(torV4Node_t) + (size_t)hdr.v6count * sizeof(torV6Node_t);
+    if (needed > mapSize) {
+        LogError("cache file '%s' truncated - header claims %zu bytes, file has %zu", flatPath, needed, mapSize);
+        close(fd);
+        return 0;
+    }
+
     void *m = mmap(NULL, mapSize, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
     if (m == MAP_FAILED) {
