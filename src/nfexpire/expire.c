@@ -429,7 +429,8 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
     }
 
 #ifdef DEVEL
-    if (need_size_expire) printf("need_size_expire: %d from %llu down to %llu", need_size_expire, bookkeeper.filesize, target_size);
+    if (need_size_expire)
+        printf("need_size_expire: %d from %" PRIu64 " down to %" PRIu64, need_size_expire, bookkeeper.filesize, target_size);
     if (need_life_expire) printf("need_life_expire: %d from %s down to %s", need_size_expire, UNIX2ISO(bookkeeper.first), timeLimitStr);
 #endif
 
@@ -490,7 +491,7 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
                     bookkeeper.first = ISO2UNIX(timeString);
                     expire_end = bookkeeper.first;
                     bookkeeper.filesize = current_size;
-                    dbg_printf("Done - first: %s, size: %llu\n", timeString, current_size);
+                    dbg_printf("Done - first: %s, size: %" PRIu64 "\n", timeString, current_size);
                     break;
                 }
 
@@ -576,10 +577,10 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
                 // we are done
 #ifdef DEVEL
                 printf("Expire directory - success\n");
-                printf("Expired files: %llu, with size %llu\n", channel->expired_files, channel->expired_size);
+                printf("Expired files: %" PRIu64 ", with size %" PRIu64 "\n", channel->expired_files, channel->expired_size);
                 book_get(book_handle, &bookkeeper);
                 printf("Updated books\n");
-                printf("First: %s, Files: %llu, Size %llu\n", UNIX2ISO(bookkeeper.first), bookkeeper.numfiles, bookkeeper.filesize);
+                printf("First: %s, Files: %" PRIu64 ", Size %" PRIu64 "\n", UNIX2ISO(bookkeeper.first), bookkeeper.numfiles, bookkeeper.filesize);
 #endif
                 return 1;
             } else {
@@ -607,7 +608,7 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
     // rescan updates books
     book_get(book_handle, &bookkeeper);
     printf("Rescanned directory - success\n");
-    printf("Files: %llu, with size %llu\n", bookkeeper.numfiles, bookkeeper.filesize);
+    printf("Files: %" PRIu64 ", with size %" PRIu64 "\n", bookkeeper.numfiles, bookkeeper.filesize);
 #endif
 
     return 1;
@@ -751,7 +752,7 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
                     // first existing file
                     profile_first = ISO2UNIX(timeString);
                     expire_end = profile_first;
-                    dbg_printf("Done - first: %s, size: %llu\n", timeString, total_size);
+                    dbg_printf("Done - first: %s, size: %" PRIu64 "\n", timeString, total_size);
                     break;
                 }
 
@@ -860,10 +861,10 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
 #ifdef DEVEL
                 bookkeeper_t bookkeeper;
                 printf("Expire channel - success\n");
-                printf("Expired files: %llu, with size %llu\n", ch->expired_files, ch->expired_size);
+                printf("Expired files: %" PRIu64 ", with size %" PRIu64 "\n", ch->expired_files, ch->expired_size);
                 book_get(ch->book_handle, &bookkeeper);
                 printf("Updated books\n");
-                printf("First: %s, Files: %llu, Size %llu\n", UNIX2ISO(bookkeeper.first), bookkeeper.numfiles, bookkeeper.filesize);
+                printf("First: %s, Files: %" PRIu64 ", Size %" PRIu64 "\n", UNIX2ISO(bookkeeper.first), bookkeeper.numfiles, bookkeeper.filesize);
 #endif
             } else {
                 LogError("book_update rejected - rescan channel %s", ch->datadir);

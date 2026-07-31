@@ -967,7 +967,7 @@ static char *String_Received(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03llu", s, msecReceived % 1000LL);
+        size_t len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, msecReceived % 1000LL);
         streamPtr += len;
     } else {
         AddString("0000-00-00 00:00:00.000");
@@ -981,7 +981,7 @@ static char *String_ReceivedRaw(char *streamPtr, recordHandle_t *recordHandle) {
 
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%llu.%03llu", msecReceived / 1000LL, msecReceived % 1000LL);
+    size_t len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecReceived / 1000LL, msecReceived % 1000LL);
     streamPtr += len;
 
     return streamPtr;
@@ -992,7 +992,7 @@ static char *String_FirstSeenRaw(char *streamPtr, recordHandle_t *recordHandle) 
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%llu.%03llu", msecFirst / 1000LL, msecFirst % 1000LL);
+    size_t len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecFirst / 1000LL, msecFirst % 1000LL);
     streamPtr += len;
 
     return streamPtr;
@@ -1003,7 +1003,7 @@ static char *String_LastSeenRaw(char *streamPtr, recordHandle_t *recordHandle) {
 
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%llu.%03llu", msecLast / 1000LL, msecLast % 1000LL);
+    size_t len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecLast / 1000LL, msecLast % 1000LL);
     streamPtr += len;
 
     return streamPtr;
@@ -1066,7 +1066,7 @@ static char *String_ReceivedGMT(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03llu", s, msecReceived % 1000LL);
+        size_t len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, msecReceived % 1000LL);
         streamPtr += len;
     } else {
         AddString("0000-00-00 00:00:00.000");
@@ -1365,7 +1365,7 @@ static char *String_EventTime(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03llu", s, nselCommon->msecEvent % 1000LL);
+        size_t len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, nselCommon->msecEvent % 1000LL);
         streamPtr += len;
     } else {
         AddString("0000-00-00 00:00:00.000");

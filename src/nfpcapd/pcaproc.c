@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include "config.h"
 #ifdef HAVE_NET_ETHERNET_H
@@ -548,7 +549,7 @@ int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, con
 
     packetParam->proc_stat.packets++;
     packetParam->proc_stat.bytes += hdr->len;
-    dbg_printf("\nNext Packet: %llu, cap len:%u, len: %u\n", packetParam->proc_stat.packets, hdr->caplen, hdr->len);
+    dbg_printf("\nNext Packet: %" PRIu64 ", cap len:%u, len: %u\n", packetParam->proc_stat.packets, hdr->caplen, hdr->len);
 
     // Initialize decode context
     decode_ctx_t ctx;

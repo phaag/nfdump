@@ -473,7 +473,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
 }  // End of getExporter
 
 static sampler_record_v4_t *CacheSampler(exporter_entry_t *exporter, sampler_record_v4_t *sampler) {
-    dbg_printf("Cache sampler with ID: %lld\n", sampler->selectorID);
+    dbg_printf("Cache sampler with ID: %" PRId64 "\n", sampler->selectorID);
 
     // already in cache? → move to front
     for (int i = 0; i < SAMPLER_CACHE_SIZE; i++) {
@@ -589,8 +589,8 @@ static sampler_record_v4_t *LookupSampler(exporter_entry_t *exporter, int64_t sa
     sampler_record_v4_t *generic = NULL;
     sampler_record_v4_t *deflt = NULL;
 
-    dbg_printf("Lookup sampler: count: %u, samplerID: %lld, exporter id: %u, sysID: %u\n", exporter->sampler_count, sampler_id, exporter->info->id,
-               exporter->sysID);
+    dbg_printf("Lookup sampler: count: %u, samplerID: %" PRId64 ", exporter id: %u, sysID: %u\n", exporter->sampler_count, sampler_id,
+               exporter->info->id, exporter->sysID);
 
     if (exporter->sampler_count == 0) return NULL;
 
@@ -626,7 +626,7 @@ static sampler_record_v4_t *LookupSampler(exporter_entry_t *exporter, int64_t sa
     if (generic && sampler_id == 0) return generic;
 
     // SLOW PATH: backend lookup
-    dbg_printf("Search backend for sampler ID: %lld\n", sampler_id);
+    dbg_printf("Search backend for sampler ID: %" PRId64 "\n", sampler_id);
 
     sampler_record_v4_t *sampler = exporter->info->samplers;
 

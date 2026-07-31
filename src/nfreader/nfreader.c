@@ -52,6 +52,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <flist.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -130,8 +131,8 @@ static void print_record(recordHandle_t *recordHandle) {
     }
 
     printf(
-        "  first        =     %13llu [%s.%03llu]\n"
-        "  last         =     %13llu [%s.%03llu]\n"
+        "  first        =     %13llu [%s.%03" PRIu64 "]\n"
+        "  last         =     %13llu [%s.%03" PRIu64 "]\n"
         "  received at  =     %13llu [%s.%03llu]\n"
         "  proto        =                 %3u\n"
         "  tcp flags    =              0x%.2x\n",

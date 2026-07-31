@@ -33,6 +33,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -253,7 +254,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             break;
         default: {
             LogError(
-                "Error packet %llu: Ident: %s reading netflow header: "
+                "Error packet %" PRIu64 ": Ident: %s reading netflow header: "
                 "Unexpected netflow version %i from: %s",
                 *packets, fs->Ident, version, GetClientIPstring(&pkt_ctx->sender, sa_address));
             fs->bad_packets++;
@@ -376,10 +377,10 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
             if (interval <= 0.0) interval = 1.0;
 
             if (repeaterDropped) {
-                LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u, dropped repeater packet: %u", packets,
+                LogInfo("Total packets received: %" PRIu64 " avg: %3.2f/s ignored packets: %u, dropped repeater packet: %u", packets,
                         (double)packets / interval, ignored_packets, repeaterDropped);
             } else {
-                LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
+                LogInfo("Total packets received: %" PRIu64 " avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
             }
             packets = ignored_packets = repeaterDropped = 0;
 
@@ -453,7 +454,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
             double interval = (double)t_win;
             if (interval <= 0.0) interval = 1.0;
 
-            LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
+            LogInfo("Total packets received: %" PRIu64 " avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
 
             packets = 0;
             ignored_packets = 0;

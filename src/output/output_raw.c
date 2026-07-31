@@ -84,7 +84,7 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
             struct tm *ts = localtime_r(&when, &ts_buf);
             strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
         }
-        fprintf(stream, "  Event time   =      %13llu [%s.%03llu]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
+        fprintf(stream, "  Event time   =      %13llu [%s.%03" PRIu64 "]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
 
     } else {
         time_t when = genericFlow->msecFirst / 1000LL;
@@ -106,8 +106,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
         }
 
         fprintf(stream,
-                "  first        =      %13llu [%s.%03llu]\n"
-                "  last         =      %13llu [%s.%03llu]\n",
+                "  first        =      %13llu [%s.%03" PRIu64 "]\n"
+                "  last         =      %13llu [%s.%03" PRIu64 "]\n",
                 (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % 1000LL, (long long unsigned)genericFlow->msecLast,
                 datestr2, genericFlow->msecLast % 1000LL);
     }

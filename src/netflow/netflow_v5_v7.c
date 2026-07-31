@@ -34,6 +34,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -303,7 +304,8 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
                     e->sampler_cache[i].ptr = &e->info->samplers[i];
                     e->sampler_count++;
                     LogInfo(
-                        "Process_v5: New exporter: SysID: %u, IP: %s, Sampling: selectorID: %lld, algorithm: %i, packet interval: %u, packet space: "
+                        "Process_v5: New exporter: SysID: %u, IP: %s, Sampling: selectorID: %" PRId64
+                        ", algorithm: %i, packet interval: %u, packet space: "
                         "%u",
                         e->info->sysID, ipstr, sampler_record_v4[i].selectorID, sampler_record_v4[i].algorithm, sampler_record_v4[i].packetInterval,
                         sampler_record_v4[i].spaceInterval);
@@ -358,10 +360,10 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         if (sampler) {
             if (sampler->selectorID == SAMPLER_OVERWRITE) {
                 interval = sampler->spaceInterval + 1;
-                dbg_printf("Has overwrite sampler with interval: %llu\n", interval);
+                dbg_printf("Has overwrite sampler with interval: %" PRIu64 "\n", interval);
             } else if (interval == 0) {
                 // SAMPLER_DEFAULT, if no sampling announced in header
-                dbg_printf("Has other sampler with interval: %llu\n", interval);
+                dbg_printf("Has other sampler with interval: %" PRIu64 "\n", interval);
                 interval = sampler->spaceInterval + 1;
             }
         }
@@ -558,7 +560,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
                 genericFlow->inPackets *= interval;
                 genericFlow->inBytes *= interval;
                 SetFlag(recordHeader->flags, V4_FLAG_SAMPLED);
-                dbg_printf("Apply sampling rate: %llu\n", interval);
+                dbg_printf("Apply sampling rate: %" PRIu64 "\n", interval);
             }
 
             // Update stats

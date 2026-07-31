@@ -995,7 +995,7 @@ static void String_Received(FILE *stream, recordHandle_t *recordHandle) {
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
+        fprintf(stream, "%s.%03" PRIu64, s, msecReceived % 1000LL);
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -1014,7 +1014,7 @@ static void String_ReceivedGMT(FILE *stream, recordHandle_t *recordHandle) {
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
+        fprintf(stream, "%s.%03" PRIu64, s, msecReceived % 1000LL);
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -1025,7 +1025,7 @@ static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
-    fprintf(stream, "%10llu.%03llu", msecReceived / 1000LL, msecReceived % 1000LL);
+    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecReceived / 1000LL, msecReceived % 1000LL);
 
 }  // End of String_ReceivedRaw
 
@@ -1033,7 +1033,7 @@ static void String_FirstSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
-    fprintf(stream, "%10llu.%03llu", msecFirst / 1000LL, msecFirst % 1000LL);
+    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecFirst / 1000LL, msecFirst % 1000LL);
 
 }  // End of String_FirstSeenRaw
 
@@ -1041,7 +1041,7 @@ static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
-    fprintf(stream, "%10llu.%03llu", msecLast / 1000LL, msecLast % 1000LL);
+    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecLast / 1000LL, msecLast % 1000LL);
 
 }  // End of String_LastSeenRaw
 
@@ -1438,7 +1438,7 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03llu", s, msecEvent % 1000LL);
+        fprintf(stream, "%s.%03" PRIu64, s, msecEvent % 1000LL);
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }

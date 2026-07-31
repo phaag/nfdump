@@ -48,7 +48,9 @@ typedef struct locationInfo_s {
     char city[CityLength];
     char timeZone[TimeZoneLength];
     int32_t utcOffset;  // minutes, standard (non-DST) time, resolved from timeZone at DB build time
+    uint32_t fill;      // pad sizeof(locationInfo_t) to a multiple of 8
 } locationInfo_t;
+_Static_assert((sizeof(locationInfo_t) & 7) == 0, "locationInfo_t for 8 byte aligned");
 
 typedef struct ipLocationInfo_s {
     uint8_t ipVersion;
@@ -59,7 +61,9 @@ typedef struct ipLocationInfo_s {
     double latitude;
     double longitude;
     uint32_t accuracy;
+    uint32_t align;  // pad sizeof(ipLocationInfo_t) to a multiple of 8
 } ipLocationInfo_t;
+_Static_assert((sizeof(ipLocationInfo_t) & 7) == 0, "ipLocationInfo_t for 8 byte aligned");
 
 typedef struct ipV4Node_s {
     // key
@@ -69,6 +73,7 @@ typedef struct ipV4Node_s {
     // value
     ipLocationInfo_t info;
 } ipV4Node_t;
+_Static_assert((sizeof(ipV4Node_t) & 7) == 0, "ipV4Node_t for 8 byte aligned");
 
 typedef struct ipV6Node_s {
     // key
@@ -78,6 +83,7 @@ typedef struct ipV6Node_s {
     // value
     ipLocationInfo_t info;
 } ipV6Node_t;
+_Static_assert((sizeof(ipV6Node_t) & 7) == 0, "ipV6Node_t for 8 byte aligned");
 
 #define orgNameLength 96
 typedef struct asV4Node_s {
@@ -87,8 +93,10 @@ typedef struct asV4Node_s {
 
     // value
     uint32_t as;
+    uint32_t align;  // pad sizeof(asV4Node_t) to a multiple of 8 - see locationInfo_t.fill
     char orgName[orgNameLength];
 } asV4Node_t;
+_Static_assert((sizeof(asV4Node_t) & 7) == 0, "asV4Node_t for 8 byte aligned");
 
 typedef struct asV6Node_s {
     // key
@@ -98,16 +106,20 @@ typedef struct asV6Node_s {
 
     // value
     uint32_t as;
+    uint32_t align;  // pad sizeof(asV4Node_t) to a multiple of 8 - see locationInfo_t.fill
     char orgName[orgNameLength];
 } asV6Node_t;
+_Static_assert((sizeof(asV6Node_t) & 7) == 0, "asV6Node_t for 8 byte aligned");
 
 typedef struct asOrgNode_s {
     // key
     uint32_t as;
+    uint32_t align;  // pad sizeof(asOrgNode_t) to a multiple of 8 - see locationInfo_t.fill
 
     // value
     char orgName[orgNameLength];
 } asOrgNode_t;
+_Static_assert((sizeof(asOrgNode_t) & 7) == 0, "asOrgNode_t for 8 byte aligned");
 
 int Init_MaxMind(void);
 

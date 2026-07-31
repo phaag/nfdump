@@ -109,7 +109,7 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         }
     }
 
-    dbg_printf("ReadBlock - type: %u, size: %u, compression: %u, checksum: 0x%llx, encryption: %u\n", dataBlock->type, dataBlock->discSize,
+    dbg_printf("ReadBlock - type: %u, size: %u, compression: %u, checksum: 0x%" PRIx64 ", encryption: %u\n", dataBlock->type, dataBlock->discSize,
                dataBlock->compression, dataBlock->checksum, dataBlock->encryption);
 
     uint32_t blockSize = nffile->fileHeader->blockSize;

@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdint.h>
@@ -190,7 +191,7 @@ static void checkHost(char *s) {
         printf("Lookup: %s, numIP: %u\n", s, numIP);
 
     for (int i = 0; i < numIP; i++) {
-        printf("%d: af: %u, 0x%llx 0x%llx\n", i + 1, ipStack[i].af, ipStack[i].ipaddr[0], ipStack[i].ipaddr[1]);
+        printf("%d: af: %u, 0x%" PRIx64 " 0x%" PRIx64 "\n", i + 1, ipStack[i].af, ipStack[i].ipaddr[0], ipStack[i].ipaddr[1]);
     }
     printf("\n");
 }

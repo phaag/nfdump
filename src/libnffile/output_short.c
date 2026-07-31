@@ -31,6 +31,7 @@
 #include "output_short.h"
 
 #include <arpa/inet.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -98,8 +99,8 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
     }
 
     fprintf(stream,
-            "  first        =      %13llu [%s.%03llu]\n"
-            "  last         =      %13llu [%s.%03llu]\n"
+            "  first        =      %13llu [%s.%03" PRIu64 "]\n"
+            "  last         =      %13llu [%s.%03" PRIu64 "]\n"
             "  received at  =      %13llu [%s.%03llu]\n"
             "  proto        =                %3u %s\n"
             "  tcp flags    =               0x%.2x %s\n",

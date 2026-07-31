@@ -244,7 +244,7 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
         return NULL;
     }
 
-    dbg_printf("Evaluated bitmap: 0x%llx -> %u extensions\n", bitMap, numExtensions);
+    dbg_printf("Evaluated bitmap: 0x%" PRIx64 " -> %u extensions\n", bitMap, numExtensions);
 
     // generate final instruction set
     uint8_t allocated[MAXEXTENSIONS] = {0};
@@ -697,7 +697,7 @@ L_COPY_V9_TIME: {
     uint64_t msecTime = export_time_ms - (uint64_t)offset;
 
     dbg_printf("OP_COPY_V9_TIME: t: %u, sysUptime: %u, UNIXtime: %u\n", t, SysUptime, runtime->unix_secs);
-    dbg_printf("OP_COPY_V9_TIME: offset: %u, export_time_ms: %llu, msecTime: %llu\n", offset, export_time_ms, msecTime);
+    dbg_printf("OP_COPY_V9_TIME: offset: %u, export_time_ms: %" PRIu64 ", msecTime: %" PRIu64 "\n", offset, export_time_ms, msecTime);
 
     uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = msecTime;
@@ -730,9 +730,9 @@ L_COPY_SYSUP_TIME: {
 L_ADD_SYSUP: {
     pipelineInstr_t *fixUp = pipeline->fixUp[inst->argument];
     uint64_t *dst = (uint64_t *)(baseCache[fixUp->extID] + fixUp->dstOffset);
-    dbg_printf("Fixup time: %llu", *dst);
+    dbg_printf("Fixup time: %" PRIu64, *dst);
     *dst += runtime->SysUptime;
-    dbg_printf(" --> %llu\n", *dst);
+    dbg_printf(" --> %" PRIu64 "\n", *dst);
     DISPATCH();
 }
 

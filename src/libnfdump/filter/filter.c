@@ -2273,10 +2273,10 @@ void DumpEngine(void *arg) {
     } else {
         char strbuf[64];
         printf("\nHas time block constrains:\n");
-        printf("First seen LT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecFirst_lt, strbuf, 64), engine->blockConstraint.msecFirst_lt);
-        printf("First seen GT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecFirst_gt, strbuf, 64), engine->blockConstraint.msecFirst_gt);
-        printf("Last seen LT : %s(%llu)\n", msec2Str(engine->blockConstraint.msecLast_lt, strbuf, 64), engine->blockConstraint.msecLast_lt);
-        printf("Last seen GT: %s(%llu)\n", msec2Str(engine->blockConstraint.msecLast_gt, strbuf, 64), engine->blockConstraint.msecLast_gt);
+        printf("First seen LT: %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecFirst_lt, strbuf, 64), engine->blockConstraint.msecFirst_lt);
+        printf("First seen GT: %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecFirst_gt, strbuf, 64), engine->blockConstraint.msecFirst_gt);
+        printf("Last seen LT : %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecLast_lt, strbuf, 64), engine->blockConstraint.msecLast_lt);
+        printf("Last seen GT: %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecLast_gt, strbuf, 64), engine->blockConstraint.msecLast_gt);
     }
     if (engine->blockConstraint.hasIPConstraint) {
         printf("Found %i IP addresses for block filter\n", engine->blockConstraint.ipCount);

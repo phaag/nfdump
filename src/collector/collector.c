@@ -398,9 +398,9 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         fs->bad_packets = 0;
 
         // Flush current dataBlock
-        dbg_printf("Periodic - push block - type: %u, size: %u, first: %s.%llu, last: %s.%llu\n", fs->dataBlock->type, fs->dataBlock->rawSize,
-                   UNIX2ISO(fs->dataBlock->msecFirst / 1000), fs->dataBlock->msecFirst % 1000, UNIX2ISO(fs->dataBlock->msecLast / 1000),
-                   fs->dataBlock->msecLast % 1000);
+        dbg_printf("Periodic - push block - type: %u, size: %u, first: %s.%" PRIu64 ", last: %s.%" PRIu64 "\n", fs->dataBlock->type,
+                   fs->dataBlock->rawSize, UNIX2ISO(fs->dataBlock->msecFirst / 1000), fs->dataBlock->msecFirst % 1000,
+                   UNIX2ISO(fs->dataBlock->msecLast / 1000), fs->dataBlock->msecLast % 1000);
         PushBlockV3(fs->blockQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
@@ -477,8 +477,8 @@ void FlushExporter(FlowSource_t *fs) {
                info_record->version, info_record->id, info_record->packets, info_record->flows, info_record->sequence_failure);
         sampler_record_v4_t *sampler = info_record->samplers;
         for (int i = 0; i < info_record->sampler_count; i++) {
-            printf("[%d] Sampler - ID: %lld, packetInterval: %u, spaceInterval: %u, algorithm: %u\n", i, sampler->selectorID, sampler->packetInterval,
-                   sampler->spaceInterval, sampler->algorithm);
+            printf("[%d] Sampler - ID: %" PRId64 ", packetInterval: %u, spaceInterval: %u, algorithm: %u\n", i, sampler->selectorID,
+                   sampler->packetInterval, sampler->spaceInterval, sampler->algorithm);
         }
 
 #endif

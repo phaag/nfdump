@@ -293,7 +293,7 @@ int VerifyFileV2(const char *filename, int verbose) {
         }
 
         if (fileHeader.offAppendix >= stat_buf.st_size) {
-            LogError("Invalid appendix offset: %lld, file size: %lld", (long long)fileHeader.offAppendix, stat_buf.st_size);
+            LogError("Invalid appendix offset: %lld, file size: %lld", (long long)fileHeader.offAppendix, (long long)stat_buf.st_size);
             close(fd);
             return 0;
         }

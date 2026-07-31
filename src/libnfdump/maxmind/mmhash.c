@@ -48,6 +48,7 @@
 #include "maxmind.h"
 #include "mmhash.h"
 #include "util.h"
+#include "vcs_track.h"
 
 #define kh_hash_func(key) (khint32_t)(key.key)
 #define kh_hash_equal(a, b) ((a.key) == (b.key))
@@ -71,7 +72,7 @@ static inline int ipV4Node_cmp(ipV4Node_t a, ipV4Node_t b) {
         if (network == a.network) return 0;
         return a.network > network ? 1 : -1;
     }
-}
+}  // End of ipV4Node_cmp
 
 static inline int ipV6Node_cmp(ipV6Node_t a, ipV6Node_t b) {
     uint64_t network[2];
@@ -88,7 +89,7 @@ static inline int ipV6Node_cmp(ipV6Node_t a, ipV6Node_t b) {
         if (a.network[0] == network[0]) return a.network[1] > network[1] ? 1 : -1;
         return (a.network[0] > network[0]) ? 1 : -1;
     }
-}
+}  // End of ipV6Node_cmp
 
 KBTREE_INIT(ipV4Tree, ipV4Node_t, ipV4Node_cmp);
 
@@ -107,7 +108,7 @@ static inline int asV4Node_cmp(asV4Node_t a, asV4Node_t b) {
         if (network == a.network) return 0;
         return a.network > network ? 1 : -1;
     }
-}
+}  // End of asV4Node_cmp
 
 static inline int asV6Node_cmp(asV6Node_t a, asV6Node_t b) {
     uint64_t network[2];
@@ -124,7 +125,7 @@ static inline int asV6Node_cmp(asV6Node_t a, asV6Node_t b) {
         if (a.network[0] == network[0]) return a.network[1] > network[1] ? 1 : -1;
         return (a.network[0] > network[0]) ? 1 : -1;
     }
-}
+}  // End of asV6Node_cmp
 
 static inline int asOrgNode_cmp(asOrgNode_t a, asOrgNode_t b) {
     if (a.as == b.as) return 0;
@@ -193,15 +194,21 @@ static mmHandle_t *mmHandle = NULL;
 #define MMFLAT_MAGIC 0x4D4D464CU  // 'M','M','F','L'
 #define MMFLAT_VERSION 1U
 
-// section IDs (indices into mmFlatHeader_t.sec[])
-#define MMFLAT_SEC_LOC 0
-#define MMFLAT_SEC_IPV4 1
-#define MMFLAT_SEC_IPV6 2
-#define MMFLAT_SEC_ASV4 3
-#define MMFLAT_SEC_ASV6 4
-#define MMFLAT_SEC_ASORG 5
-// number of sections
-#define MMFLAT_NSECT 6U
+// Round a byte offset up to 8-byte alignment. Every section struct in this
+// format needs at most 8-byte alignment to keep the CPUs happy
+#define FLAT_ALIGN8(x) (((x) + 7ULL) & ~7ULL)
+
+// section IDs (indices into mmFlatHeader_t.section[])
+enum {
+    MMFLAT_SEC_LOC = 0,
+    MMFLAT_SEC_IPV4,
+    MMFLAT_SEC_IPV6,
+    MMFLAT_SEC_ASV4,
+    MMFLAT_SEC_ASV6,
+    MMFLAT_SEC_ASORG,
+    // number of sections
+    MMFLAT_NSECT
+};
 
 typedef struct mmFlatSection_s {
     uint32_t elemSize;  // sizeof the element type
@@ -210,12 +217,13 @@ typedef struct mmFlatSection_s {
 } mmFlatSection_t;
 
 typedef struct mmFlatHeader_s {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t numSections;
-    uint32_t reserved;
-    mmFlatSection_t sec[MMFLAT_NSECT];
+    uint32_t magic;        // magic tag for flat file
+    uint32_t version;      // layout version
+    uint32_t nfdVersion;   // nfdump verion, which created this file
+    uint32_t numSections;  // number of array sections
+    mmFlatSection_t section[MMFLAT_NSECT];
 } mmFlatHeader_t;
+_Static_assert((sizeof(mmFlatHeader_t) & 7) == 0, "mmFlatHeader_t for 8 byte aligned");
 
 // flat state — populated either from mmap or from malloc after slow load
 typedef struct mmFlat_s {
@@ -1030,27 +1038,28 @@ void WriteFlatCache(const char *flatPath) {
     if (!mmFlat) return;
 
     // build header
-    mmFlatHeader_t hdr = {
-        .magic = MMFLAT_MAGIC,
-        .version = MMFLAT_VERSION,
+    mmFlatHeader_t mmFlatHeader = {
+        .magic = MMFLAT_MAGIC,      // mmflat magic
+        .version = MMFLAT_VERSION,  // layout version
+        .nfdVersion = NFDVERSION,
         .numSections = MMFLAT_NSECT,
-        .reserved = 0,
     };
 
     uint64_t off = sizeof(mmFlatHeader_t);
-#define FILL_SEC(IDX, arr, n, type)       \
-    hdr.sec[IDX].elemSize = sizeof(type); \
-    hdr.sec[IDX].count = (n);             \
-    hdr.sec[IDX].offset = off;            \
+#define SET_SECTION(IDX, arr, n, type)                 \
+    off = FLAT_ALIGN8(off);                            \
+    mmFlatHeader.section[IDX].elemSize = sizeof(type); \
+    mmFlatHeader.section[IDX].count = (n);             \
+    mmFlatHeader.section[IDX].offset = off;            \
     off += (uint64_t)(n) * sizeof(type)
 
-    FILL_SEC(MMFLAT_SEC_LOC, mmFlat->locArr, mmFlat->locCount, locationInfo_t);
-    FILL_SEC(MMFLAT_SEC_IPV4, mmFlat->ipV4Arr, mmFlat->ipV4Count, ipV4Node_t);
-    FILL_SEC(MMFLAT_SEC_IPV6, mmFlat->ipV6Arr, mmFlat->ipV6Count, ipV6Node_t);
-    FILL_SEC(MMFLAT_SEC_ASV4, mmFlat->asV4Arr, mmFlat->asV4Count, asV4Node_t);
-    FILL_SEC(MMFLAT_SEC_ASV6, mmFlat->asV6Arr, mmFlat->asV6Count, asV6Node_t);
-    FILL_SEC(MMFLAT_SEC_ASORG, mmFlat->asOrgArr, mmFlat->asOrgCount, asOrgNode_t);
-#undef FILL_SEC
+    SET_SECTION(MMFLAT_SEC_LOC, mmFlat->locArr, mmFlat->locCount, locationInfo_t);
+    SET_SECTION(MMFLAT_SEC_IPV4, mmFlat->ipV4Arr, mmFlat->ipV4Count, ipV4Node_t);
+    SET_SECTION(MMFLAT_SEC_IPV6, mmFlat->ipV6Arr, mmFlat->ipV6Count, ipV6Node_t);
+    SET_SECTION(MMFLAT_SEC_ASV4, mmFlat->asV4Arr, mmFlat->asV4Count, asV4Node_t);
+    SET_SECTION(MMFLAT_SEC_ASV6, mmFlat->asV6Arr, mmFlat->asV6Count, asV6Node_t);
+    SET_SECTION(MMFLAT_SEC_ASORG, mmFlat->asOrgArr, mmFlat->asOrgCount, asOrgNode_t);
+#undef SET_SECTION
 
     char tmpPath[PATH_MAX];
     snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", flatPath);
@@ -1068,7 +1077,7 @@ void WriteFlatCache(const char *flatPath) {
 #define WRITE_BUF(ptr, sz) \
     if (ok && write(fd, (ptr), (sz)) != (ssize_t)(sz)) ok = 0
 
-    WRITE_BUF(&hdr, sizeof(hdr));
+    WRITE_BUF(&mmFlatHeader, sizeof(mmFlatHeader));
     WRITE_BUF(mmFlat->locArr, mmFlat->locCount * sizeof(locationInfo_t));
     WRITE_BUF(mmFlat->ipV4Arr, mmFlat->ipV4Count * sizeof(ipV4Node_t));
     WRITE_BUF(mmFlat->ipV6Arr, mmFlat->ipV6Count * sizeof(ipV6Node_t));
@@ -1124,9 +1133,9 @@ int LoadFlatCache(const char *flatPath) {
     }
 
     /* validate section elem sizes */
-    if (hdr.sec[MMFLAT_SEC_LOC].elemSize != sizeof(locationInfo_t) || hdr.sec[MMFLAT_SEC_IPV4].elemSize != sizeof(ipV4Node_t) ||
-        hdr.sec[MMFLAT_SEC_IPV6].elemSize != sizeof(ipV6Node_t) || hdr.sec[MMFLAT_SEC_ASV4].elemSize != sizeof(asV4Node_t) ||
-        hdr.sec[MMFLAT_SEC_ASV6].elemSize != sizeof(asV6Node_t) || hdr.sec[MMFLAT_SEC_ASORG].elemSize != sizeof(asOrgNode_t)) {
+    if (hdr.section[MMFLAT_SEC_LOC].elemSize != sizeof(locationInfo_t) || hdr.section[MMFLAT_SEC_IPV4].elemSize != sizeof(ipV4Node_t) ||
+        hdr.section[MMFLAT_SEC_IPV6].elemSize != sizeof(ipV6Node_t) || hdr.section[MMFLAT_SEC_ASV4].elemSize != sizeof(asV4Node_t) ||
+        hdr.section[MMFLAT_SEC_ASV6].elemSize != sizeof(asV6Node_t) || hdr.section[MMFLAT_SEC_ASORG].elemSize != sizeof(asOrgNode_t)) {
         munmap(m, mapSize);
         return 0;
     }
@@ -1137,11 +1146,11 @@ int LoadFlatCache(const char *flatPath) {
      * the mapping. elemSize is already known-small at this point (checked above),
      * so count * elemSize cannot overflow; offset is checked first so the
      * subsequent "mapSize - offset" is always well-defined. */
-#define CHECK_SEC(IDX)                                                                                      \
-    if (hdr.sec[IDX].offset > mapSize || (uint64_t)hdr.sec[IDX].count * hdr.sec[IDX].elemSize > mapSize - hdr.sec[IDX].offset) { \
-        LogError("LoadFlatCache: section %d exceeds file size - corrupt or truncated cache file '%s'", IDX, flatPath);          \
-        munmap(m, mapSize);                                                                                                      \
-        return 0;                                                                                                                \
+#define CHECK_SEC(IDX)                                                                                                                           \
+    if (hdr.section[IDX].offset > mapSize || (uint64_t)hdr.section[IDX].count * hdr.section[IDX].elemSize > mapSize - hdr.section[IDX].offset) { \
+        LogError("LoadFlatCache: section %d exceeds file size - corrupt or truncated cache file '%s'", IDX, flatPath);                           \
+        munmap(m, mapSize);                                                                                                                      \
+        return 0;                                                                                                                                \
     }
 
     CHECK_SEC(MMFLAT_SEC_LOC);
@@ -1161,9 +1170,9 @@ int LoadFlatCache(const char *flatPath) {
     mmFlat->mmapBase = m;
     mmFlat->mmapSize = mapSize;
 
-#define MAP_SEC(IDX, field, countField, type)                  \
-    mmFlat->field = (type *)((char *)m + hdr.sec[IDX].offset); \
-    mmFlat->countField = hdr.sec[IDX].count
+#define MAP_SEC(IDX, field, countField, type)                      \
+    mmFlat->field = (type *)((char *)m + hdr.section[IDX].offset); \
+    mmFlat->countField = hdr.section[IDX].count
 
     MAP_SEC(MMFLAT_SEC_LOC, locArr, locCount, locationInfo_t);
     MAP_SEC(MMFLAT_SEC_IPV4, ipV4Arr, ipV4Count, ipV4Node_t);

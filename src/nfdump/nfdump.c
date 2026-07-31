@@ -292,10 +292,10 @@ static void PrintStat(stat_record_t *s, char *ident) {
     printf("Bytes_udp: %llu\n", (unsigned long long)s->numbytes_udp);
     printf("Bytes_icmp: %llu\n", (unsigned long long)s->numbytes_icmp);
     printf("Bytes_other: %llu\n", (unsigned long long)s->numbytes_other);
-    printf("First: %llu\n", s->msecFirstSeen / 1000LL);
-    printf("Last: %llu\n", s->msecLastSeen / 1000LL);
-    printf("msec_first: %llu\n", s->msecFirstSeen % 1000LL);
-    printf("msec_last: %llu\n", s->msecLastSeen % 1000LL);
+    printf("First: %" PRIu64 "\n", s->msecFirstSeen / 1000LL);
+    printf("Last: %" PRIu64 "\n", s->msecLastSeen / 1000LL);
+    printf("msec_first: %" PRIu64 "\n", s->msecFirstSeen % 1000LL);
+    printf("msec_last: %" PRIu64 "\n", s->msecLastSeen % 1000LL);
     printf("Sequence failures: %llu\n", (unsigned long long)s->sequence_failure);
 }  // End of PrintStat
 
@@ -513,7 +513,7 @@ static void *filterThread(void *arg) {
 
 #ifdef DEVEL
         numBlocks++;
-        printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->numRecords);
+        printf("Filter thread %i working on Block: %" PRIu64 ", records: %u\n", self, dataHandle->blockCnt, dataBlock->numRecords);
 #endif
 
         recordHeader_t *record_ptr = ResetCursor(dataBlock);
@@ -565,7 +565,7 @@ static void *filterThread(void *arg) {
 
         if (matched || dataBlock->numRecords > dataRecords) {
             // we have matched flows
-            dbg_printf("Filter thread %u: dataBlock: %llu, matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
+            dbg_printf("Filter thread %u: dataBlock: %" PRIu64 ", matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
                        matched, dataRecords, dataBlock->numRecords);
             queue_push(outQueue, dataHandle);
         } else {

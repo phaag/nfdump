@@ -37,11 +37,13 @@
 # After sourcing, the following are available:
 #
 #   BINDIR, TESTDATA                — directory paths
+#   MAXMIND_TESTDATA                — test/maxmind/ fixture directory
 #   NFCAPD_BIN, NFDUMP_BIN,         — binary paths
 #   NFREPLAY_BIN, NFEXPIRE_BIN,
-#   NFANON_BIN
+#   NFANON_BIN, GEOLOOKUP_BIN
 #   nfcapd(), nfdump(), nfreplay(), — wrapper functions (-G none pre-applied
-#   nfexpire(), nfanon()              to nfdump; all others pass-through)
+#   nfexpire(), nfanon(),             to nfdump; all others pass-through)
+#   geolookup()
 #   PASS, FAIL, SKIP                — counters (initialised to 0)
 #   pass(), fail(), skip()          — increment counter and print test result
 #   WORKDIR                         — private temp directory (auto-removed)
@@ -55,12 +57,15 @@ export TZ
 BINDIR="$SCRIPT_DIR/.."
 # test data for nfcapd tests lives two levels up under test/nfcapd/
 TESTDATA=$(cd "$SCRIPT_DIR/../../test/nfcapd" 2>/dev/null && pwd)
+# CSV fixtures for the maxmind geoDB tests live under test/maxmind/
+MAXMIND_TESTDATA=$(cd "$SCRIPT_DIR/../../test/maxmind" 2>/dev/null && pwd)
 
 NFCAPD_BIN="$BINDIR/nfcapd/nfcapd"
 NFDUMP_BIN="$BINDIR/nfdump/nfdump"
 NFREPLAY_BIN="$BINDIR/nfreplay/nfreplay"
 NFEXPIRE_BIN="$BINDIR/nfexpire/nfexpire"
 NFANON_BIN="$BINDIR/nfanon/nfanon"
+GEOLOOKUP_BIN="$BINDIR/maxmind/geolookup"
 
 # Wrapper functions — callers never need to worry about path quoting or
 # the -G none flag that suppresses geo-lookup during tests.
@@ -69,6 +74,7 @@ nfdump()  { "$NFDUMP_BIN"  -G none "$@"; }
 nfreplay(){ "$NFREPLAY_BIN" "$@"; }
 nfexpire(){ "$NFEXPIRE_BIN" "$@"; }
 nfanon()  { "$NFANON_BIN"  "$@"; }
+geolookup(){ "$GEOLOOKUP_BIN" "$@"; }
 
 # ── pass / fail / skip accounting ─────────────────────────────────────────────
 PASS=0; FAIL=0; SKIP=0

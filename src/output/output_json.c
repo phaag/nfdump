@@ -698,7 +698,7 @@ static char *stringEXnselCommon(char *streamPtr, uint8_t *extensionRecord) {
         AddElementU32("nat_pool_id", nselCommon->natPoolID);
     }
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%llu\",\n", datestr, nselCommon->msecEvent % 1000LL);
+    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%" PRIu64 "\",\n", datestr, nselCommon->msecEvent % 1000LL);
     streamPtr += len;
 
     return streamPtr;
