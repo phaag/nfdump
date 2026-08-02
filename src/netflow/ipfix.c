@@ -66,6 +66,8 @@ enum {
     STACK_SAMPLER,
     STACK_SECFIRST,
     STACK_SECLAST,
+    STACK_NTPFIRST,
+    STACK_NTPLAST,
     STACK_MSECFIRST,
     STACK_MSECLAST,
     STACK_DELTAFIRST,
@@ -116,6 +118,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_bgpNextHopIPv4Address, SIZEbgp4NextIP, NumberCopy, EXbgpNextHopV4ID, OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop"},
     {IPFIX_flowStartSeconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SECFIRST, "sec first seen"},
     {IPFIX_flowEndSeconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SECLAST, "sec last seen"},
+    {IPFIX_flowStartNanoseconds, Stack_ONLY, NumberCopy, EXgenericFlowID, 0, STACK_NTPFIRST, "NTP first seen"},
+    {IPFIX_flowEndNanoseconds, Stack_ONLY, NumberCopy, EXgenericFlowID, 0, STACK_NTPLAST, "NTP last seen"},
     {IPFIX_flowEndSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECLAST, "msec last SysupTime"},
     {IPFIX_flowStartSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECFIRST, "msec first SysupTime"},
     {IPFIX_SystemInitTimeMiliseconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SYSUPTIME, "SysupTime msec"},
@@ -262,6 +266,17 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber);
 
 #include "inline.c"
 #include "nffile_inline.c"
+
+#define NTP_UNIX_EPOCH_OFFSET 2208988800ULL
+
+static inline uint64_t NTP64ToMilliseconds(uint64_t ntpTimestamp) {
+    uint64_t seconds = ntpTimestamp >> 32;
+    uint64_t fraction = ntpTimestamp & 0xFFFFFFFFULL;
+
+    if (seconds < NTP_UNIX_EPOCH_OFFSET) return 0;
+
+    return (seconds - NTP_UNIX_EPOCH_OFFSET) * 1000ULL + ((fraction * 1000ULL) >> 32);
+}
 
 int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
     printRecord = verbose > 2;
@@ -1455,6 +1470,10 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 dbg_printf("Calculate first/last from option SysUpTime\n");
                 genericFlow->msecFirst = exporter_ipfix->SysUpTime + stack[STACK_MSECFIRST];
                 genericFlow->msecLast = exporter_ipfix->SysUpTime + stack[STACK_MSECLAST];
+            } else if (stack[STACK_NTPFIRST]) {
+                dbg_printf("first/last NTP abs.\n");
+                genericFlow->msecFirst = NTP64ToMilliseconds(stack[STACK_NTPFIRST]);
+                genericFlow->msecLast = NTP64ToMilliseconds(stack[STACK_NTPLAST]);
             } else if (stack[STACK_SECFIRST]) {
                 dbg_printf("first/last sec abs.\n");
                 genericFlow->msecFirst = stack[STACK_SECFIRST] * (uint64_t)1000;
