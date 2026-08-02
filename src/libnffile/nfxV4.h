@@ -774,6 +774,7 @@ static const struct extensionTable_s {
     TR(MOVE_V9_TIME)    /* msec time with v9 header Sysup and UNIX time */             \
     TR(MOVE_IPFIX_TIME) /* msec time of #21, #22 with sysuptimemsec #160 */            \
     TR(MOVE_IPFIX_USEC) /* negative usec time of  #158, #159 to header export time  */ \
+    TR(MOVE_IPFIX_NTP)  /* NTP64 time of #156, #157 per RFC 7011 */                    \
     TR(MOVE_SYSUP)      /* move sysuptime #160 into runtime sysuptime */               \
     TR(MOVE_TIMESEC)    /* time in sec */                                              \
     TR(MOVE_IPV4_RVD)   /* add IPv4 received from runtime*/                            \
@@ -818,6 +819,7 @@ static const struct trTable_s {
     OP(OP_COPY_VAR)        /* copy var length elements */                                      \
     OP(OP_COPY_V9_TIME)    /* copy 4 bytes v9 time stamps and add v9 header sysup/unix time */ \
     OP(OP_COPY_IPFIX_USEC) /* copy 4 bytes time stamps offset to header export time */         \
+    OP(OP_COPY_IPFIX_NTP)  /* copy 8 byte NTP64 timestamp, convert to unix msec */             \
     OP(OP_COPY_SYSUP_TIME) /* copy 8 bytes sysup time into runtime */                          \
     OP(OP_COPY_IPV4_RVD)   /* copy 4bytes IPv4 received from runtime */                        \
     OP(OP_COPY_IPV6_RVD)   /* copy 16bytes IPv6 received from runtime */                       \

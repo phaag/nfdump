@@ -279,6 +279,8 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_flowEndSeconds 151
 #define IPFIX_flowStartMilliseconds 152
 #define IPFIX_flowEndMilliseconds 153
+#define IPFIX_flowStartNanoseconds 156
+#define IPFIX_flowEndNanoseconds 157
 #define IPFIX_flowStartDeltaMicroseconds 158
 #define IPFIX_flowEndDeltaMicroseconds 159
 #define IPFIX_SystemInitTimeMiliseconds 160

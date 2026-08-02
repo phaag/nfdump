@@ -347,6 +347,14 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
                     }
                     instr->op = OP_COPY_IPFIX_USEC;
                     break;
+                case MOVE_IPFIX_NTP:
+                    if (instr->inLength != 8) {
+                        LogError("Expected 8 byte NTP64 timestamp, found %u", instr->inLength);
+                        free(pipeline);
+                        return NULL;
+                    }
+                    instr->op = OP_COPY_IPFIX_NTP;
+                    break;
                 case MOVE_IPV4_RVD:
                     instr->op = OP_COPY_IPV4_RVD;
                     break;
@@ -467,6 +475,7 @@ ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict
         [OP_COPY_VAR] = &&L_COPY_VAR,
         [OP_COPY_V9_TIME] = &&L_COPY_V9_TIME,
         [OP_COPY_IPFIX_USEC] = &&L_COPY_IPFIX_USEC,
+        [OP_COPY_IPFIX_NTP] = &&L_COPY_IPFIX_NTP,
         [OP_COPY_SYSUP_TIME] = &&L_COPY_SYSUP_TIME,
         [OP_COPY_IPV4_RVD] = &&L_COPY_IPV4_RVD,
         [OP_COPY_IPV6_RVD] = &&L_COPY_IPV6_RVD,
@@ -715,6 +724,25 @@ L_COPY_IPFIX_USEC: {
     uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
     *dst = (uint64_t)runtime->secExported * (uint64_t)1000 - (uint64_t)t / (uint64_t)1000;
     inPtr += 4;
+    DISPATCH();
+}
+
+L_COPY_IPFIX_NTP: {
+    // dateTimeNanoseconds (#156, #157) per RFC 7011 6.1.9: strict NTP64 decoding,
+    // no compensation for exporters that misuse the fraction field as raw nanoseconds
+    if (unlikely(inPtr + 8 > inEnd)) return PIP_ERR_SHORT_INPUT;
+    uint64_t v;
+    __builtin_memcpy(&v, inPtr, 8);
+    v = ntohll(v);
+
+    static const uint64_t NTP_UNIX_EPOCH_OFFSET = 2208988800ULL;
+    uint64_t seconds = v >> 32;
+    uint64_t fraction = v & 0xFFFFFFFFULL;
+
+    uint64_t *dst = (uint64_t *)(baseCache[inst->extID] + inst->dstOffset);
+    *dst = (seconds < NTP_UNIX_EPOCH_OFFSET) ? 0 : (seconds - NTP_UNIX_EPOCH_OFFSET) * 1000ULL + ((fraction * 1000ULL) >> 32);
+
+    inPtr += 8;
     DISPATCH();
 }
 

@@ -111,6 +111,8 @@ static const struct ipfixTranslationMap_s {
     AddElement(IPFIX_bgpNextHopIPv4Address, SIZEbgpNextHopV4, MOVE_NUMBER, EXasRoutingV4ID, OFFbgpNextHopV4, "IPv4 bgp next hop"),
     AddElement(IPFIX_flowStartSeconds, SIZEmsecFirst, MOVE_TIMESEC, EXgenericFlowID, OFFmsecFirst, "sec first seen"),
     AddElement(IPFIX_flowEndSeconds, SIZEmsecLast, MOVE_TIMESEC, EXgenericFlowID, OFFmsecLast, "sec last seen"),
+    AddElement(IPFIX_flowStartNanoseconds, SIZEmsecFirst, MOVE_IPFIX_NTP, EXgenericFlowID, OFFmsecFirst, "NTP first seen"),
+    AddElement(IPFIX_flowEndNanoseconds, SIZEmsecLast, MOVE_IPFIX_NTP, EXgenericFlowID, OFFmsecLast, "NTP last seen"),
     AddElement(IPFIX_flowEndSysUpTime, SIZEmsecLast, MOVE_IPFIX_TIME, EXgenericFlowID, OFFmsecLast, "msec last SysupTime"),
     AddElement(IPFIX_flowStartSysUpTime, SIZEmsecFirst, MOVE_IPFIX_TIME, EXgenericFlowID, OFFmsecFirst, "msec first SysupTime"),
     AddElement(IPFIX_SystemInitTimeMiliseconds, 0, MOVE_SYSUP, EXnull, 0, "SysupTime msec"),
