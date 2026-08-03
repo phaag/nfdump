@@ -2578,9 +2578,19 @@ static char *String_outServiceID(char *streamPtr, recordHandle_t *recordHandle) 
 }  // End of String_outServiceID
 
 static char *String_natString(char *streamPtr, recordHandle_t *recordHandle) {
-    char *natString = (char *)recordHandle->extensionList[EXnokiaNatStringID];
+    char *extensionRecord = (char *)recordHandle->extensionList[EXnokiaNatStringID];
+    if (!extensionRecord) {
+        AddString("<unknown>");
+        return streamPtr;
+    }
 
-    AddString(natString ? natString : "<unknown>");
+    // natSubString is a fixed 4-byte field with no guaranteed NUL terminator -
+    // copy into a bounded, terminated buffer before treating it as a C string.
+    char natString[EXnokiaNatStringSize + 1];
+    memcpy(natString, extensionRecord, EXnokiaNatStringSize);
+    natString[EXnokiaNatStringSize] = '\0';
+
+    AddString(natString);
 
     return streamPtr;
 }  // End of String_natString

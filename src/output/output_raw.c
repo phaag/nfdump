@@ -945,7 +945,11 @@ static void stringsEXnokiaNat(FILE *stream, uint8_t *extensionRecord) {
 }  // End of stringsEXnokiaNat
 
 static void stringsEXnokiaNatString(FILE *stream, uint8_t *extensionRecord) {
-    char *natString = (char *)extensionRecord;
+    // natSubString is a fixed 4-byte field with no guaranteed NUL terminator -
+    // copy into a bounded, terminated buffer before treating it as a C string.
+    char natString[EXnokiaNatStringSize + 1];
+    memcpy(natString, extensionRecord, EXnokiaNatStringSize);
+    natString[EXnokiaNatStringSize] = '\0';
     fprintf(stream, "  nat String   = %-19s\n", natString);
 }  // End of stringsEXnokiaNatString
 

@@ -116,16 +116,26 @@ static inline void CopyField(uint8_t *dst, const uint8_t *src, uint16_t inSize, 
     }
 }  // End of CopyField
 
-static inline uint16_t ReadVarLength(const uint8_t *p, uint16_t *lenBytes) {
-    uint8_t l = *p;
+// Reads an IPFIX variable-length prefix (RFC 7011 7.1) starting at p, never touching
+// bytes at or beyond end. Returns 0 and leaves *length/*lenBytes untouched if the
+// buffer is too short to hold the encoded prefix (1 byte, or 3 for the 0xFF form).
+static inline int ReadVarLength(const uint8_t *p, const uint8_t *end, uint32_t *length, uint16_t *lenBytes) {
+    if (unlikely(p + 1 > end)) return 0;
 
+    uint8_t l = *p;
     if (l < 255) {
         *lenBytes = 1;
-        return l;
+        *length = l;
+        return 1;
     }
 
+    if (unlikely(p + 3 > end)) return 0;
+
+    uint16_t v;
+    memcpy(&v, p + 1, 2);
     *lenBytes = 3;
-    return ntohs(*(uint16_t *)(p + 1));
+    *length = ntohs(v);
+    return 1;
 
 }  // End of ReadVarLength
 
@@ -249,7 +259,7 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
     // generate final instruction set
     uint8_t allocated[MAXEXTENSIONS] = {0};
     pipelineInstr_t *instr = pipeline->instruction;
-    for (int i = 0; i < (int)numInstructions && pipeline != NULL; i++) {
+    for (int i = 0; i < (int)numInstructions; i++) {
         uint32_t extID = instruction[i].extID;
         // VARLENGTH extensions allocate the offset table when adding VARLENGTH data
         if (extensionTable[extID].size == VARLENGTH) {
@@ -302,40 +312,50 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
                 case MOVE_NUMBER:  // byte aware copy
                     if (resolveNumber(instr) == 0) {
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     break;
                 case MOVE_IPV6:
+                    if (instr->inLength != 16) {
+                        LogError("Expected 16 byte IPv6 address, found %u", instr->inLength);
+                        free(pipeline);
+                        return NULL;
+                    }
                     instr->op = OP_COPY_IPV6;
                     break;
                 case MOVE_BYTES:
-                    if (instr->inLength == 16)
+                    if (instr->inLength == 16 && instr->outLength == 16)
                         instr->op = OP_COPY_16;
                     else
                         instr->op = OP_COPY_N;
                     instr->argument = (instr->inLength < instr->outLength) ? instr->inLength : instr->outLength;
                     break;
                 case MOVE_V9_TIME:  // add sysup/unix time from runtime argument
+                    if (instr->inLength != 4) {
+                        LogError("Expected 4 byte v9 timestamp, found %u", instr->inLength);
+                        free(pipeline);
+                        return NULL;
+                    }
                     instr->op = OP_COPY_V9_TIME;
                     break;
                 case MOVE_IPFIX_TIME:  // add sysuptime from runtime argument
                     if (resolveNumber(instr) == 0) {
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     if (pipeline->numFixup < NUMFIXUPS) {
                         pipeline->fixUp[pipeline->numFixup++] = instr;
                     } else {
                         LogError("Fixup register overflow: %u", pipeline->numFixup);
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     break;
                 case MOVE_SYSUP:  // copy sysuptime to runtime argument
                     if (instr->inLength != 8) {
                         LogError("Expected 8 byte sysupTime, found %u", instr->inLength);
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     instr->op = OP_COPY_SYSUP_TIME;
                     break;
@@ -343,7 +363,7 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
                     if (instr->inLength != 4) {
                         LogError("Expected 4 bytes for delta usec, found %u", instr->inLength);
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     instr->op = OP_COPY_IPFIX_USEC;
                     break;
@@ -372,7 +392,7 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
                     else {
                         LogError("Unsupported copy length for time(sec): %u", instr->inLength);
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     dbg_printf("TR: %s, Add %s copy %u -> %u for ext: %s(%u)\n", trTable[instr->transform].trName, opTable[instr->op].opName,
                                instr->inLength, instr->outLength, extensionTable[instr->extID].name, instr->extID);
@@ -385,21 +405,21 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
                     instr = resolveRegister(instr, 0);
                     if (instr == NULL) {
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     break;
                 case REGISTER_1:
                     instr = resolveRegister(instr, 1);
                     if (instr == NULL) {
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     break;
                 case REGISTER_2:
                     instr = resolveRegister(instr, 2);
                     if (instr == NULL) {
                         free(pipeline);
-                        pipeline = NULL;
+                        return NULL;
                     }
                     break;
                 case SUBTEMPLATE:
@@ -410,13 +430,11 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
                     LogError("Unknow transformation type: %u", instr->transform);
             }
 
-            dbg(if (pipeline) printf("TR: %s, Add %s copy %u -> %u for ext: %s(%u)\n", trTable[instr->transform].trName, opTable[instr->op].opName,
-                                     instr->inLength, instr->outLength, extensionTable[instr->extID].name, instr->extID));
+            dbg(printf("TR: %s, Add %s copy %u -> %u for ext: %s(%u)\n", trTable[instr->transform].trName, opTable[instr->op].opName, instr->inLength,
+                       instr->outLength, extensionTable[instr->extID].name, instr->extID));
         }
         instr++;
     }
-
-    if (pipeline == NULL) return NULL;
 
     if (pipeline->numFixup) {
         for (int i = 0; i < (int)pipeline->numFixup; i++) {
@@ -453,7 +471,8 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
  */
 ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict in, size_t inSize, uint8_t *restrict out, size_t outSize,
                     pipelineRuntime_t *restrict runtime) {
-    if (unlikely(runtime == NULL)) return PIP_ERR_RUNTIME_INPUT;
+    if (unlikely(runtime == NULL || pipeline == NULL || in == NULL || out == NULL)) return PIP_ERR_RUNTIME_INPUT;
+    if (unlikely(outSize < pipeline->baseOffset)) return PIP_ERR_SHORT_OUTPUT;
 
     dbg_printf("Run pipeline for template ID: %u, with %u instructions\n", pipeline->templateID, pipeline->numInstructions);
 
@@ -637,8 +656,7 @@ L_COPY_VAR: {
 
     if (inst->inLength == VARLENGTH) {
         // variable-length encoding with length prefix
-        if (unlikely(inPtr + 1 > inEnd)) return PIP_ERR_SHORT_INPUT;
-        inLength = ReadVarLength(inPtr, &lenBytes);
+        if (unlikely(!ReadVarLength(inPtr, inEnd, &inLength, &lenBytes))) return PIP_ERR_SHORT_INPUT;
         if (unlikely(inPtr + lenBytes + inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
         inPtr += lenBytes;
     } else {
@@ -658,6 +676,14 @@ L_COPY_VAR: {
         nextOffset = (nextOffset + 7) & ~7ULL;
 
         if (unlikely(nextOffset > outSize)) return PIP_ERR_SHORT_OUTPUT;
+    } else {
+        // A template that lists the same variable-length IE more than once would
+        // otherwise re-enter this handler with the space already reserved for the
+        // first occurrence, and overwrite it with an independently-sized, attacker
+        // controlled copyLength with no bounds check - an out-of-bounds heap write.
+        // Reject the record instead of risking that.
+        LogError("PipelineRun: duplicate variable-length extension %u in record - rejecting", inst->extID);
+        return PIP_ERR_RUNTIME_ERROR;
     }
 
     uint8_t *outPtr = baseCache[inst->extID];
@@ -774,10 +800,9 @@ L_SKIP:
     DISPATCH();
 
 L_SKIP_VAR: {
-    if (unlikely(inPtr + 1 > inEnd)) return PIP_ERR_SHORT_INPUT;
-
     uint16_t lenBytes;
-    uint32_t inLength = ReadVarLength(inPtr, &lenBytes);
+    uint32_t inLength;
+    if (unlikely(!ReadVarLength(inPtr, inEnd, &inLength, &lenBytes))) return PIP_ERR_SHORT_INPUT;
     if (unlikely(inPtr + lenBytes + inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
 
 #ifdef DEVEL
@@ -838,9 +863,9 @@ L_CALL: {
     // Skip sub-template IE content (IE #292/#293)
     dbg_printf("Skip sub template\n");
     if (inst->inLength == VARLENGTH) {
-        if (unlikely(inPtr + 1 > inEnd)) return PIP_ERR_SHORT_INPUT;
         uint16_t lenBytes;
-        uint32_t inLength = ReadVarLength(inPtr, &lenBytes);
+        uint32_t inLength;
+        if (unlikely(!ReadVarLength(inPtr, inEnd, &inLength, &lenBytes))) return PIP_ERR_SHORT_INPUT;
         if (unlikely(inPtr + lenBytes + inLength > inEnd)) return PIP_ERR_SHORT_INPUT;
         dbg(DumpHex(stdout, inPtr, inLength));
         inPtr += lenBytes + inLength;

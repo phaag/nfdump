@@ -666,7 +666,7 @@ typedef struct EXnokiaNat_s {
 typedef struct EXnokiaNatString_s {
     char natSubString[4];
 #define OFFnatSubString offsetof(EXnokiaNatString_t, natSubString)
-#define SIZEnatSubString VARLENGTH
+#define SIZEnatSubString MemberSize(EXnokiaNatString_t, natSubString)
 } EXnokiaNatString_t;
 #define EXnokiaNatStringSize sizeof(EXnokiaNatString_t)
 
@@ -756,7 +756,7 @@ static const struct extensionTable_s {
                       EXTENSION(EXnatXlatePort), EXTENSION(EXnselCommon),  EXTENSION(EXnselAcl),        EXTENSION(EXnselUser),
                       EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),     EXTENSION(EXinPayload),      EXTENSION(EXoutPayload),
                       EXTENSION(EXtunnelV4),     EXTENSION(EXtunnelV6),    EXTENSION(EXobservation),    EXTENSION(EXpacketMeta),
-                      EXTENSION(EXpacketFrame),   EXTENSION(EXvrf),         EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),
+                      EXTENSION(EXpacketFrame),  EXTENSION(EXvrf),         EXTENSION(EXpfinfo),         EXTENSION(EXlayer2),
                       EXTENSION(EXflowId),       EXTENSION(EXnokiaNat),    EXTENSION(EXnokiaNatString), EXTENSION(EXipInfo)};
 
 // pipeline example

@@ -869,7 +869,7 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
             if (index < 0) {
                 // not found - add skip sequence
                 // var length skip cannot be stacked
-                if (inLength != VARLENGTH && prev && prev->transform == SKIP_INPUT) {
+                if (inLength != VARLENGTH && prev && prev->transform == SKIP_INPUT && prev->inLength <= UINT16_MAX - inLength) {
                     // compact multiple skip instructions
                     prev->inLength += inLength;
                     dbg_printf("Add %u bytes to previous skip instruction\n", inLength);
@@ -1369,7 +1369,11 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                     return;
                     break;
                 case PIP_ERR_RUNTIME_ERROR:
-                    LogError("Process_v9: pipeline runtime error. Skip v9 record processing");
+                    // Unrecoverable for this record (e.g. malformed template); retrying would
+                    // just reproduce the same error against the same input and spin forever,
+                    // since neither `processed` nor `redone` change. Skip like short input does.
+                    LogError("Process_v9: pipeline runtime error. Skip record processing");
+                    processed = size_left;
                     break;
                 default:
                     dbg_printf("New record added with %u elements and size: %u, processed inLength: %zu\n", recordHeaderV4->numExtensions,

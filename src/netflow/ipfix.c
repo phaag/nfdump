@@ -892,6 +892,10 @@ static void removeAllTemplates(exporter_entry_t *exporter_entry) {
 
 static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flowset_header, uint32_t size_left, FlowSource_t *fs) {
     size_left -= 4;  // subtract message header
+    if (size_left < 4) {
+        LogError("Process_ipfix: [%u] template flowset too short", exporter_entry->info->id);
+        return;
+    }
     void *DataPtr = flowset_header + 4;
 
     ipfix_template_record_t *ipfix_template_record = (ipfix_template_record_t *)DataPtr;
@@ -1002,7 +1006,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
                 } else {
                     // not found - add skip sequence
                     // var length skip cannot be stacked
-                    if (inLength != VARLENGTH && prev && prev->transform == SKIP_INPUT) {
+                    if (inLength != VARLENGTH && prev && prev->transform == SKIP_INPUT && prev->inLength <= UINT16_MAX - inLength) {
                         // compact multiple skip instructions
                         prev->inLength += inLength;
                         dbg_printf("Add %u bytes to previous skip instruction\n", inLength);
@@ -1561,7 +1565,11 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     return;
                     break;
                 case PIP_ERR_RUNTIME_ERROR:
-                    LogError("Process_ipfix: pipeline runtime error. Skip v9 record processing");
+                    // Unrecoverable for this record (e.g. malformed template); retrying would
+                    // just reproduce the same error against the same input and spin forever,
+                    // since neither `processed` nor `redone` change. Skip like short input does.
+                    LogError("Process_ipfix: pipeline runtime error. Skip record processing");
+                    processed = size_left;
                     break;
                 default:
                     dbg_printf("New record added with %u elements and size: %u, processed inLength: %zu\n", recordHeaderV4->numExtensions,
