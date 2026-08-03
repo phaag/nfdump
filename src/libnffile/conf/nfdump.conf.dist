@@ -117,6 +117,10 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # writers, capped at codec ceiling.  Use threads.writers to override the cap;
 # readers is unused for collectors.
 
+# Maximum number of source directories/backends created by -M. This limit
+# protects a public collector from spoofed-source resource exhaustion.
+#dyn_max_sources = 1024
+
 [nfcapd.threads]
 #writers = 0   # 0 = auto (LZ4 cap→8, ZSTD cap→12, minus 1 for collector thread)
 

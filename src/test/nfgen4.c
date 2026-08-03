@@ -130,7 +130,7 @@ static flowBlockV3_t *StoreV4Record(uint8_t *buf, nffileV3_t *nffile, flowBlockV
         InitDataBlock(block, nffile->fileHeader->blockSize);
     }
 
-    VerifyV4Record(h);
+    VerifyV4Record(h, h->size);
     void *cursor = GetCursor(block);
     memcpy(cursor, buf, required);
     block->numRecords++;

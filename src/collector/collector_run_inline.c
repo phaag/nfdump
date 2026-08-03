@@ -69,6 +69,12 @@ static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct t
 
     ssize_t cnt = recvmsg(sockfd, &pkt_ctx->msg, 0);
 
+    if (cnt >= 0 && (pkt_ctx->msg.msg_flags & MSG_TRUNC)) {
+        LogError("recvmsg(): truncated UDP datagram dropped");
+        cnt = -1;
+        errno = EMSGSIZE;
+    }
+
     if (cnt > 0) {
         struct cmsghdr *cmsg = CMSG_FIRSTHDR(&pkt_ctx->msg);
         if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMP) {

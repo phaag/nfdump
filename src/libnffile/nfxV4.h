@@ -912,6 +912,6 @@ ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict
 
 void PrintPipeline(pipeline_t *pipeline);
 
-int VerifyV4Record(const recordHeaderV4_t *hdr);
+int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available);
 
 #endif

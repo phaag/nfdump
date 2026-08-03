@@ -209,7 +209,7 @@ int ConfigureDynFlowSource(collector_ctx_t *ctx, const char *dynFlowDir, unsigne
         return 0;
     }
 
-    LogInfo("Add dynamic source in flowdir: %s", dynFlowDir);
+    LogInfo("Add dynamic source in flowdir: %s (limit %u)", dynFlowDir, ctx->dynMaxSources);
     return 1;
 }  // End of ConfigureDynFlowSource
 

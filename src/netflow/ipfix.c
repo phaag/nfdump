@@ -456,7 +456,7 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         __builtin_prefetch(&tab->entries[(i + 1) & mask]);
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
@@ -524,7 +524,7 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_ipfix: exporter table is full");
     return NULL;
 
 }  // End of getExporter
@@ -1498,6 +1498,10 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             PushBlockV3(fs->blockQueue, fs->dataBlock);
             fs->dataBlock = NULL;
             InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+            if (!fs->dataBlock) {
+                LogError("Process_ipfix: out of memory allocating output block");
+                return;
+            }
         }
 
         unsigned buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
@@ -1563,7 +1567,6 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 case PIP_ERR_RUNTIME_INPUT:
                     LogError("Process_ipfix: runtime buffer error. Skip ipfix record processing");
                     return;
-                    break;
                 case PIP_ERR_RUNTIME_ERROR:
                     // Unrecoverable for this record (e.g. malformed template); retrying would
                     // just reproduce the same error against the same input and spin forever,
@@ -2151,6 +2154,12 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     }
 
     ipfix_header_t *ipfix_header = (ipfix_header_t *)in_buff;
+    uint16_t messageLength = ntohs(ipfix_header->Length);
+    if (messageLength < IPFIX_HEADER_LENGTH || messageLength > (size_t)in_buff_cnt) {
+        LogError("Process_ipfix: invalid message length %u for datagram size %zd", messageLength, in_buff_cnt);
+        return;
+    }
+    size_left = messageLength;
     uint32_t ExportTime = ntohl(ipfix_header->ExportTime);
     uint32_t Sequence = ntohl(ipfix_header->LastSequence);
 

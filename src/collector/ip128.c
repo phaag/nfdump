@@ -84,12 +84,10 @@ ip128_t ip128_2_bin(const char *ipStr) {
         case 1:
             // success
             return ip;
-            break;
         case -1:
             LogError("Error while parsing IP address %s: %s", ipStr, strerror(errno));
             memset(ip.bytes, 0, sizeof(ip.bytes));
             return ip;
-            break;
     }
 
     // unreached

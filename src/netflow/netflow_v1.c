@@ -137,7 +137,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
         if (!e->in_use) {
@@ -189,7 +189,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_v1: exporter table is full");
     return NULL;
 
 }  // End of getExporter
@@ -237,6 +237,10 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             PushBlockV3(fs->blockQueue, fs->dataBlock);
             fs->dataBlock = NULL;
             InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+            if (!fs->dataBlock) {
+                LogError("Process_v1: out of memory allocating output block");
+                return;
+            }
             // map output memory buffer
             outBuff = GetCursor(fs->dataBlock);
         }
@@ -396,7 +400,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             uint32_t exporterIdent = MetricExpporterID(recordHeader);
             UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
-            dbg(VerifyV4Record(recordHeader));
+            dbg(VerifyV4Record(recordHeader, recordHeader->size));
             if (printRecord) {
                 flow_record_short(stdout, recordHeader);
             }

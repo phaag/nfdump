@@ -400,7 +400,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         __builtin_prefetch(&tab->entries[(i + 1) & mask]);
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
@@ -467,7 +467,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_v9: exporter table is full");
     return NULL;
 
 }  // End of getExporter
@@ -1302,6 +1302,10 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
             PushBlockV3(fs->blockQueue, fs->dataBlock);
             fs->dataBlock = NULL;
             InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+            if (!fs->dataBlock) {
+                LogError("Process_v9: out of memory allocating output block");
+                return;
+            }
         }
 
         int buffAvail = BLOCK_SIZE_V3 - fs->dataBlock->rawSize;
@@ -1367,7 +1371,6 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                 case PIP_ERR_RUNTIME_INPUT:
                     LogError("Process_v9: runtime buffer error. Skip v9 record processing");
                     return;
-                    break;
                 case PIP_ERR_RUNTIME_ERROR:
                     // Unrecoverable for this record (e.g. malformed template); retrying would
                     // just reproduce the same error against the same input and spin forever,

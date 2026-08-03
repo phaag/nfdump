@@ -118,6 +118,8 @@
 
 // Maximum MPLS labels to track
 #define MPLSMAX 10
+#define MPLS_WALK_MAX 32
+#define IPV6_EXT_MAX 16
 
 // Cursor — identical interface to nfpcapd's cursor_t
 typedef struct {
@@ -291,7 +293,6 @@ static pf_state_t pf_decode_ethertype(pf_ctx_t *ctx) {
             case ETHERTYPE_IP:
             case ETHERTYPE_IPV6:
                 return PF_DECODE_IP;
-                break;
             case ETHERTYPE_VLAN:  // 0x8100
             case 0x88A8: {        // QinQ / 802.1ad
                 if (++ctx->vlanDepth > 4) {
@@ -315,8 +316,10 @@ static pf_state_t pf_decode_ethertype(pf_ctx_t *ctx) {
 
             case ETHERTYPE_MPLS: {
                 ctx->dec.numMPLS = 0;
+                unsigned labelsSeen = 0;
                 uint32_t label;
                 do {
+                    if (++labelsSeen > MPLS_WALK_MAX) return PF_DECODE_SKIP;
                     if (!pf_cursor_read(c, &label, 4)) return PF_DECODE_SKIP;
                     if (ctx->dec.numMPLS < MPLSMAX) ctx->dec.mplsLabel[ctx->dec.numMPLS++] = label;  // keep NBO
                 } while ((ntohl(label) & 0x100) == 0);  // bottom-of-stack
@@ -464,8 +467,10 @@ static pf_state_t pf_decode_ipv6(pf_ctx_t *ctx) {
     // Walk extension headers
     ctx->dec.IPproto = ip6.ip6_nxt;
     uint16_t plen = ntohs(ip6.ip6_plen);
+    unsigned extCount = 0;
     while (ctx->dec.IPproto == IPPROTO_HOPOPTS || ctx->dec.IPproto == IPPROTO_ROUTING || ctx->dec.IPproto == IPPROTO_DSTOPTS ||
            ctx->dec.IPproto == IPPROTO_AH) {
+        if (++extCount > IPV6_EXT_MAX) return PF_DECODE_SKIP;
         struct {
             uint8_t nxt;
             uint8_t len;

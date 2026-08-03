@@ -101,6 +101,7 @@ static volatile sig_atomic_t done = 0;
 /* nfcpad default config */
 static option_t nfcapdOption[] = {
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.type = CONF_UINT64, .key = "dyn_max_sources", .valUint64 = DEFAULT_DYN_MAX_SOURCES},
     {.key = NULL},
 };
 
@@ -211,12 +212,21 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
         }
         if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
             LogError("Failed to initialise backend for new source");
-            // XXX should free this flow source
             queue_abort(fs->blockQueue);
+            done = 1;
+            return;
+        }
+        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
+        if (!fs->dataBlock) {
+            LogError("Out of memory allocating data block for dynamic source %s", fs->Ident);
+            queue_abort(fs->blockQueue);
+            done = 1;
             return;
         }
         if (!Launch_nffile_backend(fs)) {
             LogError("Launch_nffile_backend() failed");
+            FreeDataBlock(fs->dataBlock);
+            fs->dataBlock = NULL;
             done = 1;
             return;
         }
@@ -840,6 +850,12 @@ int main(int argc, char **argv) {
     if (init_collector_ctx(&collector_ctx) == 0) {
         exit(EXIT_FAILURE);
     }
+    int64_t dynMaxSources = ConfGetValue("dyn_max_sources");
+    if (dynMaxSources < 1 || dynMaxSources > UINT32_MAX) {
+        LogError("nfcapd: dyn_max_sources must be in range [1,%u]", UINT32_MAX);
+        exit(EXIT_FAILURE);
+    }
+    collector_ctx.dynMaxSources = (uint32_t)dynMaxSources;
 
     if (sendHost) {
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {

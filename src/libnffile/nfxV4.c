@@ -934,10 +934,10 @@ void PrintPipeline(pipeline_t *pipeline) {
 
 // Verify a V4record
 // return 1 if ok, 0 otherwise
-int VerifyV4Record(const recordHeaderV4_t *hdr) {
-    if (!hdr) return 0;
+int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
+    if (!hdr || available < sizeof(*hdr) || hdr->size < sizeof(*hdr) || hdr->size > available) return 0;
 
-    LogInfo("\nVerifyV4 record:");
+    dbg_printf("\nVerifyV4 record:\n");
     if (hdr->type != V4Record) {
         LogError("Verify v4 record: wrong type: %u", hdr->type);
         return 0;
@@ -992,7 +992,7 @@ int VerifyV4Record(const recordHeaderV4_t *hdr) {
             __builtin_memcpy(&extSize, extension, sizeof(uint32_t));
         }
 
-        LogInfo("Extension: type= %s(%u), offset=%u, size=%u", extensionTable[extID].name, extID, offset, extSize);
+        dbg_printf("Extension: type= %s(%u), offset=%u, size=%u\n", extensionTable[extID].name, extID, offset, extSize);
 
         // Extension must fit entirely
         if ((recordBase + offset + extSize) > eor) {

@@ -139,7 +139,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
         if (!e->in_use) {
@@ -183,7 +183,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_nfd: exporter table is full");
     return NULL;
 
 }  // End of getExporter
@@ -250,7 +250,9 @@ static inline recordHeaderV4_t *InsertEXipReceived(void *buffPtr, const recordHe
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // Decrypt version-251 packets before processing
-    if (in_buff_cnt >= 2 && ntohs(*(const uint16_t *)in_buff) == VERSION_NFD_ENCRYPTED) {
+    uint16_t wireVersion = 0;
+    if (in_buff_cnt >= (ssize_t)sizeof(wireVersion)) memcpy(&wireVersion, in_buff, sizeof(wireVersion));
+    if (in_buff_cnt >= (ssize_t)sizeof(wireVersion) && ntohs(wireVersion) == VERSION_NFD_ENCRYPTED) {
         if (!g_udpSessionKey) {
             LogError("Process_nfd: received encrypted v251 packet but no UDP session key configured — drop");
             fs->bad_packets++;
@@ -293,9 +295,14 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     }
 
     // map pcapd data structure to input buffer
-    nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
     if ((size_t)in_buff_cnt < sizeof(nfd_header_t)) {
         LogError("Process_nfd: packet too short for nfd header (%zd bytes)", in_buff_cnt);
+        fs->bad_packets++;
+        return;
+    }
+    nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
+    if (ntohs(pcapd_header->version) != VERSION_NFDUMP || ntohs(pcapd_header->length) != (uint16_t)in_buff_cnt) {
+        LogError("Process_nfd: invalid inner header version or length");
         fs->bad_packets++;
         return;
     }
@@ -343,15 +350,15 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     while (size_left >= (ssize_t)sizeof(recordHeaderV4_t)) {
         // output buffer size check
         dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV4->type, recordHeaderV4->size);
-        // verify received record.
-        if (VerifyV4Record(recordHeaderV4) == 0) {
-            LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
-            return;
-        }
-
         if (recordHeaderV4->size > size_left) {
             LogError("Process_nfd: record size error. Size V4header: %u > size left: %zd", recordHeaderV4->size, size_left);
             LogError("Process_nfd: expected %u records, processd: %u", count, numRecords);
+            return;
+        }
+
+        // Verify only after the declared record size is known to fit in this datagram.
+        if (VerifyV4Record(recordHeaderV4, (size_t)size_left) == 0) {
+            LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
             return;
         }
 
@@ -373,6 +380,10 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             PushBlockV3(fs->blockQueue, fs->dataBlock);
             fs->dataBlock = NULL;
             InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+            if (!fs->dataBlock) {
+                LogError("Process_nfd: out of memory allocating output block");
+                return;
+            }
         }
 
         void *buffPtr = GetCursor(fs->dataBlock);

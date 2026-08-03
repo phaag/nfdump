@@ -145,7 +145,15 @@ static void PackFlowBlock(udpsend_backend_ctx_t *ctx, flowBlockV3_t *flowBlock, 
             break;
         }
 
-        /* flush before the inner payload would overflow 65535 or the threshold */
+        /* A record cannot be split across nfd UDP packets. */
+        if (recSize > UINT16_MAX - sizeof(nfd_header_t)) {
+            LogError("PackFlowBlock: record size %u exceeds nfd UDP payload limit; dropping record", recSize);
+            ptr += recSize;
+            remaining -= recSize;
+            continue;
+        }
+
+        /* Flush before the inner payload would overflow the wire header length. */
         if ((uint32_t)hdr->length + recSize > 65535u || (uint32_t)hdr->length > UDP_SEND_THRESHOLD) {
             SendUDPPacket(ctx, hdr, sendBuffer, encBuffer);
         }
