@@ -167,6 +167,7 @@ typedef struct _SFSample {
     uint32_t stripped;        // bytes stripped before the header
     int gotIPV4;              // set when IPv4 header successfully decoded
     int gotIPV6;              // set when IPv6 header successfully decoded
+    uint8_t tunnelDepth;       // recursion guard for nested GRE/IPIP headers
     int offsetToIPV4;         // byte offset from header start to IP hdr
     int offsetToIPV6;         // byte offset from header start to IPv6 hdr
     int offsetToPayload;      // byte offset from header start to L4 payload

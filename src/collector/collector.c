@@ -385,6 +385,11 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         dbg_printf("Periodic cycle for ident: %s\n", fs->Ident);
 
+        if (!fs->dataBlock) {
+            LogError("PeriodicCycle: no output data block for ident: %s", fs->Ident);
+            return 0;
+        }
+
         if (fs->dataBlock->msecFirst < fs->stat_record.msecFirstSeen || fs->stat_record.msecFirstSeen == 0)
             fs->stat_record.msecFirstSeen = fs->dataBlock->msecFirst;
         if (fs->dataBlock->msecLast > fs->stat_record.msecLastSeen) fs->stat_record.msecLastSeen = fs->dataBlock->msecLast;

@@ -140,6 +140,9 @@ struct sf_grehdr {
 #define NFT_ETHHDR_SIZ 14u
 // Maximum 802.3 payload length (larger values are EtherTypes)
 #define NFT_MAX_8023_LEN 1500u
+#define SFLOW_MAX_TUNNEL_DEPTH 8u
+#define SFLOW_MAX_VLAN_TAGS 8u
+#define SFLOW_MAX_IPV6_EXT_HEADERS 16u
 
 // YES/NO helpers kept for readability
 #define YES 1
@@ -188,56 +191,68 @@ static void readFlowSample_v2v4(SFSample *sample, FlowSource_t *fs, int verbose)
 // -----------------------------------------------------------------------
 
 // Read one big-endian uint32, advance datap by one quad.
+static inline size_t sfRemaining(const SFSample *s) {
+    const uint8_t *ptr = (const uint8_t *)s->datap;
+    return ptr <= s->endp ? (size_t)(s->endp - ptr) : 0;
+}
+
 static inline bool sfGetU32(SFSample *s, uint32_t *out) {
-    if ((uint8_t *)s->datap >= s->endp) {
+    if (sfRemaining(s) < sizeof(*out)) {
         s->error = SF_ERR_EOS;
         return false;
     }
-    *out = ntohl(*s->datap++);
+    uint32_t value;
+    memcpy(&value, s->datap, sizeof(value));
+    *out = ntohl(value);
+    s->datap = (uint32_t *)((uint8_t *)s->datap + sizeof(value));
     return true;
 }  // End of sfGetU32
 
 // Read one uint32 without byte-swapping (for network-byte-order fields
 // already stored in native byte order by the protocol).
 static inline bool sfGetU32NBS(SFSample *s, uint32_t *out) {
-    if ((uint8_t *)s->datap >= s->endp) {
+    if (sfRemaining(s) < sizeof(*out)) {
         s->error = SF_ERR_EOS;
         return false;
     }
-    *out = *s->datap++;
+    memcpy(out, s->datap, sizeof(*out));
+    s->datap = (uint32_t *)((uint8_t *)s->datap + sizeof(*out));
     return true;
 }  // End of sfGetU32NBS
 
 // Skip 'bytes' of payload, rounded up to the next quad boundary.
 static inline bool sfSkip(SFSample *s, uint32_t bytes) {
-    // bytes bounds check
-    if (bytes > UINT32_MAX - 3u) {
+#if SIZE_MAX <= UINT32_MAX
+    if (bytes > SIZE_MAX - 3u) {
         s->error = SF_ERR_EOS;
         return false;
     }
-    uint32_t quads = (bytes + 3u) >> 2;
-    if ((uint8_t *)(s->datap + quads) > s->endp) {
+#endif
+    size_t padded = ((size_t)bytes + 3u) & ~(size_t)3u;
+    if (padded > sfRemaining(s)) {
         s->error = SF_ERR_EOS;
         return false;
     }
-    s->datap += quads;
+    s->datap = (uint32_t *)((uint8_t *)s->datap + padded);
     return true;
 }  // End of sfSkip
 
 // Copy 'len' bytes out of the XDR stream, advancing by the padded quad count.
 // See sfSkip() above for why the overflow guard on 'len' is required.
 static inline bool sfGetBytes(SFSample *s, void *dest, uint32_t len) {
-    if (len > UINT32_MAX - 3u) {
+#if SIZE_MAX <= UINT32_MAX
+    if (len > SIZE_MAX - 3u) {
         s->error = SF_ERR_EOS;
         return false;
     }
-    uint32_t quads = (len + 3u) >> 2;
-    if ((uint8_t *)(s->datap + quads) > s->endp) {
+#endif
+    size_t padded = ((size_t)len + 3u) & ~(size_t)3u;
+    if (padded > sfRemaining(s)) {
         s->error = SF_ERR_EOS;
         return false;
     }
     memcpy(dest, s->datap, len);
-    s->datap += quads;
+    s->datap = (uint32_t *)((uint8_t *)s->datap + padded);
     return true;
 }  // End of sfGetBytes
 
@@ -304,6 +319,7 @@ static void decodeL4(SFSample *sample, const uint8_t *ptr, const uint8_t *end) {
             sample->dcd_tcpFlags = tcp.flags;
             uint32_t hdrBytes = (uint32_t)(tcp.off_res >> 4) * 4u;
             if (hdrBytes < sizeof(struct sf_tcphdr)) hdrBytes = sizeof(struct sf_tcphdr);
+            if ((size_t)(end - ptr) < hdrBytes) return;
             sample->offsetToPayload = (int)(ptr + hdrBytes - sample->header);
         } break;
 
@@ -318,13 +334,15 @@ static void decodeL4(SFSample *sample, const uint8_t *ptr, const uint8_t *end) {
 
         case IPPROTO_GRE:
             // GRE tunnel — only decoded when parse_tun is set
-            if (sample->parse_tun) {
+            if (sample->parse_tun && sample->tunnelDepth < SFLOW_MAX_TUNNEL_DEPTH) {
+                sample->tunnelDepth++;
                 decodeGRETunnel(sample, ptr, end);
+                sample->tunnelDepth--;
             }
             break;
 
         case IPPROTO_IPV6:  // 6-in-4 encapsulation
-            if (sample->parse_tun && (end - ptr) >= (ptrdiff_t)sizeof(struct sf_ip6hdr)) {
+            if (sample->parse_tun && sample->tunnelDepth < SFLOW_MAX_TUNNEL_DEPTH && (end - ptr) >= (ptrdiff_t)sizeof(struct sf_ip6hdr)) {
                 // save outer addresses as tunnel endpoints
                 if (sample->tun_ipsrc.type == SFLADDRESSTYPE_UNDEFINED) {
                     sample->tun_ipsrc = sample->ipsrc;
@@ -336,12 +354,14 @@ static void decodeL4(SFSample *sample, const uint8_t *ptr, const uint8_t *end) {
                 sample->headerLen = (uint32_t)(end - ptr);
                 sample->gotIPV6 = YES;
                 sample->offsetToIPV6 = 0;
+                sample->tunnelDepth++;
                 decodeIPv6Header(sample);
+                sample->tunnelDepth--;
             }
             break;
 
         case IPPROTO_IPIP:  // IPv4-in-IPv4
-            if (sample->parse_tun && (end - ptr) >= (ptrdiff_t)sizeof(struct sf_iphdr)) {
+            if (sample->parse_tun && sample->tunnelDepth < SFLOW_MAX_TUNNEL_DEPTH && (end - ptr) >= (ptrdiff_t)sizeof(struct sf_iphdr)) {
                 if (sample->tun_ipsrc.type == SFLADDRESSTYPE_UNDEFINED) {
                     sample->tun_ipsrc = sample->ipsrc;
                     sample->tun_ipdst = sample->ipdst;
@@ -351,7 +371,9 @@ static void decodeL4(SFSample *sample, const uint8_t *ptr, const uint8_t *end) {
                 sample->headerLen = (uint32_t)(end - ptr);
                 sample->gotIPV4 = YES;
                 sample->offsetToIPV4 = 0;
+                sample->tunnelDepth++;
                 decodeIPv4Header(sample);
+                sample->tunnelDepth--;
             }
             break;
 
@@ -487,6 +509,7 @@ static void decodeIPv4Header(SFSample *sample) {
     if ((ip.version_ihl >> 4) != 4) return;
     uint32_t ihl = (uint32_t)(ip.version_ihl & 0x0fu) * 4u;
     if (ihl < sizeof(ip)) return;
+    if ((size_t)(end - start) < ihl) return;
 
     // fill in the decoded 5-tuple
     sample->ipsrc.type = SFLADDRESSTYPE_IP_V4;
@@ -538,19 +561,25 @@ static void decodeIPv6Header(SFSample *sample) {
     uint8_t nextHdr = ip6.next_hdr;
     const uint8_t *ptr = start + sizeof(ip6);
 
+    unsigned extensionCount = 0;
     while (nextHdr == 0 ||   // Hop-by-Hop
            nextHdr == 43 ||  // Routing
            nextHdr == 44 ||  // Fragment
            nextHdr == 51 ||  // Authentication
            nextHdr == 60) {  // Destination Options
-        if ((end - ptr) < 2) return;
-        // ptr[1] (HdrExtLen) ranges 0-255, so 8*(ptr[1]+1) ranges 8-2048 - must not be
-        // truncated to uint8_t, or values >= 31 wrap to a smaller (even zero) length,
-        // ptr stops advancing, and the loop never terminates (single-packet CPU-spin DoS).
-        uint32_t optLen = 8u * (ptr[1] + 1u);
+        if (++extensionCount > SFLOW_MAX_IPV6_EXT_HEADERS || (end - ptr) < 2) return;
+        // Fragment headers have a fixed size; Authentication uses 32-bit units,
+        // while the remaining extension headers use 64-bit units.
+        uint32_t optLen;
+        if (nextHdr == 44)
+            optLen = 8;
+        else if (nextHdr == 51)
+            optLen = 4u * (ptr[1] + 2u);
+        else
+            optLen = 8u * (ptr[1] + 1u);
+        if ((size_t)(end - ptr) < optLen) return;
         nextHdr = ptr[0];
         ptr += optLen;
-        if (ptr > end) return;
     }
     sample->dcd_ipProtocol = nextHdr;
     decodeL4(sample, ptr, end);
@@ -582,8 +611,9 @@ static void decodeL2Header(SFSample *sample) {
     ptr += 2;
 
     // peel 802.1Q / QinQ VLAN tags
+    unsigned vlanTags = 0;
     while (type_len == 0x8100u || type_len == 0x88A8u || type_len == 0x9100u || type_len == 0x9200u || type_len == 0x9300u) {
-        if ((end - ptr) < 4) return;
+        if (++vlanTags > SFLOW_MAX_VLAN_TAGS || (end - ptr) < 4) return;
         sample->in_vlan = ((uint32_t)(ptr[0] << 8) | ptr[1]) & 0x0FFFu;
         ptr += 2;
         type_len = (uint16_t)((ptr[0] << 8) | ptr[1]);
@@ -614,7 +644,9 @@ static void decodeL2Header(SFSample *sample) {
     if (type_len == 0x8847u) {
         int n = 0;
         while ((end - ptr) >= 4) {
-            uint32_t lbl = ntohl(*(const uint32_t *)ptr);
+            uint32_t wireLabel;
+            memcpy(&wireLabel, ptr, sizeof(wireLabel));
+            uint32_t lbl = ntohl(wireLabel);
             if (n < 10) sample->mpls_label[n] = lbl >> 8;
             n++;
             ptr += 4;
@@ -927,67 +959,82 @@ static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int
     uint32_t sampleLength, seqNo, numElements;
     if (!sfGetU32(sample, &sampleLength)) return;
 
-    // remember start position to skip to element end if any decode ran short
-    uint32_t *sampleStart = sample->datap;
+    // sampleLength covers the remaining sample body.  Limit all nested
+    // parsing to it so malformed elements cannot consume the next sample.
+    const uint8_t *sampleStart = (const uint8_t *)sample->datap;
+#if SIZE_MAX <= UINT32_MAX
+    if (sampleLength > SIZE_MAX - 3u) {
+        LogError("SFLOW: flow sample length %u invalid", sampleLength);
+        return;
+    }
+#endif
+    size_t sampleBytes = ((size_t)sampleLength + 3u) & ~(size_t)3u;
+    if (sampleBytes > sfRemaining(sample)) {
+        LogError("SFLOW: flow sample length %u overruns datagram", sampleLength);
+        return;
+    }
+    const uint8_t *sampleEnd = sampleStart + sampleBytes;
+    const uint8_t *datagramEnd = sample->endp;
+    sample->endp = sampleEnd;
 
-    if (!sfGetU32(sample, &seqNo)) return;
+    if (!sfGetU32(sample, &seqNo)) goto malformed;
 
     if (expanded) {
-        if (!sfGetU32(sample, &sample->ds_class)) return;
-        if (!sfGetU32(sample, &sample->ds_index)) return;
+        if (!sfGetU32(sample, &sample->ds_class)) goto malformed;
+        if (!sfGetU32(sample, &sample->ds_index)) goto malformed;
     } else {
         uint32_t samplerId;
-        if (!sfGetU32(sample, &samplerId)) return;
+        if (!sfGetU32(sample, &samplerId)) goto malformed;
         sample->ds_class = samplerId >> 24;
         sample->ds_index = samplerId & 0x00FFFFFFu;
     }
 
-    if (!sfGetU32(sample, &sample->meanSkipCount)) return;
+    if (!sfGetU32(sample, &sample->meanSkipCount)) goto malformed;
 
     // samplePool and dropEvents — read but not forwarded
     uint32_t samplePool, dropEvents;
-    if (!sfGetU32(sample, &samplePool)) return;
-    if (!sfGetU32(sample, &dropEvents)) return;
+    if (!sfGetU32(sample, &samplePool)) goto malformed;
+    if (!sfGetU32(sample, &dropEvents)) goto malformed;
 
     if (expanded) {
-        if (!sfGetU32(sample, &sample->inputPortFormat)) return;
-        if (!sfGetU32(sample, &sample->inputPort)) return;
-        if (!sfGetU32(sample, &sample->outputPortFormat)) return;
-        if (!sfGetU32(sample, &sample->outputPort)) return;
+        if (!sfGetU32(sample, &sample->inputPortFormat)) goto malformed;
+        if (!sfGetU32(sample, &sample->inputPort)) goto malformed;
+        if (!sfGetU32(sample, &sample->outputPortFormat)) goto malformed;
+        if (!sfGetU32(sample, &sample->outputPort)) goto malformed;
     } else {
         uint32_t inp, outp;
-        if (!sfGetU32(sample, &inp)) return;
-        if (!sfGetU32(sample, &outp)) return;
+        if (!sfGetU32(sample, &inp)) goto malformed;
+        if (!sfGetU32(sample, &outp)) goto malformed;
         sample->inputPortFormat = inp >> 30;
         sample->outputPortFormat = outp >> 30;
         sample->inputPort = inp & 0x3FFFFFFFu;
         sample->outputPort = outp & 0x3FFFFFFFu;
     }
 
-    if (!sfGetU32(sample, &numElements)) return;
+    if (!sfGetU32(sample, &numElements)) goto malformed;
 
     for (uint32_t el = 0; el < numElements; el++) {
         uint32_t tag, length;
-        if (!sfGetU32(sample, &tag)) return;
-        if (!sfGetU32(sample, &length)) return;
+        if (!sfGetU32(sample, &tag)) goto malformed;
+        if (!sfGetU32(sample, &length)) goto malformed;
 
         // Restrict datap/endp to this element so an overrun stops at its
         // boundary rather than consuming bytes from the next element.
-        // (length + 3u) would wrap for length near UINT32_MAX, collapsing
-        // elemQuads to ~0 and defeating the check below - reject those up front.
-        if (length > UINT32_MAX - 3u) {
-            LogError("SFLOW: element tag 0x%08x length %u invalid", tag, length);
-            return;
-        }
-        uint32_t *elemStart = sample->datap;
+        const uint8_t *elemStart = (const uint8_t *)sample->datap;
         const uint8_t *savedEndp = sample->endp;
-        uint32_t elemQuads = (length + 3u) >> 2;
-
-        if ((uint8_t *)(sample->datap + elemQuads) > sample->endp) {
-            LogError("SFLOW: element tag 0x%08x length %u overruns sample", tag, length);
-            return;
+#if SIZE_MAX <= UINT32_MAX
+        if (length > SIZE_MAX - 3u) {
+            LogError("SFLOW: element tag 0x%08x length %u invalid", tag, length);
+            goto malformed;
         }
-        sample->endp = (uint8_t *)(sample->datap + elemQuads);
+#endif
+        size_t elemBytes = ((size_t)length + 3u) & ~(size_t)3u;
+
+        if (elemBytes > sfRemaining(sample)) {
+            LogError("SFLOW: element tag 0x%08x length %u overruns sample", tag, length);
+            goto malformed;
+        }
+        sample->endp = elemStart + elemBytes;
 
         switch (tag) {
             // ---- flow record types ----
@@ -1078,21 +1125,16 @@ static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int
                 break;
         }
 
+        if (sample->error != SF_ERR_OK) goto malformed;
+
         // advance past this element regardless of how much was decoded
-        sample->datap = (uint32_t *)(elemStart + elemQuads);
+        sample->datap = (uint32_t *)(elemStart + elemBytes);
         sample->endp = savedEndp;
     }
 
-    // Advance past any trailing bytes in the sample. sampleLength is attacker-
-    // controlled; guard the same "+3u" overflow as sfSkip()/sfGetBytes() and
-    // clamp forward-only so a bogus value can't move datap backwards into
-    // already-parsed bytes or past the true end of the datagram.
-    if (sampleLength <= UINT32_MAX - 3u) {
-        uint32_t *sampleEnd = sampleStart + ((sampleLength + 3u) >> 2);
-        if (sampleEnd > sample->datap && (uint8_t *)sampleEnd <= sample->endp) {
-            sample->datap = sampleEnd;
-        }
-    }
+    // Skip optional trailing bytes and continue with the next datagram sample.
+    sample->datap = (uint32_t *)sampleEnd;
+    sample->endp = datagramEnd;
 
     // if the sample had no usable IP data, skip it
     if (sample->ipsrc.type == SFLADDRESSTYPE_UNDEFINED) {
@@ -1101,6 +1143,11 @@ static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int
     }
 
     StoreSflowRecord(sample, fs);
+    return;
+
+malformed:
+    sample->datap = (uint32_t *)sampleEnd;
+    sample->endp = datagramEnd;
 }  // End of readFlowSample
 
 // -----------------------------------------------------------------------

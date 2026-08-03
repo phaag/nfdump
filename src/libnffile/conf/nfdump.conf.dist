@@ -125,6 +125,10 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 #writers = 0   # 0 = auto (LZ4 cap→8, ZSTD cap→12, minus 1 for collector thread)
 
 [sfcapd]
+# Maximum number of source directories/backends created by -M. This limit
+# protects a public collector from spoofed-source resource exhaustion.
+#dyn_max_sources = 1024
+
 # define -o options
 # enable option tun, if you want to decode tunneling protocols gre and 6in4
 # opt.tun = 1

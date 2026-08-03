@@ -94,6 +94,7 @@ typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, 
 static option_t sfcapdConfig[] = {
     {.type = CONF_BOOL, .key = "opt.tun", .valBool = false},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.type = CONF_UINT64, .key = "dyn_max_sources", .valUint64 = DEFAULT_DYN_MAX_SOURCES},
     {.key = NULL},
 };
 
@@ -190,6 +191,14 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
     // get flow source record for current packet, identified by sender IP address
     FlowSource_t *fs = GetFlowSource(ctx, &pkt_ctx->sender);
     if (fs == NULL) {
+        // A dynamic source needs its own file backend and data block. Reject
+        // it before creating state when this collector forwards with -H.
+        if (nffile_backend_ctx == NULL) {
+            (*ignored_packets)++;
+            LogError("Dynamic flow sources are not supported with -H flow forwarding backend");
+            return;
+        }
+
         // check, if we have dynamic flowsources configured
         fs = NewDynFlowSource(ctx, &pkt_ctx->sender);
         if (fs == NULL) {
@@ -198,15 +207,17 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             return;
         }
 
-        if (nffile_backend_ctx == NULL) {
-            (*ignored_packets)++;
-            LogError("Dynamic flow sources are not supported with -H flow forwarding backend");
+        fs->dataBlock = NewFlowBlock(BLOCK_SIZE_V3);
+        if (!fs->dataBlock) {
+            LogError("Failed to allocate data block for new source");
+            queue_abort(fs->blockQueue);
+            done = 1;
             return;
         }
         if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
             LogError("Failed to initialise backend for new source");
-            // XXX should free this flow source
             queue_abort(fs->blockQueue);
+            done = 1;
             return;
         }
         if (!Launch_nffile_backend(fs)) {
@@ -801,6 +812,12 @@ int main(int argc, char **argv) {
     if (init_collector_ctx(&collector_ctx) == 0) {
         exit(EXIT_FAILURE);
     }
+    int64_t dynMaxSources = ConfGetValue("dyn_max_sources");
+    if (dynMaxSources < 1 || dynMaxSources > UINT32_MAX) {
+        LogError("sfcapd: dyn_max_sources must be in range [1,%u]", UINT32_MAX);
+        exit(EXIT_FAILURE);
+    }
+    collector_ctx.dynMaxSources = (uint32_t)dynMaxSources;
 
     if (scanOptions(sfcapdConfig, options) == 0) {
         exit(EXIT_FAILURE);

@@ -217,7 +217,11 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
             // attach sampler
             sampler_record_v4_t *sampler = &e->info->samplers[0];
             *sampler = (sampler_record_v4_t){
-                .inUse = 1, .selectorID = SAMPLER_GENERIC, .algorithm = 0, .packetInterval = 1, .spaceInterval = meanSkipCount - 1};
+                .inUse = 1,
+                .selectorID = SAMPLER_GENERIC,
+                .algorithm = 0,
+                .packetInterval = 1,
+                .spaceInterval = meanSkipCount ? meanSkipCount - 1 : 0};
 
             e->sampler_cache[0].ptr = &e->info->samplers[0];
             e->sampler_count++;
@@ -263,6 +267,11 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 // store sflow in nfdump format
 void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     dbg_printf("StoreSflowRecord\n");
+
+    if (!fs->dataBlock) {
+        LogError("SFLOW: no output data block for source %s", fs->Ident);
+        return;
+    }
 
     struct timeval now = fs->received;
 
@@ -311,15 +320,17 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXnatXlateV4ID]) {
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && sample->nat_dst.type == SFLADDRESSTYPE_IP_V4 &&
+            ExtensionsEnabled[EXnatXlateV4ID]) {
             BitMapSet(bitMap, EXnatXlateV4ID);
             extensionSize += EXnatXlateV4Size;
         }
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXnatXlateV6ID]) {
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && sample->nat_dst.type == SFLADDRESSTYPE_IP_V6 &&
+            ExtensionsEnabled[EXnatXlateV6ID]) {
             BitMapSet(bitMap, EXnatXlateV6ID);
             extensionSize += EXnatXlateV6Size;
         }
-        if (ExtensionsEnabled[EXnatXlatePortID]) {
+        if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT_PORT) != 0 && ExtensionsEnabled[EXnatXlatePortID]) {
             BitMapSet(bitMap, EXnatXlatePortID);
             extensionSize += EXnatXlatePortSize;
         }
@@ -361,12 +372,18 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         PushBlockV3(fs->blockQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+        if (!fs->dataBlock) {
+            LogError("SFLOW: out of memory allocating data block");
+            return;
+        }
     }
 
     uint8_t *buffPtr = GetCursor(fs->dataBlock);
     dbg_printf("Fill Record\n");
 
-    // zero entire record at once
+    // Output blocks are recycled with malloc(), so clear extension padding as
+    // well as the fields populated below before writing the record to disk.
+    memset(buffPtr, 0, recordSize);
     recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
     *recordHeader = (recordHeaderV4_t){.type = V4Record,
                                        .exporterID = exporter->sysID,
@@ -404,7 +421,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
                     .dstPort = (uint16_t)sample->dcd_dport,
                     .msecReceived = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL),
                     .inPackets = sample->meanSkipCount,
-                    .inBytes = sample->meanSkipCount * sample->sampledPacketSize,
+                    .inBytes = (uint64_t)sample->meanSkipCount * sample->sampledPacketSize,
                     .srcTos = sample->dcd_ipTos,
                 };
             } break;
