@@ -83,6 +83,8 @@ typedef struct source_index_s {
     uint32_t count;
 } source_index_t;
 
+#define DEFAULT_DYN_MAX_SOURCES 1024u
+
 typedef struct source_array_s {
     struct source_array_s *next;  // daisy chain
     FlowSource_t *fs;             // allocated FlowSource
@@ -99,6 +101,8 @@ typedef struct collector_ctx_s {
     FlowSource_t *any_source;      // option  -w - fast path if one source accepts any IP
     FlowSource_t *dynamicSource;   // option  -M - flow sources are allocated dynamically for each IP
     source_index_t index;          // options -n - list of flow sources with attached IPs
+    uint32_t dynMaxSources;        // maximum sources created by -M
+    uint32_t dynNumSources;        // number of sources created by -M
     uint32_t numFlowSources;       // number of entries in source_array
     source_array_t *source_array;  // linear array of all flow sources with IP filter
 } collector_ctx_t;
@@ -108,7 +112,7 @@ int init_collector_ctx(collector_ctx_t *ctx);
 
 FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned subDir);
 
-void insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs);
+int insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs);
 
 FlowSource_t *GetFlowSource(collector_ctx_t *ctx, const struct sockaddr_storage *nf_sender);
 

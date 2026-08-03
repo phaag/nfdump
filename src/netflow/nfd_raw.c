@@ -86,7 +86,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
         if (!e->in_use) {
@@ -128,7 +128,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_nfd: exporter table is full");
     return NULL;
 
 }  // End of getExporter
@@ -161,6 +161,11 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     // map pacpd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
+    if (ntohs(pcapd_header->version) != VERSION_NFDUMP || ntohs(pcapd_header->length) != (uint16_t)in_buff_cnt) {
+        LogError("Process_nfd: invalid nfd header version or length");
+        fs->bad_packets++;
+        return;
+    }
 
     exporter_entry_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {

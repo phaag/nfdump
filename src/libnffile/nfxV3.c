@@ -516,6 +516,10 @@ int VerifyV3Record(recordHeaderV3_t *recordHeader) {
     int cnt = 0;
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeader + sizeof(recordHeaderV3_t));
     for (int i = 0; i < recordHeader->numElements; i++) {
+        if (rlen < (int32_t)sizeof(elementHeader_t)) {
+            dbg_printf("VerifyV3 - truncated element header: %d bytes left\n", rlen);
+            return 0;
+        }
         if (elementHeader->length > rlen) {
             dbg_printf("VerifyV3 - element length error - left: %u, length: %u\n", rlen, elementHeader->length);
             return 0;

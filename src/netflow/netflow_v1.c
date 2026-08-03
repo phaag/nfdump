@@ -121,7 +121,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
         if (!e->in_use) {
@@ -171,7 +171,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_v1: exporter table is full");
     return NULL;
 
 }  // End of getExporter

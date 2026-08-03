@@ -817,6 +817,13 @@ int main(int argc, char **argv) {
     if (init_collector_ctx(&collector_ctx) == 0) {
         exit(EXIT_FAILURE);
     }
+    int64_t dynMaxSources = ConfGetValue("dyn_max_sources");
+    if (dynMaxSources == 0) dynMaxSources = DEFAULT_DYN_MAX_SOURCES;
+    if (dynMaxSources < 1 || dynMaxSources > UINT32_MAX) {
+        LogError("nfcapd: dyn_max_sources must be in range [1,%u]", UINT32_MAX);
+        exit(EXIT_FAILURE);
+    }
+    collector_ctx.dynMaxSources = (uint32_t)dynMaxSources;
 
     if ((ConfigureDefaultFlowSource(&collector_ctx, Ident, dataDir, subdir_index) == 0) &&
         (ConfigureFixedFlowSource(&collector_ctx, &sourceList, subdir_index) == 0) &&

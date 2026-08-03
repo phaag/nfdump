@@ -61,6 +61,7 @@ int init_collector_ctx(collector_ctx_t *ctx) {
 
     ctx->index.capacity = NUMSOURCES;
     ctx->index.entries = calloc(ctx->index.capacity, sizeof(source_index_entry_t));
+    ctx->dynMaxSources = DEFAULT_DYN_MAX_SOURCES;
     ctx->numFlowSources = 0;
     ctx->source_array = NULL;
     if (!ctx->index.entries) {
@@ -102,7 +103,7 @@ FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned sub
 
 }  // End of newFlowSource
 
-void insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs) {
+int insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs) {
     source_index_t *idx = &ctx->index;
     // expand index if load factor > 0.75
     if ((idx->count * 4) >= (idx->capacity * 3)) {
@@ -113,17 +114,20 @@ void insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs)
     uint32_t mask = ctx->index.capacity - 1;
     uint32_t i = h & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < idx->capacity; probes++) {
         source_index_entry_t *e = &idx->entries[i];
         if (!e->in_use) {
             e->ip = *ip;
             e->fs = fs;
             e->in_use = 1;
             idx->count++;
-            return;
+            return 1;
         }
         i = (i + 1) & mask;
     }
+
+    LogError("insertFlowSource: source index is full");
+    return 0;
 
 }  // End of insertFlowSource
 
@@ -134,6 +138,10 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
 
     // replace '.' and ':' in ident - old NfSen requirement
     char *ident = strdup(ipStr);
+    if (!ident) {
+        LogError("AddDynamicSource: strdup failed: %s", strerror(errno));
+        return NULL;
+    }
     char *c = ident;
     while (*c != '\0') {
         if (*c == '.' || *c == ':') *c = '-';
@@ -154,13 +162,25 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     source_array_t *source_array = calloc(1, sizeof(source_array_t) + 1 * sizeof(struct ipList_s));
     if (!source_array) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
+        free(ident);
+        return NULL;
     }
     source_array->ipList->net = *ip;
 
     // allocate new flowsource for this IP
     FlowSource_t *fs = newFlowSource(ident, path, ctx->dynamicSource->subdir);
-    if (fs == NULL) return NULL;
+    if (fs == NULL) {
+        free(source_array);
+        free(ident);
+        return NULL;
+    }
+
+    if (!insertFlowSource(ctx, ip, fs)) {
+        freeFlowSource(fs);
+        free(source_array);
+        free(ident);
+        return NULL;
+    }
 
     source_array->fs = fs;
     source_array->ipNum = 1;
@@ -202,7 +222,7 @@ FlowSource_t *GetFlowSource(collector_ctx_t *ctx, const struct sockaddr_storage 
     // not in index - check for any IP allowed
     if (ctx->any_source) {
         // insert this IP into the index
-        insertFlowSource(ctx, &ipAddr, ctx->any_source);
+        if (!insertFlowSource(ctx, &ipAddr, ctx->any_source)) return NULL;
         ctx->any_source->ipAddr = ipAddr;
         ctx->any_source->sa_family = family;
         ctx->lru_fs = ctx->any_source;
@@ -217,7 +237,7 @@ FlowSource_t *GetFlowSource(collector_ctx_t *ctx, const struct sockaddr_storage 
             if (ip128_equal(&sa->ipList[i].mask, &zero128)) {
                 if (ip128_equal(&sa->ipList[i].net, &ipAddr)) {
                     FlowSource_t *fs = sa->fs;
-                    insertFlowSource(ctx, &ipAddr, fs);
+                    if (!insertFlowSource(ctx, &ipAddr, fs)) return NULL;
                     fs->ipAddr = ipAddr;
                     fs->sa_family = family;
                     ctx->lru_fs = fs;
@@ -227,7 +247,7 @@ FlowSource_t *GetFlowSource(collector_ctx_t *ctx, const struct sockaddr_storage 
             } else {
                 if (ip_in_subnet(&ipAddr, &sa->ipList[i].net, &sa->ipList[i].mask)) {
                     FlowSource_t *fs = sa->fs;
-                    insertFlowSource(ctx, &ipAddr, fs);
+                    if (!insertFlowSource(ctx, &ipAddr, fs)) return NULL;
                     fs->ipAddr = ipAddr;
                     fs->sa_family = family;
                     ctx->lru_fs = fs;
@@ -249,13 +269,17 @@ FlowSource_t *NewDynFlowSource(collector_ctx_t *ctx, const struct sockaddr_stora
 
     // add new flowsource
     if (ctx->dynamicSource) {
+        if (ctx->dynNumSources >= ctx->dynMaxSources) {
+            LogError("Dynamic source limit of %u reached; drop source packet", ctx->dynMaxSources);
+            return NULL;
+        }
         FlowSource_t *fs = AddDynamicSource(ctx, &ipAddr);
         if (fs == NULL) return NULL;
 
-        insertFlowSource(ctx, &ipAddr, fs);
         fs->ipAddr = ipAddr;
         fs->sa_family = family;
         ctx->lru_fs = fs;
+        ctx->dynNumSources++;
 
         dbg_printf("Dynamic source added\n");
         return fs;

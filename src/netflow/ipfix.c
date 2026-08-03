@@ -443,7 +443,7 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < tab->capacity; probes++) {
         exporter_entry_t *e = &tab->entries[i];
         // key does not exists - create new exporter
         if (!e->in_use) {
@@ -505,7 +505,7 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
         i = (i + 1) & mask;
     }
 
-    // unreached
+    LogError("Process_ipfix: exporter table is full");
     return NULL;
 
 }  // End of getExporter
@@ -2001,6 +2001,12 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     }
 
     ipfix_header_t *ipfix_header = (ipfix_header_t *)in_buff;
+    uint16_t messageLength = ntohs(ipfix_header->Length);
+    if (messageLength < IPFIX_HEADER_LENGTH || messageLength > (size_t)in_buff_cnt) {
+        LogError("Process_ipfix: invalid message length %u for datagram size %zd", messageLength, in_buff_cnt);
+        return;
+    }
+    size_left = messageLength;
     uint32_t ExportTime = ntohl(ipfix_header->ExportTime);
     uint32_t Sequence = ntohl(ipfix_header->LastSequence);
 
