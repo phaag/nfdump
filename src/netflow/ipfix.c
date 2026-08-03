@@ -1704,14 +1704,15 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         // because DecodePacketFrame() overwrites the record at recordHeaderV4 in-place.
         EXpacketFrame_t *packetFrame = GetExtension(recordHeaderV4, EXpacketFrame);
         if (packetFrame) {
+            static uint8_t frameTmp[FRAME_DECODE_MAXBYTES];
             EXpacketMeta_t *packetMeta = GetExtension(recordHeaderV4, EXpacketMeta);
             uint16_t linkType = packetMeta ? packetMeta->linkType : DATALINK_ETHERNET;
             uint16_t origFrameSize = packetMeta ? packetMeta->frameSize : packetFrame->length;
 
-            // Copy captured bytes to stack buffer before overwriting the record.
+            // Copy captured bytes to a fixed-size buffer before overwriting the record
+            // (sized from the same constant DecodePacketFrame() clamps against).
             uint32_t capLen = packetFrame->length;
-            if (capLen > 65536) capLen = 65536;
-            uint8_t frameTmp[capLen];
+            if (capLen > FRAME_DECODE_MAXBYTES) capLen = FRAME_DECODE_MAXBYTES;
             memcpy(frameTmp, packetFrame->packet, capLen);
 
             int decoded = DecodePacketFrame((void *)recordHeaderV4, buffAvail, frameTmp, capLen, linkType, origFrameSize, runtime.msecReceived,

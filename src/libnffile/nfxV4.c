@@ -980,17 +980,19 @@ int VerifyV4Record(const recordHeaderV4_t *hdr) {
         uint32_t extSize = extensionTable[extID].size;
         uint8_t *extension = recordBase + offset;
 
-        if (extSize == VARLENGTH) {
-            __builtin_memcpy(&extSize, extension, sizeof(uint32_t));
-        }
-
-        LogInfo("Extension: type= %s(%u), offset=%u, size=%u", extensionTable[extID].name, extID, offset, extSize);
-
-        // Offset must be within record
         if (recordBase + offset > eor) {
             LogError("Verify v4 record: extension %u offset out of range", extID);
             return 0;
         }
+        if (extSize == VARLENGTH) {
+            if ((recordBase + offset + sizeof(uint32_t)) > eor) {
+                LogError("Verify v4 record: extension %u truncated length prefix", extID);
+                return 0;
+            }
+            __builtin_memcpy(&extSize, extension, sizeof(uint32_t));
+        }
+
+        LogInfo("Extension: type= %s(%u), offset=%u, size=%u", extensionTable[extID].name, extID, offset, extSize);
 
         // Extension must fit entirely
         if ((recordBase + offset + extSize) > eor) {

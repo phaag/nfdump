@@ -294,7 +294,11 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     // map pcapd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
-
+    if ((size_t)in_buff_cnt < sizeof(nfd_header_t)) {
+        LogError("Process_nfd: packet too short for nfd header (%zd bytes)", in_buff_cnt);
+        fs->bad_packets++;
+        return;
+    }
     exporter_entry_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {
         LogError("Process_nfd: NULL Exporter: Skip pcapd record processing");

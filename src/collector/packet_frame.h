@@ -70,6 +70,14 @@
 #define DATALINK_RAW_IPV6 12 /* IPFIX linkType = 12 → Raw IPv6 */
 
 /*
+ * Maximum frame bytes DecodePacketFrame() will attempt to decode.  Callers
+ * (ipfix.c) must clamp the captured frame length to this before copying it
+ * into a buffer of this size — single source of truth so the clamp and the
+ * buffer capacity can never drift apart.
+ */
+#define FRAME_DECODE_MAXBYTES 65536u
+
+/*
  * DecodePacketFrame()
  *
  * Decodes the raw frame stored in EXpacketFrame and overwrites the v4 record

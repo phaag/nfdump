@@ -303,12 +303,11 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
                     e->info->sampler_count++;
                     e->sampler_cache[i].ptr = &e->info->samplers[i];
                     e->sampler_count++;
-                    LogInfo(
-                        "Process_v5: New exporter: SysID: %u, IP: %s, Sampling: selectorID: %" PRId64
-                        ", algorithm: %i, packet interval: %u, packet space: "
-                        "%u",
-                        e->info->sysID, ipstr, sampler_record_v4[i].selectorID, sampler_record_v4[i].algorithm, sampler_record_v4[i].packetInterval,
-                        sampler_record_v4[i].spaceInterval);
+                    LogInfo("Process_v5: New exporter: SysID: %u, IP: %s, Sampling: selectorID: %" PRId64
+                            ", algorithm: %i, packet interval: %u, packet space: "
+                            "%u",
+                            e->info->sysID, ipstr, sampler_record_v4[i].selectorID, sampler_record_v4[i].algorithm,
+                            sampler_record_v4[i].packetInterval, sampler_record_v4[i].spaceInterval);
                 }
             }
 
@@ -381,6 +380,10 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     int done = 0;
     while (!done) {
+        if (size_left < NETFLOW_V5_HEADER_LENGTH) {
+            if (size_left > 0) dbg_printf("Process_v5: %zd trailing bytes ignored\n", size_left);
+            break;
+        }
         // count check
         uint16_t count = ntohs(v5_header->count);
         if (count == 0 || count > maxRecords) {

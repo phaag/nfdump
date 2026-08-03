@@ -112,12 +112,9 @@
 #define FRAG_FLAG_MF 0x20u
 #define FRAG_FLAG_DF 0x40u
 
-/*
- * Maximum frame bytes we will attempt to decode.
- * Covers: 18 (Eth+VLAN) + 40 (IPv6) + 20 (TCP options) + payload up to cap.
- * We copy the full captured frame so we decode payload too.
- */
-#define FRAME_DECODE_MAXBYTES 65536u
+// FRAME_DECODE_MAXBYTES is declared in packet_frame.h (shared with callers).
+// Covers: 18 (Eth+VLAN) + 40 (IPv6) + 20 (TCP options) + payload up to cap.
+// We copy the full captured frame so we decode payload too.
 
 // Maximum MPLS labels to track
 #define MPLSMAX 10

@@ -213,6 +213,10 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     int done = 0;
     while (!done) {
+        if (size_left < NETFLOW_V1_HEADER_LENGTH) {
+            if (size_left > 0) dbg_printf("Process_v1: %zd trailing bytes ignored\n", size_left);
+            break;
+        }
         // count check
         uint16_t count = ntohs(v1_header->count);
         if (count == 0 || count > NETFLOW_V1_MAX_RECORDS) {
