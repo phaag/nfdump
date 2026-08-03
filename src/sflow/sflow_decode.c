@@ -210,6 +210,11 @@ static inline bool sfGetU32NBS(SFSample *s, uint32_t *out) {
 
 // Skip 'bytes' of payload, rounded up to the next quad boundary.
 static inline bool sfSkip(SFSample *s, uint32_t bytes) {
+    // bytes bounds check
+    if (bytes > UINT32_MAX - 3u) {
+        s->error = SF_ERR_EOS;
+        return false;
+    }
     uint32_t quads = (bytes + 3u) >> 2;
     if ((uint8_t *)(s->datap + quads) > s->endp) {
         s->error = SF_ERR_EOS;
@@ -220,7 +225,12 @@ static inline bool sfSkip(SFSample *s, uint32_t bytes) {
 }  // End of sfSkip
 
 // Copy 'len' bytes out of the XDR stream, advancing by the padded quad count.
+// See sfSkip() above for why the overflow guard on 'len' is required.
 static inline bool sfGetBytes(SFSample *s, void *dest, uint32_t len) {
+    if (len > UINT32_MAX - 3u) {
+        s->error = SF_ERR_EOS;
+        return false;
+    }
     uint32_t quads = (len + 3u) >> 2;
     if ((uint8_t *)(s->datap + quads) > s->endp) {
         s->error = SF_ERR_EOS;
@@ -534,7 +544,10 @@ static void decodeIPv6Header(SFSample *sample) {
            nextHdr == 51 ||  // Authentication
            nextHdr == 60) {  // Destination Options
         if ((end - ptr) < 2) return;
-        uint8_t optLen = 8u * (ptr[1] + 1u);
+        // ptr[1] (HdrExtLen) ranges 0-255, so 8*(ptr[1]+1) ranges 8-2048 - must not be
+        // truncated to uint8_t, or values >= 31 wrap to a smaller (even zero) length,
+        // ptr stops advancing, and the loop never terminates (single-packet CPU-spin DoS).
+        uint32_t optLen = 8u * (ptr[1] + 1u);
         nextHdr = ptr[0];
         ptr += optLen;
         if (ptr > end) return;
@@ -833,7 +846,10 @@ static void decodeExtGateway(SFSample *sample) {
     // communities: skip count + array
     uint32_t commLen;
     if (!sfGetU32(sample, &commLen)) return;
-    if (commLen > UINT32_MAX / 4u) { sample->error = SF_ERR_DECODE; return; }
+    if (commLen > UINT32_MAX / 4u) {
+        sample->error = SF_ERR_DECODE;
+        return;
+    }
     if (!sfSkip(sample, commLen * 4u)) return;
 
     // localpref: skip
@@ -957,6 +973,12 @@ static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int
 
         // Restrict datap/endp to this element so an overrun stops at its
         // boundary rather than consuming bytes from the next element.
+        // (length + 3u) would wrap for length near UINT32_MAX, collapsing
+        // elemQuads to ~0 and defeating the check below - reject those up front.
+        if (length > UINT32_MAX - 3u) {
+            LogError("SFLOW: element tag 0x%08x length %u invalid", tag, length);
+            return;
+        }
         uint32_t *elemStart = sample->datap;
         const uint8_t *savedEndp = sample->endp;
         uint32_t elemQuads = (length + 3u) >> 2;
@@ -1061,8 +1083,16 @@ static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int
         sample->endp = savedEndp;
     }
 
-    // advance past any trailing bytes in the sample
-    sample->datap = sampleStart + ((sampleLength + 3u) >> 2);
+    // Advance past any trailing bytes in the sample. sampleLength is attacker-
+    // controlled; guard the same "+3u" overflow as sfSkip()/sfGetBytes() and
+    // clamp forward-only so a bogus value can't move datap backwards into
+    // already-parsed bytes or past the true end of the datagram.
+    if (sampleLength <= UINT32_MAX - 3u) {
+        uint32_t *sampleEnd = sampleStart + ((sampleLength + 3u) >> 2);
+        if (sampleEnd > sample->datap && (uint8_t *)sampleEnd <= sample->endp) {
+            sample->datap = sampleEnd;
+        }
+    }
 
     // if the sample had no usable IP data, skip it
     if (sample->ipsrc.type == SFLADDRESSTYPE_UNDEFINED) {
