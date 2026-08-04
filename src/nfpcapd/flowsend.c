@@ -174,10 +174,20 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     }
 
     uint32_t payloadAligned = 0;
+    uint32_t payloadCopyLen = 0;
     if (flowParam->addPayload && Node->coldNode.payloadSize) {
-        BitMapSet(bitMap, EXinPayloadID);
-        payloadAligned = ALIGN8(sizeof(uint32_t) + Node->coldNode.payloadSize);
-        extensionSize += payloadAligned;
+        // Cap the payload contribution so this record can never exceed what fits in
+        // the fixed 65535-byte sendBuffer, even in a freshly flushed (empty) buffer.
+        uint32_t maxRecordSize = (uint32_t)(65535 - sizeof(nfd_header_t));
+        uint32_t reserved = sizeof(recordHeaderV4_t) + extensionSize + sizeof(uint32_t) + 64u;
+        uint32_t maxPayload = maxRecordSize > reserved ? (maxRecordSize - reserved) & ~7u : 0;
+
+        payloadCopyLen = Node->coldNode.payloadSize > maxPayload ? maxPayload : Node->coldNode.payloadSize;
+        if (payloadCopyLen > 0) {
+            BitMapSet(bitMap, EXinPayloadID);
+            payloadAligned = ALIGN8(sizeof(uint32_t) + payloadCopyLen);
+            extensionSize += payloadAligned;
+        }
     }
 
     int tunIsV6 = (Node->coldNode.tun_ip_version == AF_INET6);
@@ -308,8 +318,8 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     if (bitMap & (1ULL << EXinPayloadID)) {
         *offset++ = nextOffset;
         EXinPayload_t *inPayload = (EXinPayload_t *)(buffPtr + nextOffset);
-        inPayload->size = Node->coldNode.payloadSize;
-        memcpy(inPayload->payload, Node->coldNode.payload, Node->coldNode.payloadSize);
+        inPayload->size = payloadCopyLen;
+        memcpy(inPayload->payload, Node->coldNode.payload, payloadCopyLen);
         nextOffset += payloadAligned;
     }
 

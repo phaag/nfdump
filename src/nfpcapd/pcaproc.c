@@ -151,7 +151,7 @@ pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
             return NULL;
         }
         pcapfile->alternate_buffer = malloc(1048576);  // 1MB
-        if (!pcapfile->data_buffer) {
+        if (!pcapfile->alternate_buffer) {
             free(pcapfile->data_buffer);
             free(pcapfile);
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
