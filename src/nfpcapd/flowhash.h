@@ -157,6 +157,8 @@ typedef struct NodeList_s {
     pthread_mutex_t m_list;
     pthread_cond_t c_list;
     size_t length;
+    int closed;
+    time_t closeTimestamp;
 } NodeList_t;
 
 int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive);
@@ -193,6 +195,8 @@ NodeList_t *NewNodeList(void);
 void DisposeNodeList(NodeList_t *NodeList);
 
 void Push_Node(NodeList_t *NodeList, struct FlowNode *node);
+
+void Close_NodeList(NodeList_t *NodeList, time_t timestamp);
 
 struct FlowNode *Pop_Node(NodeList_t *NodeList);
 

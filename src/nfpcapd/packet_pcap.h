@@ -150,6 +150,7 @@ typedef struct pcaprec_hdr {
 
 /* batch structures */
 #define DEFAULT_BATCH_SIZE 256
+#define MAX_PCAP_SNAPLEN (1024u * 1024u)
 
 typedef struct PacketRef {
     struct pcap_pkthdr hdr;  // packet header

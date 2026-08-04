@@ -350,6 +350,11 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
             int ok = ProcessPacket(packetParam, &phdr, data);
 
             if (DoPacketDump && ok) {
+                if (size > 1048576) {
+                    LogError("Packet too large for pcap dump buffer; skipping dump");
+                    p += BPF_WORDALIGN(hdr->bh_hdrlen + hdr->bh_caplen);
+                    continue;
+                }
                 if ((packetBuffer->bufferSize + size) > 1048576) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);

@@ -43,6 +43,10 @@
  */
 
 PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen) {
+    if (cap == 0 || (snaplen != 0 && snaplen > MAX_PCAP_SNAPLEN)) {
+        LogError("Invalid pcap batch size or snaplen");
+        return NULL;
+    }
     PktBatch_t *batch = calloc(1, sizeof(PktBatch_t) + cap * sizeof(PacketRef));
     if (!batch) {
         LogError("batch_alloc() error in %s line %d", __FILE__, __LINE__);
@@ -58,7 +62,7 @@ PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen) {
 
     // Add payload memory
     // round snaplen up to 16-byte boundary
-    size_t payload_size = (snaplen + 15u) & ~15u;
+    size_t payload_size = ((size_t)snaplen + 15u) & ~15u;
     size_t total = payload_size * cap;
 
     void *mem = NULL;

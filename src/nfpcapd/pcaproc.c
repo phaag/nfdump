@@ -107,13 +107,13 @@ static inline __attribute__((always_inline)) ptrdiff_t cursor_size(cursor_t *c) 
 }  // End of cursor_size
 
 static inline __attribute__((always_inline)) int cursor_advance(cursor_t *c, size_t len) {
-    if (c->ptr + len > c->end) return 0;
+    if (len > (size_t)cursor_size(c)) return 0;
     c->ptr += len;
     return 1;
 }  // End of cursor_advance
 
 static inline __attribute__((always_inline)) int cursor_read(cursor_t *c, void *dst, size_t len) {
-    if (c->ptr + len > c->end) return 0;
+    if (len > (size_t)cursor_size(c)) return 0;
     memcpy(dst, c->ptr, len);
     c->ptr += len;
 
@@ -121,7 +121,7 @@ static inline __attribute__((always_inline)) int cursor_read(cursor_t *c, void *
 }  // End of cursor_read
 
 static inline __attribute__((always_inline)) int cursor_get(cursor_t *c, void *dst, size_t len) {
-    if (c->ptr + len > c->end) return 0;
+    if (len > (size_t)cursor_size(c)) return 0;
     memcpy(dst, c->ptr, len);
 
     return 1;
@@ -281,7 +281,22 @@ static inline void SetApplication_latency(struct FlowNode *node, const struct ti
 
 }  // End of SetApplication_latency
 
+/* Payload is optional metadata.  Bound it so a spoofed flow cannot retain an
+ * arbitrarily large capture buffer until the flow expires. */
+#define MAX_FLOW_PAYLOAD 4096u
+
+static inline void LogFlowCacheExhausted(void) {
+    static time_t last_log = 0;
+    time_t now = time(NULL);
+    if (now != last_log) {
+        LogError("Flow cache exhausted; dropping new flows");
+        last_log = now;
+    }
+}
+
 static inline void AddPayload(struct FlowNode *Node, void *payload, size_t payloadSize) {
+    if (!payload || payloadSize == 0) return;
+    if (payloadSize > MAX_FLOW_PAYLOAD) payloadSize = MAX_FLOW_PAYLOAD;
     Node->coldNode.payload = malloc(payloadSize);
     if (!Node->coldNode.payload) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -302,6 +317,10 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, const hotNode_t *h
         // New flow
         dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
         struct FlowNode *NewNode = New_Node();
+        if (!NewNode) {
+            LogFlowCacheExhausted();
+            return;
+        }
 
         NewNode->hotNode = *hotNode;
         NewNode->coldNode = *coldNode;
@@ -318,6 +337,10 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, const hotNode_t *h
 
         struct FlowNode *existing = Insert_Node(NewNode);
         if (existing != NULL) {
+            if (existing == NewNode) {
+                Free_Node(NewNode);
+                return;
+            }
             // extremely rare race: treat as existing flow
             Node = existing;
             Free_Node(NewNode);
@@ -386,6 +409,10 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *h
     // DNS: flush immediately, payload optional
     if (hotNode->flowKey.src_port == 53 || hotNode->flowKey.dst_port == 53) {
         struct FlowNode *NewNode = New_Node();
+        if (!NewNode) {
+            LogFlowCacheExhausted();
+            return;
+        }
 
         NewNode->hotNode = *hotNode;
         NewNode->coldNode = *coldNode;
@@ -407,12 +434,20 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *h
         // new flow
         dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
         struct FlowNode *NewNode = New_Node();
+        if (!NewNode) {
+            LogFlowCacheExhausted();
+            return;
+        }
 
         NewNode->hotNode = *hotNode;
         NewNode->coldNode = *coldNode;
 
         struct FlowNode *existing = Insert_Node(NewNode);
         if (existing != NULL) {
+            if (existing == NewNode) {
+                Free_Node(NewNode);
+                return;
+            }
             Free_Node(NewNode);
             Node = existing;
             goto update_existing;
@@ -455,6 +490,10 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, const hotNode_t *
     dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
 
     struct FlowNode *NewNode = New_Node();
+    if (!NewNode) {
+        LogFlowCacheExhausted();
+        return;
+    }
     NewNode->hotNode = *hotNode;
     NewNode->coldNode = *coldNode;
 
@@ -477,6 +516,10 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, const hotNode_t 
         dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", hotNode->flowKey.proto, hotNode->packets, hotNode->bytes);
 
         struct FlowNode *NewNode = New_Node();
+        if (!NewNode) {
+            LogFlowCacheExhausted();
+            return;
+        }
         NewNode->hotNode = *hotNode;
         NewNode->coldNode = *coldNode;
         if (packetParam->addPayload && payloadSize) {
@@ -486,6 +529,10 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, const hotNode_t 
 
         struct FlowNode *existing = Insert_Node(NewNode);
         if (existing != NULL) {
+            if (existing == NewNode) {
+                Free_Node(NewNode);
+                return;
+            }
             Node = existing;
             Free_Node(NewNode);
             goto update_existing;
@@ -543,7 +590,7 @@ static inline void decode_ctx_cleanup(decode_ctx_t *ctx) {
 }  // End of decode_ctx_cleanup
 
 int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {
-    __builtin_prefetch(data + 64, 0, 1);
+    if (hdr->caplen >= 64) __builtin_prefetch(data + 64, 0, 1);
     hotNode_t hotNode = {0};
     coldNode_t coldNode = {0};
 

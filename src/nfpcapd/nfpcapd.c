@@ -300,6 +300,10 @@ int main(int argc, char *argv[]) {
                 }
                 CheckArgLen(optarg, 255);
                 sendHost = calloc(1, sizeof(repeater_t));
+                if (!sendHost) {
+                    LogError("Unable to allocate flow send target");
+                    exit(EXIT_FAILURE);
+                }
                 char *port;
                 char *sep = strchr(optarg, '/');
                 if (sep) {
@@ -530,7 +534,7 @@ int main(int argc, char *argv[]) {
 
     if (sendHost) {
         int p = atoi(sendHost->port);
-        if (p <= 0 || p > 655535) {
+        if (p <= 0 || p > 65535) {
             LogError("ERROR: Port to send flows is not a regular port.");
             exit(EXIT_FAILURE);
         }
@@ -703,6 +707,10 @@ int main(int argc, char *argv[]) {
     flowParam.subdir_index = subdir_index;
     flowParam.parent = pthread_self();
     flowParam.NodeList = NewNodeList();
+    if (!flowParam.NodeList) {
+        LogError("Unable to allocate flow queue");
+        exit(EXIT_FAILURE);
+    }
     flowParam.printRecord = (do_daemonize == 0) && (verbose > 2);
     int err = 0;
     if (sendHost) {

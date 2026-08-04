@@ -52,6 +52,17 @@ static void *payload_handle(PktBatch_t *batch, size_t idx) {
     return batch->payload_slab + (ptrdiff_t)idx * (ptrdiff_t)batch->payload_size;
 }  // End of payload_handle
 
+static uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); }
+
+static void swap_pcap_file_header(struct pcap_file_header *header) {
+    header->version_major = swap16(header->version_major);
+    header->version_minor = swap16(header->version_minor);
+    header->thiszone = (int32_t)swap32((uint32_t)header->thiszone);
+    header->sigfigs = swap32(header->sigfigs);
+    header->snaplen = swap32(header->snaplen);
+    header->linktype = swap32(header->linktype);
+}
+
 int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader, const char *fileName) {
     gzFile gz = gzopen(fileName, "rb");
     if (!gz) {
@@ -70,7 +81,10 @@ int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader,
         return 0;
     }
 
-    if (fileHeader->magic == 0xd4c3b2a1) readerParam->swapped = 1;
+    if (fileHeader->magic == 0xd4c3b2a1) {
+        readerParam->swapped = 1;
+        swap_pcap_file_header(fileHeader);
+    }
 
     readerParam->gz = 1;
     readerParam->gzfp = gz;
@@ -79,8 +93,8 @@ int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader,
     // use fix batch size, as we need payload memory as well
     readerParam->batch_size = 64;
 
-    if (readerParam->snaplen == 0) {
-        LogError("Missing snaplen in pcap file header");
+    if (readerParam->snaplen <= 0 || (uint32_t)readerParam->snaplen > MAX_PCAP_SNAPLEN) {
+        LogError("Invalid snaplen in pcap file header");
         gzclose(gz);
         return 0;
     }
@@ -123,19 +137,19 @@ int reader_gz_run(readerParam_t *readerParam) {
         }
         dbg(cnt++);
 
-        int incl = pr.hdr.caplen;
+        size_t incl = pr.hdr.caplen;
 
         // get new payload handle
         void *buf = payload_handle(batch, batch->count);
 
         // should never trigger - test it anyway to prevent memory corruption
-        dbg_assert(incl <= (int)batch->payload_size);
-        if (incl > (int)batch->payload_size) {
-            incl = batch->payload_size;
+        if (incl > batch->payload_size) {
+            LogError("pcap record exceeds snaplen");
+            break;
         }
-        int got = gzread(gz, buf, incl);
+        int got = gzread(gz, buf, (unsigned)incl);
         if (got != (int)incl) {
-            LogError("Failed to gzread payload of size: %u", incl);
+            LogError("Failed to gzread payload of size: %zu", incl);
             break;
         }
 

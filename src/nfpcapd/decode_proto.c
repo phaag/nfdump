@@ -59,7 +59,12 @@ static decode_state_t decode_ethertype(decode_ctx_t *ctx) {
             return DECODE_IP_LAYER;
 
         case ETHERTYPE_VLAN: {  // VLAN
+            unsigned vlan_count = 0;
             do {
+                if (++vlan_count > 8) {
+                    LogVerbose("Too many VLAN tags");
+                    return DECODE_ERROR;
+                }
                 vlan_hdr_t vlan_hdr;
                 if (!cursor_read(cur, &vlan_hdr, sizeof(vlan_hdr_t))) {
                     LogError("Length error decoding vlan");
@@ -78,7 +83,12 @@ static decode_state_t decode_ethertype(decode_ctx_t *ctx) {
             // unwrap MPLS label stack
             ctx->numMPLS = 0;
             uint32_t label;
+            unsigned label_count = 0;
             do {
+                if (++label_count > 32) {
+                    LogVerbose("Too many MPLS labels");
+                    return DECODE_ERROR;
+                }
                 if (!cursor_read(cur, &label, sizeof(uint32_t))) {
                     LogError("Length error decoding mpls stack");
                     return DECODE_SKIP;

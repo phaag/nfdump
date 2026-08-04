@@ -47,7 +47,7 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx);
 
 static decode_state_t decode_ipv6(decode_ctx_t *ctx);
 
-static int is_duplicate(const uint8_t *data_ptr, const uint32_t len);
+static int is_duplicate(const uint8_t *data_ptr, uint32_t len, size_t header_len, int is_ipv4);
 
 #include "metrohash.c"
 
@@ -90,10 +90,16 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
     char s2[64];
 #endif
 
-    struct ip6_hdr *ip6_ptr = (struct ip6_hdr *)cur->ptr;
+    const uint8_t *ip6_ptr = cur->ptr;
     struct ip6_hdr ip6;
     if (!cursor_read(cur, &ip6, sizeof(struct ip6_hdr))) {
         LogVerbose("Length error decoding IPv6 header");
+        return DECODE_SKIP;
+    }
+
+    uint16_t remaining_plen = ntohs(ip6.ip6_plen);
+    if (remaining_plen > (uint16_t)cursor_size(cur)) {
+        LogVerbose("IPv6 payload length exceeds captured data");
         return DECODE_SKIP;
     }
 
@@ -102,29 +108,25 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
     // vlan, mpls and layer 1 headers are ignored
     if (unlikely(ctx->packetParam->doDedup && ctx->redoLink == 0)) {
         // check for de-dup
-        uint32_t hopLimit = ip6.ip6_ctlun.ip6_un1.ip6_un1_hlim;
-        ip6_ptr->ip6_ctlun.ip6_un1.ip6_un1_hlim = 0;
-        uint16_t len = ntohs(ip6.ip6_ctlun.ip6_un1.ip6_un1_plen);
-        if (is_duplicate((const uint8_t *)ip6_ptr, len + 40)) {
+        if (is_duplicate(ip6_ptr, (uint32_t)remaining_plen + sizeof(struct ip6_hdr), sizeof(struct ip6_hdr), 0)) {
             ctx->packetParam->proc_stat.duplicates++;
             return DECODE_DONE;
         }
-        ip6_ptr->ip6_ctlun.ip6_un1.ip6_un1_hlim = hopLimit;
         // prevent recursive dedup checks with IP in IP packets
         ctx->redoLink++;
     }
 
-    uint16_t remaining_plen = ntohs(ip6.ip6_plen);
-
     // ipv6 Extension headers
     ctx->IPproto = ip6.ip6_nxt;
+    unsigned ext_count = 0;
     while (ctx->IPproto == IPPROTO_HOPOPTS || ctx->IPproto == IPPROTO_ROUTING || ctx->IPproto == IPPROTO_DSTOPTS || ctx->IPproto == IPPROTO_AH) {
+        if (++ext_count > 16) return DECODE_ERROR;
         struct {
             uint8_t nxt;
             uint8_t len;
         } ext;
         if (!cursor_read(cur, &ext, 2)) return DECODE_SKIP;
-        size_t skip = (ext.len + 1) << 3;  // Length in 8-byte units
+        size_t skip = ctx->IPproto == IPPROTO_AH ? ((size_t)ext.len + 2) << 2 : ((size_t)ext.len + 1) << 3;
         if (skip > remaining_plen) return DECODE_ERROR;
         remaining_plen -= skip;
         if (!cursor_advance(cur, skip - 2)) return DECODE_SKIP;
@@ -138,7 +140,9 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
 
         ctx->IPproto = ip6_frag_hdr.ip6f_nxt;
         uint32_t reassembledLength = 0;
-        void *payload = ProcessIP6Fragment(ip6_ptr, &ip6_frag_hdr, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
+        struct ip6_hdr fragment_ip6 = ip6;
+        fragment_ip6.ip6_plen = htons(remaining_plen);
+        void *payload = ProcessIP6Fragment(&fragment_ip6, (const struct ip6_frag *)cur->ptr, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
         if (payload == NULL) {
             // not yet complete
             dbg_printf("IPv6 de-fragmentation not yet completed\n");
@@ -192,7 +196,7 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     char s2[64];
 #endif
 
-    void *ip = cur->ptr;
+    const uint8_t *ip = cur->ptr;
     struct ip ip4;
     if (!cursor_get(cur, &ip4, sizeof(struct ip))) {
         LogVerbose("Length error decoding IPv4 header");
@@ -206,11 +210,17 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
         return DECODE_ERROR;
     }
 
+    uint16_t total_len = ntohs(ip4.ip_len);
+    if (total_len < (uint16_t)size_ip4 || total_len > (uint16_t)cursor_size(cur)) {
+        LogVerbose("IPv4 payload length exceeds captured data");
+        return DECODE_SKIP;
+    }
+
     if (!cursor_advance(cur, size_ip4)) {
         LogVerbose("Length error decoding IPv4 header");
         return DECODE_SKIP;
     }
-    ctx->ipPayloadLength = ntohs(ip4.ip_len) - size_ip4;
+    ctx->ipPayloadLength = total_len - size_ip4;
     ctx->ipPayloadEnd = cur->ptr + ctx->ipPayloadLength;
 
     // IPv4 duplicate check
@@ -218,18 +228,10 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     // vlan, mpls and layer 1 headers are ignored
     uint8_t fragment_flag = 0;
     if (unlikely(ctx->packetParam->doDedup && ctx->redoLink == 0)) {
-        struct ip *iph = (struct ip *)ip;
-        uint8_t old_ttl = iph->ip_ttl;
-        uint16_t old_sum = iph->ip_sum;
-        // check for de-dup
-        iph->ip_ttl = 0;
-        iph->ip_sum = 0;
-        if (is_duplicate((const uint8_t *)ip, ntohs(iph->ip_len))) {
+        if (is_duplicate(ip, total_len, (size_t)size_ip4, 1)) {
             ctx->packetParam->proc_stat.duplicates++;
             return DECODE_DONE;
         }
-        iph->ip_ttl = old_ttl;  // RESTORE
-        iph->ip_sum = old_sum;  // RESTORE
         // prevent recursive dedup checks with IP in IP packets
         ctx->redoLink++;
     }
@@ -244,7 +246,7 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     if ((ip_off & IP_MF) || frag_offset) {
         // fragmented packet
         uint32_t reassembledLength = 0;
-        void *payload = ProcessIP4Fragment(ip, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
+        void *payload = ProcessIP4Fragment((const struct ip *)ip, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
         if (payload == NULL) {
             // not yet complete
             dbg_printf("IPv4 de-fragmentation not yet completed\n");
@@ -291,8 +293,22 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     return DECODE_TRANSPORT;
 }  // End of decode_ipv4
 
-static int is_duplicate(const uint8_t *data_ptr, const uint32_t len) {
-    uint64_t hash = metrohash64_1(data_ptr, len, 0);
+static int is_duplicate(const uint8_t *data_ptr, uint32_t len, size_t header_len, int is_ipv4) {
+    uint8_t header[60];
+    if (header_len > sizeof(header) || header_len > len) return 0;
+
+    /* Capture buffers may be read-only (offline mmap).  Hash a normalised
+     * header copy instead of changing TTL/hop-limit and checksum in place. */
+    memcpy(header, data_ptr, header_len);
+    if (is_ipv4) {
+        header[8] = 0;   // TTL
+        header[10] = 0;  // header checksum
+        header[11] = 0;
+    } else {
+        header[7] = 0;  // IPv6 hop limit
+    }
+    uint64_t hash = metrohash64_1(header, header_len, 0);
+    hash = metrohash64_1(data_ptr + header_len, len - header_len, (uint32_t)hash);
 
     for (int i = 0; i < SlotSize; i++) {
         if (lastPacketStat[i].len == len && lastPacketStat[i].hash == hash) return 1;

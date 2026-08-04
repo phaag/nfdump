@@ -79,6 +79,17 @@
 
 static proc_stat_t proc_stat = {0};
 
+static uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); }
+
+static void swap_pcap_file_header(struct pcap_file_header *header) {
+    header->version_major = swap16(header->version_major);
+    header->version_minor = swap16(header->version_minor);
+    header->thiszone = (int32_t)swap32((uint32_t)header->thiszone);
+    header->sigfigs = swap32(header->sigfigs);
+    header->snaplen = swap32(header->snaplen);
+    header->linktype = swap32(header->linktype);
+}
+
 /* Compile BPF filter into readerParam->prog using a dead pcap handle. */
 static int compile_pcap_filter(readerParam_t *readerParam, packetParam_t *packetParam, const char *filter) {
     pcap_t *dead = pcap_open_dead((int)packetParam->linktype, (int)packetParam->snaplen);
@@ -136,9 +147,9 @@ static int reader_mmap_run(readerParam_t *readerParam) {
             pr.hdr.caplen = rh.incl_len;
             pr.hdr.len = rh.orig_len;
         }
-        int incl = pr.hdr.caplen;
+        size_t incl = pr.hdr.caplen;
 
-        if (incl > (int)remaining) break;  // truncated - incomplete packet
+        if (incl > remaining) break;  // truncated - incomplete packet
 
         pr.data = p;
 
@@ -263,9 +274,20 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
     }
 
     /* quick magic check */
-    uint32_t magic = *(uint32_t *)base;
+    uint32_t magic;
+    memcpy(&magic, base, sizeof(magic));
     if (magic == 0xa1b2c3d4 || magic == 0xd4c3b2a1) {
         memcpy(&fileHeader, base, sizeof(struct pcap_file_header));
+        swapped = magic == 0xd4c3b2a1;
+        if (swapped) swap_pcap_file_header(&fileHeader);
+
+        if (fileHeader.snaplen == 0 || fileHeader.snaplen > MAX_PCAP_SNAPLEN) {
+            LogError("Invalid pcap snaplen: %u", fileHeader.snaplen);
+            munmap(base, st.st_size);
+            close(fd);
+            queue_free(readerParam->batchQueue);
+            return -1;
+        }
 
         readerParam->use_mmap = 1;
         readerParam->mmap_base = base;
@@ -458,6 +480,10 @@ void *__attribute__((noreturn)) pcap_file_packet_thread(void *args) {
 
             size_t size = sizeof(struct pcap_sf_pkthdr) + hdr->caplen;
             if (DoPacketDump && ok) {
+                if (size > 1048576) {
+                    LogError("Packet too large for pcap dump buffer; skipping dump");
+                    continue;
+                }
                 if ((packetBuffer->bufferSize + size) > 1048576) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);

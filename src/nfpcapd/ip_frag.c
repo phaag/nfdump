@@ -75,6 +75,7 @@ typedef struct ip6Frag_s {
     uint32_t numHoles;       // number of total holes
     uint16_t holeList;       // first index into hole list in payload RFC815
     uint16_t payloadLength;  // length of reassembled payload
+    uint8_t proto;           // next-header protocol; prevents cross-protocol ID collisions
 } ipFrag_t;
 
 #define MAXINDEX 0xFFFF
@@ -84,13 +85,14 @@ typedef struct ip6Frag_s {
 // fragment list
 // use dynamic batches of NUMFRAGMENTS for the fragment array
 #define NUMFRAGMENTS 32
+#define MAX_FRAGMENTS 256
 static struct ipFragList_s {
     uint32_t numFrags;   // number of fragments in array
     ipFrag_t *fragList;  // dynamic array of fragments. Batches of NUMFRAGMENTS
 } ipFragList = {.numFrags = 0, .fragList = NULL};
 
 // init a new fragment in slot
-static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, time_t when) {
+static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, uint8_t proto, time_t when) {
     dbg_printf("Init fragment slot %d\n", slot);
 
     void *payload = calloc(1, MAXINDEX + 1);
@@ -103,7 +105,8 @@ static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, co
     hole_t *hole = (hole_t *)payload;
     *hole = (hole_t){.first = 0, .last = MAXINDEX, .next = 0xFFFF, .fill = 0};
 
-    ipFragList.fragList[slot] = (ipFrag_t){.payload = payload, .fragID = fragID, .holeList = 0, .numHoles = 1, .created = when};
+    ipFragList.fragList[slot] =
+        (ipFrag_t){.payload = payload, .fragID = fragID, .proto = proto, .holeList = 0, .numHoles = 1, .created = when};
     memcpy(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16);
     memcpy(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16);
 
@@ -128,7 +131,7 @@ static void expireFragmentList(time_t now, time_t timeout) {
 }  // End of expireFragmentList
 
 // get the existing or a new fragment struct for srcAddr/dstAddr/fragID
-static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, time_t when) {
+static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, uint8_t proto, time_t when) {
     // Periodically expire old fragments
     static time_t lastExpire = 0;
     if (when - lastExpire > 10) {
@@ -140,7 +143,8 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
     int firstEmpty = -1;
     for (slot = 0; slot < ipFragList.numFrags; slot++) {
         if (ipFragList.fragList[slot].created == 0 && firstEmpty < 0) firstEmpty = slot;
-        if (ipFragList.fragList[slot].fragID == fragID && (memcmp(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16) == 0) &&
+        if (ipFragList.fragList[slot].fragID == fragID && ipFragList.fragList[slot].proto == proto &&
+            (memcmp(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16) == 0) &&
             (memcmp(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16) == 0))
             break;
     }
@@ -148,6 +152,10 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
     if (slot == ipFragList.numFrags) {
         // fragID not found
         if (firstEmpty < 0) {
+            if (ipFragList.numFrags >= MAX_FRAGMENTS) {
+                LogVerbose("Too many incomplete IP fragments; dropping fragment");
+                return NULL;
+            }
             // no empty slot  - no slots yet or all slots exhausted - extend fragment list by NUMFRAGMENTS
             void *tmp = realloc(ipFragList.fragList, (ipFragList.numFrags + NUMFRAGMENTS) * sizeof(ipFrag_t));
             if (!tmp) {
@@ -165,7 +173,7 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
             // assign first empty slot in list
             slot = (unsigned)firstEmpty;
         }
-        if (!initSlot(slot, srcAddr, dstAddr, fragID, when)) return NULL;
+        if (!initSlot(slot, srcAddr, dstAddr, fragID, proto, when)) return NULL;
     }  // else fragment in slot found
 
     dbg_printf("Return fragment slot %d\n", slot);
@@ -243,16 +251,17 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_f
     memcpy(dstAddr.bytes, ip6->ip6_dst.s6_addr, 16);
     uint32_t fragID = ntohl(ip6_frag->ip6f_ident);
 
-    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID, when);
-    if (!fragment) return NULL;
-
     uint16_t offset = ntohs(ip6_frag->ip6f_offlg);
     int moreFragments = offset & 0x1;
     offset = offset & 0xFFF8;
-    uint16_t ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen) - sizeof(struct ip6_frag);
-    void *ipPayload = (void *)ip6_frag + sizeof(struct ip6_frag);
+    uint16_t plen = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
+    if (plen < sizeof(struct ip6_frag)) return NULL;
+    uint16_t ipPayloadLength = plen - sizeof(struct ip6_frag);
+    const uint8_t *ipPayload = (const uint8_t *)ip6_frag + sizeof(struct ip6_frag);
 
-    if ((uint8_t *)ipPayload + ipPayloadLength > (uint8_t *)eodata) {
+    if (ipPayloadLength == 0 || (moreFragments && (ipPayloadLength & 7))) return NULL;
+
+    if (ipPayload > (const uint8_t *)eodata || ipPayloadLength > (size_t)((const uint8_t *)eodata - ipPayload)) {
         LogError("IPv6 Fragment exceeds capture buffer");
         return NULL;
     }
@@ -262,6 +271,9 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_f
         LogError("IPv6 Fragment would exceed maximum IP packet size");
         return NULL;
     }
+
+    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID, ip6_frag->ip6f_nxt, when);
+    if (!fragment) return NULL;
 
     uint16_t fragFirst = offset;
     uint16_t fragLast = offset + ipPayloadLength - 1;
@@ -304,17 +316,17 @@ void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *pay
     memcpy(dstAddr.bytes + 12, &ip4->ip_dst.s_addr, 4);
 
     uint32_t fragID = ntohs(ip4->ip_id);
-    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID, when);
-    if (!fragment) return NULL;
-
     uint16_t ip_off = ntohs(ip4->ip_off);
     uint32_t offset = (ip_off & IP_OFFMASK) << 3;
     int moreFragments = ip_off & IP_MF;
 
-    ptrdiff_t sizeIP = (ip4->ip_hl << 2);
-    uint16_t ipPayloadLength = ntohs(ip4->ip_len) - sizeIP;
-    void *ipPayload = (void *)ip4 + sizeIP;
-    if ((uint8_t *)ipPayload + ipPayloadLength > (uint8_t *)eodata) {
+    size_t sizeIP = (size_t)ip4->ip_hl << 2;
+    uint16_t totalLength = ntohs(ip4->ip_len);
+    if (sizeIP < sizeof(struct ip) || totalLength < sizeIP) return NULL;
+    uint16_t ipPayloadLength = totalLength - sizeIP;
+    const uint8_t *ipPayload = (const uint8_t *)ip4 + sizeIP;
+    if (ipPayloadLength == 0 || (moreFragments && (ipPayloadLength & 7))) return NULL;
+    if (ipPayload > (const uint8_t *)eodata || ipPayloadLength > (size_t)((const uint8_t *)eodata - ipPayload)) {
         LogError("IPv4 Fragment exceeds capture buffer");
         return NULL;
     }
@@ -324,6 +336,9 @@ void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *pay
         LogError("IPv4 Fragment would exceed maximum IP packet size");
         return NULL;
     }
+
+    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID, ip4->ip_p, when);
+    if (!fragment) return NULL;
 
     uint16_t fragFirst = offset;
     uint16_t fragLast = offset + ipPayloadLength - 1;

@@ -105,6 +105,10 @@ static inline decode_state_t decode_udp(decode_ctx_t *ctx) {
     cursor_t *cur = &ctx->cur;
     struct udphdr udp;
 
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(udp)) {
+        LogVerbose("Length error decoding UDP header");
+        return DECODE_SKIP;
+    }
     if (!cursor_read(cur, &udp, sizeof(struct udphdr))) {
         LogVerbose("Length error decoding UDP header");
         return DECODE_SKIP;
@@ -153,7 +157,7 @@ static inline decode_state_t decode_tcp(decode_ctx_t *ctx) {
     cursor_t *cur = &ctx->cur;
     struct tcphdr tcp;
 
-    if (!cursor_get(cur, &tcp, sizeof(struct tcphdr))) {
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(tcp) || !cursor_get(cur, &tcp, sizeof(tcp))) {
         LogVerbose("Length error decoding tcp header");
         return DECODE_SKIP;
     }
@@ -165,7 +169,7 @@ static inline decode_state_t decode_tcp(decode_ctx_t *ctx) {
         return DECODE_ERROR;
     }
 
-    if (!cursor_advance(cur, size_tcp)) {
+    if (size_tcp > (size_t)(ctx->ipPayloadEnd - cur->ptr) || !cursor_advance(cur, size_tcp)) {
         LogVerbose("Length error decoding tcp header");
         return DECODE_SKIP;
     }
@@ -198,7 +202,7 @@ static decode_state_t decode_icmp(decode_ctx_t *ctx) {
 
     // Only read the 8-byte ICMP header, not full struct icmp (which is 28 bytes on BSD)
     uint8_t icmp_hdr[8];
-    if (!cursor_read(cur, &icmp_hdr, 8)) {
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(icmp_hdr) || !cursor_read(cur, &icmp_hdr, sizeof(icmp_hdr))) {
         LogVerbose("Length error decoding icmp header");
         return DECODE_SKIP;
     }
@@ -219,7 +223,7 @@ static decode_state_t decode_icmpv6(decode_ctx_t *ctx) {
     cursor_t *cur = &ctx->cur;
     struct icmp6_hdr icmp6;
 
-    if (!cursor_read(cur, &icmp6, sizeof(struct icmp6_hdr))) {
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(icmp6) || !cursor_read(cur, &icmp6, sizeof(icmp6))) {
         LogVerbose("Length error decoding icmp6 header");
         return DECODE_SKIP;
     }
@@ -237,7 +241,7 @@ static decode_state_t decode_icmpv6(decode_ctx_t *ctx) {
 static decode_state_t decode_tunnel_ipv6(decode_ctx_t *ctx) {
     cursor_t *cur = &ctx->cur;
 
-    if (cursor_size(cur) < (ptrdiff_t)sizeof(struct ip6_hdr)) {
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(struct ip6_hdr)) {
         dbg_printf("  IPIPv6 tunnel Short packet: %u, Check line: %u\n", ctx->hdr->caplen, __LINE__);
         return DECODE_SKIP;
     }
@@ -257,13 +261,13 @@ static decode_state_t decode_tunnel_ipv6(decode_ctx_t *ctx) {
 static decode_state_t decode_tunnel_ipip(decode_ctx_t *ctx) {
     cursor_t *cur = &ctx->cur;
     struct ip ip4;
-    if (!cursor_get(cur, &ip4, sizeof(ip4))) {
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(ip4) || !cursor_get(cur, &ip4, sizeof(ip4))) {
         dbg_printf("  IPIP tunnel Short packet: %u, Check line: %u\n", ctx->hdr->caplen, __LINE__);
         return DECODE_SKIP;
     }
 
     uint32_t size_inner_ip = (ip4.ip_hl << 2);
-    if (cursor_size(cur) < size_inner_ip) {
+    if (size_inner_ip < sizeof(struct ip) || size_inner_ip > (size_t)(ctx->ipPayloadEnd - cur->ptr)) {
         dbg_printf("  IPIP tunnel Short packet: %u, Check line: %u\n", ctx->hdr->caplen, __LINE__);
         return DECODE_SKIP;
     }
@@ -284,7 +288,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
     cursor_t *cur = &ctx->cur;
     gre_hdr_t gre;
 
-    if (!cursor_read(cur, &gre, sizeof(gre_hdr_t))) {
+    if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < sizeof(gre) || !cursor_read(cur, &gre, sizeof(gre))) {
         LogVerbose("Length error decoding GRE header");
         return DECODE_SKIP;
     }
@@ -300,7 +304,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
     if (gre_flags & 0x8000) skip += 4;  // Checksum
     if (gre_flags & 0x2000) skip += 4;  // Key
     if (gre_flags & 0x1000) skip += 4;  // Sequence
-    if (skip && !cursor_advance(cur, skip)) {
+    if (skip > (size_t)(ctx->ipPayloadEnd - cur->ptr) || (skip && !cursor_advance(cur, skip))) {
         LogVerbose("Length error decoding GRE optional fields");
         return DECODE_SKIP;
     }
@@ -312,7 +316,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
     if (version == 1) {
         // PPTP / Enhanced GRE
         uint16_t callID;
-        if (!cursor_advance(cur, 2) || !cursor_read(cur, &callID, sizeof(uint16_t))) {
+        if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < 4 || !cursor_advance(cur, 2) || !cursor_read(cur, &callID, sizeof(uint16_t))) {
             LogVerbose("Length error decoding GRE PPTP header");
             return DECODE_SKIP;
         }
@@ -324,7 +328,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
 
         // pptp - vpn
         // 2 bytes key payload length, 2 byte call ID
-        if (gre_flags & 0x0080 && !cursor_advance(cur, 4)) {
+        if (gre_flags & 0x0080 && ((size_t)(ctx->ipPayloadEnd - cur->ptr) < 4 || !cursor_advance(cur, 4))) {
             LogVerbose("Length error decoding GRE optional fields");
             return DECODE_SKIP;
         }
@@ -339,7 +343,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
     // 3. Handle ERSPAN (Encapsulated Remote SPAN)
     if (gre_proto == PROTO_ERSPAN) {  // ERSPAN Type II
         // Skip 8-byte ERSPAN Header
-        if (!cursor_advance(cur, 8)) {
+        if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < 8 || !cursor_advance(cur, 8)) {
             LogVerbose("Length error decoding GRE ERSPAN Header");
             return DECODE_SKIP;
         }
@@ -347,7 +351,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
         return DECODE_LINK_LAYER;      // Start over as Ethernet
     } else if (gre_proto == 0x22EB) {  // ERSPAN Type III
         // Skip 20-byte ERSPAN Header
-        if (!cursor_advance(cur, 20)) {
+        if ((size_t)(ctx->ipPayloadEnd - cur->ptr) < 20 || !cursor_advance(cur, 20)) {
             LogVerbose("Length error decoding GRE ERSPAN Header");
             return DECODE_SKIP;
         }

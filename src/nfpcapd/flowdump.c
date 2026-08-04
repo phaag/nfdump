@@ -66,6 +66,7 @@
 #include "util.h"
 
 static int printRecord = 0;
+#define MAX_FLOW_PAYLOAD 4096u
 #include "nffile_inline.c"
 
 static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node);
@@ -73,6 +74,11 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node);
 static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     FlowSource_t *fs = flowParam->fs;
     nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
+
+    if (!fs->dataBlock) {
+        LogError("StorePcapFlow(): no output block; dropping flow");
+        return 0;
+    }
 
     dbg_printf("Store Flow node\n");
 
@@ -128,9 +134,12 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     // EXinPayloadID = 26 (variable-length)
     uint32_t payloadAligned = 0;
+    uint32_t payloadCopyLen = 0;
     if (flowParam->addPayload && Node->coldNode.payloadSize) {
+        payloadCopyLen = Node->coldNode.payloadSize;
+        if (payloadCopyLen > MAX_FLOW_PAYLOAD) payloadCopyLen = MAX_FLOW_PAYLOAD;
         BitMapSet(bitMap, EXinPayloadID);
-        payloadAligned = ALIGN8(sizeof(uint32_t) + Node->coldNode.payloadSize);
+        payloadAligned = ALIGN8(sizeof(uint32_t) + payloadCopyLen);
         extensionSize += payloadAligned;
     }
 
@@ -156,6 +165,10 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
         fs->dataBlock = NULL;
         InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
+        if (!fs->dataBlock) {
+            LogError("StorePcapFlow(): out of memory allocating output block");
+            return 0;
+        }
     }
     uint32_t available = nffile_ctx->nffile->fileHeader->blockSize - fs->dataBlock->rawSize;
     if (available < recordSize) {
@@ -165,6 +178,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     // ── Phase 2: write V4 record ──
     uint8_t *buffPtr = GetCursor(fs->dataBlock);
+    memset(buffPtr, 0, recordSize);
 
     recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
     *recordHeader = (recordHeaderV4_t){
@@ -274,8 +288,8 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     if (bitMap & (1ULL << EXinPayloadID)) {
         *offset++ = nextOffset;
         EXinPayload_t *inPayload = (EXinPayload_t *)(buffPtr + nextOffset);
-        inPayload->size = Node->coldNode.payloadSize;
-        memcpy(inPayload->payload, Node->coldNode.payload, Node->coldNode.payloadSize);
+        inPayload->size = payloadCopyLen;
+        memcpy(inPayload->payload, Node->coldNode.payload, payloadCopyLen);
         nextOffset += payloadAligned;
     }
 
@@ -449,9 +463,12 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
     }
-    PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
-    fs->dataBlock = NULL;
     InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
+    if (!fs->dataBlock) {
+        LogError("Fatal: unable to allocate initial output block");
+        pthread_kill(flowParam->parent, SIGUSR1);
+        pthread_exit((void *)flowParam);
+    }
     nffile_ctx->nffile->ident = strdup(fs->Ident);
 
     // init flow source
@@ -459,6 +476,11 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     int done = 0;
     while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
+        if (!Node) {
+            FlushBlockV3(nffile_ctx->nffile, fs->dataBlock);
+            CloseFlowFile(flowParam, flowParam->NodeList->closeTimestamp);
+            break;
+        }
         dbg_assert(Node->memflag == NODE_IN_USE);
         switch (Node->nodeType) {
             case FLOW_NODE:
@@ -470,6 +492,12 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
                 fs->dataBlock = NULL;
                 InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
+                if (!fs->dataBlock) {
+                    LogError("Fatal: unable to allocate output block");
+                    pthread_kill(flowParam->parent, SIGUSR1);
+                    Free_Node(Node);
+                    pthread_exit((void *)flowParam);
+                }
                 CloseFlowFile(flowParam, Node->timestamp);
                 nffile_ctx->nffile = OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType,
                                                       nffile_ctx->compressLevel, nffile_ctx->crypto_ctx);

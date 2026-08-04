@@ -393,6 +393,11 @@ void *__attribute__((noreturn)) linux_packet_thread(void *args) {
 
             size_t size = sizeof(struct pcap_sf_pkthdr) + ppd->tp_snaplen;
             if (DoPacketDump && ok) {
+                if (size > BLOCK_SIZE_V3) {
+                    LogError("Packet too large for pcap dump buffer; skipping dump");
+                    ppd = (struct tpacket3_hdr *)((uint8_t *)ppd + ppd->tp_next_offset);
+                    continue;
+                }
                 if ((packetBuffer->bufferSize + size) > BLOCK_SIZE_V3) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);

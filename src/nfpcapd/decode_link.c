@@ -214,7 +214,7 @@ static decode_state_t decode_link_layer(decode_ctx_t *ctx) {
 
             // The Radiotap header length is at offset 2 (2nd and 3rd bytes)
             // Header structure: version (1), pad (1), length (2)
-            if (cur->ptr + 4 > cur->end) {
+            if (cursor_size(cur) < 4) {
                 LogInfo("Packet: %u: Radiotap: header too short", ctx->pkg_cnt);
                 return DECODE_SKIP;
             }
@@ -313,7 +313,9 @@ static decode_state_t decode_nflog(decode_ctx_t *ctx, uint16_t *protocol) {
 
     // TLVs following
     nflog_tlv_t tlv;
+    unsigned tlv_count = 0;
     while (cursor_read(cur, &tlv, sizeof(nflog_tlv_t))) {
+        if (++tlv_count > 64) return DECODE_ERROR;
         dbg_printf("NFLOG: tlv type: %u, length: %u\n", tlv.tlv_type, tlv.tlv_length);
 
         // Validation: TLV length must at least include itself
@@ -323,6 +325,10 @@ static decode_state_t decode_nflog(decode_ctx_t *ctx, uint16_t *protocol) {
         }
 
         if (tlv.tlv_type == NFULA_PAYLOAD) {
+            size_t payload_len = tlv.tlv_length - sizeof(nflog_tlv_t);
+            if (payload_len > (size_t)cursor_size(cur)) return DECODE_SKIP;
+            /* Do not let trailing NFLOG TLVs be parsed as packet bytes. */
+            cur->end = cur->ptr + payload_len;
             // Payload found! Cursor is now positioned at start of IP header
             // because cursor_read moved us past the TLV header.
             dbg_printf("Linktype DLT_NFLOG: %s, payload found\n", *protocol == 0x0800 ? "IPv4" : "IPv6");
@@ -340,5 +346,5 @@ static decode_state_t decode_nflog(decode_ctx_t *ctx, uint16_t *protocol) {
         }
     }
 
-    return DECODE_ETHERTYPE;
+    return DECODE_SKIP;
 }  // End of decode_nflog

@@ -213,6 +213,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     // ── Phase 2: write V4 record ──
     uint8_t *buffPtr = (uint8_t *)sendBuffer + pcapd_header->length;
+    memset(buffPtr, 0, recordSize);
 
     recordHeaderV4_t *recordHeader = (recordHeaderV4_t *)buffPtr;
     *recordHeader = (recordHeaderV4_t){
@@ -417,6 +418,13 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     // encBuffer holds the v251 wire header + ciphertext + Poly1305 tag.
     // Sized for the maximum inner payload (65535) plus overhead.
     encBuffer = malloc(NFD_ENC_HDR_SIZE + 65535 + NFD_AEAD_TAG_SIZE);
+    if (!sendBuffer || !encBuffer) {
+        LogError("Unable to allocate flow send buffers");
+        free(sendBuffer);
+        free(encBuffer);
+        pthread_kill(flowParam->parent, SIGUSR1);
+        pthread_exit((void *)flowParam);
+    }
 
     nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
     memset((void *)pcapd_header, 0, sizeof(nfd_header_t));
@@ -428,6 +436,11 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     int done = 0;
     while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
+        if (!Node) {
+            if (pcapd_header->numRecord > 0) SendFlow(flowParam->sendHost, pcapd_header, flowParam->udpSessionKey);
+            CloseSender(flowParam);
+            break;
+        }
         switch (Node->nodeType) {
             case FLOW_NODE:
                 ProcessFlow(flowParam, Node);

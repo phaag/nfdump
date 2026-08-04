@@ -867,6 +867,12 @@ uint32_t Hash_Flush(NodeList_t *NodeList, time_t when) {
         sig->timestamp = when;
         sig->nodeType = SIGNAL_NODE_DONE;
         Push_Node(NodeList, sig);
+    } else {
+        /* The active flows may consume the entire cache.  Closing the queue
+         * still lets the consumer drain them and terminate without a signal
+         * node. */
+        LogError("Flow cache exhausted; closing flow queue without done node");
+        Close_NodeList(NodeList, when);
     }
 
     return drained;
@@ -884,6 +890,8 @@ NodeList_t *NewNodeList(void) {
     NodeList->list = NULL;
     NodeList->last = NULL;
     NodeList->length = 0;
+    NodeList->closed = 0;
+    NodeList->closeTimestamp = 0;
     pthread_mutex_init(&NodeList->m_list, NULL);
     pthread_cond_init(&NodeList->c_list, NULL);
 
@@ -925,12 +933,25 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 
 }  // End of Push_Node
 
+void Close_NodeList(NodeList_t *NodeList, time_t timestamp) {
+    pthread_mutex_lock(&NodeList->m_list);
+    NodeList->closed = 1;
+    NodeList->closeTimestamp = timestamp;
+    pthread_cond_broadcast(&NodeList->c_list);
+    pthread_mutex_unlock(&NodeList->m_list);
+}  // End of Close_NodeList
+
 struct FlowNode *Pop_Node(NodeList_t *NodeList) {
     struct FlowNode *node;
 
     pthread_mutex_lock(&NodeList->m_list);
-    while (NodeList->length == 0) {
+    while (NodeList->length == 0 && !NodeList->closed) {
         pthread_cond_wait(&NodeList->c_list, &NodeList->m_list);
+    }
+
+    if (NodeList->length == 0) {
+        pthread_mutex_unlock(&NodeList->m_list);
+        return NULL;
     }
 
     node = NodeList->list;
@@ -957,7 +978,7 @@ size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max) {
     size_t n = 0;
 
     pthread_mutex_lock(&NodeList->m_list);
-    while (NodeList->length == 0) {
+    while (NodeList->length == 0 && !NodeList->closed) {
         pthread_cond_wait(&NodeList->c_list, &NodeList->m_list);
     }
 
@@ -977,6 +998,10 @@ size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max) {
 
 void Push_SyncNode(NodeList_t *NodeList, time_t timestamp) {
     struct FlowNode *Node = New_Node();
+    if (!Node) {
+        LogError("Flow cache exhausted; unable to rotate output");
+        return;
+    }
     Node->timestamp = timestamp;
     Node->nodeType = SIGNAL_NODE_SYNC;
     dbg_printf("Push sync node\n");
