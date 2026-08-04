@@ -189,9 +189,18 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
         if (flowParam->addPayload) {
             if (Node->coldNode.payloadSize) {
-                UpdateRecordSize(EXinPayloadSize + Node->coldNode.payloadSize);
-                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->coldNode.payloadSize);
-                memcpy(inPayload, Node->coldNode.payload, Node->coldNode.payloadSize);
+                // Cap so a single record can never need more than fits in a freshly
+                // flushed buffer (65535 - sizeof(nfd_header_t)).
+                uint32_t maxRecordSize = 65535 - (uint32_t)sizeof(nfd_header_t);
+                uint32_t reserved = recordSize + (uint32_t)EXinPayloadSize;
+                uint32_t headroom = maxRecordSize > reserved ? maxRecordSize - reserved : 0;
+                uint32_t payloadSize = Node->coldNode.payloadSize > headroom ? headroom : (uint32_t)Node->coldNode.payloadSize;
+
+                if (payloadSize > 0) {
+                    UpdateRecordSize(EXinPayloadSize + payloadSize);
+                    PushVarLengthPointer(recordHeader, EXinPayload, inPayload, payloadSize);
+                    memcpy(inPayload, Node->coldNode.payload, payloadSize);
+                }
             }
         }
 
