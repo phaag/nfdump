@@ -35,6 +35,8 @@
 .Nm 
 .Fl l Ar directory
 .Nm
+.Fl L Ar directory
+.Nm
 .Fl r Ar directory
 .Nm
 .Fl e Ar directory
@@ -89,6 +91,8 @@ runs on this
 .Ar directory
 it automatically rescans the flow files first to update the statistics. If this an 
 active data directory used by any collector, the statistics are updated automatically.
+.It Fl L Ar directory
+List current expiration statistics and the bookkeeping records for directory.
 .It Fl r Ar directory
 Rescans the data directory, even if a statistics file already exist. This command
 can be used to update the statistics after a disk full event, after manually changing

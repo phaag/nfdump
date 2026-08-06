@@ -86,7 +86,7 @@ void usage(char *name) {
         "usage %s [options] \n"
         "-h\t\tthis text you see right here.\n"
         "-E\t\tDump records in ASCII extended format to stdout.\n"
-        "-c\t\tLimit number of records to convert.\n"
+        "-c <num>\tLimit number of records to convert.\n"
         "-V\t\tPrint version and exit.\n"
         "-r <file>\tread flow-tools records from file\n"
         "-w <file>\twrite nfdump records to file\n"
@@ -94,6 +94,8 @@ void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
+        "-j\t\tLegacy shorthand for -z=bz2.\n"
+        "-y\t\tLegacy shorthand for -z=lz4.\n"
         "Convert flow-tools format to nfdump format:\n"
         "ft2nfdump -r <flow-tools-data-file> -w <nfdump-file> [-z]\n",
         name);

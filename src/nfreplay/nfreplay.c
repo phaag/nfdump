@@ -109,6 +109,7 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-E\t\tPrint verbose messages. For debugging purpose only.\n"
         "-H <Host/ip>\tTarget IP address default: 127.0.0.1\n"
+        "-i <Host/ip>\tCompatibility alias for -H.\n"
         "-j <mcast>\tSend packets to multicast group\n"
         "-4\t\tForce IPv4 protocol.\n"
         "-6\t\tForce IPv6 protocol.\n"
@@ -119,11 +120,12 @@ static void usage(char *name) {
         "-c <cnt>\tPacket count. default send all packets\n"
         "-b <bsize>\tSend buffer size.\n"
         "-r <input>\tread from file. default: stdin\n"
-        "-f <filter>\tfilter syntaxfile\n"
+        "-f <filter>\tRead nfdump filter from file.\n"
         "-v <version>\tUse netflow version to send flows. Either 5 or 9\n"
         "-z <distribution>\tSimulate real time distribution with coefficient\n"
         "-t <time>\ttime window for sending packets\n"
-        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
+        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n"
+        "-Y\t\tRequire confirmation before sending flows.\n",
         name);
 } /* usage */
 

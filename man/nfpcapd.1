@@ -50,12 +50,18 @@
 .Op Fl u Ar userid
 .Op Fl g Ar groupid
 .Op Fl o Ar option[,option]
+.Op Fl C Ar config
+.Op Fl m Ar socket
 .Op Fl z=lzo
 .Op Fl z=bz2
 .Op Fl z=lz4[:level]
 .Op Fl z=zstd[:level]
+.Op Fl j
+.Op Fl y
+.Op Fl l Ar flowdir
+.Op Fl T
 .Op Fl W Ar workers
-.Op Fl V Ar level
+.Op Fl V
 .Op Fl h
 .Op Ar '<filter>'
 .Sh DESCRIPTION
@@ -163,6 +169,23 @@ Compress flows. Use bz2 compression in output file. Note: not recommended while 
 Compress flows. Use LZ4 compression in output file.
 .It Fl z=zstd[:level]
 Compress flows. Use zstd compression in output file.
+.It Fl j
+Legacy shorthand for
+.Fl z=bz2 .
+.It Fl y
+Legacy shorthand for
+.Fl z=lz4 .
+.It Fl l Ar flowdir
+Legacy alias for
+.Fl w Ar flowdir .
+.It Fl T
+Legacy option accepted and ignored.
+.It Fl C Ar config
+Read configuration from config; use
+.Sy null
+to suppress configuration-file loading.
+.It Fl m Ar socket
+Enable the metrics exporter on socket.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.

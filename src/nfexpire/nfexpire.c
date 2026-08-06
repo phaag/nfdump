@@ -77,13 +77,16 @@ static void usage(char *name) {
         "usage %s [options] \n"
         "-h\t\tThis text\n"
         "-l datadir\tList stat from directory\n"
+        "-L datadir\tList stat and bookkeeping records from directory\n"
         "-e datadir\tExpire data in directory\n"
         "-r datadir\tRescan data directory\n"
         "-u datadir\tUpdate expire params from collector logging at <datadir>\n"
         "-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
         "-T runtime\tmaximum nfexpire run time: nfexpire terminates after this amount of seconds\n"
         "-t lifetime\tmaximum life time of data: scales: w week, d day, H hour, M minute\n"
-        "-w watermark\tlow water mark in %% for expire.\n",
+        "-w watermark\tlow water mark in %% for expire.\n"
+        "-p\t\tUse the legacy NfSen profile directory layout.\n"
+        "-Y\t\tWrite legacy NfSen-compatible statistics.\n",
         name);
 
 }  // End of usage

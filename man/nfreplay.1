@@ -35,6 +35,7 @@
 .Nm 
 .Fl r Ar flowfile
 .Fl H Ar remotehost
+.Op Fl i Ar remotehost
 .Fl p Ar port
 .Op Fl S Ar Sourceaddr
 .Op Fl j Ar mcastgroup
@@ -45,8 +46,13 @@
 .Op Fl b Ar buffsize
 .Op Fl z Ar num
 .Op Fl c Ar num
-.Op Fl v
-.Op Fl H
+.Op Fl f Ar filterfile
+.Op Fl t Ar timewin
+.Op Fl E
+.Op Fl L Ar logfile
+.Op Fl Y
+.Op Fl V
+.Op Fl h
 .Op Ar filter
 .Sh DESCRIPTION
 .Nm
@@ -91,11 +97,11 @@ Send flows as netflow version
 Version V5 and v9 are supported. In v5 mode, all additional elements to a 
 stadard v5 record are skipped and 64bit counters are truncated to 32bit. 
 The default is v9. 
-.It Fl u Ar usec
+.It Fl d Ar usec
 Delay each record by
 .Ar usec
-mirco seconds, to avoid overrun on the remote host. Default is 10usec.
-.It Fl B Ar buffsize
+microseconds, to avoid overrun on the remote host. Default is 1 microsecond.
+.It Fl b Ar buffsize
 Set send buffer to
 .Ar buffsize
 size in bytes. Useful to buffer larger data transfers.
@@ -114,6 +120,19 @@ z
 Limit number of records to send to the first 
 .Ar num
 flows.
+.It Fl f Ar filterfile
+Read the flow filter from filterfile.
+.It Fl t Ar timewin
+Restrict replay to an nfdump time-window expression.
+.It Fl E
+Enable diagnostic verbosity (equivalent to verbosity level 1).
+.It Fl L Ar logfile
+Write diagnostic output to logfile.
+.It Fl i Ar remotehost
+Compatibility alias for
+.Fl H .
+.It Fl Y
+Require confirmation before sending flows.
 .It Fl V
 Print
 .Nm 

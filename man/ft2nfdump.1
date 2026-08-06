@@ -36,6 +36,8 @@
 .Op Fl r Ar ftfile
 .Fl w Ar nffile
 .Op Fl z=<compress>
+.Op Fl j
+.Op Fl y
 .Op Fl E
 .Op Fl c Ar num
 .Nm
@@ -70,6 +72,12 @@ Changing the level results in smaller files but uses up more time to compress.
 .It Fl z=zstd[:level]
 Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. 
+.It Fl j
+Legacy shorthand for
+.Fl z=bz2 .
+.It Fl y
+Legacy shorthand for
+.Fl z=lz4 .
 .It Fl c Ar num
 Limit the number of flows to the first
 .Ar num

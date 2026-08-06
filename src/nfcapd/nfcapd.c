@@ -138,6 +138,8 @@ static void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
+        "-j\t\tLegacy shorthand for -z=bz2.\n"
+        "-y\t\tLegacy shorthand for -z=lz4.\n"
         "-B bufflen\tSet socket buffer to bufflen bytes\n"
         "-e\t\tExpire data at each cycle.\n"
         "-D\t\tFork to background\n"
@@ -147,7 +149,9 @@ static void usage(char *name) {
         "-6\t\tListen on IPv6 only\n"
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
-        "-Z\t\tAdd timezone offset to filename.\n",
+        "-Z\t\tAdd timezone offset to filename.\n"
+        "-l <dir>\tLegacy alias for -w <dir>.\n"
+        "-T\t\tLegacy option; ignored.\n",
         name);
 }  // End of usage
 

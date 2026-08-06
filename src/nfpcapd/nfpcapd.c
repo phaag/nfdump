@@ -134,6 +134,11 @@ static void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
+        "-j\t\tLegacy shorthand for -z=bz2.\n"
+        "-y\t\tLegacy shorthand for -z=lz4.\n"
+        "-l <dir>\tLegacy alias for -w <dir>.\n"
+        "-T\t\tLegacy option; ignored.\n"
+        "-V\t\tPrint version and exit.\n"
         "-D\t\tdetach from terminal (daemonize)\n",
         name);
 }  // End of usage
@@ -220,7 +225,7 @@ int main(int argc, char *argv[]) {
     numWorkers = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:yz::")) != EOF) {
+    while ((c = getopt(argc, argv, "B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:yz::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);

@@ -36,6 +36,12 @@
 .Fl w Ar flowdir
 .Op Fl C Ar config
 .Op Fl z=<compress>
+.Op Fl j
+.Op Fl y
+.Op Fl l Ar flowdir
+.Op Fl T
+.Op Fl E
+.Op Fl Z
 .Op Fl D
 .Op Fl u Ar userid
 .Op Fl g Ar groupid
@@ -285,6 +291,22 @@ workers. See -W.
 Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
 workers. See -W.
+.It Fl j
+Legacy shorthand for
+.Fl z=bz2 .
+.It Fl y
+Legacy shorthand for
+.Fl z=lz4 .
+.It Fl l Ar flowdir
+Legacy alias for
+.Fl w Ar flowdir .
+.It Fl T
+Legacy option accepted and ignored.
+.It Fl E
+Deprecated debugging shorthand for
+.Fl v 3 .
+.It Fl Z
+Append the local time-zone offset to generated filenames.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.

@@ -63,6 +63,9 @@
 .Op Fl W Ar workers
 .Op Fl z=<compress>
 .Op Fl J Ar compress
+.Op Fl j
+.Op Fl y
+.Op Fl D
 .Op Fl X
 .Op Fl Z
 .Op Fl T
@@ -77,6 +80,8 @@ and
 .Ar sfcapd .
 It processes and lists the flows in many different output formats and can create a wide
 range of statistics.
+.Pp
+This manual describes nfdump 1.7.8.
 .Pp
 .Nm
 has a very powerful flow filter to process flows. The filter syntax is very similar
@@ -159,33 +164,33 @@ after all records processing, such as filtering, and aggregation and before prin
 .It Cm flows
 Sort according to the number of flows
 .It Cm packets
-Sort according to (in)packets
-.It Cm ipkg
-Same as packets
-.It Cm opkg
+Sort according to input plus output packets
+.It Cm ipackets
+Sort according to input packets
+.It Cm opackets
 Sort according to output packets
 .It Cm bytes
-Sort according to (in)bytes
-.It Cm ibyte
-Same as bytes
-.It Cm obyte
+Sort according to input plus output bytes
+.It Cm ibytes
+Sort according to input bytes
+.It Cm obytes
 Sort according to output bytes
 .It Cm pps
-Sort according to (in)packets per second
+Sort according to input plus output packets per second
 .It Cm ipps
-Same as ipps
+Sort according to input packets per second
 .It Cm opps
 Sort according to out packets per second
 .It Cm bps
-Sort according to (in)bytes per second
+Sort according to input plus output bits per second
 .It Cm ibps
-Same as bps
+Sort according to input bits per second
 .It Cm obps
 Sort according to output bytes per second
 .It Cm bpp
-Sort according to (in)bytes per packet
+Sort according to input plus output bytes per packet
 .It Cm ibpp
-Same as bpp
+Sort according to input bytes per packet
 .It Cm obpp
 Sort according to output packets
 .It Cm tstart
@@ -287,6 +292,12 @@ Source type of service
 Source type of Service
 .It Cm dsttos
 Destination type of Service
+.It Cm ethertype
+Ethernet type.
+.It Cm minttl
+Minimum IP TTL.
+.It Cm maxttl
+Maximum IP TTL.
 .It Cm flags
 TCP flags
 .It Cm mpls1
@@ -315,6 +326,10 @@ IP address of exporting router
 observation domain ID
 .It Cm opid
 observation point ID
+.It Cm srcgeo
+Source geographic location.
+.It Cm dstgeo
+Destination geographic location.
 .It Cm xsrcip
 X-late source IP address, if compiled with NSEL support
 .It Cm xdstip
@@ -487,10 +502,6 @@ input interface
 output interface
 .It Cm if
 any interface
-.It Cm inam
-input interface name
-.It Cm onam
-output interface name
 .It Cm srcmask
 src mask
 .It Cm dstmask
@@ -543,24 +554,44 @@ MPLS label 8
 MPLS label 9
 .It Cm mpls10
 MPLS label 10
-.It Cm sysid
-Internal SysID of exporter
 .It Cm nbar
 nbar ID
 .It Cm ja3
 ja3 hashes
+.It Cm ja4
+JA4 client fingerprints.
+.It Cm ja4s
+JA4 server fingerprints.
+.It Cm ethertype
+Ethernet type.
+.It Cm cl
+Client latency.
+.It Cm sl
+Server latency.
+.It Cm al
+Application latency.
+.It Cm minttl
+Minimum IP TTL.
+.It Cm maxttl
+Maximum IP TTL.
+.It Cm nextas
+BGP next AS.
+.It Cm prevas
+BGP previous AS.
+.It Cm mac
+Any MAC address.
+.It Cm flows , packets , ipkg , opkg , bytes , ibyte , obyte
+Record counters: flows; input/default and output packets; and input/default and output bytes.
+.It Cm pps , ipps , opps , bps , ibps , obps , bpp , ibpp , obpp
+Rates and sizes: input/default and output packets/s, bits/s, and bytes/packet.
 .It Cm odid
 observation domain ID
 .It Cm opid
 observation point ID
-.It Cm vrf/ivrf
+.It Cm ivrf
 ingress vrf
 .It Cm evrf
 egress vrf
-.It Cm ivrfnam
-ingress vrf name
-.It Cm evrfnam
-egress vrf name
 .It
 .Pp
 NSEL/ASA statistics
@@ -568,13 +599,15 @@ NSEL/ASA statistics
 NSEL/ASA event
 .It Cm xevent
 NSEL/ASA extended event
+.It Cm nat
+NAT event type.
 .It Cm natsrcip
 NSEL/ASA nat src IP address
 .It Cm natdstip
 NSEL/ASA nat dst IP address
 .It Cm natip
 NSEL/ASA nat src/dst IP addresses
-.It Cm nat srcport
+.It Cm natsrcport
 NSEL/ASA nat src port
 .It Cm natdstport
 NSEL/ASA nat dst port
@@ -582,31 +615,11 @@ NSEL/ASA nat dst port
 NSEL/ASA nat src/dst port
 .It Cm iacl
 NSEL/ASA ingress ACL
-.It Cm iace
-NSEL/ASA ingress ACE
-.It Cm ixace
-NSEL/ASA ingress xACE
 .It Cm eacl
 NSEL/ASA egress ACL
-.It Cm eace
-NSEL/ASA egress ACE
-.It Cm exace
-NSEL/ASA egress xACE
-.It
-.Pp
-NAT statistics
-.It Cm nevent
-NAT event
-.It Cm nsrcip
-NAT src IP address
-.It Cm nsrcport
-NAT src port
-.It Cm ndstip
-NAT dst IP address
-.It Cm ndstport
-NAT dst port
 .El
-.Pp Example:
+.Pp
+.Em Example:
 .Pp
 .Dl % nfdump -s srcip -s ip/flows/bytes -s record/bytes
 .Pp
@@ -628,7 +641,7 @@ Sets the output format to print flow records.
 .Pp
 .Bl -tag -width "extended " -compact
 .It Cm raw
-Print the full flow record on multiple lines. This prints all available information.
+Print the full flow record on multiple lines, including every available extension.
 .It Cm fmt: Ar user
 Print the flow records according the format
 .Ar user.
@@ -644,15 +657,16 @@ format. See the section
 .Sy OUTPUT
 below for more details on how to compile your own csv format.
 .It Cm json
-Print full record as a separate json object.
+Print all selected records as JSON objects in one JSON array.
 .It Cm ndjson
-Print full record as a one line json object, separated by newline. Suitable for log processors such as logstash.
+Print one complete JSON object per line, without an enclosing array. Suitable for log processors such as Logstash.
 .It Cm csv
-Print reocrd in csv format - format compatible to fmt
-.Sy line
-format. 
+Print the predefined comma-separated format corresponding to
+.Cm line .
 .It Cm csv-fast
-Replaces old pipe format. Basic record information only. Fast implementation.
+Print a compact predefined CSV representation for high-throughput consumers.
+.It Cm null
+Suppress flow-record output while retaining applicable summary/statistics output.
 .El
 .Pp
 Already predefined fmt formats:
@@ -684,7 +698,7 @@ Print each flow on one line with even more details.
 .It Cm nsel
 Print format for NSEL event records. Default format if NSEL/NAT
 support has been compiled in.
-.It Cm nel
+.It Cm nat
 Print format for NAT event records.
 .El
 .Pp
@@ -719,9 +733,17 @@ Print the exporter and sampler list if found in
 .Ar flowfile.
 Additional statistics per exporter are printed with number of flows, packets and sequence errors.
 .It Fl x Ar flowfile
-This options works on nfdump version 1.6.x files only and may get removed in future.
 Scans and prints extension maps located in
 .Ar flowfile
+.It Fl D
+Deprecated nameserver option.  It is accepted for compatibility and ignored;
+name resolution follows the system resolver configuration.
+.It Fl j
+Legacy shorthand for
+.Fl z=bz2 .
+.It Fl y
+Legacy shorthand for
+.Fl z=lz4 .
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
 .It Fl z=bz2
@@ -755,7 +777,7 @@ Change compression for any number of files given by option
 .Fl r Ar flowpath
 Set 
 .Ar compress
-to 0 for no compression or to any of: 1 or LZO, 2 or BZ2, 3 or LZ4. This option may be used
+to 0 for no compression or to any of: 1 or LZO, 2 or BZ2, 3 or LZ4, 4 or ZSTD. This option may be used
 for archiving flow files and changing the compression to use less disk space.
 .It Fl X
 Compiles the
@@ -845,6 +867,10 @@ Expands the content of
 .Ar file
 into the current filter
 .Pp
+.It Cm any
+Matches every flow record. It is useful as an explicit always-true term in a
+generated filter.
+.Pp
 .It Cm count Ar comp number
 True if the comparison with the record counter matches
 .Ar number
@@ -871,6 +897,14 @@ True if min or max IP ttl matches comparison.
 .Pp
 .It Cm ttl equal
 True if min and max IP ttl have the same value
+.Pp
+.It Cm etherType Ar number
+True if the Ethernet type field matches number.
+.Pp
+.It Cm fwdstat Ar status
+.It Cm fwdstat Ar comp number
+True if the forwarding-status field matches its numeric value or a supported
+status name.
 .Pp
 .It Cm proto Ar protocol
 True if the record protocol field matches
@@ -920,7 +954,7 @@ is just a synonym for
 (See above)
 .Pp
 .It Cm ip in Ar [ iplist ]
-.It Cm src in ip Ar [ iplist ]
+.It Cm src ip in Ar [ iplist ]
 .It Cm dst ip Ar [ iplist ]
 True if the respective IP field of the record is in
 .Ar iplist. iplist
@@ -1031,17 +1065,12 @@ True if the respective icmp field of the record matches
 This automatically implies
 .Cm proto icmp.
 .Pp
-.It Cm engine type Ar num
-.It Cm engine id Ar num
-.It Cm sysid Ar num
-True if the respective fields of the record matches
-.Ar num
-engine type and ID are set by the exporting device, sysid refers
-to the
-.Nm
-collector internal assigned number. See also option
-.Fl E
-above.
+.It Cm engine type Ar comp num
+.It Cm engine id Ar comp num
+True if the respective exporter engine field matches num (0 through 255).
+.It Cm exporter id Ar comp num
+.It Cm exporter sysid Ar comp num
+True if the collector exporter ID matches num (0 through 65535).
 .Pp
 .It Cm if Ar num
 .It Cm in if Ar num
@@ -1064,13 +1093,13 @@ the input or output interface may match.
 .It Cm prev as Ar comp num
 .It Cm next as Ar comp num
 True if the comparison of the respective AS fields matches
-.As num
+.Ar num
 .Nm
 supports 32-bit AS numbers every where.
 Without
-.CM src, dst, prev
+.Cm src, dst, prev
 or
-.CM next
+.Cm next
 the source or destination AS may match. See
 .Ar comp
 for the comparator details.
@@ -1341,7 +1370,8 @@ the "or" operator
 .Sy $
 anchors
 .It
-. match any single character
+.Sy \&.
+matches any single character
 .It
 .Sy [...]
 and
@@ -1437,7 +1467,7 @@ True, if the payload contains the start of a valid SSL/TLS handshake and the
 calculated ja4 value of the client TLS handshake matches
 .Ar ja4string
 .Pp
-.It Cm payload jas4 Ar ja4Sstring
+.It Cm payload ja4s Ar ja4Sstring
 True, if the payload contains the start of a valid SSL/TLS handshake and the
 calculated ja4 value of the server TLS handshake matches
 .Ar ja4Sstring
@@ -1452,6 +1482,9 @@ or a
 .Fl s
 .Sy ja3s
 statistic
+.Pp
+.It Cm payload ja4s defined
+True if a valid JA4 server fingerprint can be calculated from the payload.
 .Pp
 .It OpenBSD pflog implemented elements
 .Pp
@@ -1560,14 +1593,15 @@ or
 .Cm dst
 both IP addresses may match.
 .Pp
-.It Cm pblock start Ar comp number
-.It Cm pblock step Ar comp number
-.It Cm pblock end Ar comp number
+.It Cm nat pblock start Ar comp number
+.It Cm nat pblock step Ar comp number
+.It Cm nat pblock end Ar comp number
+.It Cm nat pblock size Ar comp number
 True if the comparison of the start, step or end of the NAT port block in the event record matches
 .Ar number
-.It Cm port in pblock
-.It Cm src port in pblock
-.It Cm dst port in pblock
+.It Cm port in nat pblock
+.It Cm src port in nat pblock
+.It Cm dst port in nat pblock
 True, if the source or destination port field matches the NAT port block range
 .Pp
 .It Cm ingress ACL Ar comp number
@@ -1580,9 +1614,21 @@ True if the comparison of the respective ingress field matches
 True if the comparison of the egress field matches
 .Ar number
 .Pp
+.It Cm egress ACE Ar comp number
+.It Cm egress XACE Ar comp number
+True if the comparison of the respective egress access-control entry field matches
+.Ar number.
+.Pp
 .It Cm ingress vrf Ar number
 True, if the field of the ingess vrf field of the event record matches
 .Ar number
+.Pp
+.It Cm egress vrf Ar number
+True if the egress VRF field matches number.
+.Pp
+.It Cm observation domain id Ar comp number
+.It Cm observation point id Ar comp number
+True if the observation-domain or observation-point ID matches number.
 .Pp
 .It Ar comp
 Many filter elements support the comparison with a number.
@@ -1719,6 +1765,8 @@ Time the flow was received, in fractional seconds
 Time GMT the flow was received by the collector
 .It Cm %td
 Duration of flow. Displayed in ddHHMMSS.msec
+.It Cm %tds
+Duration of flow in seconds.
 .It Cm %pr
 Transort protocol
 .It Cm %exp
@@ -1739,6 +1787,10 @@ Destination Address:Port
 Source Address(country code):Port
 .It Cm %gdap
 Destination Address(country code):Port
+.It Cm %gsa
+Source address annotated with geographic data.
+.It Cm %gda
+Destination address annotated with geographic data.
 .It Cm %sp
 Source Port
 .It Cm %dp
@@ -1775,6 +1827,10 @@ Previous AS
 Input Interface num
 .It Cm %out
 Output Interface num
+.It Cm %inam
+Input interface name.
+.It Cm %onam
+Output interface name.
 .It Cm %pkt
 Packets - default input
 .It Cm %ipkt
@@ -1799,6 +1855,10 @@ Src Tos
 Dst Tos
 .It Cm %dir
 Direction: ingress, egress
+.It Cm %bfd
+Bidirectional-flow direction.
+.It Cm %end
+Flow-end reason.
 .It Cm %smk
 Src mask
 .It Cm %dmk
@@ -1809,10 +1869,6 @@ Forwarding Status
 Src vlan label
 .It Cm %dvln
 Dst vlan label
-.It Cm %scvln
-Src customer vlan label
-.It Cm %dcvln
-Dst customer vlan label
 .It Cm %ismc
 Input Src Mac Addr
 .It Cm %odmc
@@ -1875,8 +1931,12 @@ output payload
 nbar ID
 .It Cm %ja3
 ja3 hash
+.It Cm %ja4
+JA4 fingerprint.
 .It Cm %sni
 sni name in tls handshake
+.It Cm %tls
+TLS version.
 .It Cm %nbnam
 nbar name
 .It Cm %odid
@@ -1901,10 +1961,10 @@ pflog rule nr
 NSEL connection ID
 .It Cm %evt
 NSEL event
+.It Cm %tevt
+NSEL/NAT event timestamp.
 .It Cm %xevt
 NSEL extended event
-.It Cm %sgt
-NSEL Source security group tag
 .It Cm %msec
 NSEL event time in msec
 .It Cm %iacl
@@ -1927,16 +1987,24 @@ Xlate Destination Address:Port
 NSEL user name
 .Pp
 .It NEL/NAT specific formats
-.It Cm %nevt
-NAT event - same as %evt
 .It Cm %ivrf
 NAT ingress VRF ID
+.It Cm %vrf
+Ingress VRF ID (compatibility alias for %ivrf).
+.It Cm %ivrfnam
+Ingress VRF name.
 .It Cm %evrf
 NAT egress VRF ID
+.It Cm %evrfnam
+Egress VRF name.
 .It Cm %nsa
 NAT src IP address
 .It Cm %nda
 NAT dst IP address
+.It Cm %nsap
+NAT translated source address and port.
+.It Cm %ndap
+NAT translated destination address and port.
 .It Cm %nsp
 NAT src port
 .It Cm %ndp
@@ -1965,12 +2033,18 @@ Client latency
 Server latency
 .It Cm %al
 Application latency
+.Pp
+.It Additional core tags
+.It Cm %eth
+Ethernet type.
+.It Cm %frag
+IP fragment flags.
 .El
 .Sh EXAMPLES
 .Nm
-processes files created by any previous version of nfdump 1.6.x with some limitations
-for versions < 1.6.17. In order to convert flow files to the new 1.7.x binary format
-use the following command to read//write files:
+processes files created by any previous version of nfdump 1.6.x with some
+limitations for versions earlier than 1.6.17. In order to convert flow files
+to the new 1.7.x binary format, use the following command to read/write files:
 .Pp
 .Dl % nfdump -r oldfile -w newfile
 .Pp
@@ -1993,7 +2067,7 @@ Print all flows in raw format with a HTTP header in the payload even if flow is 
 .Pp
 Print a statistic about all ja3 md5 sums for those flows, which a valid ja3 can be calculated
 .Pp
-.Dl % nfdump -r flowfile -s ja5 -n 0 'payload ja3 defined'
+.Dl % nfdump -r flowfile -s ja3 -n 0 'payload ja3 defined'
 .Pp
 Aggregate all flows and write the result back to a binary file, sorted by the start time
 .Pp

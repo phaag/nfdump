@@ -36,6 +36,11 @@
 .Fl r Ar path
 .Op Fl w Ar nffile
 .Fl K Ar key
+.Op Fl C Ar config
+.Op Fl s
+.Op Fl d
+.Op Fl q
+.Op Fl t Ar num
 .Op Fl v Ar level
 .Op Fl W
 .Op Fl h
@@ -81,6 +86,21 @@ Set the number of worker threads. The default depends on the number of cores onl
 The value must not exceed the number of online CPU cores.
 
 Worker threads are used to anonymize flow records in parallel.
+.It Fl C Ar config
+Read configuration from config; use
+.Sy none
+to suppress configuration-file loading.
+.It Fl s
+Preserve source addresses rather than anonymising them.
+.It Fl d
+Preserve destination addresses rather than anonymising them.
+.It Fl q
+Deprecated compatibility option; it is rejected. Use
+.Fl v 0
+for quiet logging.
+.It Fl t Ar num
+Legacy alias for
+.Fl W Ar num .
 .It Fl h
 Print help text to stdout and exit.
 .El

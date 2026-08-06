@@ -95,11 +95,12 @@ static void usage(char *name) {
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-s\t\tPreserve source address.\n"
         "-d\t\tPreserve destination address.\n"
-        "-q\t\tDo not print progress spinnen and filenames.\n"
+        "-q\t\tDeprecated; use -v 0 to suppress progress output.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
         "-v level\tSet verbose level.\n"
         "-w <file>\tName of output file. Defaults to input file.\n"
-        "-W <num>\tOptionally set the number of workers to compress flows\n",
+        "-W <num>\tOptionally set the number of workers to compress flows\n"
+        "-t <num>\tLegacy alias for -W <num>.\n",
         name);
 } /* usage */
 
