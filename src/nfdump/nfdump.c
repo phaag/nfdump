@@ -588,6 +588,7 @@ static void *filterThread(void *arg) {
     dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, processedRecords);
 
     free(recordHandle);
+    DisposeFilter(engine);
     pthread_exit(NULL);
 }  // End of filterThread
 

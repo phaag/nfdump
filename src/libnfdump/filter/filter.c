@@ -52,8 +52,8 @@
 #include "ja4/ja4.h"
 #include "logging.h"
 #include "maxmind/maxmind.h"
+#include "nfregex.h"
 #include "nfxV4.h"
-#include "sgregex.h"
 #include "tor/tor.h"
 #include "util.h"
 
@@ -1740,10 +1740,10 @@ L_PAYLOAD: {
 }
 
 L_REGEX: {
-    const srx_Context *prog2 = (const srx_Context *)(uintptr_t)inst->aux;
+    const void *prog2 = (const void *)(uintptr_t)inst->aux;
     const EXPayload_t *payload = (const EXPayload_t *)(handle->extensionList[inst->extID]);
     if (__builtin_expect(!payload || !prog2, 0)) NEXT(0);
-    NEXT(srx_MatchExt((srx_Context *)(uintptr_t)prog2, (rxChar *)payload->payload, payload->size, 0) != 0);
+    NEXT(MatchRegex(prog2, (const char *)payload->payload, payload->size, engine->regexContext));
 }
 
     /* ── geo lookup ──────────────────────────────────────────────────── */
@@ -1967,10 +1967,10 @@ L_PREP_REGEX: {
         data_t _d = {.dataVal = inst->dataVal};
         preprocess_map[inst->extID].function(inst->length, _d, handle, (filterOption_t)inst->option);
     }
-    srx_Context *prog2 = (srx_Context *)(uintptr_t)inst->aux;
+    const void *prog2 = (const void *)(uintptr_t)inst->aux;
     const EXPayload_t *payload = (const EXPayload_t *)_ext;
     if (!prog2 || !payload) NEXT(0);
-    NEXT(srx_MatchExt(prog2, (rxChar *)payload->payload, payload->size, 0) != 0);
+    NEXT(MatchRegex(prog2, (const char *)payload->payload, payload->size, engine->regexContext));
 }
 
 #undef NEXT
@@ -1988,8 +1988,8 @@ void FilterSetParam(void *engine, const char *ident, const unsigned hasGeoDB) {
 }  // End of FilterSetParam
 
 /*
- * Clone engine for a worker thread.  prog[] is shared (immutable after compile).
- * ident is strdup'd so each thread has its own copy.
+ * Clone engine for a worker thread. prog[] is shared and immutable; each clone
+ * receives independent regex match scratch space.
  */
 void *FilterCloneEngine(void *engine) {
     FilterEngine_t *filterEngine = malloc(sizeof(FilterEngine_t));
@@ -1998,7 +1998,8 @@ void *FilterCloneEngine(void *engine) {
         return NULL;
     }
     memcpy((void *)filterEngine, engine, sizeof(FilterEngine_t));
-    if (filterEngine->ident) filterEngine->ident = strdup(filterEngine->ident);
+    filterEngine->regexContext = CreateRegexMatchContext();
+    filterEngine->ownsProgram = false;
     return (void *)filterEngine;
 }  // End of FilterCloneEngine
 
@@ -2094,6 +2095,8 @@ void *CompileFilter(char *FilterSyntax) {
         .hasGeoDB = 0,
         .ident = "none",
         .blockConstraint = blockConstraint,
+        .regexContext = CreateRegexMatchContext(),
+        .ownsProgram = true,
     };
 
     dbg_printf("Engine: bytecode %u instructions, startNode %u\n", progLen, startNode);
@@ -2102,15 +2105,14 @@ void *CompileFilter(char *FilterSyntax) {
 }  // End of CompileFilter
 
 void DisposeFilter(void *engine) {
-    /* NOTE: prog is shared with all FilterCloneEngine() copies.
-     * Free prog only from the owning (original) engine; clones call
-     * DisposeFilter with their own shell only.  Since the current usage
-     * never disposes clones while the original is still alive, and the
-     * engine lives for the program lifetime, we free prog here.
-     * A refcount can be added if dynamic filter reload is needed. */
+    /* prog is shared with all FilterCloneEngine() copies. A clone owns only
+     * its shell and regex scratch context; the original owns prog and all of
+     * its auxiliary objects. Workers dispose their clones before the original
+     * filter engine is released. */
     if (!engine) return;
     FilterEngine_t *fe = (FilterEngine_t *)engine;
-    if (fe->prog) {
+    FreeRegexMatchContext(fe->regexContext);
+    if (fe->ownsProgram && fe->prog) {
         /* Walk instructions and free auxiliary data owned by the prog.
          * IPSet_t* and U64Set_t* may be shared between instructions (when
          * grammar expanded a list into multiple nodes).  Null the aux after
@@ -2161,7 +2163,7 @@ void DisposeFilter(void *engine) {
                 case FOP_REGEX:
                 case FOP_PREP_REGEX:
                     if (inst->aux) {
-                        srx_Destroy((srx_Context *)(uintptr_t)inst->aux);
+                        FreeRegex((void *)(uintptr_t)inst->aux);
                         uintptr_t p = inst->aux;
                         inst->aux = 0;
                         for (uint32_t j = i + 1; j < fe->progLen; j++)

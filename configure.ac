@@ -217,6 +217,19 @@ AX_CHECK_LIB_GENERIC([BZ2], [bzlib.h], [bz2],
   [AC_MSG_WARN([Bzip2 not found; disabling bz2])]
 )
 
+# --- PCRE2 (optional, enables the payload regex filter) ---
+# pcre2.h refuses to compile unless PCRE2_CODE_UNIT_WIDTH is defined first;
+# inject it only for this detection (the manual AC_CHECK_HEADER/AC_CHECK_LIB
+# fallback path has no other way to pass it). Actual sources define it
+# themselves before including pcre2.h.
+save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS -DPCRE2_CODE_UNIT_WIDTH=8"
+AX_CHECK_LIB_GENERIC([PCRE2], [pcre2.h], [pcre2-8],
+  [AC_MSG_NOTICE([Found PCRE2 - payload regex filter enabled])],
+  [AC_MSG_WARN([PCRE2 not found; payload regex filter disabled - compiling a 'payload regex' filter will fail])]
+)
+CPPFLAGS="$save_CPPFLAGS"
+
 # --- libsodium (optional, enables ChaCha20-Poly1305 block encryption) ---
 AX_CHECK_LIB_GENERIC([LIBSODIUM], [sodium.h], [sodium],
   [AC_MSG_NOTICE([Found libsodium — encryption enabled])
@@ -366,11 +379,12 @@ echo "  CC                 = $CC"
 echo "  CFLAGS             = $CFLAGS"
 echo "  CPPFLAGS           = $CPPFLAGS"
 echo "  LDFLAGS            = $LDFLAGS"
-echo "  LIBS               = $LIBS $LZ4_LIBS $ZSTD_LIBS $BZ2_LIBS $RRD_LIBS $FT_LIBS"
+echo "  LIBS               = $LIBS $LZ4_LIBS $ZSTD_LIBS $BZ2_LIBS $RRD_LIBS $FT_LIBS $PCRE2_LIBS"
 echo "  Which lz4 code     = $which_lz4"
 echo "  Enable libbz2      = $HAVE_BZ2"
 echo "  Enable libzstd     = $HAVE_ZSTD"
 echo "  With libsodium     = $HAVE_LIBSODIUM"
+echo "  With PCRE2 regex   = $HAVE_PCRE2"
 echo "  Enable ja4         = $enable_ja4"
 echo "  Enable read pcap   = $enable_readpcap"
 echo "  Build nfpcapd      = $enable_nfpcapd - with gzip pcap-reader: $readzpcap"

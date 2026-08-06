@@ -27,7 +27,7 @@ AC_DEFUN([AX_CHECK_LIB_GENERIC],
   ])
 
   dnl 2. pkg-config
-  AS_IF([test "x$HAVE_$1" = "xno"], [
+  AS_IF([test "x$HAVE_$1" = "xno" -a "x$with_[]tag_lc" != "xno"], [
     PKG_CHECK_MODULES([$1], [lib$3], [
       HAVE_$1=yes
     ], [
@@ -36,7 +36,7 @@ AC_DEFUN([AX_CHECK_LIB_GENERIC],
   ])
 
   dnl 3. Manual fallback
-  AS_IF([test "x$HAVE_$1" = "xno"], [
+  AS_IF([test "x$HAVE_$1" = "xno" -a "x$with_[]tag_lc" != "xno"], [
 
     save_CPPFLAGS="$CPPFLAGS"
     save_LDFLAGS="$LDFLAGS"

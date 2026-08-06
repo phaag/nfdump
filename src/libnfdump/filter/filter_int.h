@@ -41,6 +41,7 @@
 #include <stdint.h>
 
 #include "filter.h" /* comparator_t, filterFunction_t, data_t, blockConstraint_t, … */
+#include "nfregex.h"
 
 #define MAXBLOCKS 1024
 
@@ -75,7 +76,7 @@ typedef struct filterElement {
  *  onTrue    program index to jump to when result == 1  (0 = ACCEPT)
  *  onFalse   program index to jump to when result == 0  (1 = REJECT)
  *  value     comparison value or pre-masked network address
- *  aux       data pointer: IPSet_t*, U64Set_t*, char*, srx_Context*, …
+ *  aux       data pointer: IPSet_t*, U64Set_t*, char*, pcre2_code* (via nfregex), …
  *            – OR –
  *  dataVal   auxiliary integer: subnet mask, geo direction, fn data.dataVal
  *            (aux and dataVal are in a union; no op uses both)
@@ -102,7 +103,8 @@ typedef struct filterInstr_s {
  * runtime engine
  * prog[] is immutable after CompileFilter() and shared between the original
  * and all FilterCloneEngine() copies (thread-safe).
- * Only ident is per-clone (strdup'd).
+ * Each clone owns its regex scratch context. prog[] and its auxiliary objects
+ * belong to the original engine and are never freed by a clone.
  */
 typedef struct FilterEngine_s {
     filterInstr_t *prog;  // bytecode program – shared, read-only
@@ -111,6 +113,8 @@ typedef struct FilterEngine_s {
     int hasGeoDB;
     const char *ident;
     blockConstraint_t blockConstraint;  // derived block-level pre-filter
+    RegexMatchContext_t *regexContext;  // per-engine mutable PCRE2 scratch space
+    bool ownsProgram;                   // true only for the original engine
 } FilterEngine_t;
 
 // module globals defined in filter.c

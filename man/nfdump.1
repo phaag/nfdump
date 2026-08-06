@@ -1422,25 +1422,32 @@ True if
 .Ar regex
 matches the payload data.
 .Cm regex
-searches over the full payload length. A '\0' byte does not stop the match process.
+searches over the full payload length. A NUL byte does not stop the match process,
+as the payload is matched by its known length, not as a NUL-terminated string.
 .Ar regex
 must be quoted with single or double quotes: 'regex' or
 .Dq regex
-The regex engine understands the following reduced syntax:
+.Pp
+Matching is done with the
+.Lk https://www.pcre.org PCRE2
+library and therefore understands full Perl-compatible regular expression
+syntax, including but not limited to:
 .Pp
 .Bl -item -offset indent -compact
 .It
 .Sy (...)
-subexpressions/capture ranges
+and
+.Sy (?:...)
+capturing and non-capturing subexpressions
 .It
-.Sy |
+.Sy \(ba
 the "or" operator
 .It
 .Sy ^ and
 .Sy $
 anchors
 .It
-. match any single character
+\&. match any single character
 .It
 .Sy [...]
 and
@@ -1456,33 +1463,47 @@ lazy quantifiers
 .Sy {<num>}, {<num1>,<num2>}
 complex quantifiers
 .It
-.Sy \ed
-numeric character
-.It
-.Sy \ew
-alpha numeric character
+.Sy \ed , \ew , \es
+numeric, alpha-numeric and whitespace character classes
 .It
 .Sy \er
-carrige return
+carriage return
 .It
 .Sy \en
 new line
 .It
+.Sy \exHH , \ex{H...}
+match a raw byte / codepoint by its hex value - the way to match
+non-printable or binary payload content
 .El
 .Pp
+See
+.Lk https://www.pcre.org/current/doc/html/pcre2syntax.html
+for the complete, authoritative syntax reference.
+.Pp
 .Ar flags
-are optional can be:
+are optional and can be:
 .Bl -item -offset indent -compact
 .It
 .Sy m
-multiline
+multiline: '^' and '$' also match right after/before an embedded newline
 .It
 .Sy i
 case insensitive matching
 .It
 .Sy s
-dot '.' includes newlines
+dot '.' also matches newlines
 .El
+.Pp
+.Cm payload regex
+requires nfdump to have been built with PCRE2 support -
+.Ic nfdump -V
+lists
+.Sy PCRE2
+among its build options when it was.
+If nfdump was built without PCRE2, a filter using
+.Cm payload regex
+fails to compile - it never silently falls back to a different, weaker matcher.
 .Pp
 .It Cm payload dns defined
 True, if the payload decodes to a valid dns query/answer. Implies src or dst port 53

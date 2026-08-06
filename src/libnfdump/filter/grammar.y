@@ -50,7 +50,7 @@
 #include "userio.h"
 #include "nfxV4.h"
 #include "ipconv.h"
-#include "sgregex.h"
+#include "nfregex.h"
 #include "ja3/ja3.h"
 #include "dns/dns.h"
 #include "ja4/ja4.h"
@@ -1443,11 +1443,11 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 				NewElement(EXoutPayloadID, 0, 0, 0, CMP_PAYLOAD, FUNC_NONE, data)
 			);
 	} else if (strcasecmp(type, "regex") == 0) {
-		int err[2];
 		char *regexArg = opt ? opt : "";
-		srx_Context *program = srx_CreateExt(arg, strlen(arg), regexArg, err, NULL, NULL);
+		char errBuf[128];
+		void *program = CompileRegex(arg, regexArg, errBuf, sizeof(errBuf));
 		if ( !program ) {
-			yyprintf("failed to compile regex: %s", arg);
+			yyprintf("failed to compile regex '%s': %s", arg, errBuf);
 			return -1;
 		}
 		data_t data = {.dataPtr = program};
