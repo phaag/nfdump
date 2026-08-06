@@ -80,13 +80,13 @@ typedef struct rxSubexpr {
 
 typedef struct rxCompiler {
     srx_MemFunc memfn;
-    void* memctx;
+    void *memctx;
 
-    rxInstr* instrs;
+    rxInstr *instrs;
     size_t instrs_count;
     size_t instrs_mem;
 
-    rxChar* chars;
+    rxChar *chars;
     size_t chars_count;
     size_t chars_mem;
 
@@ -105,22 +105,22 @@ typedef struct rxCompiler {
 
 struct rxExecute {
     srx_MemFunc memfn;
-    void* memctx;
+    void *memctx;
 
     /* compiled program */
-    rxInstr* instrs; /* instruction data (opcodes and fixed-length arguments) */
-    rxChar* chars;   /* character data (ranges and plain sequences for opcodes) */
+    rxInstr *instrs; /* instruction data (opcodes and fixed-length arguments) */
+    rxChar *chars;   /* character data (ranges and plain sequences for opcodes) */
     uint8_t flags;
     uint8_t capture_count;
 
     /* runtime data */
-    rxState* states;
+    rxState *states;
     size_t states_count;
     size_t states_mem;
-    uint32_t* iternum;
+    uint32_t *iternum;
     size_t iternum_count;
     size_t iternum_mem;
-    const rxChar* str;
+    const rxChar *str;
     uint32_t captures[RX_MAX_CAPTURES][2];
 };
 typedef struct rxExecute rxExecute;
@@ -143,7 +143,7 @@ static rxChar rxSwapCase(rxChar c) {
     return c;
 }
 
-static int rxMemCaseEq(const rxChar* a, const rxChar* b, size_t sz) {
+static int rxMemCaseEq(const rxChar *a, const rxChar *b, size_t sz) {
     size_t i;
     for (i = 0; i < sz; ++i) {
         if (rxToLower(a[i]) != rxToLower(b[i])) return 0;
@@ -151,9 +151,9 @@ static int rxMemCaseEq(const rxChar* a, const rxChar* b, size_t sz) {
     return 1;
 }
 
-static int rxMatchCharset(const rxChar* ch, const rxChar* charset, size_t cslen, int ignore_case) {
-    const rxChar* cc = charset;
-    const rxChar* charset_end = charset + cslen;
+static int rxMatchCharset(const rxChar *ch, const rxChar *charset, size_t cslen, int ignore_case) {
+    const rxChar *cc = charset;
+    const rxChar *charset_end = charset + cslen;
     if (ignore_case) {
         while (cc != charset_end) {
             rxChar occ = rxSwapCase(*ch);
@@ -170,9 +170,9 @@ static int rxMatchCharset(const rxChar* ch, const rxChar* charset, size_t cslen,
     return 0;
 }
 
-static void rxDumpToFile(rxInstr* instrs, rxChar* chars, FILE* fp) {
+static void rxDumpToFile(rxInstr *instrs, rxChar *chars, FILE *fp) {
     size_t i;
-    rxInstr* ip = instrs;
+    rxInstr *ip = instrs;
     fprintf(fp, "instructions\n{\n");
     for (;;) {
         fprintf(fp, "  [%03u] ", (unsigned)(ip - instrs));
@@ -249,7 +249,7 @@ static void rxDumpToFile(rxInstr* instrs, rxChar* chars, FILE* fp) {
     fprintf(fp, "}\n");
 }
 
-static void rxInitCompiler(rxCompiler* c, srx_MemFunc memfn, void* memctx) {
+static void rxInitCompiler(rxCompiler *c, srx_MemFunc memfn, void *memctx) {
     c->memfn = memfn;
     c->memctx = memctx;
 
@@ -273,7 +273,7 @@ static void rxInitCompiler(rxCompiler* c, srx_MemFunc memfn, void* memctx) {
     c->subexprs[0].capture_slot = 0;
 }
 
-static void rxFreeCompiler(rxCompiler* c) {
+static void rxFreeCompiler(rxCompiler *c) {
     if (c->instrs) {
         c->memfn(c->memctx, c->instrs, 0);
         c->instrs = NULL;
@@ -284,7 +284,7 @@ static void rxFreeCompiler(rxCompiler* c) {
     }
 }
 
-static void rxFixLastInstr(rxCompiler* c) {
+static void rxFixLastInstr(rxCompiler *c) {
     if (c->instrs_count >= 2 && RX_LAST_INSTR(c).op == RX_OP_MATCH_STRING && c->instrs[c->instrs_count - 2].op == RX_OP_MATCH_STRING) {
         /* already have 2 string values, about to change repeat target */
         c->instrs[c->instrs_count - 2].len++;
@@ -292,10 +292,10 @@ static void rxFixLastInstr(rxCompiler* c) {
     }
 }
 
-static void rxInstrReserveSpace(rxCompiler* c) {
+static void rxInstrReserveSpace(rxCompiler *c) {
     if (c->instrs_count == c->instrs_mem) {
         size_t ncnt = c->instrs_mem * 2 + 16;
-        rxInstr* ni = (rxInstr*)c->memfn(c->memctx, c->instrs, sizeof(*ni) * ncnt);
+        rxInstr *ni = (rxInstr *)c->memfn(c->memctx, c->instrs, sizeof(*ni) * ncnt);
         c->instrs = ni;
         c->instrs_mem = ncnt;
     }
@@ -303,7 +303,7 @@ static void rxInstrReserveSpace(rxCompiler* c) {
 
 #define RX_INSTR_REFS_OTHER(op) ((op) == RX_OP_REPEAT_GREEDY || (op) == RX_OP_REPEAT_LAZY || (op) == RX_OP_JUMP || (op) == RX_OP_BACKTRK_JUMP)
 
-static void rxInsertInstr(rxCompiler* c, uint32_t pos, uint32_t op, uint32_t start, uint32_t from, uint32_t len) {
+static void rxInsertInstr(rxCompiler *c, uint32_t pos, uint32_t op, uint32_t start, uint32_t from, uint32_t len) {
     size_t i;
     rxInstr I;
     {
@@ -326,7 +326,7 @@ static void rxInsertInstr(rxCompiler* c, uint32_t pos, uint32_t op, uint32_t sta
     c->instrs[pos] = I; /* assume 'start' is pre-adjusted */
 }
 
-static void rxPushInstr(rxCompiler* c, uint32_t op, uint32_t start, uint32_t from, uint32_t len) {
+static void rxPushInstr(rxCompiler *c, uint32_t op, uint32_t start, uint32_t from, uint32_t len) {
     rxInstr I;
     {
         I.op = op & 0xf;
@@ -340,27 +340,27 @@ static void rxPushInstr(rxCompiler* c, uint32_t op, uint32_t start, uint32_t fro
     c->instrs[c->instrs_count++] = I;
 }
 
-static void rxReserveChars(rxCompiler* c, size_t num) {
+static void rxReserveChars(rxCompiler *c, size_t num) {
     if (c->chars_count + num > c->chars_mem) {
         size_t ncnt = c->chars_mem * 2 + num;
-        rxChar* nc = (rxChar*)c->memfn(c->memctx, c->chars, sizeof(*nc) * ncnt);
+        rxChar *nc = (rxChar *)c->memfn(c->memctx, c->chars, sizeof(*nc) * ncnt);
         c->chars = nc;
         c->chars_mem = ncnt;
     }
 }
 
-static void rxPushChars(rxCompiler* c, const rxChar* str, size_t len) {
+static void rxPushChars(rxCompiler *c, const rxChar *str, size_t len) {
     rxReserveChars(c, len);
     memcpy(c->chars + c->chars_count, str, sizeof(*str) * len);
     c->chars_count += len;
 }
 
-static void rxPushChar(rxCompiler* c, rxChar ch) {
+static void rxPushChar(rxCompiler *c, rxChar ch) {
     rxReserveChars(c, 1);
     c->chars[c->chars_count++] = ch;
 }
 
-static uint32_t rxPushCharClassData(rxCompiler* c, rxChar cch) {
+static uint32_t rxPushCharClassData(rxCompiler *c, rxChar cch) {
     uint32_t cc = c->chars_count;
     switch (cch) {
         case 'd':
@@ -388,10 +388,10 @@ static uint32_t rxPushCharClassData(rxCompiler* c, rxChar cch) {
     return c->chars_count - cc;
 }
 
-static void rxCompile(rxCompiler* c, const rxChar* str, size_t strsize) {
+static void rxCompile(rxCompiler *c, const rxChar *str, size_t strsize) {
     int empty = 1;
-    const rxChar* s = str;
-    const rxChar* strend = str + strsize;
+    const rxChar *s = str;
+    const rxChar *strend = str + strsize;
 
 #define RX_SAFE_INCR(s)            \
     if (++(s) == strend) {         \
@@ -407,7 +407,7 @@ static void rxCompile(rxCompiler* c, const rxChar* str, size_t strsize) {
     while (s != strend) {
         switch (*s) {
             case '[': {
-                const rxChar* sc;
+                const rxChar *sc;
                 uint32_t op = RX_OP_MATCH_CHARSET;
                 uint32_t start = c->chars_count;
 
@@ -704,7 +704,7 @@ over_limit:
     return;
 }
 
-static void rxResetCaptures(rxExecute* e) {
+static void rxResetCaptures(rxExecute *e) {
     int i;
     for (i = 0; i < RX_MAX_CAPTURES; ++i) {
         e->captures[i][0] = RX_NULL_OFFSET;
@@ -712,7 +712,7 @@ static void rxResetCaptures(rxExecute* e) {
     }
 }
 
-static void rxInitExecute(rxExecute* e, srx_MemFunc memfn, void* memctx, rxInstr* instrs, rxChar* chars) {
+static void rxInitExecute(rxExecute *e, srx_MemFunc memfn, void *memctx, rxInstr *instrs, rxChar *chars) {
     e->memfn = memfn;
     e->memctx = memctx;
 
@@ -731,7 +731,7 @@ static void rxInitExecute(rxExecute* e, srx_MemFunc memfn, void* memctx, rxInstr
     rxResetCaptures(e);
 }
 
-static void rxFreeExecute(rxExecute* e) {
+static void rxFreeExecute(rxExecute *e) {
     if (e->instrs) {
         e->memfn(e->memctx, e->instrs, 0);
         e->instrs = NULL;
@@ -750,12 +750,12 @@ static void rxFreeExecute(rxExecute* e) {
     }
 }
 
-static void rxPushState(rxExecute* e, uint32_t off, uint32_t instr) {
-    rxState* out;
+static void rxPushState(rxExecute *e, uint32_t off, uint32_t instr) {
+    rxState *out;
 
     if (e->states_count == e->states_mem) {
         size_t ncnt = e->states_mem * 2 + 16;
-        rxState* ns = (rxState*)e->memfn(e->memctx, e->states, sizeof(*ns) * ncnt);
+        rxState *ns = (rxState *)e->memfn(e->memctx, e->states, sizeof(*ns) * ncnt);
         e->states = ns;
         e->states_mem = ncnt;
     }
@@ -767,10 +767,10 @@ static void rxPushState(rxExecute* e, uint32_t off, uint32_t instr) {
     out->numiters = 0; /* iteration count is only set from stack */
 }
 
-static void rxPushIterCnt(rxExecute* e, uint32_t it) {
+static void rxPushIterCnt(rxExecute *e, uint32_t it) {
     if (e->iternum_count == e->iternum_mem) {
         size_t ncnt = e->iternum_mem * 2 + 16;
-        uint32_t* ni = (uint32_t*)e->memfn(e->memctx, e->iternum, sizeof(*ni) * ncnt);
+        uint32_t *ni = (uint32_t *)e->memfn(e->memctx, e->iternum, sizeof(*ni) * ncnt);
         e->iternum = ni;
         e->iternum_mem = ncnt;
     }
@@ -786,16 +786,16 @@ static void rxPushIterCnt(rxExecute* e, uint32_t it) {
 #define RX_POP_ITER_CNT(e) assert((e)->iternum_count-- < 0xffffffff)
 #endif
 
-static int rxExecDo(rxExecute* e, const rxChar* str, const rxChar* soff, size_t str_size) {
-    const rxInstr* instrs = e->instrs;
-    const rxChar* chars = e->chars;
+static int rxExecDo(rxExecute *e, const rxChar *str, const rxChar *soff, size_t str_size) {
+    const rxInstr *instrs = e->instrs;
+    const rxChar *chars = e->chars;
 
     rxPushState(e, (uint32_t)(soff - str), 0);
 
     while (e->states_count) {
         int match;
-        rxState* s = &RX_LAST_STATE(e);
-        const rxInstr* op = &instrs[s->instr];
+        rxState *s = &RX_LAST_STATE(e);
+        const rxInstr *op = &instrs[s->instr];
 
         RX_LOG(printf("[%d]", s->instr));
         switch (op->op) {
@@ -999,16 +999,16 @@ static int rxExecDo(rxExecute* e, const rxChar* str, const rxChar* soff, size_t 
     return 0;
 }
 
-srx_Context* srx_CreateExt(const rxChar* str, size_t strsize, const rxChar* mods, int* errnpos, srx_MemFunc memfn, void* memctx) {
+srx_Context *srx_CreateExt(const rxChar *str, size_t strsize, const rxChar *mods, int *errnpos, srx_MemFunc memfn, void *memctx) {
     rxCompiler c;
-    srx_Context* R = NULL;
+    srx_Context *R = NULL;
 
     if (!memfn) memfn = srx_DefaultMemFunc;
 
     rxInitCompiler(&c, memfn, memctx);
 
     if (mods) {
-        const rxChar* modbegin = mods;
+        const rxChar *modbegin = mods;
         while (*mods) {
             switch (*mods) {
                 case 'm':
@@ -1033,7 +1033,7 @@ srx_Context* srx_CreateExt(const rxChar* str, size_t strsize, const rxChar* mods
     if (c.errcode != RXSUCCESS) goto fail;
 
     /* create context */
-    R = (rxExecute*)memfn(memctx, NULL, sizeof(rxExecute));
+    R = (rxExecute *)memfn(memctx, NULL, sizeof(rxExecute));
     rxInitExecute(R, memfn, memctx, c.instrs, c.chars);
     R->flags = c.flags;
     R->capture_count = c.capture_count;
@@ -1052,25 +1052,42 @@ fail:
     return R;
 }
 
-void srx_Destroy(srx_Context* R) {
+void srx_Destroy(srx_Context *R) {
     srx_MemFunc memfn = R->memfn;
-    void* memctx = R->memctx;
+    void *memctx = R->memctx;
     rxFreeExecute(R);
     memfn(memctx, R, 0);
 }
 
-void srx_DumpToFile(srx_Context* R, FILE* fp) { rxDumpToFile(R->instrs, R->chars, fp); }
+void srx_DumpToFile(srx_Context *R, FILE *fp) { rxDumpToFile(R->instrs, R->chars, fp); }
 
-int srx_MatchExt(srx_Context* R, const rxChar* str, size_t size, size_t offset) {
-    const rxChar* strstart = str;
-    const rxChar* strend = str + size;
+/* Free only the per-call scratch buffers (states/iternum) of a stack-local
+ * execute context - NOT instrs/chars, which are shared with (owned by) the
+ * persistent, compiled srx_Context and must survive across matches. */
+static void rxFreeScratch(rxExecute *e) {
+    if (e->states) {
+        e->memfn(e->memctx, e->states, 0);
+        e->states = NULL;
+        e->states_count = 0;
+        e->states_mem = 0;
+    }
+    if (e->iternum) {
+        e->memfn(e->memctx, e->iternum, 0);
+        e->iternum = NULL;
+        e->iternum_count = 0;
+        e->iternum_mem = 0;
+    }
+}
+
+int srx_MatchExt(srx_Context *R, const rxChar *str, size_t size, size_t offset) {
+    const rxChar *strstart = str;
+    const rxChar *strend = str + size;
     if (offset > size) return 0;
 
     // need thread local context
     srx_Context srxc;
-    memcpy((void*)&srxc, R, sizeof(srx_Context));
+    memcpy((void *)&srxc, R, sizeof(srx_Context));
     R = &srxc;
-
     R->str = strstart;
     str += offset;
     rxResetCaptures(R);
@@ -1078,16 +1095,18 @@ int srx_MatchExt(srx_Context* R, const rxChar* str, size_t size, size_t offset) 
         if (rxExecDo(R, strstart, str, size)) {
             assert(R->captures[0][0] != RX_NULL_OFFSET);
             assert(R->captures[0][1] != RX_NULL_OFFSET);
+            rxFreeScratch(R);
             return 1;
         }
         str++;
     }
+    rxFreeScratch(R);
     return 0;
 }
 
-int srx_GetCaptureCount(srx_Context* R) { return R->capture_count; }
+int srx_GetCaptureCount(srx_Context *R) { return R->capture_count; }
 
-int srx_GetCaptured(srx_Context* R, int which, size_t* pbeg, size_t* pend) {
+int srx_GetCaptured(srx_Context *R, int which, size_t *pbeg, size_t *pend) {
     if (which < 0 || which >= R->capture_count) return 0;
     if (R->captures[which][0] == RX_NULL_OFFSET || R->captures[which][1] == RX_NULL_OFFSET) return 0;
     if (pbeg) *pbeg = R->captures[which][0];
@@ -1095,7 +1114,7 @@ int srx_GetCaptured(srx_Context* R, int which, size_t* pbeg, size_t* pend) {
     return 1;
 }
 
-int srx_GetCapturedPtrs(srx_Context* R, int which, const rxChar** pbeg, const rxChar** pend) {
+int srx_GetCapturedPtrs(srx_Context *R, int which, const rxChar **pbeg, const rxChar **pend) {
     size_t a, b;
     if (srx_GetCaptured(R, which, &a, &b)) {
         if (pbeg) *pbeg = R->str + a;
@@ -1105,16 +1124,16 @@ int srx_GetCapturedPtrs(srx_Context* R, int which, const rxChar** pbeg, const rx
     return 0;
 }
 
-rxChar* srx_ReplaceExt(srx_Context* R, const rxChar* str, size_t strsize, const rxChar* rep, size_t repsize, size_t* outsize) {
-    rxChar* out = "";
+rxChar *srx_ReplaceExt(srx_Context *R, const rxChar *str, size_t strsize, const rxChar *rep, size_t repsize, size_t *outsize) {
+    rxChar *out = "";
     const rxChar *from = str, *fromend = str + strsize, *repend = rep + repsize;
     size_t size = 0, mem = 0;
 
-#define SR_CHKSZ(szext)                                                             \
-    if ((ptrdiff_t)(mem - size) < (ptrdiff_t)(szext)) {                             \
-        size_t nsz = mem * 2 + (size_t)(szext);                                     \
-        out = (rxChar*)R->memfn(R->memctx, mem ? out : NULL, sizeof(rxChar) * nsz); \
-        mem = nsz;                                                                  \
+#define SR_CHKSZ(szext)                                                              \
+    if ((ptrdiff_t)(mem - size) < (ptrdiff_t)(szext)) {                              \
+        size_t nsz = mem * 2 + (size_t)(szext);                                      \
+        out = (rxChar *)R->memfn(R->memctx, mem ? out : NULL, sizeof(rxChar) * nsz); \
+        mem = nsz;                                                                   \
     }
 #define SR_ADDBUF(from, to)                        \
     SR_CHKSZ(to - from)                            \
@@ -1162,12 +1181,12 @@ rxChar* srx_ReplaceExt(srx_Context* R, const rxChar* str, size_t strsize, const 
     return out;
 }
 
-void srx_FreeReplaced(srx_Context* R, rxChar* repstr) { R->memfn(R->memctx, repstr, 0); }
+void srx_FreeReplaced(srx_Context *R, rxChar *repstr) { R->memfn(R->memctx, repstr, 0); }
 
 // #define MAIN 1
 #ifdef MAIN
 
-static void _failed(const char* msg, int line) {
+static void _failed(const char *msg, int line) {
     printf("\nERROR: condition failed - \"%s\"\n\tline %d\n", msg, line);
     exit(1);
 }
@@ -1177,12 +1196,12 @@ static void _failed(const char* msg, int line) {
     else                          \
         printf("+");
 
-void matchtest_ext(const char* mst, const char* pat, const char* mod, int ismatch) {
+void matchtest_ext(const char *mst, const char *pat, const char *mod, int ismatch) {
     printf("match test: '%s' like '%s'", mst, pat);
     if (mod) printf("(%s)", mod);
 
     int err[2];
-    srx_Context* R = srx_CreateExt(pat, strlen(pat), mod, err, NULL, NULL);
+    srx_Context *R = srx_CreateExt(pat, strlen(pat), mod, err, NULL, NULL);
     RX_ASSERT(R);
     int match = srx_MatchExt(R, mst, strlen(mst), 0);
     printf(", match: %s\n", match ? "TRUE" : "FALSE");
