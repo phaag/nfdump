@@ -24,18 +24,30 @@
 //
 
 #include <stdint.h>
+#include <string.h>
 
 /* rotate right idiom recognized by compiler*/
 inline static uint64_t rotate_right(uint64_t v, unsigned k) { return (v >> k) | (v << (64 - k)); }
 
-// unaligned reads, fast and safe on Nehalem and later microarchitectures
-inline static uint64_t read_u64(const void *const ptr) { return *(uint64_t *)ptr; }
+inline static uint64_t read_u64(const void *const ptr) {
+    uint64_t v;
+    memcpy(&v, ptr, sizeof(v));
+    return v;
+}
 
-inline static uint64_t read_u32(const void *const ptr) { return *(uint32_t *)ptr; }
+inline static uint64_t read_u32(const void *const ptr) {
+    uint32_t v;
+    memcpy(&v, ptr, sizeof(v));
+    return v;
+}
 
-inline static uint64_t read_u16(const void *const ptr) { return *(uint16_t *)ptr; }
+inline static uint64_t read_u16(const void *const ptr) {
+    uint16_t v;
+    memcpy(&v, ptr, sizeof(v));
+    return v;
+}
 
-inline static uint64_t read_u8(const void *const ptr) { return *(uint8_t *)ptr; }
+inline static uint64_t read_u8(const void *const ptr) { return *(const uint8_t *)ptr; }
 
 static uint64_t metrohash64_1(const uint8_t *key, uint64_t len, uint32_t seed) {
     static const uint64_t k0 = 0xC83A91E1;

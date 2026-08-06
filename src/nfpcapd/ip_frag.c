@@ -173,9 +173,7 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
 }  // End of getIPFragement
 
 static int findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLast, int moreFragments) {
-    uint16_t *prefIndex = &fragment->holeList;
     uint8_t *payload = (uint8_t *)fragment->payload;
-    hole_t result = {0};
 
     dbg_printf("defrag - find hole for %u - %u\n", fragFirst, fragLast);
 
@@ -186,42 +184,93 @@ static int findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLast, i
         return 0;
     }
 
-    // search hole list for suitable hole in payload
+    // hole_t (2 byte alignment) is stored inline in `payload` at byte
+    // offsets that come from prior fragments' lengths - only fragments
+    // with moreFragments set are required to have an 8-byte-multiple
+    // length, so the *last* fragment in a chain can be any length,
+    // including odd, which can leave a hole starting at an odd offset.
+    // Casting &payload[offset] to hole_t* and dereferencing it is
+    // therefore undefined behaviour (found via fuzzing, devel); read/write
+    // every hole_t through memcpy instead.
+    //
+    // holeOffset is the value that points at the hole currently under
+    // examination; hasPrev/prevOffset track where that value is stored
+    // (either fragment->holeList, a real aligned struct field, or a
+    // previously-visited hole's `next` field inside payload) so it can be
+    // patched in place once a match is found, without re-walking the list.
+    uint16_t holeOffset = fragment->holeList;
+    int hasPrev = 0;
+    uint16_t prevOffset = 0;
+    // Belt-and-suspenders bound on top of the containment check below: the
+    // list can never legitimately have more than numHoles entries, so more
+    // iterations than that means something left the list inconsistent -
+    // bail out instead of looping forever.
+    uint32_t stepsLeft = fragment->numHoles;
     // 0xFFFF is our 'End of List' sentinel
-    while (*prefIndex != 0xFFFF) {
-        hole_t *hole = (hole_t *)(&payload[*prefIndex]);
-        if (fragFirst > hole->last || fragLast < hole->first) {
+    while (holeOffset != 0xFFFF) {
+        if (unlikely(stepsLeft-- == 0)) {
+            LogError("ProcessIPFragment() hole list inconsistent in %s line %d", __FILE__, __LINE__);
+            return 0;
+        }
+        hole_t hole;
+        memcpy(&hole, &payload[holeOffset], sizeof(hole));
+
+        if (fragFirst > hole.last || fragLast < hole.first) {
             // fragment outside hole
-            dbg_printf("defrag - hole %u - %u - no match\n", hole->first, hole->last);
-            prefIndex = &hole->next;
+            dbg_printf("defrag - hole %u - %u - no match\n", hole.first, hole.last);
+            hasPrev = 1;
+            prevOffset = holeOffset;
+            holeOffset = hole.next;
             continue;
         }
 
-        // Hole found! Delete it from the linked list
-        // Copy the hole to the stack before we delete/modify it
-        result = *hole;
-        dbg_printf("defrag - hole %u - %u - found\n", hole->first, hole->last);
+        // The fragment overlaps this hole, but a well-formed, non-adversarial
+        // fragment sequence never needs anything but full containment
+        // (fragFirst >= hole.first && fragLast <= hole.last): every existing
+        // hole was itself carved out to exactly cover an unfilled region, so
+        // any earlier, correctly-received fragment already narrowed things
+        // down to that. A fragment that only partially overlaps - crafted to
+        // start before hole.first and/or end after hole.last - would have
+        // its payload memcpy'd (by the caller) straight over bytes outside
+        // this hole, which in this design also holds other holes' hole_t
+        // bookkeeping and already-reassembled payload data. Overwriting that
+        // corrupts the hole list (found via fuzzing, devel: it produces a
+        // cycle, hanging the reassembly loop below forever) or clobbers
+        // already reassembled bytes. Reject rather than risk it, exactly
+        // like the existing "duplicate or doesn't fit" case below.
+        if (fragFirst < hole.first || fragLast > hole.last) {
+            dbg_printf("defrag - hole %u - %u - fragment %u - %u only partially overlaps, reject\n", hole.first, hole.last, fragFirst, fragLast);
+            return 0;
+        }
 
-        // Delete the hole from the linked list
-        *prefIndex = result.next;
+        // Hole found! Delete it from the linked list
+        if (!hasPrev) {
+            fragment->holeList = hole.next;
+        } else {
+            hole_t prevHole;
+            memcpy(&prevHole, &payload[prevOffset], sizeof(prevHole));
+            prevHole.next = hole.next;
+            memcpy(&payload[prevOffset], &prevHole, sizeof(prevHole));
+        }
+        dbg_printf("defrag - hole %u - %u - found\n", hole.first, hole.last);
         fragment->numHoles--;
 
         // Create hole to the left
-        if (fragFirst > result.first) {
-            uint16_t newOffset = result.first;
-            hole_t *newHole = (hole_t *)&payload[newOffset];
-            *newHole = (hole_t){.first = result.first, .last = fragFirst - 1, .next = fragment->holeList};
-            dbg_printf("defrag - new hole left: %u - %u created\n", newHole->first, newHole->last);
+        if (fragFirst > hole.first) {
+            uint16_t newOffset = hole.first;
+            hole_t newHole = {.first = hole.first, .last = fragFirst - 1, .next = fragment->holeList};
+            memcpy(&payload[newOffset], &newHole, sizeof(newHole));
+            dbg_printf("defrag - new hole left: %u - %u created\n", newHole.first, newHole.last);
             fragment->holeList = newOffset;
             fragment->numHoles++;
         }
 
         // Create hole to the right
-        if (fragLast < result.last && moreFragments) {
+        if (fragLast < hole.last && moreFragments) {
             uint16_t newOffset = fragLast + 1;
-            hole_t *newHole = (hole_t *)&payload[newOffset];
-            *newHole = (hole_t){.first = fragLast + 1, .last = result.last, .next = fragment->holeList};
-            dbg_printf("defrag - new hole right: %u - %u created\n", newHole->first, newHole->last);
+            hole_t newHole = {.first = fragLast + 1, .last = hole.last, .next = fragment->holeList};
+            memcpy(&payload[newOffset], &newHole, sizeof(newHole));
+            dbg_printf("defrag - new hole right: %u - %u created\n", newHole.first, newHole.last);
             fragment->holeList = newOffset;
             fragment->numHoles++;
         }
@@ -293,7 +342,23 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_f
 }  // End of ProcessIP6Fragment
 
 // Defragment IPv4 packets according RFC815
-void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *payloadLength, time_t when) {
+void *ProcessIP4Fragment(const uint8_t *ip4In, const void *eodata, uint32_t *payloadLength, time_t when) {
+    // ip4In points into the raw capture buffer at whatever offset the
+    // preceding headers happened to land on - e.g. right after a 14-byte
+    // Ethernet header, which is never 4-byte aligned. It is taken as a
+    // byte pointer (not `const struct ip *`) precisely so the memcpy below
+    // cannot be recognized/miscompiled by the optimizer as an aligned
+    // typed load, which would otherwise still be undefined behaviour
+    // (misaligned access) here. Copy the fixed-size header into a
+    // properly-aligned local struct first. Pointer arithmetic for locating
+    // the payload after (possibly present) IP options still uses ip4In,
+    // the real buffer address - the local copy is only sizeof(struct ip)
+    // bytes and does not hold any option bytes.
+    if ((const uint8_t *)eodata - ip4In < (ptrdiff_t)sizeof(struct ip)) return NULL;
+    struct ip ip4hdr;
+    memcpy(&ip4hdr, ip4In, sizeof(ip4hdr));
+    const struct ip *ip4 = &ip4hdr;
+
     static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
     ip128_t srcAddr = {0};
     ip128_t dstAddr = {0};
@@ -312,8 +377,8 @@ void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *pay
 
     ptrdiff_t sizeIP = (ip4->ip_hl << 2);
     uint16_t ipPayloadLength = ntohs(ip4->ip_len) - sizeIP;
-    void *ipPayload = (void *)ip4 + sizeIP;
-    if ((uint8_t *)ipPayload + ipPayloadLength > (uint8_t *)eodata) {
+    const uint8_t *ipPayload = ip4In + sizeIP;
+    if (ipPayload + ipPayloadLength > (const uint8_t *)eodata) {
         LogError("IPv4 Fragment exceeds capture buffer");
         return NULL;
     }

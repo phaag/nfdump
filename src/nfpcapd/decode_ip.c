@@ -47,7 +47,7 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx);
 
 static decode_state_t decode_ipv6(decode_ctx_t *ctx);
 
-static int is_duplicate(const uint8_t *data_ptr, const uint32_t len);
+static int is_duplicate(const uint8_t *data_ptr, uint32_t len, size_t header_len, int is_ipv4);
 
 #include "metrohash.c"
 
@@ -90,7 +90,11 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
     char s2[64];
 #endif
 
-    struct ip6_hdr *ip6_ptr = (struct ip6_hdr *)cur->ptr;
+    // Raw pointer into the capture buffer - not guaranteed 4-byte aligned
+    // (e.g. right after a 14-byte Ethernet header), so it is kept as a byte
+    // pointer rather than cast to struct ip6_hdr *. All field access below
+    // goes through the aligned local copy `ip6` instead.
+    const uint8_t *ip6_ptr = cur->ptr;
     struct ip6_hdr ip6;
     if (!cursor_read(cur, &ip6, sizeof(struct ip6_hdr))) {
         LogVerbose("Length error decoding IPv6 header");
@@ -102,14 +106,14 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
     // vlan, mpls and layer 1 headers are ignored
     if (unlikely(ctx->packetParam->doDedup && ctx->redoLink == 0)) {
         // check for de-dup
-        uint32_t hopLimit = ip6.ip6_ctlun.ip6_un1.ip6_un1_hlim;
-        ip6_ptr->ip6_ctlun.ip6_un1.ip6_un1_hlim = 0;
         uint16_t len = ntohs(ip6.ip6_ctlun.ip6_un1.ip6_un1_plen);
-        if (is_duplicate((const uint8_t *)ip6_ptr, len + 40)) {
+        // capture buffers may be read-only (offline mmap); is_duplicate()
+        // hashes a normalised copy instead of zeroing the hop limit in the
+        // buffer in place.
+        if (is_duplicate(ip6_ptr, (uint32_t)len + 40, sizeof(struct ip6_hdr), 0)) {
             ctx->packetParam->proc_stat.duplicates++;
             return DECODE_DONE;
         }
-        ip6_ptr->ip6_ctlun.ip6_un1.ip6_un1_hlim = hopLimit;
         // prevent recursive dedup checks with IP in IP packets
         ctx->redoLink++;
     }
@@ -138,7 +142,7 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
 
         ctx->IPproto = ip6_frag_hdr.ip6f_nxt;
         uint32_t reassembledLength = 0;
-        void *payload = ProcessIP6Fragment(ip6_ptr, &ip6_frag_hdr, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
+        void *payload = ProcessIP6Fragment(&ip6, &ip6_frag_hdr, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
         if (payload == NULL) {
             // not yet complete
             dbg_printf("IPv6 de-fragmentation not yet completed\n");
@@ -218,18 +222,13 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     // vlan, mpls and layer 1 headers are ignored
     uint8_t fragment_flag = 0;
     if (unlikely(ctx->packetParam->doDedup && ctx->redoLink == 0)) {
-        struct ip *iph = (struct ip *)ip;
-        uint8_t old_ttl = iph->ip_ttl;
-        uint16_t old_sum = iph->ip_sum;
-        // check for de-dup
-        iph->ip_ttl = 0;
-        iph->ip_sum = 0;
-        if (is_duplicate((const uint8_t *)ip, ntohs(iph->ip_len))) {
+        // capture buffers may be read-only (offline mmap); is_duplicate()
+        // hashes a normalised copy instead of zeroing TTL/checksum in the
+        // buffer in place.
+        if (is_duplicate((const uint8_t *)ip, ntohs(ip4.ip_len), (size_t)size_ip4, 1)) {
             ctx->packetParam->proc_stat.duplicates++;
             return DECODE_DONE;
         }
-        iph->ip_ttl = old_ttl;  // RESTORE
-        iph->ip_sum = old_sum;  // RESTORE
         // prevent recursive dedup checks with IP in IP packets
         ctx->redoLink++;
     }
@@ -291,8 +290,22 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     return DECODE_TRANSPORT;
 }  // End of decode_ipv4
 
-static int is_duplicate(const uint8_t *data_ptr, const uint32_t len) {
-    uint64_t hash = metrohash64_1(data_ptr, len, 0);
+static int is_duplicate(const uint8_t *data_ptr, uint32_t len, size_t header_len, int is_ipv4) {
+    uint8_t header[60];
+    if (header_len > sizeof(header) || header_len > len) return 0;
+
+    /* Capture buffers may be read-only (offline mmap). Hash a normalised
+     * header copy instead of changing TTL/hop-limit and checksum in place. */
+    memcpy(header, data_ptr, header_len);
+    if (is_ipv4) {
+        header[8] = 0;   // TTL
+        header[10] = 0;  // header checksum
+        header[11] = 0;
+    } else {
+        header[7] = 0;  // IPv6 hop limit
+    }
+    uint64_t hash = metrohash64_1(header, header_len, 0);
+    hash = metrohash64_1(data_ptr + header_len, len - header_len, (uint32_t)hash);
 
     for (int i = 0; i < SlotSize; i++) {
         if (lastPacketStat[i].len == len && lastPacketStat[i].hash == hash) return 1;
