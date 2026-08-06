@@ -267,8 +267,8 @@ job when the flow directory is shared with active collectors.
 ### Operational security
 
 Collectors do not need root privileges unless they bind a UDP port below 1024
-or open a protected capture interface. Restrict which exporters may reach the
-collector using host or network firewall rules. Treat forwarding keys and
+or open a protected capture interface. **Restrict** which exporters may reach the
+collector using **host or network firewall rules.** Treat forwarding keys and
 encrypted-file passphrases as secrets; do not put them in command histories or
 issue reports.
 
@@ -327,6 +327,35 @@ the number of flow records is not, because it cannot be reliably inferred.
 Cisco NSEL and NEL records are supported through NetFlow v9. Junos NAT event
 logging support is optional and requires `--enable-jnat` at build time.
 
+## Data enrichment
+
+nfdump can enrich flow output, statistics, and filters with local MaxMind and
+Tor databases. The MaxMind database provides country, location, IANA time-zone,
+and AS-organisation information for IP addresses. Generate nfdump's compact
+database from the MaxMind **GeoLite2** or commercial City and ASN CSV downloads
+with `geolookup`: set your MaxMind license key in `updateGeoDB.sh`, then run:
+
+```sh
+cd src/maxmind
+./updateGeoDB.sh
+nfdump -r /path/to/flows -G ./mmdb.nf -o gline
+```
+
+The Tor database records the time-bounded Tor exit-node intervals used to
+identify source and destination Tor traffic. Generate it from the Tor Project
+archive with `torlookup`; refresh it regularly because the exit-node list
+changes over time:
+
+```sh
+cd src/tor
+NFTORDB="$PWD/tordb.nf" ./updateTorDB.sh 6
+nfdump -r /path/to/flows -H "$PWD/tordb.nf" -o 'fmt:%ts %sa %stor %da %dtor'
+```
+
+For persistent use, install the generated files at a suitable local location
+and configure `geodb.path` and `tordb.path` in `nfdump.conf`; `-G` and `-H`
+select them for an individual invocation.
+
 ## Documentation
 
 Useful project documentation includes:
@@ -351,6 +380,7 @@ encryption, and the core limit in use.
   Prometheus-compatible systems.
 - [NfSen](https://github.com/phaag/nfsen) is the legacy graphical frontend;
   build `nfprofile` and `nftrack` if it is part of your deployment.
+  Note: nfdump-1.8.x may run with NfSen, but is **untested** so far.
 
 For usage details, read the installed manual page or run a program with `-h`.
 Please report bugs with the information requested above. Development can be
