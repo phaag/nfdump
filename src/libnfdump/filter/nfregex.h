@@ -73,7 +73,7 @@ void *CompileRegex(const char *pattern, const char *mods, char *errBuf, size_t e
  */
 int MatchRegex(const void *program, const char *data, uint32_t length, RegexMatchContext_t *context);
 
-// Creates/releases reusable, per-engine match scratch space.
+// Creates/releases reusable, per-engine match scratch space and resource limits.
 RegexMatchContext_t *CreateRegexMatchContext(void);
 void FreeRegexMatchContext(RegexMatchContext_t *context);
 

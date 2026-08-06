@@ -40,10 +40,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define NFREGEX_MATCH_LIMIT 500000U
+#define NFREGEX_HEAP_LIMIT_KIB 512U
+#define NFREGEX_DEPTH_LIMIT 10000U
+#define NFREGEX_JIT_STACK_START (32U * 1024U)
+#define NFREGEX_JIT_STACK_MAX (512U * 1024U)
+
 struct RegexMatchContext_s {
     unsigned char unused;
 #ifdef HAVE_PCRE2
     pcre2_match_data *matchData;
+    pcre2_match_context *matchContext;
+    pcre2_jit_stack *jitStack;
+    int useJit;
 #endif
 };
 
@@ -128,6 +137,23 @@ RegexMatchContext_t *CreateRegexMatchContext(void) {
         free(context);
         return NULL;
     }
+
+    context->matchContext = pcre2_match_context_create(NULL);
+    if (!context->matchContext || pcre2_set_match_limit(context->matchContext, NFREGEX_MATCH_LIMIT) != 0 ||
+        pcre2_set_heap_limit(context->matchContext, NFREGEX_HEAP_LIMIT_KIB) != 0 ||
+        pcre2_set_depth_limit(context->matchContext, NFREGEX_DEPTH_LIMIT) != 0) {
+        FreeRegexMatchContext(context);
+        return NULL;
+    }
+
+    uint32_t jitAvailable = 0;
+    if (pcre2_config(PCRE2_CONFIG_JIT, &jitAvailable) == 0 && jitAvailable) {
+        context->jitStack = pcre2_jit_stack_create(NFREGEX_JIT_STACK_START, NFREGEX_JIT_STACK_MAX, NULL);
+        if (context->jitStack) {
+            pcre2_jit_stack_assign(context->matchContext, NULL, context->jitStack);
+            context->useJit = 1;
+        }
+    }
 #endif
     return context;
 }  // End of CreateRegexMatchContext
@@ -135,7 +161,9 @@ RegexMatchContext_t *CreateRegexMatchContext(void) {
 void FreeRegexMatchContext(RegexMatchContext_t *context) {
     if (!context) return;
 #ifdef HAVE_PCRE2
-    pcre2_match_data_free(context->matchData);
+    if (context->jitStack) pcre2_jit_stack_free(context->jitStack);
+    if (context->matchContext) pcre2_match_context_free(context->matchContext);
+    if (context->matchData) pcre2_match_data_free(context->matchData);
 #endif
     free(context);
 }  // End of FreeRegexMatchContext
@@ -150,7 +178,10 @@ int MatchRegex(const void *program, const char *data, uint32_t length, RegexMatc
 #else
     if (!program || !context || !context->matchData) return 0;
 
-    int rc = pcre2_match((const pcre2_code *)program, (PCRE2_SPTR)data, (PCRE2_SIZE)length, 0, 0, context->matchData, NULL);
+    uint32_t options = context->useJit ? 0 : PCRE2_NO_JIT;
+    int rc = pcre2_match((const pcre2_code *)program, (PCRE2_SPTR)data, (PCRE2_SIZE)length, 0, options, context->matchData, context->matchContext);
+    if (rc == PCRE2_ERROR_JIT_STACKLIMIT)
+        rc = pcre2_match((const pcre2_code *)program, (PCRE2_SPTR)data, (PCRE2_SIZE)length, 0, PCRE2_NO_JIT, context->matchData, context->matchContext);
     // rc >= 0 signals a match (0 means the match succeeded but the capture
     // vector was too small to hold every subexpression - the overall match,
     // which is all MatchRegex() reports, is still valid).
