@@ -898,10 +898,8 @@ static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flow
     }
     void *DataPtr = flowset_header + 4;
 
-    ipfix_template_record_t *ipfix_template_record = (ipfix_template_record_t *)DataPtr;
-
-    // uint32_t	id 	  = ntohs(ipfix_template_record->TemplateID);
-    uint32_t count = ntohs(ipfix_template_record->FieldCount);
+    // fieldCount is the second uint16_t, at offset 2.
+    uint32_t count = Get_val16((const uint8_t *)DataPtr + 2);
 
     if (count == 0) {
         // withdraw template
@@ -914,9 +912,6 @@ static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flow
 }  // End of Process_ipfix_templates
 
 static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const uint8_t *DataPtr, uint32_t size_left, FlowSource_t *fs) {
-    ipfix_template_record_t *ipfix_template_record;
-    ipfix_template_elements_std_t *NextElement;
-
     // a template flowset can contain multiple records ( templates )
     while (size_left) {
         uint32_t id, count, size_required;
@@ -926,12 +921,10 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
             continue;
         }
 
-        // map next record.
-        ipfix_template_record = (ipfix_template_record_t *)DataPtr;
+        // map next record
+        id = Get_val16(DataPtr);
+        count = Get_val16(DataPtr + 2);
         size_left -= 4;
-
-        id = ntohs(ipfix_template_record->TemplateID);
-        count = ntohs(ipfix_template_record->FieldCount);
 
         dbg_printf("\n[%u] Template ID: %u\n", exporter_entry->info->id, id);
         dbg_printf("FieldCount: %u buffersize: %u\n", count, size_left);
@@ -963,18 +956,18 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
         pipelineInstr_t *prev = NULL;
 
         uint32_t commonFound = 0;
-        // process all elements in this record
-        NextElement = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
+        // process all elements in this record. Walk via a raw byte pointer
+        // and Get_val16()/Get_val32()
+        const uint8_t *NextElement = DataPtr + 4;
         for (int i = 0; i < (int)count; i++) {
             dbg_assert((instr - instruction) < (count + 2));
-            uint16_t type = ntohs(NextElement->Type);
-            uint16_t inLength = ntohs(NextElement->Length);
+            uint16_t type = Get_val16(NextElement);
+            uint16_t inLength = Get_val16(NextElement + 2);
             int Enterprise = type & 0x8000 ? 1 : 0;
             type = type & 0x7FFF;
 
             uint32_t EnterpriseNumber = 0;
             if (Enterprise) {
-                ipfix_template_elements_e_t *e = (ipfix_template_elements_e_t *)NextElement;
                 size_required += 4;  // ad 4 for enterprise value
                 if (size_left < size_required) {
                     LogError(
@@ -984,17 +977,16 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
                     free(instruction);
                     return;
                 }
-                EnterpriseNumber = ntohl(e->EnterpriseNumber);
+                EnterpriseNumber = Get_val32(NextElement + 4);
                 if (EnterpriseNumber == IPFIX_ReverseInformationElement) {
                     dbg_printf("[%i] Enterprise: 1, Type: %u, Length %u Reverse Information Element: %u\n", i, type, inLength, EnterpriseNumber);
                 } else {
                     dbg_printf("[%i] Enterprise: 1, Type: %u, Length %u EnterpriseNumber: %u\n", i, type, inLength, EnterpriseNumber);
                 }
-                e++;
-                NextElement = (ipfix_template_elements_std_t *)e;
+                NextElement += 8;
             } else {
                 dbg_printf("[%i] Enterprise: 0, Type: %u, Length %u\n", i, type, inLength);
-                NextElement++;
+                NextElement += 4;
             }
 
             int index = LookupElement(type, EnterpriseNumber);
@@ -1138,12 +1130,9 @@ static void Process_ipfix_template_withdraw(exporter_entry_t *exporter_entry, co
         return;
     }
     while (size_left) {
-        // map next record.
-        ipfix_template_record_t *ipfix_template_record = (ipfix_template_record_t *)DataPtr;
+        // map next record
+        uint32_t id = Get_val16(DataPtr);
         size_left -= 4;
-
-        uint32_t id = ntohs(ipfix_template_record->TemplateID);
-        // count = ntohs(ipfix_template_record->FieldCount);
 
         if (id == IPFIX_TEMPLATE_FLOWSET_ID) {
             // withdraw all templates
@@ -1223,6 +1212,12 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
 
         // keep compiler happy
         UNUSED(enterprise_value);
+
+        if (size_left < 4) {
+            LogError("Process_ipfix: [%u] option template length error: size left %u too small for field %u", exporter_entry->info->id, size_left, i);
+            free(optionTemplate);
+            return;
+        }
         type = Get_val16(option_template);
         option_template += 2;
         length = Get_val16(option_template);
@@ -1394,6 +1389,7 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
             free(optionTemplate);
             return;
         }
+        ClearFlag(template->type, DATA_TEMPLATE);
         template->updated = time(NULL);
         template->data = optionTemplate;
 

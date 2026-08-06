@@ -1193,6 +1193,7 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
                 free(optionTemplate);
                 return;
             }
+            ClearFlag(template->type, DATA_TEMPLATE);
             template->updated = time(NULL);
             template->data = optionTemplate;
 

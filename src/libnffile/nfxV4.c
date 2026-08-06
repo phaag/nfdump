@@ -531,12 +531,14 @@ ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict
     uint32_t nextOffset = pipeline->baseOffset;
     const uint8_t *inPtr = in;
     const pipelineInstr_t *inst = pipeline->instruction;
+    const pipelineInstr_t *const instEnd = pipeline->instruction + pipeline->numInstructions + 1;
 
 // advance to next instruction and jump directly to its handler
-#define DISPATCH()                     \
-    do {                               \
-        inst++;                        \
-        goto *dispatchTable[inst->op]; \
+#define DISPATCH()                                                   \
+    do {                                                             \
+        inst++;                                                      \
+        if (unlikely(inst >= instEnd)) return PIP_ERR_RUNTIME_ERROR; \
+        goto *dispatchTable[inst->op];                               \
     } while (0)
 
     // first dispatch
@@ -553,6 +555,10 @@ L_ALLOC_EXT: {
     else if (inst->extID == EXcntFlowID)
         runtime->cntRecord = baseCache[inst->extID];
     nextOffset += inst->outLength;
+    // "All parts of a record must be 8byte aligned" (nfxV4.h). Most
+    // extension structs happen to be a multiple of 8 bytes already
+    // but catch special cases
+    nextOffset = (nextOffset + 7) & ~7U;
     DISPATCH();
 }
 
@@ -936,6 +942,12 @@ void PrintPipeline(pipeline_t *pipeline) {
 // return 1 if ok, 0 otherwise
 int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
     if (!hdr || available < sizeof(*hdr) || hdr->size < sizeof(*hdr) || hdr->size > available) return 0;
+
+    // all parts of a record must be 8byte aligned
+    if ((hdr->size & 7) != 0) {
+        LogError("Verify v4 record: record size %u not 8-byte aligned", hdr->size);
+        return 0;
+    }
 
     dbg_printf("\nVerifyV4 record:\n");
     if (hdr->type != V4Record) {
