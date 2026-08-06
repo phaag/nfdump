@@ -39,14 +39,18 @@
 .Op Fl B Ar cachesize
 .Op Fl e Ar active,inactive
 .Op Fl I Ar ident
+.Op Fl C Ar config
 .Op Fl w Ar flowdir
+.Op Fl l Ar flowdir
 .Op Fl p Ar pcapdir
 .Op Fl H Ar host[/port]
+.Op Fl m Ar socket
 .Op Fl S Ar num
 .Op Fl t Ar interval
 .Op Fl P Ar pidfile
 .Op Fl D
 .Op Fl d
+.Op Fl T
 .Op Fl u Ar userid
 .Op Fl g Ar groupid
 .Op Fl o Ar option[,option]
@@ -58,7 +62,7 @@
 .Op Fl x Ar key=value
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
-.Op Fl V Ar level
+.Op Fl V
 .Op Fl h
 .Op Ar '<filter>'
 .Sh DESCRIPTION
@@ -72,8 +76,13 @@ somewhere else in the network.
 is nfcapd's pcap brother and shares many options and generates the same type of files.
 .Nm
 likewise creates, rotates and stores files. See also
-.Xr nfpcap 1
+.Xr nfcapd 1
 for more information on common option.
+.Pp
+In 1.8.x, offline pcap input is processed in batches using mmap where
+available; gzip input uses a batch-copy path. Packet decoding is a
+self-contained state-machine pipeline, and native pcap output avoids an
+unnecessary conversion step.
 .Pp
 .Nm
 optionally also stores pcap traffic data in separate files and
@@ -109,12 +118,25 @@ Inactive timeout: A flow gets flushed to disk after being inactive for this numb
 On busy networks these values can be set to more aggressive timeouts.
 .It Fl I Ar ident
 Specifies an ident string, which describes the source e.g. the name of the interface or host. This string is put into the stat record to identify the source. Default is 'none'. Same as nfcapd(1).
+.It Fl C Ar config
+Read runtime configuration from
+.Ar config .
+The value
+.Dq none
+disables configuration-file loading. See
+.Xr nfdump.conf 5 .
 .It Fl w Ar flowdir
 Specifies the base directory to store the flow files.
 If a sub hierarchy is specified with
 .Fl S
 the final directory is concatenated to
 .Ar base_directory/sub_hierarchy .
+.It Fl l Ar flowdir
+Legacy alias for
+.Fl w .
+Use
+.Fl w
+in new scripts.
 .It Fl p Ar pcapdir
 Optionally stores network packets in pcap compatible files in this directory and rotate files the same as the flow files. Sub hierarchy directories are applied likewise.
 .It Fl H Ar host[/port]
@@ -125,6 +147,8 @@ The wire format used is nfdump protocol v250 (plain) or v251 (XChaCha20-Poly1305
 Use
 .Fl k
 to enable encrypted transport.
+.It Fl m Ar socket
+Send collector flow-summary metrics to the specified UNIX socket.
 .It Fl S Ar num
 Allows to specify an additional directory sub hierarchy to store the data files. The default is 0, no sub hierarchy, which means the files go directly in the base directory (
 .Fl w ).
@@ -139,8 +163,10 @@ Specify name of pidfile. Default is no pidfile.
 Daemon mode: fork to background and detach from terminal.
 .Nm
 terminates on signal TERM, INT and HUP.
+.It Fl T
+Retired compatibility option. It is accepted and ignored.
 .It Fl d
-De-duplicate packets with a window size of 4. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they got de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
+De-duplicate packets with a window size of 8. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they are de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
 If used together with
 .Fl p ,
 the resulting pcaps are de-duplicated as well.
@@ -191,7 +217,7 @@ The
 is required; there must be no space between
 .Fl K
 and the passphrase.
-.It Pf Fl K @ Ar keyfile
+.It Fl K Pf @ Ar keyfile
 Read the passphrase from the first line of
 .Ar keyfile .
 Trailing newlines are stripped.
@@ -235,7 +261,7 @@ The
 is required; there must be no space between
 .Fl k
 and the passphrase.
-.It Pf Fl k @ Ar keyfile
+.It Fl k Pf @ Ar keyfile
 Read the passphrase from the first line of
 .Ar keyfile .
 Trailing newlines are stripped.
@@ -299,11 +325,22 @@ Read packets from interface mx0 and store also packets in pcap files:
 Send records to a remote host:
 .Pp
 .Dl nfpcapd -i eth1 -H 192.168.200.10/12344 -D -e 60,20 -o fat,payload
+.Pp
+Send records using encrypted native forwarding (libsodium build):
+.Pp
+.Dl nfpcapd -i eth1 -H 192.168.200.10/9995 -k@/etc/nfdump/forward.key
 .Sh NOTES
 .Nm
 can store records either locally or send it to a remote host but not both at the same time.
 .Pp
-If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd must be of the same endian architecture (both big or little endian). nfpcapd uses netflow version 240 for sending flows.
+When records are sent to a remote
+.Xr nfcapd 1
+process,
+.Nm
+uses nfdump native forwarding protocol v250, or v251 with
+.Fl k .
+Both endpoints must run compatible nfdump 1.8.x versions. The transport uses
+network byte order and does not require matching host endianness.
 .Pp
 The flow cache is checked in regular 10s intervals and expires flows according to the expire values. Expired flows are flushed and processed and nodes are freed up.
 .Pp

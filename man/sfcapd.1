@@ -49,7 +49,7 @@
 .Op Fl f Ar flowfile
 .Op Fl 4
 .Op Fl 6
-.Op Fl j Ar mcastgroup
+.Op Fl J Ar mcastgroup
 .Op Fl R Ar repeater
 .Op Fl H Ar host[/port]
 .Op Fl A
@@ -69,8 +69,12 @@
 .Op Fl V
 .Sh DESCRIPTION
 .Nm
-reads sflow data from the network and stores the records into binary formatted files. The sflow implementation
-is based of sflowtool. The packet samples are converted into netflow compatible records.
+reads sFlow data from the network and stores the records into binary formatted
+files. Packet samples are converted into nfdump-compatible flow records.
+.Pp
+The 1.8.x collector uses the rewritten sFlow decoder and the shared threaded
+V3 backend. Its receive, rotation, forwarding, and encrypted-backend behavior
+matches the corresponding nfcapd facilities where the protocols apply.
 .Pp
 If you want to collect netflow data, please have a look at
 .Ar nfcapd
@@ -421,6 +425,11 @@ and is therefore independent from file rotation.
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
 printf netflow records in raw format while collecting. Please note, that not all elements
 are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
+.It Fl E
+Deprecated alias for
+.Fl v No 3 .
+.It Fl Z
+Append the local timezone offset to rotated file names.
 .It Fl V
 Print
 .Nm 

@@ -517,6 +517,8 @@ int main(int argc, char **argv) {
     crypto_ctx_t *crypto_ctx = NULL;    // -K: backend (file) de/encryption
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport decryption
     uint8_t *udpSessionKey = NULL;
+    int64_t udpRekeyOverride = -1;
+    int64_t udpReplayWindowOverride = -1;
     uint32_t compressType = NOT_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
     receive_packet = NULL;
@@ -544,7 +546,7 @@ int main(int argc, char **argv) {
     limitCores = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::k::l:m:M:n:p:P:R:s:S:t:u:v:VW:w:x:X:Y:z::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::k::l:m:M:n:N:p:P:Q:R:s:S:t:u:v:VW:w:x:X:Y:z::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -830,6 +832,25 @@ int main(int argc, char **argv) {
                 }
                 break;
             }
+            case 'N':
+                errno = 0;
+                char *endN = NULL;
+                udpRekeyOverride = strtoll(optarg, &endN, 10);
+                if (errno != 0 || endN == optarg || *endN != '\0' || udpRekeyOverride < 0 || udpRekeyOverride > 604800) {
+                    LogError("-N: rekey interval must be in range 0..604800 seconds");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case 'Q':
+                errno = 0;
+                char *endQ = NULL;
+                udpReplayWindowOverride = strtoll(optarg, &endQ, 10);
+                if (errno != 0 || endQ == optarg || *endQ != '\0' || udpReplayWindowOverride < 64 || udpReplayWindowOverride > 1024 ||
+                    (udpReplayWindowOverride & (udpReplayWindowOverride - 1)) != 0) {
+                    LogError("-Q: anti-replay window must be a power of 2 in range 64..1024");
+                    exit(EXIT_FAILURE);
+                }
+                break;
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -1005,8 +1026,14 @@ int main(int argc, char **argv) {
         } else {
             rekeyIntervalSecs = (uint32_t)confRekey;
         }
+        if (udpReplayWindowOverride >= 0) replayWindowBits = (uint32_t)udpReplayWindowOverride;
+        if (udpRekeyOverride >= 0) rekeyIntervalSecs = (uint32_t)udpRekeyOverride;
         Init_pcapd_udp_crypto(udpSessionKey, replayWindowBits, rekeyIntervalSecs);
         LogInfo("nfcapd: UDP transport decryption enabled (XChaCha20-Poly1305)");
+    } else if (udpReplayWindowOverride >= 0 || udpRekeyOverride >= 0) {
+        LogError("-N and -Q require encrypted UDP transport via -k");
+        close_sockets(socks, nsocks);
+        exit(EXIT_FAILURE);
     }
 
     if (!CheckSubDir(subdir_index)) {

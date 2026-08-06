@@ -38,6 +38,9 @@
 .Fl r Ar directory
 .Nm
 .Fl e Ar directory
+.Op Fl n
+.Op Fl p
+.Op Fl Y
 .Op Fl s Ar maxsize
 .Op Fl t Ar maxlife
 .Op Fl w Ar watermark
@@ -109,6 +112,8 @@ Files are deleted from the oldest towards the latest according both limits and
 stops at the
 .Ar watermark
 below the limit.
+.It Fl n
+Dry-run mode. Report the files that would be expired without deleting them.
 .It Fl u Ar directory
 Updates the expire parameters such as size and lifetime limits, specified by
 .Fl s t
@@ -163,6 +168,12 @@ This option prints a NfSen compatible statistic. Only legacy NfSen will need thi
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
+.Sh EXAMPLES
+Set a 500 GB size limit, 30-day retention, and a 95% low-water mark:
+.Dl nfexpire -u /var/nfdump/edge-router -s 500G -t 30d -w 95
+.Pp
+Preview the next expiration run without deleting files:
+.Dl nfexpire -n -e /var/nfdump/edge-router
 .Sh RETURN VALUES
 .Nm
 returns 0 on success and 255 otherwise.

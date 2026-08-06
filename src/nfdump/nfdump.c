@@ -147,11 +147,12 @@ static void usage(char *name) {
         "-B\t\tAggregate netflow records as bidirectional flows - Guess direction.\n"
         "-C <file>\tRead optional config file.\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
+        "-D\t\tDeprecated nameserver option; system resolver configuration is used.\n"
         "-r <file>\tread input from file\n"
         "-w <file>\twrite output to file\n"
-        "-f\t\tread netflow filter from file\n"
-        "-n\t\tDefine number of top N for stat or sorted output.\n"
-        "-c\t\tLimit number of matching records\n"
+        "-f <file>\tread netflow filter from file\n"
+        "-n <num>\tDefine number of top N for stat or sorted output.\n"
+        "-c <num>\tLimit number of matching records\n"
         "-G <geoDB>\tUse this nfdump geoDB to lookup country/location.\n"
         "-H <torDB>\tUse nfdump torDB to lookup tor info.\n"
         "-N\t\tPrint plain numbers\n"
@@ -160,11 +161,12 @@ static void usage(char *name) {
         "-q\t\tQuiet: Do not print the header and bottom stat lines.\n"
         "-i <ident>\tChange Ident to <ident> in file given by -r.\n"
         "-J=<comp>\tModify file compression to comp. comp identical with -z.\n"
+        "-j\t\tLegacy BZIP2 compression option; use -z=bz2.\n"
+        "-y\t\tLegacy LZ4 compression option; use -z=lz4.\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
-        "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
         "-P <expr>\tPost-filter: apply <expr> to aggregated/statistics output before printing.\n"
         "-I \t\tPrint netflow summary statistics info from file or range of files (-r, -R).\n"
         "-g \t\tPrint gnuplot stat line for each nfcapd file (-r, -R).\n"
@@ -197,6 +199,8 @@ static void usage(char *name) {
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-t\t\tRemoved. Use 'first seen'/'last seen' filter expressions instead.\n"
+        "-m\t\tRemoved; use -O tstart to order flows by start time.\n"
+        "-T\t\tEnable legacy NfSen output tags.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tDecrypt encrypted input files (and encrypt output with -w). Passphrase from argument, key file, or interactive "
         "prompt.\n"
@@ -869,7 +873,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZtTVW:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:DE:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZtTVW:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);

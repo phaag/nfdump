@@ -130,6 +130,7 @@ static void usage(char *name) {
         "-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
         "-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
         "-w flowdir \tset the flow output directory. (no default) \n"
+        "-l flowdir \tlegacy alias for -w; use -w instead.\n"
         "-C <file>\tRead optional config file.\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
@@ -146,6 +147,8 @@ static void usage(char *name) {
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "-D\t\tdetach from terminal (daemonize)\n"
+        "-T\t\tRemoved option; accepted and ignored for compatibility.\n"
+        "-V\t\tPrint version and exit.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
         "-k[=passphrase|@keyfile]\tEncrypt UDP transport to -H host (v251). Passphrase from argument, key file, or interactive prompt.\n"

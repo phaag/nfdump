@@ -99,10 +99,11 @@ static void usage(char *name) {
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-s\t\tPreserve source address.\n"
         "-d\t\tPreserve destination address.\n"
-        "-q\t\tDo not print progress spinnen and filenames.\n"
+        "-q\t\tDeprecated; use -v 0 to suppress progress output.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
         "-v level\tSet verbose level.\n"
         "-w <file>\tName of output file. Defaults to input file.\n"
+        "-t <num>\tLegacy core-limit option; use -W instead.\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n",
         name);
 } /* usage */

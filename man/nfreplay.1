@@ -36,6 +36,8 @@
 .Fl r Ar flowfile
 .Fl H Ar remotehost
 .Fl p Ar port
+.Op Fl E
+.Op Fl L Ar facility
 .Op Fl S Ar Sourceaddr
 .Op Fl j Ar mcastgroup
 .Op Fl 4
@@ -43,9 +45,10 @@
 .Op Fl v Ar version
 .Op Fl k Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
 .Op Fl d Ar usec
-.Op Fl b Ar buffsize
+.Op Fl b Ar bytes
 .Op Fl z Ar num
 .Op Fl c Ar num
+.Op Fl Y
 .Op Fl V
 .Op Fl h
 .Op Ar filter
@@ -70,6 +73,13 @@ Read input data from
 .It Fl H Ar remotehost
 Send all flows to this remote host. Accepts a symbolic name or a IPv4/IPv6 
 IP address.
+.It Fl i Ar remotehost
+Legacy alias for
+.Fl H .
+.It Fl E
+Enable verbose diagnostic output.
+.It Fl L Ar facility
+Send log messages to the named syslog facility.
 .It Fl j Ar mcastgroup
 Join this multicast group and send all flows to this group host. Accepts a 
 symbolic name or multicast IPv4/IPv6 IP address.
@@ -150,13 +160,13 @@ must be started with the same passphrase via its
 option.
 .Pp
 Available only when nfreplay is compiled with libsodium support.
-.It Fl u Ar usec
+.It Fl d Ar usec
 Delay each record by
 .Ar usec
-mirco seconds, to avoid overrun on the remote host. Default is 10usec.
-.It Fl B Ar buffsize
+microseconds, to avoid overrun on the remote host. Default is 10 microseconds.
+.It Fl b Ar bytes
 Set send buffer to
-.Ar buffsize
+.Ar bytes
 size in bytes. Useful to buffer larger data transfers.
 .It Fl z Ar num
 Flows are sent with their "real distribution" acrross time (with a speed coefficient)
@@ -164,7 +174,7 @@ Flows are sent with their "real distribution" acrross time (with a speed coeffic
 .It
 .Fl z
 1 : 5 minutes of records will be sent in 5 minutes.
-.IT
+.It
 .Fl
 z
 20 : 5 minutes of record will be sent in 5/20 = 0.25 minutes.
@@ -173,6 +183,13 @@ z
 Limit number of records to send to the first 
 .Ar num
 flows.
+.It Fl Y
+Prompt before each UDP packet is sent. This is intended for interactive
+testing.
+.It Fl t Ar ignored
+Retired option. It is accepted only to report that time-window selection must
+be expressed with a filter, for example
+.Qq first seen >= 2026-01-01 .
 .It Fl V
 Print
 .Nm 

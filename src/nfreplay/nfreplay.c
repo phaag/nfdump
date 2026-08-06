@@ -122,6 +122,7 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-E\t\tPrint verbose messages. For debugging purpose only.\n"
         "-H <Host/ip>\tTarget IP address default: 127.0.0.1\n"
+        "-i <Host/ip>\tLegacy alias for -H.\n"
         "-j <mcast>\tSend packets to multicast group\n"
         "-4\t\tForce IPv4 protocol.\n"
         "-6\t\tForce IPv6 protocol.\n"
@@ -143,6 +144,8 @@ static void usage(char *name) {
         "\t\t\t\tPassphrase from argument, @keyfile, or interactive prompt.\n"
         "\t\t\t\tUse together with -v 250.\n");
 #endif
+    printf("-Y\t\tConfirm each UDP packet before sending.\n"
+           "-t <arg>\tRemoved. Use 'first seen'/'last seen' filter expressions instead.\n");
 } /* usage */
 
 static void Flush_nfd_header(send_peer_t *peer) {

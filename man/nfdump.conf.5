@@ -41,7 +41,9 @@ is the shared configuration file for all programs in the nfdump suite:
 .Xr sfcapd 1 ,
 .Xr nfpcapd 1 ,
 and
-.Xr nfanon 1 .
+.Xr nfanon 1 ,
+and
+.Xr nfmeta 1 .
 It is written in
 .Sy TOML
 (Tom's Obvious Minimal Language) format.
@@ -65,11 +67,10 @@ or the default path, parsed at start-up.
 A value here overrides the compiled-in default.
 .It
 .Sy CLI override
-\(em a
+\(em for programs that support it, a
 .Fl x Ar key Ns = Ns Ar value
-argument on the command line.
-This takes precedence over both the config file and the program default
-and is effective only for the duration of the process.
+argument on the command line takes precedence over both the config file and
+the program default and is effective only for the duration of the process.
 .El
 .Sh FILE FORMAT
 .Nm
@@ -319,10 +320,11 @@ to override the worker count directly.
 .Sh PROGRAM DEFAULTS
 Each program has a set of compiled-in default values for its own keys.
 These defaults are active even when no configuration file is present.
-They represent the lowest priority in the option resolution chain:
-a value found in the configuration file or supplied via
+They represent the lowest priority in the option resolution chain. A value in
+the configuration file takes precedence; a command-line override does so only
+in programs that implement
 .Fl x
-always takes precedence.
+as a configuration override.
 .Pp
 The defaults for the boolean program options are:
 .Bl -tag -width "opt.payload (nfpcapd)"
@@ -354,11 +356,16 @@ If that file does not exist, no error is reported and program defaults
 are used.
 .El
 .Sh CLI OVERRIDES
-Any configuration key can be overridden at run time without modifying the
+The programs
+.Xr nfdump 1 ,
+.Xr nfpcapd 1 ,
+and
+.Xr nfmeta 1
+can override configuration keys at run time without modifying the
 configuration file.
 Use the
 .Fl x Ar key Ns = Ns Ar value
-option, which is accepted by all programs in the suite.
+option.
 The option may be repeated to override multiple keys:
 .Bd -literal -offset indent
 nfdump -x limitCores=4 -x xxhash=1 -r data.nf
@@ -382,6 +389,14 @@ for the duration of the process.
 Overrides are processed after the configuration file is opened, so they
 take effect for every key lookup that follows.
 They do not modify the configuration file on disk.
+.Pp
+In
+.Xr nfcapd 1
+and
+.Xr sfcapd 1 ,
+.Fl x
+has the separate, longstanding meaning of a post-rotation command. It is not
+a configuration override in those collectors.
 .Sh EXAMPLES
 .Ss Minimal common settings
 .Bd -literal -offset indent
@@ -420,7 +435,7 @@ buffSize    = 2097152
 .Ss Encrypted UDP transfer
 .Bd -literal -offset indent
 [common]
-crypt.salt                = "my-secret-salt-16"
+crypt.salt                 = "0123456789abcdef"
 crypt.antiReplayWindowBits = 512
 crypt.rekeyIntervalSecs   = 300
 .Ed
@@ -428,7 +443,7 @@ crypt.rekeyIntervalSecs   = 300
 Cap nfdump filter workers at 8 and fix writer count to 4 regardless of cores:
 .Bd -literal -offset indent
 [nfdump.threads]
-filters = 8
+workers = 8
 writers = 4
 .Ed
 .Pp
@@ -443,7 +458,7 @@ Fix the anonymization worker count when CryptoPAN runs without AES-NI
 (on a 16-core host, 4 workers instead of the default 3):
 .Bd -literal -offset indent
 [nfanon.threads]
-filters = 4
+workers = 4
 .Ed
 .Pp
 Per-run override without modifying the file \(em fix 6 writers for one nfdump run:
@@ -458,7 +473,7 @@ nfdump -x xxhash=1 -r data.nf -w output.nf
 .Pp
 Override limitCores and an unknown key (the latter produces a warning):
 .Bd -literal -offset indent
-nfcapd -x limitCores=4 -x debug.verbose=1 -w /var/nflow
+nfpcapd -x limitCores=4 -x debug.verbose=1 -w /var/nflow
 .Ed
 .Ss Disable config file entirely
 .Bd -literal -offset indent

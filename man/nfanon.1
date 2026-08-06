@@ -35,7 +35,12 @@
 .Nm 
 .Fl r Ar path
 .Op Fl w Ar nffile
+.Op Fl C Ar config
 .Fl K Ar key
+.Op Fl s
+.Op Fl d
+.Op Fl q
+.Op Fl t Ar num
 .Op Fl v Ar level
 .Op Fl W Ar num
 .Op Fl h
@@ -74,8 +79,26 @@ file name is taken, which means the original file is overwritten.
 .Ar key
 is either a 32 character string, or a 64 char hex string starting with 0x. This key
 is used to initialize the anonymizer.
+.It Fl C Ar config
+Read configuration from
+.Ar config .
+Use
+.Fl C Ar none
+to disable configuration-file loading for this invocation.
+.It Fl s
+Preserve source addresses. All other supported addresses are anonymized.
+.It Fl d
+Preserve destination addresses. All other supported addresses are anonymized.
+.It Fl q
+Deprecated. Use
+.Fl v No 0
+to suppress progress output.
+.It Fl t Ar num
+Legacy alias for the core limit. Use
+.Fl W
+in new scripts.
 .It Fl v Ar level
-Set verbose level. A verbose level of 0 disables the actifivy spinner.
+Set verbose level. A verbose level of 0 disables progress output.
 .It Fl W Ar num
 Set the core limit to
 .Ar num
@@ -90,13 +113,11 @@ If
 exceeds the number of online CPU cores, a warning is logged and the budget
 is clamped to the available core count.
 .Pp
-Individual role counts can be overridden per-run with
-.Fl x Ar threads.writers=N
+Individual role counts are configured with the
+.Em [nfanon.threads]
 or
-.Fl x Ar threads.readers=N
-(0 restores the auto-derived count), or via the
-.Em [threads]
-section in
+.Em [common.threads]
+sections in
 .Xr nfdump.conf 5 .
 .It Fl h
 Print help text to stdout and exit.
@@ -104,11 +125,9 @@ Print help text to stdout and exit.
 .Sh EXAMPLES
 To create a random 64 character hex string you may use the following command:
 .Dl % xxd -u -l 32 -p -c 64 /dev/urandom
-.Ed
 Use the resulting output as key, prepended with 0x as -K argument.
 or
 .Dl % openssl rand -hex 16
-.Ed 
 and use this output as argument for -K
 .Sh RETURN VALUES
 .Nm

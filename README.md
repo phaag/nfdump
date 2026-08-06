@@ -1,477 +1,362 @@
-# nfdump - Development branch
+# nfdump 1.8.x
 
 [![Build Status](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
-**nfdump** is a powerful suite of tools for collecting, processing, and analyzing NetFlow, IPFIX, and sFlow data from network devices. It supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
+nfdump is a collection of tools for collecting, storing, processing, and
+analysing NetFlow, IPFIX, sFlow, and packet-capture data. Nfdump supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
 
----
+The 1.8.x branch is the next major generation of nfdump.
 
-## Table of Contents
+> [!WARNING]
+> **Public beta.** 1.8.x has substantial internal and on-disk format changes.
+> Test it with representative traffic and retain backups before using it for
+> production retention data. The command-line interfaces and configuration
+> format described here are those of the development branch and may still
+> receive compatibility fixes before the final release.
 
-- [Features](#features)
-- [What changed in nfdump-1.8.0](#what-changed-in-nfdump-180)
-- [Compatibility](#compatibility)
-- [Installation](#installation)
-- [Configuration Options](#configuration-options)
-- [Basic Usage](#basic-usage)
-- [Included Tools](#included-tools)
-- [Compression](#compression)
-- [How nfdump Works](#how-nfdump-works)
-- [Sampling](#sampling)
-- [NetFlow/NSEL/NAT Support](#netflownselnat-support)
-- [Related Projects](#related-projects)
-- [Sponsorship](#sponsorship)
-- [License](#license)
+## Highlights of 1.8.x
 
----
+### Core, file format, and runtime
 
-## Features
+Much of the old code has been removed or rewritten. The new core is designed
+for contemporary CPU and memory hierarchies: hot data structures are arranged
+to be friendlier to L1/L2 caches and the processing pipeline avoids work that
+was needed by older implementations.
 
-- Collects NetFlow (v1, v5/v7, v9, IPFIX) and sFlow data.
-- Converts live or file pcap traffic to flow data. 
-- Multi-threaded for high-performance processing and sorting.
-- Advanced flow filtering and aggregation (filter syntax similar to tcpdump, but optimized for flow data).
-- Supports user-defined flow aggregation.
-- Enriches flow records with geolocation, AS, and Tor exit node information.
-- Flexible output formats (text, CSV, JSON, and user-defined).
-- Optionally integrates GeoDB (geolookup/Maxmind) and TorDB (torlookup) databases.
-- Companion tools for extending functionality and integration with monitoring stacks.
-- Actively maintained and compatible with [NfSen](https://github.com/phaag/nfsen).
+- A new threading core shares the available CPU budget between readers,
+  writers, and worker roles. Set the budget with `-W` or `limitCores`; zero
+  means all available cores. Thread-role settings are available in
+  `nfdump.conf`.
+- Frontend flow processing and backend storage are now logically separated,
+  making additional storage backends easier to add later.
+- The new **nffile V3** backend format uses an indexed block layout, redundant
+  footer information, and strict eight-byte data alignment. It is designed to
+  provide efficient sequential processing while keeping CPU alignment
+  predictable.
+- V3 files can optionally use xxHash64 integrity checks. With libsodium,
+  backend files can also be protected with XChaCha20-Poly1305 authenticated
+  encryption.
+- Flow records have a compact V4 representation with an extension bitmap and
+  offset table; the fields available to filters and output formats remain the
+  same logical flow data.
+- Configuration is TOML-based. More settings are available in `nfdump.conf`,
+  including shared and per-program thread settings. `nfdump` and `nfpcapd`
+  support runtime configuration overrides with `-x <key>=<value>`.
 
----
-## What changed in nfdump-1.8.0
+### Collectors
 
-nfdump-1.8.0 replaces the nffile v2 container format with **nffile v3**, a redesigned
-on-disk layout that adds a block directory and a redundant footer.  The directory records
-the type, compressed size, and offset for every data block.  This makes random-access
-and integrity verification possible without a full sequential scan, and lays the groundwork
-for optional columnar indexing.  Furthermore, new data block types may be introduced as needed.
-The footer carries an optional xxHash-64 checksum field covering the directory region. This enables the fast detection of truncated or corrupted files.  
-Files are memory-mapped for reading (`mmap(2)`), eliminating intermediate copy buffers and letting
-the OS page cache manage I/O scheduling.
+`nfcapd`, `sfcapd`, and `nfpcapd` share the new backend and threading model.
+Their receive and storage paths have been simplified, and asynchronous
+backends reduce the time a collector spends blocked on file I/O and rotation.
 
-Flow records move from the v3 extension format to **record format v4**.  The key structural
-change is the replacement of a linear element list with a compact **offset table** indexed
-by a 64-bit extension bitmap.  Locating a specific extension is a branchless
-O(1) operation that keeps the CPU pipeline and branch predictor in a clean state.
-The extension set is reorganized between v3 and v4. v3's combined `EXasRouting`
-and `EXmacAddr` are split into separate IPv4/IPv6 and in/out variants respectively; the
-BGP next-hop and IP next-hop types are removed (their data is covered by the routing
-extensions). Newly added types are `EXinterface`, `EXasInfo`, `EXflowId`, `EXnokiaNat`,
-`EXnokiaNatString`, and `EXipInfo`. The on-disk file size of nffile v3 is comparable to nffile v2 — sometimes marginally larger, sometimes marginally smaller. 
+#### nfcapd
 
-Both the v3 file format and the v4 record format are now strictly **8-byte aligned**, which avoids unaligned loads and matches the natural granularity of modern 64-bit load/store units.  Block-level compression
-(LZO, LZ4, BZ2, ZSTD) is per-block. The file-level default can be overridden on a per-block basis.
+- The NetFlow/IPFIX collector has been substantially refactored.
+- Native nfdump flow forwarding is available with `-H`. Plain forwarding uses
+  protocol version 250; version 251 adds XChaCha20-Poly1305 transport
+  protection when built with libsodium.
+- `-K`, `-k`, `-N`, and `-Q` configure file and forwarding-transport crypto
+  functions. See `nfcapd(1)` for the exact direction and key-management
+  semantics of each option.
+- NetFlow v9 and IPFIX template decoding now uses a compile-once decoding VM
+  rather than interpreting a per-field loop for every record.
+- IPFIX information element 315, `dataLinkFrameSection`, can reconstruct and
+  decode embedded L2--L4 frames, including VLAN/QinQ, MPLS, PPPoE, GRE/ERSPAN,
+  and IP-in-IP encapsulations where present.
+- The receive path has less frontend contention under load.
+- The listener supports a true dual-socket path for platforms that do not
+  provide IPv4-mapped IPv6 sockets.
 
-Furthermore the new v3 file format enables data encryption alongside compression, adding
-privacy to stored flow data when required.
+#### sfcapd
 
-Until now, flows were stored to disk on the host where the collector (nfcapd, sfcapd, or nfpcapd)
-was running. All 1.8.x collectors now support forwarding flows to a companion collector on a remote host.
-The forwarded stream can optionally be encrypted in transit, each UDP packet is independently encrypted with a random 192-bit nonce.
+- The sFlow decoder has been newly written for the new runtime.
+- It has the same backend, forwarding, encryption, threading, and relevant
+  command-line interface changes as `nfcapd`.
 
-New support for IPFIX IE 315:
-IPFIX Information Element 315 (`dataLinkFrameSection`) is a variable-length field defined in RFC 7133
-for exporting sampled Layer-2 packet bytes within IPFIX records. Unlike normal flow records, which carry
-pre-computed statistics, IE 315 carries raw packet data and is typically accompanied by fields such as
-`dataLinkFrameType` (408), `sectionOffset` (409), `sectionExportedOctets` (410), timestamps, and
-sampling metadata. Its primary use cases are packet sampling, troubleshooting, security monitoring,
-and traffic analysis. It is most prominently implemented on Cisco ASR/NCS platforms (marketed as
-"IPFIX 315"). `nfcapd` supports IPFIX IE 315 and fully decodes its payload into a standard nfdump flow record.
+#### nfpcapd
 
-Large parts of the code have been rewritten. Notably, the sFlow collector received a new decoder
-that integrates cleanly with the nfdump environment. Much unused and redundant code has been removed.
+- Packet-capture ingestion has been refactored around a self-contained,
+  state-machine packet decoder.
+- It can forward UDP flow data using the native forwarding transport, including
+  optional XChaCha20-Poly1305 protection when built with libsodium.
+- Offline pcap input is batched and mmap-based; compressed gzip input uses a
+  batch-copy path. This is expected to improve large offline ingests, though
+  the gain depends on the capture and host.
+- Native pcap reading and writing avoids unnecessary format conversion in the
+  pcap-output path.
+- `nfpcapd` adds `-x <key>=<value>` for runtime configuration overrides.
 
-In general, the code runs faster and is better adapted to today's CPU architectures.
+### Analysis and metadata tools
 
-The earliest nfdump version dates back to 2004, the era of **Intel Pentium 4** type CPUs, 1 core, 1–2 threads, DDR2 memory. Nowadays a Core i9 for example has 24 cores and 32 threads and uses DDR5 memory — roughly 50–100× faster than 2004 hardware. Although software designed in 2004 still runs on modern CPUs, the design and architecture can be significantly improved to exploit modern CPU features: adapt data layout to cache lines, optimize code for branch prediction, and avoid pointer chasing. nfdump 1.8.x still focuses on efficiency and speed and has removed a lot of legacy code. However, nfdump-1.7.x is not slow - it was constantly improved over time. The new 1.8.x simply improves and modernizes the code where possible.
+- Filter expressions are compiled into a compact filter VM program.
+- Payload regular expressions use system **PCRE2-8** instead of the unmaintained
+  sgregex matcher. Matching is binary-safe: the payload length is supplied
+  explicitly, so embedded NUL bytes do not truncate input. PCRE2 JIT is used
+  when the installed library supports it. If PCRE2 is not available at build
+  time, payload-regex filters fail to compile rather than silently using a
+  different matcher.
+- `nfmeta` maintains per-flow-block IPv4/IPv6 source and destination Bloom
+  filters. `nfdump` can use these metadata filters to skip blocks that cannot
+  satisfy an address query.
+- GeoIP timezone data is available for output and filtering when the relevant
+  MaxMind data is installed.
 
-The good news: nfdump-1.8.0 retains full **backward read compatibility**. All programs transparently read and process nfdump-1.7.x v2 files, but only write the new nffile v3 format. Some improvements are already implemented, such as a new IPFIX/NetFlow v9 pipeline decoder that improves decode throughput for these protocols. The collector hot path has been redesigned to reduce per-packet overhead.
+## Compatibility and migration
 
-Note: nfdump-1.8.0 does not yet implement a full set of new features. The user experience should still feel familiar. Once the code stabilizes and is declared production-ready, new features will be added.
+1.8.x reads nffile V2 files written by 1.7.x and writes the new V3 format.
+Files from the 1.6.x format are no longer read directly; convert them first
+with nfdump 1.7.8.
 
-This is development code and should **not yet be used in production**. The branch is not yet fully tested. Feedback from real-world testing is very welcome — particularly from users testing their own nfdump workflows.
+Do not mix a beta deployment into an archive without first validating your
+readers, exporters, rotation scripts, and backup procedure. Keep the original
+files until the converted or newly collected data has been verified.
 
----
-## Compatibility
+## Build from the development tree
 
-- nfdump-1.8.x (codename "Colibri") is the current development release.
-
-- Fully compatible with files created by nfdump-1.7.x or newer.
-
-- Flow files from nfdump-1.7.x ("Unicorn") are processed transparently from all binaries.
-
-- Legacy flow files from nfdump 1.6.x can no longer be processed. Use nfdump-1.7.8 to update these flow files to nfdump-1.7.x format and then process the resulting files with nfdump-1.8.x.
-
-- To convert old files to the new format:
-
-  ```sh
-  ./nfdump -r old-flowfile -w new-flowfile -z=lz4
-  ```
-
-- **NfSen Users:** nfdump-1.8.x is not fully tested with NfSen and may or may not work. It is planned to keep nfdump-1.8.x compatible with legacy NfSen, although this compatibility may be removed in a future release.
-
----
-
-## Installation
-
-### Building for general use or to create a package
-
-nfdump uses the GNU autotools 2.71 build system.
+The build requires a C17 compiler, GNU autotools 2.71 or newer, flex, and
+bison. Optional libraries enable additional codecs and features.
 
 ```sh
 ./autogen.sh
 ./configure
 make
+make check
 sudo make install
 ```
 
-### Building for the local system
+Run `./configure --help` for the complete option list. Common feature toggles
+include `--enable-nfpcapd`, `--enable-readpcap`, `--enable-nfprofile`,
+`--enable-ja4`, `--enable-native`, and `--enable-lto`.
 
-If you plan to run the tools on the same system where they are built, you can enable additional optimizations:
-```sh
-./autogen.sh
-./configure --enable-native --enable-lto
-make
-sudo make install
-```
+| Dependency or data | Enables |
+| --- | --- |
+| liblz4, libzstd, bzip2 | nffile compression codecs |
+| zlib | gzip-compressed pcap input |
+| libsodium | XChaCha20-Poly1305 backend-file and forwarding encryption |
+| PCRE2-8 | Payload regular-expression filters |
+| libpcap | Packet-capture reading and `nfpcapd` support |
+| MaxMind database | GeoIP enrichment, including timezones when provided by the database |
 
-This enables CPU-specific optimizations (`-march=native`) and link-time optimization (`-flto`) for improved performance.
+The configure summary reports which optional libraries were found. PCRE2 and
+libsodium are optional build dependencies, but the features that require them
+are unavailable without them. MaxMind data is installed and maintained
+separately from the build.
 
-#### Building on CentOS 7.x
+## Configuration options
 
-Make sure, you have autotools 2.71 installed.
+### Configure-time options
 
-```sh
-yum install centos-release-scl
-yum install devtoolset-8-gcc devtoolset-8-gcc-c++
-scl enable devtoolset-8 -- bash
-```
+The default build includes the core collectors, `nfdump`, and the supporting
+tools that do not have an optional external dependency. Use `./configure
+--help` as the definitive list. The project-specific options are:
 
-#### Building on Ubuntu 18.04 LTS
+| Option | Purpose |
+| --- | --- |
+| `--enable-nfpcapd` | Build the pcap-to-flow collector. Requires libpcap. |
+| `--enable-readpcap` | Enable pcap input in `nfcapd` and `sfcapd`. |
+| `--enable-nfprofile` | Build the legacy NfSen support programs `nfprofile` and `nftrack`. |
+| `--enable-ftconv` | Build `ft2nfdump`, the flow-tools converter. |
+| `--enable-jnat` | Enable Junos NAT event logging support. |
+| `--enable-ja4` | Build the optional JA4+ fingerprinting code. Review the JA4 licensing terms before enabling it. |
+| `--enable-devel` | Enable developer/debug mode; this also disables shared libraries. |
+| `--enable-native` | Use CPU-specific compiler tuning for a build that will run only on the build host. |
+| `--enable-lto[=auto\|yes\|no]` | Control link-time optimization; the default is `auto`. |
+| `--with-lz4=PATH`, `--with-zstd=PATH`, `--with-bz2=PATH` | Search a non-standard prefix for compression libraries. |
+| `--with-pcre2=PATH`, `--with-libsodium=PATH`, `--with-zlib=PATH` | Search a non-standard prefix for PCRE2, libsodium, or zlib. |
+| `--with-pcap=PATH`, `--with-ft=PATH`, `--with-rrd=PATH` | Search a non-standard prefix for libpcap, flow-tools, or RRD libraries. |
 
-Make sure, you have autotools 2.71 installed.
+`--enable-native` is appropriate for a local installation, but do not use it
+for portable packages or binaries intended for other CPU models. Library
+checks use `pkg-config` first and a header/library fallback second; the
+corresponding `*_CFLAGS` and `*_LIBS` environment variables can override the
+detected values.
 
-```sh
-sudo apt-get install clang-10
-CC=clang-10 ./configure ...
-```
+### Runtime configuration and command-line changes
 
----
+The distributed [`nfdump.conf.dist`](src/libnffile/conf/nfdump.conf.dist) is the
+authoritative starting point for runtime settings. It includes common settings
+and program-specific sections. Thread allocation can be controlled with
+`limitCores` and the `[common.threads]` or per-program `threads` sections.
 
-## Configuration Options
+Several option meanings have changed from the 1.7.x release:
 
-By default ./configure builds:
+| Program | Change |
+| --- | --- |
+| `nfcapd`, `sfcapd`, `nfpcapd` | `-W` is the total CPU-core limit; `0` uses all available cores. It is no longer the number of compression workers. |
+| `nfcapd`, `sfcapd`, `nfpcapd` | Use `-z=lzo|lz4|bz2|zstd[:level]` for compression. The old per-codec `-j` and `-y` options are gone. |
+| `nfcapd`, `sfcapd` | `-R` accepts one repeater, not the former advertised set of up to eight. |
+| `nfcapd`, `sfcapd`, `nfpcapd` | `-H` enables native UDP forwarding; encryption-related options require a libsodium build. |
+| `nfdump`, `nfpcapd` | `-x <key>=<value>` overrides a configuration value for that invocation. |
 
-- the collectors `nfcapd`, `sfcapd`
-- `nfdump` for processing flows
-- additional tools `geolookup`, and `torlookup`
+In `nfcapd` and `sfcapd`, `-x` retains its collector-specific post-rotation
+command meaning; it is not the runtime configuration override flag. Always
+check the installed program's `--help` or manual page when updating scripts.
 
-For a full list, run `./configure --help`. Options include:
+## Quick examples
 
-- `--enable-nfpcapd`
-  Build `nfpcapd` to create NetFlow from interface or pcap traffic (default: NO)
-- `--enable-ja4`
-  Enable all JA4 fingerprinting modules (default: NO)
-- `--enable-jnat`
-  Support JunOS special NAT event logging (default: NO)
-- `--enable-readpcap`
-  Enable reading flow data from pcap files in nfcapd (default: NO)
-- `--enable-ftconv`
-  Build the flow-tools to nfdump converter (default: NO)
-- `--enable-nfprofile`
-  Build nfprofile and nftrack, required by NfSen (default: NO)
-- `--enable-devel`
-  Enable debugging and developer options. For developers only (default: NO)
-- `--with-lz4=PATH`, `--with-zstd=PATH`, `--with-bz2=PATH`
-  Specify non-default library install locations for compression libraries.
-- `--enable-lto`
-  Enable link-time optimization (LTO) if supported. This allows the compiler to optimize across all source files during the final link step, improving performance and reducing binary size.
-- `--enable-native`
-  Use `-march=native` to enable CPU-specific optimizations for the build host. This enables vectorization and instruction set tuning based on the local processor. Recommended for local builds, not for portable binaries.
-
-Compared to previous versions, the configure script has changed: many tools that previously required explicit enabling are now built automatically. The old options `--enable-xxxpath=path` have been replaced by the standard `--with-xxx=path`
-
-Compression libraries are searched for and integrated, if found. If you want to explicitly disable a library and therefore a compression method, use the format `--enable-xxx=no` This disables that library.
-
-The following options no longer exist:
-
-`--enable-nsel`
-NSEL support is built-in by default; you only need to adjust the output format if you prefer the legacy *line* or *long* format for NSEL/NAT. Change the `fmt` formats accordingly in the config file `nfdump.conf`
-
-Notes:
-
-- Make sure your system does provide autoconf 2.71.
-- Older Linux distributions may require libbsd and libbsd-dev installed. 
-
-- `nfprofile` is a legacy binary, used by NfSen and may be moved into a separate archive in future.
-
----
-
-## Basic Usage
-
-Exporter → nfcapd → nfdump → analysis/export (CSV, JSON, InfluxDB, Prometheus)
-
-nfdump provides a set of collection and processing tools. Common tools and example commands:
-
-### Start NetFlow Collector
+Collect NetFlow/IPFIX into a rotating directory:
 
 ```sh
-nfcapd -D -S 2 -w /flow_base_dir/router1 -p 23456
+nfcapd -w /var/nfdump/flows -p 2055
 ```
 
-### View Collected Data
+Read a collection and apply a filter:
 
 ```sh
-nfdump -r /flow_base_dir/router1/nfcapd.202501011200
+nfdump -r /var/nfdump/flows 'proto tcp and port 443'
 ```
 
-### Filter and Aggregate Flows
+Apply a temporary configuration override in `nfdump` or `nfpcapd`:
 
 ```sh
-nfdump -r flowfile 'src ip 192.0.2.1 and dst port 443' -A srcip,dstip
+nfdump -x threads.workers=4 -r /var/nfdump/flows
 ```
 
-### Enrich with Geolocation or Tor Information
+The exact forwarding and cryptographic setup depends on which program sends or
+receives the data. Consult [`nfcapd(1)`](man/nfcapd.1),
+[`sfcapd(1)`](man/sfcapd.1), and [`nfpcapd(1)`](man/nfpcapd.1) before deploying
+encrypted forwarding.
 
-Enable and configure geolookup/torlookup databases as needed. For details, see the relevant man pages (`man geolookup`, `man torlookup`).
+## How nfdump works
 
-### Export Metrics
+nfdump separates collection from analysis. A collector decodes exporter data
+and writes time-rotated nffile files. `nfdump` and the other processing tools
+then read those files independently, allowing historical analysis without
+holding up collection.
 
-Send metrics to InfluxDB or Prometheus-compatible tools using [nfinflux](https://github.com/phaag/nfinflux) or [nfexporter](https://github.com/phaag/nfexporter).
+### Storage and collection
 
----
+Collectors normally write one time-rotated file series per flow source. A
+typical layout is:
 
-## Included Tools
+```text
+/var/nfdump/edge-router/nfcapd.YYYYMMDDhhmm
+/var/nfdump/core-router/nfcapd.YYYYMMDDhhmm
+```
 
-nfdump includes several related tools for extended workflows:
+The rotation interval and naming are collector settings; five-minute files are
+a common operational choice. `nfcapd` can collect multiple exporters on one
+listener and can assign sources to separate storage directories with `-n`.
+For high-volume sites, separate collector processes, listening ports, and
+storage paths can isolate busy exporters.
 
-- **nfcapd**
-  NetFlow collector daemon. Collects NetFlow version v1/v5/v7/v9 and IPFIX streams from one or many exporters and stores the flow record data in nfdump binary files.
+The V3 backend stores data in blocks. Its directory and footer allow the
+reader to locate blocks without treating the file as one monolithic record
+stream. Block-level metadata, optional checksums, optional encryption, and
+metadata indexes are handled by the backend; the filter and output tools work
+with logical flow fields.
 
-- **sfcapd**
-  sFlow collector daemon. Collects sflow v4/v6 (sflowtool compatible) streams from one or many exporters and stores the flow record data in nfdump binary files.
+### Reading, filtering, and output
 
-- **nfpcapd**
-  Converts live traffic from a host interface or pcap-captured network traffic to NetFlow records. Stores the flow record data in nfdump binary files or forwards a data stream to a running `nfcapd` collector on another host.
+`nfdump` reads a single file with `-r`, a file collection with `-R`, or an
+explicit file list. It compiles the filter once, applies it to the selected
+flows, and can print records, aggregate fields with `-A`, calculate statistics,
+or write another nffile. Text, CSV, JSON, and user-defined formats support
+integration with other tools.
 
-- **nfdump**
-  Reads nfdump binary files, filters flow records and post-processes flow records. The extensive filter language (See the available [cheatsheet](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md) ) selects flows for processing. The post-processing includes:
+For example, aggregate TLS traffic by source and destination address:
 
-  - Flexible flow aggregation
-  - Flow statistics, based on any flow element
-  - Flow listings
-  - Flow enrichment with optional geo and/or tor exit node information.
-  
-- **geolookup**
-  Look up IP addresses for country, region, city, and optionally AS information. Requires a geo database to work. See the provided `updateGeoDB.sh` script in order to build the database.
+```sh
+nfdump -r /var/nfdump/edge-router 'proto tcp and port 443' -A srcip,dstip
+```
 
-- **torlookup**
-  Look up IP addresses for Tor exit node information. Requires a TorDB database to work. See the provided `updateTorDB.sh` script in order to build the database.
+`nfexpire` maintains a bounded archive by removing expired files according to
+its configured retention policy. Use it rather than an unconstrained cleanup
+job when the flow directory is shared with active collectors.
 
-- **nfanon**
-  Anonymizes IP addresses in flow records using CryptoPAn.
+### Operational security
 
-- **nfexpire**
-  Manages expiration of old flow data.
-
-- **nfreplay**
-  Replays collected NetFlow data to another collector.
-
-- **ft2nfdump**
-  Converts flow-tools format to nfdump format. (optionally built)
-
-- **nfprofile** and **nftrack**
-
-
-  Programs required by NfSen. `nfprofile` filters and organizes flows by profile, and `nftrack` provides port tracking for the PortTracker plugin.
-
-- **nfreader**
-  Framework for custom C code to process nfdump files. Not installed by default.
-
----
+Collectors do not need root privileges unless they bind a UDP port below 1024
+or open a protected capture interface. Restrict which exporters may reach the
+collector using host or network firewall rules. Treat forwarding keys and
+encrypted-file passphrases as secrets; do not put them in command histories or
+issue reports.
 
 ## Compression
 
-Collected data files can be compressed using LZO, LZ4, ZSTD, or bzip2.  
-- LZO and LZ4 are embedded and require no external dependencies by default.
-- ZSTD and bzip2 require system libraries, auto-detected at build time.
-- To compress on the fly, use the `-z` option, e.g. `-z=lz4`.
-
-**Example:**
+nffile V3 compresses data blocks independently. This permits streaming writes,
+parallel backend work where appropriate, and reading only the blocks needed
+for a query. Use `-z` on collectors and programs that write nffile output:
 
 ```sh
-nfcapd -z=lz4 ...
+nfcapd -w /var/nfdump/edge-router -p 2055 -z=lz4
 ```
 
-- Use bzip2 for maximum compression when archiving; use LZ4 (recommended) for fast, efficient real-time compression.
+| Setting | Availability and typical use |
+| --- | --- |
+| `-z=lzo` | Built-in LZO codec; a fast compatibility-oriented choice. |
+| `-z=lz4[:level]` | LZ4; a good general choice for low-latency collection. A bundled implementation is used if no system LZ4 is found. |
+| `-z=zstd[:level]` | Zstandard; generally a good balance of compression ratio and speed when libzstd is available. |
+| `-z=bz2` | bzip2; prioritize archive size over CPU time when libbz2 is available. |
 
----
+Choose the codec based on measured CPU, disk, and retention requirements. A
+reader automatically recognizes the codec recorded in a file. Compression and
+backend encryption can be used together; encrypted files cannot be recompressed
+in place.
 
-## How nfdump Works
+## Programs
 
-nfdump is designed to analyze both historical and live NetFlow data, enabling continuous or retrospective monitoring of network traffic. The system is optimized for speed and efficiency, allowing complex filtering and aggregation of flow records with a syntax similar to tcpdump.
+- `nfcapd` — Collect NetFlow v1/v5/v7/v9 and IPFIX, then store or forward the
+  decoded flows.
+- `sfcapd` — Collect sFlow, then store or forward the decoded flows.
+- `nfpcapd` — Read live interfaces or pcap files, decode packets into flows,
+  and store, write pcap, or forward them. Optional at configure time.
+- `nfdump` — Read, filter, aggregate, convert, and report flow files.
+- `nfexpire` — Maintain flow-file retention and expire old data safely.
+- `nfmeta` — Create or update flow-file metadata, including address Bloom
+  filters for block-level query skipping.
+- `nfreplay` — Send stored flows to another collector using NetFlow v5, NetFlow
+  v9, or IPFIX.
+- `nfanon` — Anonymize flow records using Crypto-PAn.
+- `geolookup` — Look up IP geolocation, AS, and timezone information in an
+  nfdump MaxMind database.
+- `torlookup` — Look up Tor exit-node information in an nfdump Tor database.
+- `ft2nfdump` — Convert flow-tools files to nfdump; optional at configure time.
+- `nfprofile` — Process NfSen profiles and channels; optional at configure time.
+- `nftrack` — Support NfSen port tracking; optional at configure time.
+- `nfreader` — A C framework/example for custom nffile readers; it is not
+  installed by default.
 
-### Data Storage and Organization
+## Sampling and event logging
 
-- All collected data is stored to disk before analysis, separating collection from processing.
-- Data is organized in a time-based directory structure, typically rotating files every 5 minutes.
+Sampling is normally determined from exporter-provided NetFlow v9/IPFIX option
+templates. A configured sampling rate can be supplied when an exporter does
+not provide one. Packet and byte counters are scaled by the sampling rate;
+the number of flow records is not, because it cannot be reliably inferred.
 
-**Example directory structure:**
-```
-/flow_base_dir/router1
-/flow_base_dir/router2
-```
-Each subdirectory corresponds to a different flow source.
+Cisco NSEL and NEL records are supported through NetFlow v9. Junos NAT event
+logging support is optional and requires `--enable-jnat` at build time.
 
-**Example file rotation:**
-```
-nfcapd.YYYYMMDDhhmm (e.g., nfcapd.200907110845 contains data from July 11th 2009 08:45 onward)
-```
-With a 5-minute interval, there are 288 files per day.
+## Documentation
 
-### Collecting from Multiple Sources
+Useful project documentation includes:
 
-While multiple flow sources can be sent to a single collector, it is recommended to run multiple collectors on busy networks.
+- [Configuration reference](src/libnffile/conf/nfdump.conf.dist)
+- [nffile V3 format definitions](src/libnffile/nffileV3/nffileV3.h)
+- [Manual pages](man)
 
-**Start two collectors on different ports:**
-```sh
-nfcapd -D -S 2 -B 1024000 -w /flow_base_dir/router1 -p 23456
-nfcapd -D -S 2 -B 1024000 -w /flow_base_dir/router2 -p 23457
-```
+## Reporting beta issues
 
-**Collect all sources into the same file:**
-```sh
-nfcapd -D -S 2 -w /flow_base_dir/routers -p 23456
-```
+Please report reproducible issues with the command used, the relevant
+configuration (with secrets removed), exporter type and version, platform,
+and a small capture or flow-file sample where possible. For performance
+reports, include CPU model, storage type, input rate, enabled compression or
+encryption, and the core limit in use.
 
-**Split collected data per source:**
-```sh
-nfcapd -D -S 2 -n router1,172.16.17.18,/flow_base_dir/router1 \
-       -n router2,172.16.17.20,/flow_base_dir/router2 -p 23456
-```
+## Ecosystem and support
 
-See `nfcapd(1)` for a detailed explanation of all options.
+- [go-nfdump](https://github.com/phaag/go-nfdump) reads nfdump files from Go.
+- [nfinflux](https://github.com/phaag/nfinflux) exports metrics to InfluxDB.
+- [nfexporter](https://github.com/phaag/nfexporter) exports metrics for
+  Prometheus-compatible systems.
+- [NfSen](https://github.com/phaag/nfsen) is the legacy graphical frontend;
+  build `nfprofile` and `nftrack` if it is part of your deployment.
 
-### Security
-
-- No root privileges are required unless binding to ports < 1024.
-- nfcapd has no built-in access control; rely on host-level security to filter IP addresses.
-
-### Analyzing and Filtering Data
-
-Data can be analyzed from a single file or by concatenating multiple files. Output can be in ASCII text or binary format for further processing.
-
-**Example:**
-```sh
-nfdump -r /flow_base_dir/router1/nfcapd.202501011200
-```
-
-The filter syntax is powerful and inspired by tcpdump but tailored for flow data. For example:
-
-```sh
-nfdump -r flowfile 'src ip 192.0.2.1 and dst port 443'
-```
-
-Filter rules can be combined, and flows can be aggregated and output in various formats, including CSV for post-processing.
-
-### Example: Cisco Router NetFlow Configuration
-
-**Enable NetFlow on an interface:**
-```
-interface fastethernet 0/0
- ip address 192.168.92.162 255.255.255.224
- ip route-cache flow
-```
-
-**Export NetFlow data:**
-```
-ip flow-export 192.168.92.218 9995
-ip flow-export version 5 
-ip flow-cache timeout active 5
-```
-This breaks up long-lived flows into 5-minute segments. You can set any number of minutes between 1 and 60.
-
-**NetFlow v9 full export example with sampling:**
-```
-interface Ethernet1/0
- ip address 192.168.92.162 255.255.255.224
- duplex half
- flow-sampler my-map
-!
-!
-flow-sampler-map my-map
- mode random one-out-of 5
-!
-ip flow-cache timeout inactive 60
-ip flow-cache timeout active 1
-ip flow-capture fragment-offset
-ip flow-capture packet-length
-ip flow-capture ttl
-ip flow-capture vlan-id
-ip flow-capture icmp
-ip flow-capture ip-id
-ip flow-capture mac-addresses
-ip flow-export version 9
-ip flow-export template options export-stats
-ip flow-export template options sampler
-ip flow-export template options timeout-rate 1
-ip flow-export template timeout-rate 1
-ip flow-export destination 192.168.92.218 9995
-```
-
-See your device documentation for full details on NetFlow configuration.
-
-**Note:** NetFlow v5 and v7 use 32-bit counters, which may overflow on busy routers. To prevent overflow, reduce the flow-cache timeout. All nfdump tools use 64-bit counters internally.
-
-### Architecture Notes
-
-- The binary file format is NetFlow version independent but architecture-dependent  (little vs. big endian).
-- Internally, all processing is IP protocol independent (supports IPv4 and IPv6).
-
----
-
-## Sampling
-
-By default, the sampling rate is 1 (unsampled) or the value specified via `-s`. If the NetFlow stream contains sampling information, that value takes precedence. Nfcapd automatically recognizes sampling when announced in v9/IPFIX option templates with tags set (`#302, #304, #305, #306`, `#48, #49, #50`, `#34, #35`), or in the unofficial v5 header hack. The sampling data is stored in the sampling information fields in the flow record.
-
-**Note:** Not all platforms (or vendor software versions) support exporting sampling information in NetFlow data, even if sampling is configured. The number of bytes and packets in each NetFlow record is automatically multiplied by the sampling rate. The total number of flows is not changed as this is not accurate enough (small flows versus large flows).
-
----
-
-## NetFlow/NSEL/NAT Support
-
-- Supports Cisco NSEL (Network Event Security Logging) and NEL (NAT Event Logging) via NetFlow v9.
-- Partially compatible with JunOS NAT Event Logging (enable with `--enable-jnat`).
-
----
-
-## Related Projects
-
-- [go-nfdump](https://github.com/phaag/go-nfdump): Read nfdump files in Go.
-- [nfinflux](https://github.com/phaag/nfinflux): Export metrics to InfluxDB.
-- [nfexporter](https://github.com/phaag/nfexporter): Export metrics for Prometheus.
-- [NfSen](https://github.com/phaag/nfsen): Old legacy graphical frontend.
-- [nfsen-ng](https://github.com/mbolli/nfsen-ng): Project from Michael Bolli
-
----
-
-## Sponsorship
-
-If you find nfdump useful, please consider supporting development:  
-[GitHub Sponsors: phaag](https://github.com/sponsors/phaag)
-
----
+For usage details, read the installed manual page or run a program with `-h`.
+Please report bugs with the information requested above. Development can be
+supported through [GitHub Sponsors](https://github.com/sponsors/phaag).
 
 ## License
 
-nfdump is released under the BSD license. See the [LICENSE](LICENSE) file for details.
-
----
-
-## Support & Documentation
-
-- For detailed usage instructions, consult the man pages (`man nfdump`, `man nfcapd`, etc.) or run any tool with the `-h` switch.
-- Feel free to open issues or pull requests.
-- For other questions please see my email address in the AUTHORS.
-- For the latest updates, visit the [nfdump repository on GitHub](https://github.com/phaag/nfdump).
+nfdump is distributed under the BSD 3-Clause License. See
+[BSD-license.txt](BSD-license.txt).

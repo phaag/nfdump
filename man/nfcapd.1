@@ -65,6 +65,8 @@
 .Op Fl W Ar num
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+.Op Fl N Ar secs
+.Op Fl Q Ar bits
 .Op Fl Y Ar yaf-file
 .Op Fl v Ar level
 .Op Fl V
@@ -79,6 +81,14 @@ implementation of netflow, such as Juniper, VMware, PaloAlto devices and yaf.
 Sflow is a different technology. 
 .Nm
 supports a large number of netflow v9 and ipfix elements according to the IANA assignments.
+.Pp
+In 1.8.x, NetFlow v9 and IPFIX templates are compiled once into a decoding
+program rather than interpreted field-by-field for every record. IPFIX
+information element 315
+.Pq Li dataLinkFrameSection
+can decode embedded packet frames, including common VLAN, MPLS, PPPoE, GRE,
+ERSPAN, and IP-in-IP encapsulations. Collection, backend writing, and file
+rotation use the shared 1.8.x threaded V3 backend.
 .Pp
 If you want to collect sflow data, please have a look at
 .Ar sfcapd
@@ -392,6 +402,25 @@ may be combined independently: use
 to encrypt stored files and
 .Fl k
 to decrypt incoming transport flows.
+.It Fl N Ar secs
+Set the encrypted UDP transport rekey interval in seconds. A value of 0
+disables rekeying; the accepted range is 0 through 604800 (seven days).
+This option requires
+.Fl k
+and overrides
+.Sy crypt.rekeyIntervalSecs
+from
+.Xr nfdump.conf 5
+for this invocation.
+.It Fl Q Ar bits
+Set the encrypted UDP anti-replay window size. The value must be a power of
+two from 64 through 1024. This option requires
+.Fl k
+and overrides
+.Sy crypt.antiReplayWindowBits
+from
+.Xr nfdump.conf 5
+for this invocation.
 .It Fl W Ar num
 Set the core limit to
 .Ar num
@@ -469,6 +498,11 @@ and is therefore independent from file rotation.
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
 printf netflow records in raw format while collecting. Please note, that not all elements
 are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
+.It Fl E
+Deprecated alias for
+.Fl v No 3 .
+.It Fl Z
+Append the local timezone offset to rotated file names.
 .It Fl V
 Print
 .Nm 

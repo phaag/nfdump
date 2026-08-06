@@ -1,159 +1,107 @@
-.\" Copyright (c) 2026, Peter Haag
-.\" All rights reserved.
-.\"
-.\" Redistribution and use in source and binary forms, with or without
-.\" modification, are permitted provided that the following conditions are met:
-.\"
-.\"  * Redistributions of source code must retain the above copyright notice,
-.\"    this list of conditions and the following disclaimer.
-.\"  * Redistributions in binary form must reproduce the above copyright notice,
-.\"    this list of conditions and the following disclaimer in the documentation
-.\"    and/or other materials provided with the distribution.
-.\"  * Neither the name of the author nor the names of its contributors may be
-.\"    used to endorse or promote products derived from this software without
-.\"    specific prior written permission.
-.\"
-.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-.\" POSSIBILITY OF SUCH DAMAGE.
-.\"
+." Copyright (c) 2026, Peter Haag
+." All rights reserved.
+."
+." Redistribution and use in source and binary forms, with or without
+." modification, are permitted provided that the following conditions are met:
+."
+."  * Redistributions of source code must retain the above copyright notice,
+."    this list of conditions and the following disclaimer.
+."  * Redistributions in binary form must reproduce the above copyright notice,
+."    this list of conditions and the following disclaimer in the documentation
+."    and/or other materials provided with the distribution.
+."  * Neither the name of the author nor the names of its contributors may be
+."    used to endorse or promote products derived from this software without
+."    specific prior written permission.
+."
+." THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+." AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+." IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+." ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+." LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+." CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+." SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+." INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+." CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+." ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+." POSSIBILITY OF SUCH DAMAGE.
+."
 .Dd $Mdocdate$
 .Dt NFMETA 1
 .Os
 .Sh NAME
 .Nm nfmeta
-.Nd add per-block bloom-filter index and other metadata to nfdump flow files
+.Nd create or update per-block metadata for nfdump flow files
 .Sh SYNOPSIS
 .Nm
 .Fl r Ar path
 .Op Fl w Ar outfile
+.Op Fl v Ar level
 .Op Fl W Ar num
 .Op Fl x Ar key=value
-.Op Fl h
-.Nm
-.Op Fl r Ar path
-.Fl w Ar outfile
-.Op Fl W Ar num
-.Op Fl x Ar key=value
-.Op Fl h
 .Sh DESCRIPTION
 .Nm
-reads one or more nfdump flow files and writes a new file in which each
-flow data block is preceded by four
-.Em META bloom filter records
-that index the IP addresses contained in that block. Furthermore the time window
-in the block header is updated.
+reads an nfdump flow file or directory and adds metadata to each flow block.
+It creates four Bloom filters per block: source and destination IPv4 addresses,
+and source and destination IPv6 addresses. It also refreshes the block time
+window.
 .Pp
-The per-block bloom filters and time window allow
 .Xr nfdump 1
-to skip entire data blocks during filtering,
-providing a significant speedup for IP-address-based and/or time based queries
-on large files or archives.
-Four independent bloom filters are maintained per block:
-.Bl -bullet -compact
-.It
-source IPv4 addresses
-.It
-destination IPv4 addresses
-.It
-source IPv6 addresses
-.It
-destination IPv6 addresses
-.El
+uses this metadata to reject blocks that cannot match an address or time
+filter, reducing unnecessary decompression and record processing for large
+archives. Bloom filters can yield a possible match, never a false rejection;
+the normal filter is always applied to matching candidate blocks.
 .Pp
-The output file preserves the original compression method and level,
-the file identity string, and all non-flow blocks (exporters, interface
-names, NBAR records, etc.) unchanged.
+Without
+.Fl w ,
+each input file is updated in place. The new file is written to a temporary
+file in the same directory and renamed over the original only after successful
+completion. With
+.Fl w ,
+all selected input files are written to one output file instead.
 .Sh OPTIONS
 .Bl -tag -width Ds
 .It Fl r Ar path
-Read flow data from
-.Ar path ,
-which may be a single nfdump file or a directory.
-When a directory is given, all nfdump files in it are processed.
+Read a single nfdump file or all flow files in the specified directory.
 .It Fl w Ar outfile
-Write all annotated flow data to
+Write the processed data to
 .Ar outfile .
-All input files are merged into this single output file.
-.Pp
-If
-.Fl w
-is omitted,
-.Nm
-operates in in-place mode: each input file is processed into a temporary
-file in the same directory, then atomically renamed over the original on
-success.
-The original file is left untouched if an error occurs during processing.
+When multiple input files are selected they are merged into this output file.
+If omitted, update every input file in place.
+.It Fl v Ar level
+Set the log verbosity level from 0 through 4.
 .It Fl W Ar num
-Limit the number of cores used for threading.
-.Ar num
-specifies the number of cores to be used for internal threading.
-The number of reader decompression threads is automatically derived
-as
-.Li round(writers / C)
-where
-.Em C
-is the codec's compress/decompress time ratio
-(lz4 \(ap 2, zstd \(ap 5, bz2 \(ap 3),
-keeping the read and write pipelines balanced.
-If omitted, the default is the number of online CPU cores.
+Set the total CPU-core budget. A value of 0, or omitting this option, uses all
+online cores. The runtime divides the budget between readers, Bloom-filter
+workers, and writers.
 .Pp
-Individual role counts can be overridden per-run with
-.Fl x Ar threads.writers=N ,
+Use
 .Fl x Ar threads.readers=N ,
+.Fl x Ar threads.workers=N ,
 or
-.Fl x Ar threads.workers=N
-(0 restores the auto-derived count), or persistently via the
-.Em [threads]
-section in
+.Fl x Ar threads.writers=N
+to override individual roles for one run. See
 .Xr nfdump.conf 5 .
 .It Fl x Ar key Ns = Ns Ar value
-Override a single configuration key for this run only.
-May be repeated to override multiple keys.
-See
-.Xr nfdump.conf 5
-for the list of available keys and
-.Xr nfdump 1
-for a full description of the override mechanism.
+Override a configuration value for this invocation. The option may be repeated.
 .It Fl h
-Print a short usage summary and exit.
+Print the short usage summary and exit.
 .El
-.Sh IN-PLACE REPLACEMENT
-When no
-.Fl w
-is given, each input file is replaced atomically: the annotated data is
-written to a temporary file created by
-.Xr mkstemp 3
-in the same directory as the source.
-Only on successful completion is the temporary file renamed over the
-original with
-.Xr rename 2 .
-A crash or error during writing therefore leaves the original file intact
-and the temporary file is removed.
 .Sh EXAMPLES
-Annotate a single file in-place:
-.Dl % nfmeta -r nfcapd.202501010000
+Update one file in place:
+.Dl nfmeta -r nfcapd.202601010000
 .Pp
-Annotate all files in a directory in-place:
-.Dl % nfmeta -r /data/2025/01/01
+Update every flow file in a directory in place:
+.Dl nfmeta -r /var/nfdump/edge-router
 .Pp
-Annotate a single file and write to a separate output:
-.Dl % nfmeta -r nfcapd.202501010000 -w nfcapd.202501010000.meta
+Create one annotated output file from a directory:
+.Dl nfmeta -r /var/nfdump/edge-router -w /var/nfdump/edge-router.meta
 .Pp
-Merge an entire day of files into one combined annotated output:
-.Dl % nfmeta -R /data/nfcapd.20250101* -w /data/day.meta.nf
+Limit processing to four cores and two Bloom-filter workers:
+.Dl nfmeta -W 4 -x threads.workers=2 -r /var/nfdump/edge-router
 .Sh RETURN VALUES
 .Nm
 returns 0 on success and 255 on error.
 .Sh SEE ALSO
 .Xr nfdump 1 ,
-.Xr nfcapd 1 ,
+.Xr nfdump.conf 5 ,
 .Xr nfanon 1

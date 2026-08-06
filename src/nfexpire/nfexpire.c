@@ -73,6 +73,8 @@ static void usage(char *name) {
         "-n\t\tdryrun mode. Do not delete but report\n"
         "-r datadir\tRescan data directory\n"
         "-u datadir\tUpdate expire params from collector logging at <datadir>\n"
+        "-p\t\tLegacy NfSen profile mode\n"
+        "-Y\t\tPrint NfSen-compatible statistics\n"
         "-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
         "-T runtime\tmaximum nfexpire run time: nfexpire terminates after this amount of seconds\n"
         "-t lifetime\tmaximum life time of data: scales: w week, d day, H hour, M minute\n"

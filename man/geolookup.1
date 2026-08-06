@@ -36,6 +36,8 @@
 .Op Fl G Ar geoDBfile
 .Ar iplist
 .Nm
+.Fl h
+.Nm
 .Fl d Ar directory
 .Fl w Ar geoDBfile/command line option
 .Sh DESCRIPTION
@@ -73,6 +75,8 @@ creates a new binary lookup database file.
 Name of the new lookup database file.
 .It Fl G Ar geoDBfile
 Use the binary geoDBfile as lookup database for the current AS and location lookups.
+.It Fl h
+Print the short usage summary and exit.
 .El
 .Pp
 To specify the geo lookup database 
@@ -132,4 +136,3 @@ Move the lookup database to the final location.
 has already builtin lookup options to decorate the text output with geo location and AS information.
 .Pp
 .Xr nfdump 1
-
