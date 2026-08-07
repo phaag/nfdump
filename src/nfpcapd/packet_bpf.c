@@ -284,6 +284,7 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
                 if (DoPacketDump) {
                     // Rotate dump file - close old - open new
                     packetBuffer->timeStamp = t_start;
+                    packetBuffer->rotate = 1;
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
                     if (packetBuffer == QUEUE_CLOSED) {
@@ -327,6 +328,7 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
                     dbg_printf("packet_thread() flush file - buffer: %zu\n", packetBuffer->bufferSize);
                     // Rotate dump file - close old - open new
                     packetBuffer->timeStamp = t_start;
+                    packetBuffer->rotate = 1;
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
                     if (packetBuffer == QUEUE_CLOSED) {
@@ -357,6 +359,7 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
                 }
                 if ((packetBuffer->bufferSize + size) > 1048576) {
                     packetBuffer->timeStamp = 0;
+                    packetBuffer->rotate = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
@@ -377,6 +380,7 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
     dbg_printf("Done capture loop - signal close\n");
     if (DoPacketDump && packetBuffer != QUEUE_CLOSED) {
         packetBuffer->timeStamp = t_start;
+        packetBuffer->rotate = 1;
         queue_push(packetParam->flushQueue, packetBuffer);
         queue_close(packetParam->flushQueue);
     }

@@ -37,7 +37,11 @@
 #include "queue.h"
 
 typedef struct packetBuffer_s {
-    time_t timeStamp;
+    time_t timeStamp;  // window start time; meaningful only when rotate is set
+    int rotate;         // true: this push should close/rename the archive file;
+                        // kept separate from timeStamp so a legitimate t_start
+                        // of 0 (e.g. replaying a pcap with epoch-0 timestamps)
+                        // can never be mistaken for "no rotation requested"
     size_t bufferSize;
     uint8_t buffer[];
 } packetBuffer_t;

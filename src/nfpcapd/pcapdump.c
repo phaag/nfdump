@@ -250,6 +250,7 @@ int InitFlushParam(flushParam_t *flushParam) {
         }
         packetBuffer->bufferSize = 0;
         packetBuffer->timeStamp = 0;
+        packetBuffer->rotate = 0;
         queue_push(flushParam->bufferQueue, (void *)packetBuffer);
     }
 
@@ -275,7 +276,14 @@ void __attribute__((noreturn)) * flush_thread(void *args) {
             break;
         }
         dbg_printf("flush_thread() next buffer: %zu\n", packetBuffer->bufferSize);
+        // Capture both before the buffer is reset/recycled below. rotate is a
+        // dedicated flag - unlike timeStamp, it is never a value that could
+        // also mean "no rotation" (see pcapdump.h), so a window start of
+        // exactly epoch 0 (e.g. replaying an old/synthetic pcap) still
+        // triggers CloseDumpFile() correctly.
         time_t timeStamp = packetBuffer->timeStamp;
+        int rotate = packetBuffer->rotate;
+
         if (packetBuffer->bufferSize) {
             if (flushParam->pfd == 0) {
                 int fd = OpenDumpFile(flushParam->dumpFile, flushParam->snaplen, flushParam->linkType);
@@ -291,19 +299,25 @@ void __attribute__((noreturn)) * flush_thread(void *args) {
                     LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 }
             }
-
-            // return buffer
-            packetBuffer->bufferSize = 0;
-            packetBuffer->timeStamp = 0;
-            queue_push(flushParam->bufferQueue, packetBuffer);
         }
-        if (timeStamp) {
+
+        // Return the buffer to the pool unconditionally - a rotate-only push
+        // (time window elapsed with nothing captured since the last flush)
+        // has bufferSize == 0 but still must give the buffer back, otherwise
+        // the fixed-size pool (MAXBUFFERS) permanently loses one slot per
+        // such event and the producer eventually blocks forever on
+        // queue_pop(bufferQueue).
+        packetBuffer->bufferSize = 0;
+        packetBuffer->timeStamp = 0;
+        packetBuffer->rotate = 0;
+        queue_push(flushParam->bufferQueue, packetBuffer);
+
+        if (rotate) {
             // rotate file
             dbg_printf("flush_thread() CloseDumpFile\n");
             if (CloseDumpFile(flushParam, timeStamp) < 0) {
                 LogError("flush_thread() - failed to close dump file");
             }
-            packetBuffer->timeStamp = 0;
         }
     }
 
