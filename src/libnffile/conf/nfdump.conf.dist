@@ -137,6 +137,11 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 #writers = 0   # same cap logic as [nfcapd.threads]
 
 [nfpcapd]
+# Seconds between flow-cache maintenance batches. All elapsed time-wheel slots
+# are processed, so this controls expiry latency and batching, not correctness.
+# Valid range: 1..60; it must not exceed the shorter active/inactive timeout.
+#flowcache.expireinterval = 5
+
 # define -o options
 # opt.fat = 1
 # opt.payload = 1

@@ -116,13 +116,17 @@ static void DumpTreeStat(NodeList_t *NodeList);
 static size_t NodeList_length(NodeList_t *NodeList);
 
 // Flow Cache to store all nodes
-#define EXPIREINTERVALL 10
+#define DefaultExpireInterval 5
+#define MaxExpireInterval 60
 #define DefaultCacheSize 8192
 #define ExtentSize 4096
 #define MaxSize (1024 * 1024 * 512)
-static time_t lastExpire = 0;
+static time_t lastWheelTick = 0;
+static time_t lastMaintenance = 0;
+static bool wheelClockValid = false;
 static uint32_t expireActiveTimeout = 300;
 static uint32_t expireInactiveTimeout = 60;
+static uint32_t expireInterval = DefaultExpireInterval;
 
 static _Atomic uint32_t Allocated = 0;
 
@@ -157,7 +161,7 @@ static uint32_t checkRun = 0;
 
 static flowHashStat_t flowHashStat = {0};
 
-int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive) {
+int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive, uint32_t interval) {
     if (expireActive) {
         expireActiveTimeout = expireActive;
         LogInfo("Set active flow expire timeout to %us", expireActiveTimeout);
@@ -167,6 +171,16 @@ int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInac
         expireInactiveTimeout = expireInactive;
         LogInfo("Set inactive flow expire timeout to %us", expireInactiveTimeout);
     }
+
+    if (interval == 0) interval = DefaultExpireInterval;
+    uint32_t shortest_timeout = expireActiveTimeout < expireInactiveTimeout ? expireActiveTimeout : expireInactiveTimeout;
+    if (interval > MaxExpireInterval || interval > shortest_timeout) {
+        LogError("Invalid flow cache expire interval %us; allowed range is 1..%us", interval,
+                 shortest_timeout < MaxExpireInterval ? shortest_timeout : MaxExpireInterval);
+        return 0;
+    }
+    expireInterval = interval;
+    LogInfo("Set flow cache expire interval to %us", expireInterval);
 
     // flow hash
     uint32_t hashSize = DefaultHashSize;
@@ -384,7 +398,6 @@ static inline void TimeWheel_Remove(TimeWheel_t *tw, struct FlowNode *node) {
     (void)tw;  // unused for now
 
     // Node is not in the wheel → nothing to do
-    dbg_assert(node->wheel_prev_next != NULL);
     if (!node->wheel_prev_next) return;
 
     struct FlowNode *next = node->wheel_next;
@@ -656,23 +669,21 @@ static void Shrink_NodeCache(time_t now) {
     LogVerbose("Adjust cache slab: %u -> %u. Slabs freed: %u", oldCacheSize, FlowCacheSize, freedSlabs);
 }
 
-static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
-    if (flowHashStat.activeNodes == 0) return 0;
-
-    uint32_t slot = (uint32_t)(when % FlowWheel.size);
-    FlowWheel.current = slot;
-
-#ifdef DEVEL
-    char buff[20];
-    struct tm tmBuff = {0};
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime_r(&when, &tmBuff));
-    printf("TimeWheel expires at: %s, slot: %u\n", buff, slot);
-#endif
-
-    // Detach the entire slot list
+/*
+ * Detach a slot before processing it.  A flow which is not due (possible with
+ * out-of-order packet timestamps) can then be inserted into its new slot
+ * without changing the list currently being walked.
+ */
+static struct FlowNode *Detach_WheelSlot(uint32_t slot) {
     struct FlowNode *node = FlowWheel.slots[slot].head;
     FlowWheel.slots[slot].head = NULL;
 
+    for (struct FlowNode *n = node; n; n = n->wheel_next) n->wheel_prev_next = NULL;
+
+    return node;
+}  // End of Detach_WheelSlot
+
+static uint32_t Expire_FlowList(NodeList_t *NodeList, struct FlowNode *node, time_t when) {
     uint32_t flowCnt = 0;
     while (node) {
         struct FlowNode *next = node->wheel_next;
@@ -680,17 +691,54 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
         time_t expire_at = flow_next_expire(node);
 
         if (when >= expire_at || when == 0) {
-            // Flow is expired: Remove_Node() will call TimeWheel_Remove()
+            // The node was detached from the wheel before this walk.
             Remove_Node(node);
 
             Push_Node(NodeList, node);
             flowCnt++;
         } else {
-            // Not expired yet → reschedule into correct future slot
+            // Not expired yet → reschedule into the correct future slot.
             TimeWheel_Insert(&FlowWheel, node, when);
         }
 
         node = next;
+    }
+
+    return flowCnt;
+}  // End of Expire_FlowList
+
+/*
+ * Advance the wheel from the last processed timestamp through 'when'.  Under
+ * normal traffic this touches one empty slot per elapsed second, rather than
+ * scanning the full wheel on every maintenance run.  After a jump spanning a
+ * complete wheel, detach every slot first so a future-dated flow cannot be
+ * visited again after it is rescheduled.
+ */
+static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t from, time_t when) {
+    if (when <= from || FlowWheel.size == 0) return 0;
+
+    FlowWheel.current = (uint32_t)(when % FlowWheel.size);
+    uint32_t flowCnt = 0;
+
+    if ((uint64_t)(when - from) >= FlowWheel.size) {
+        struct FlowNode *allNodes = NULL;
+
+        for (uint32_t slot = 0; slot < FlowWheel.size; slot++) {
+            struct FlowNode *node = Detach_WheelSlot(slot);
+            while (node) {
+                struct FlowNode *next = node->wheel_next;
+                node->wheel_next = allNodes;
+                allNodes = node;
+                node = next;
+            }
+        }
+        flowCnt = Expire_FlowList(NodeList, allNodes, when);
+    } else {
+        for (time_t tick = from; tick < when;) {
+            tick++;
+            uint32_t slot = (uint32_t)(tick % FlowWheel.size);
+            flowCnt += Expire_FlowList(NodeList, Detach_WheelSlot(slot), when);
+        }
     }
 
     if (flowCnt) {
@@ -703,23 +751,34 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
 }  // End of Expire_FlowTree
 
 void CacheCheck(NodeList_t *NodeList, time_t when) {
-    if (lastExpire == 0) {
-        lastExpire = when;
+    if (!wheelClockValid) {
+        lastWheelTick = when;
+        lastMaintenance = when;
+        wheelClockValid = true;
         return;
     }
     checkRun++;
 
-    if ((when - lastExpire) > EXPIREINTERVALL) {
-        expireRun++;
-        uint32_t expired = Expire_FlowTree(NodeList, when);
-        dbg_printf("CacheCheck() expired: %u nodes\n", expired);
-        LastExpireCount = expired;
-        lastExpire = when;
-
-        Shrink_NodeCache(when);
-    } else {
-        dbg_printf("CacheCheck() - Skip cache check\n");
+    /* Offline pcaps can contain out-of-order timestamps. Never move the
+     * wheel backwards: a later packet timestamp will advance it safely. */
+    if (when < lastWheelTick) {
+        dbg_printf("CacheCheck() - Ignore backward timestamp\n");
+        return;
     }
+
+    if ((uint64_t)(when - lastMaintenance) < expireInterval) {
+        dbg_printf("CacheCheck() - Skip cache check\n");
+        return;
+    }
+
+    expireRun++;
+    uint32_t expired = Expire_FlowTree(NodeList, lastWheelTick, when);
+    dbg_printf("CacheCheck() expired: %u nodes\n", expired);
+    LastExpireCount = expired;
+    lastWheelTick = when;
+    lastMaintenance = when;
+
+    Shrink_NodeCache(when);
 }  // End of CacheCheck
 
 void printFlowKey(struct FlowNode *node) {

@@ -342,7 +342,20 @@ uses nfdump native forwarding protocol v250, or v251 with
 Both endpoints must run compatible nfdump 1.8.x versions. The transport uses
 network byte order and does not require matching host endianness.
 .Pp
-The flow cache is checked in regular 10s intervals and expires flows according to the expire values. Expired flows are flushed and processed and nodes are freed up.
+The flow cache is checked in regular maintenance batches.
+It expires flows according to the expire values.
+The batch interval defaults to 5 seconds and can be set with
+.Dq flowcache.expireinterval
+in the
+.Nm
+configuration section or with
+.Fl x Ar flowcache.expireinterval Ns = Ns Ar seconds .
+It accepts 1 through 60 seconds and must not exceed the shorter active or
+inactive timeout.
+All elapsed time-wheel slots are processed, so changing this value affects
+expiry latency, memory residency, and output batching but not expiry
+correctness.
+Expired flows are flushed and processed and nodes are freed up.
 .Pp
 A smaller snaplen may improve performance, but may result in loss of information.
 The smallest snaplen of 54 bytes can process regular TCP/UDP/ICMP packets. In case of Vlan or MPLS labels, not enough information may be available for correct protocol decoding. Nfdump records may be incomplete and set to 0.

@@ -161,7 +161,7 @@ typedef struct NodeList_s {
     time_t closeTimestamp;
 } NodeList_t;
 
-int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive);
+int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive, uint32_t expireInterval);
 
 void Init_NodeAllocator(void);
 

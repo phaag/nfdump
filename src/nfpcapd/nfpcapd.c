@@ -102,6 +102,7 @@ static option_t nfpcapdConfig[] = {
     {.type = CONF_BOOL, .key = "opt.fat", .valBool = false},
     {.type = CONF_BOOL, .key = "opt.payload", .valBool = false},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
+    {.type = CONF_UINT64, .key = "flowcache.expireinterval", .valUint64 = 5},
     {.key = NULL},
 };
 
@@ -395,8 +396,7 @@ int main(int argc, char *argv[]) {
                 if (limitCores > 0) {
                     long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
                     if (onlineCores > 0 && limitCores > (int)onlineCores)
-                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
-                                limitCores, onlineCores, onlineCores);
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld", limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'z':
@@ -530,6 +530,13 @@ int main(int argc, char *argv[]) {
     flowParam.extendedFlow = ConfGetBool("opt.fat");
     flowParam.addPayload = ConfGetBool("opt.payload");
 
+    int64_t confExpireInterval = ConfGetValue("flowcache.expireinterval");
+    if (confExpireInterval < 1 || confExpireInterval > 60) {
+        LogError("nfpcapd: flowcache.expireinterval %" PRId64 " out of range [1, 60]", confExpireInterval);
+        exit(EXIT_FAILURE);
+    }
+    uint32_t expireInterval = (uint32_t)confExpireInterval;
+
     if ((datadir && sendHost) || (!datadir && !sendHost)) {
         LogError("Specify either a local directory or a remote host to dump flows.");
         exit(EXIT_FAILURE);
@@ -650,7 +657,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout)) {
+    if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout, expireInterval)) {
         LogError("Init_FlowHash() failed");
         exit(EXIT_FAILURE);
     }

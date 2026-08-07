@@ -191,7 +191,7 @@ static int appendPcap(flushParam_t *flushParam, const char *existFile, const cha
         return 0;
     }
 
-    // open new appenFile
+    // open new appendFile
     int outfd = open(appendFile, O_RDONLY);
     if (outfd < 0) {
         LogError("open() failed for file '%s': %s", appendFile, strerror(errno));
@@ -210,10 +210,10 @@ static int appendPcap(flushParam_t *flushParam, const char *existFile, const cha
     }
 
     uint8_t buf[128 * 1024];
-    while ((n = read(infd, buf, sizeof(buf))) > 0) {
+    while ((n = read(outfd, buf, sizeof(buf))) > 0) {
         ssize_t off = 0;
         while (off < n) {
-            ssize_t w = write(outfd, buf + off, n - off);
+            ssize_t w = write(infd, buf + off, n - off);
             if (w < 0) {
                 LogError("write() failed for file '%s': %s", existFile, strerror(errno));
                 close(infd);
@@ -276,11 +276,6 @@ void __attribute__((noreturn)) * flush_thread(void *args) {
             break;
         }
         dbg_printf("flush_thread() next buffer: %zu\n", packetBuffer->bufferSize);
-        // Capture both before the buffer is reset/recycled below. rotate is a
-        // dedicated flag - unlike timeStamp, it is never a value that could
-        // also mean "no rotation" (see pcapdump.h), so a window start of
-        // exactly epoch 0 (e.g. replaying an old/synthetic pcap) still
-        // triggers CloseDumpFile() correctly.
         time_t timeStamp = packetBuffer->timeStamp;
         int rotate = packetBuffer->rotate;
 
@@ -301,12 +296,6 @@ void __attribute__((noreturn)) * flush_thread(void *args) {
             }
         }
 
-        // Return the buffer to the pool unconditionally - a rotate-only push
-        // (time window elapsed with nothing captured since the last flush)
-        // has bufferSize == 0 but still must give the buffer back, otherwise
-        // the fixed-size pool (MAXBUFFERS) permanently loses one slot per
-        // such event and the producer eventually blocks forever on
-        // queue_pop(bufferQueue).
         packetBuffer->bufferSize = 0;
         packetBuffer->timeStamp = 0;
         packetBuffer->rotate = 0;
