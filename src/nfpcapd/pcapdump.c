@@ -65,6 +65,8 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start);
 
 static int appendPcap(flushParam_t *flushParam, const char *existFile, const char *appendFile);
 
+static int PreserveFailedDumpFile(const char *dumpFile, const char *dateFile);
+
 /*
  * Functions
  */
@@ -173,16 +175,52 @@ static int CloseDumpFile(flushParam_t *flushParam, time_t t_start) {
         // file exists - append pcap
         dbg_printf("CloseDumpFile() append %s -> %s\n", flushParam->dumpFile, datefile);
         if (!appendPcap(flushParam, datefile, flushParam->dumpFile)) {
-            LogError("Failed to append pcapfile");
+            LogError("Failed to append pcapfile '%s' to '%s'", flushParam->dumpFile, datefile);
+            PreserveFailedDumpFile(flushParam->dumpFile, datefile);
+            return -1;
         }
-        unlink(flushParam->dumpFile);
+        if (unlink(flushParam->dumpFile) < 0) {
+            LogError("unlink() failed for temporary pcapfile '%s': %s", flushParam->dumpFile, strerror(errno));
+            return -1;
+        }
     } else {
         LogError("CloseDumpFile() TestPath() failed: %d", fileStat);
+        return -1;
     }
 
     return 0;
 
 }  // End of CloseDumpFile
+
+/*
+ * A failed append must not leave the temporary capture at dumpFile: the next
+ * rotation opens that fixed path with O_TRUNC. Preserve it beside the archive
+ * instead, using the process ID and a sequence number to avoid collisions.
+ */
+static int PreserveFailedDumpFile(const char *dumpFile, const char *dateFile) {
+    static uint32_t failedDumpSequence = 0;
+    char failedFile[MAXPATHLEN];
+
+    for (uint32_t attempt = 0; attempt < 1000; attempt++) {
+        uint32_t sequence = failedDumpSequence++;
+        int len = snprintf(failedFile, sizeof(failedFile), "%s.append-failed.%ld.%u", dateFile, (long)getpid(), sequence);
+        if (len < 0 || (size_t)len >= sizeof(failedFile)) {
+            LogError("Failed-pcap filename is too long for '%s'", dateFile);
+            return 0;
+        }
+        if (TestPath(failedFile, S_IFREG) == PATH_NOTEXISTS) {
+            if (rename(dumpFile, failedFile) == 0) {
+                LogError("Preserved unappended pcapfile as '%s'", failedFile);
+                return 1;
+            }
+            LogError("rename() failed while preserving '%s': %s", dumpFile, strerror(errno));
+            return 0;
+        }
+    }
+
+    LogError("Unable to find a unique filename to preserve '%s'", dumpFile);
+    return 0;
+}  // End of PreserveFailedDumpFile
 
 static int appendPcap(flushParam_t *flushParam, const char *existFile, const char *appendFile) {
     // open existing file in append mode
@@ -214,8 +252,8 @@ static int appendPcap(flushParam_t *flushParam, const char *existFile, const cha
         ssize_t off = 0;
         while (off < n) {
             ssize_t w = write(infd, buf + off, n - off);
-            if (w < 0) {
-                LogError("write() failed for file '%s': %s", existFile, strerror(errno));
+            if (w <= 0) {
+                LogError("write() failed for file '%s': %s", existFile, w < 0 ? strerror(errno) : "short write");
                 close(infd);
                 close(outfd);
                 return 0;
