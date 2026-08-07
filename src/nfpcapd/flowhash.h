@@ -67,8 +67,8 @@ typedef struct hotNode_s {
     struct timeval t_first;  // first seen
     struct timeval t_last;   // last seen
 
-    uint32_t packets;  // summed up number of packets
-    uint32_t bytes;    // summed up number of bytes
+    uint64_t packets;  // summed up number of packets
+    uint64_t bytes;    // summed up number of bytes
     uint8_t flags;     // TCP flags etc.
 
     uint8_t flush;  // FIN/RST packet - flush node

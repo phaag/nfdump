@@ -315,7 +315,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, const hotNode_t *h
 
     if (Node == NULL) {
         // New flow
-        dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
+        dbg_printf("New TCP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->packets, hotNode->bytes);
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
             LogFlowCacheExhausted();
@@ -372,7 +372,7 @@ update_existing:
     Node->hotNode.packets++;
     Node->hotNode.bytes += hotNode->bytes;
     Node->hotNode.t_last = hotNode->t_last;
-    dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->hotNode.packets, Node->hotNode.bytes);
+    dbg_printf("Existing TCP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", Node->hotNode.packets, Node->hotNode.bytes);
 
     // --- process extendedFlow is ---
     if (packetParam->extendedFlow) {
@@ -432,7 +432,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *h
     struct FlowNode *Node = Lookup_Node(&lookup);
     if (Node == NULL) {
         // new flow
-        dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
+        dbg_printf("New UDP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->packets, hotNode->bytes);
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
             LogFlowCacheExhausted();
@@ -473,7 +473,7 @@ update_existing:
         if (coldNode->minTTL < Node->coldNode.minTTL) Node->coldNode.minTTL = coldNode->minTTL;
         if (coldNode->maxTTL > Node->coldNode.maxTTL) Node->coldNode.maxTTL = coldNode->maxTTL;
     }
-    dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->hotNode.packets, Node->hotNode.bytes);
+    dbg_printf("Existing UDP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", Node->hotNode.packets, Node->hotNode.bytes);
 
     if (packetParam->addPayload && Node->coldNode.payloadSize == 0 && payloadSize > 0) {
         dbg_printf("Existing UDP flow: Set payload of size: %zu\n", payloadSize);
@@ -487,7 +487,7 @@ update_existing:
 static inline void ProcessICMPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
                                    size_t payloadSize) {
     // Flush ICMP directly
-    dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
+    dbg_printf("Flush ICMP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->packets, hotNode->bytes);
 
     struct FlowNode *NewNode = New_Node();
     if (!NewNode) {
@@ -513,7 +513,8 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, const hotNode_t 
     struct FlowNode *Node = Lookup_Node(&lookup);
     if (Node == NULL) {
         // new flow
-        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", hotNode->flowKey.proto, hotNode->packets, hotNode->bytes);
+        dbg_printf("New flow IP proto: %u. Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->flowKey.proto, hotNode->packets,
+                   hotNode->bytes);
 
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
@@ -554,7 +555,8 @@ update_existing:
         if (coldNode->minTTL < Node->coldNode.minTTL) Node->coldNode.minTTL = coldNode->minTTL;
         if (coldNode->maxTTL > Node->coldNode.maxTTL) Node->coldNode.maxTTL = coldNode->maxTTL;
     }
-    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", hotNode->flowKey.proto, Node->hotNode.packets, Node->hotNode.bytes);
+    dbg_printf("Existing flow IP proto: %u Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->flowKey.proto, Node->hotNode.packets,
+               Node->hotNode.bytes);
 
     if (packetParam->addPayload && Node->coldNode.payloadSize == 0 && payloadSize > 0) {
         dbg_printf("Existing flow: Set payload of size: %zu\n", payloadSize);
