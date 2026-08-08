@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1205,6 +1206,15 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
 
     uint16_t scopeSize = 0;
     uint16_t offset = 0;
+    // Once a variable-length (RFC 7011 VARLENGTH == 0xFFFF) field is seen, the
+    // byte offset of every following field in the actual data record is
+    // record-dependent and cannot be resolved by this decoder, which only
+    // supports fixed-offset option records. Fields up to and including the
+    // first VARLENGTH field are still fully usable; the VARLENGTH field
+    // itself and anything declared after it are accepted on the wire (so the
+    // template as a whole is not rejected) but are not wired up for value
+    // extraction.
+    bool layoutKnown = true;
     for (int i = 0; i < field_count; i++) {
         uint32_t enterprise_value;
         uint16_t type, length;
@@ -1224,22 +1234,28 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
         option_template += 2;
         size_left -= 4;
 
-        // sanity check
-        if (length > (uint16_t)(UINT16_MAX - offset)) {
-            LogError("Process_ipfix: [%u] option template field length exceeds uint16 range", exporter_entry->info->id);
-            free(optionTemplate);
-            return;
-        }
-        if (i < scope_field_count) {
-            if (length > (uint16_t)(UINT16_MAX - scopeSize)) {
-                LogError("Process_ipfix: [%u] option template scope field length exceeds uint16 range", exporter_entry->info->id);
+        bool isVarlen = (length == VARLENGTH);
+
+        // sanity check - skip once the layout is already unresolvable, and
+        // never apply it to the VARLENGTH sentinel itself (0xFFFF is not a
+        // real byte length to validate/accumulate).
+        if (layoutKnown && !isVarlen) {
+            if (length > (uint16_t)(UINT16_MAX - offset)) {
+                LogError("Process_ipfix: [%u] option template field length exceeds uint16 range", exporter_entry->info->id);
                 free(optionTemplate);
                 return;
             }
-            scopeSize += length;
-            dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
-        } else {
-            dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
+            if (i < scope_field_count) {
+                if (length > (uint16_t)(UINT16_MAX - scopeSize)) {
+                    LogError("Process_ipfix: [%u] option template scope field length exceeds uint16 range", exporter_entry->info->id);
+                    free(optionTemplate);
+                    return;
+                }
+                scopeSize += length;
+                dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
+            } else {
+                dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
+            }
         }
 
         Enterprise = type & 0x8000 ? 1 : 0;
@@ -1260,6 +1276,9 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
             dbg_printf(" [%i] Enterprise: 0, offset: %u, option type: %u, option length %u\n", i, offset, type, length);
         }
 
+        // Field-to-struct wiring relies on `offset` being a real, static byte
+        // position - skip it once that is no longer true (see layoutKnown).
+        if (layoutKnown && !isVarlen) {
         switch (type) {
             // Old std sampling tags
             case IPFIX_samplingInterval:  // #34
@@ -1367,7 +1386,19 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
             default:
                 dbg_printf(" Skip this type: %u, length %u\n", type, length);
         }
-        offset += length;
+        }
+
+        if (isVarlen) {
+            if (layoutKnown) {
+                LogInfo(
+                    "Process_ipfix: [%u] option template field type %u is variable-length; this and any "
+                    "following option fields will not be decoded",
+                    exporter_entry->info->id, type);
+            }
+            layoutKnown = false;
+        } else if (layoutKnown) {
+            offset += length;
+        }
     }
     optionTemplate->optionSize = offset;
 

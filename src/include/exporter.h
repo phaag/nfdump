@@ -229,6 +229,8 @@ typedef struct exporter_table_s {
     exporter_entry_t *entries;  // array of exporters
     // initial number of exporters
 #define NUMEXPORTERS 16
+    // hard cap reached - refuse to grow further. Prevent a memory-exhaustion DoS vector
+#define MAX_EXPORTERS_CAPACITY 4096u
     uint32_t capacity;  // always power of two, e.g. 128
     uint32_t count;     // max in use
 } exporter_table_t;

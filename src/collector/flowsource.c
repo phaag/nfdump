@@ -378,6 +378,19 @@ void expand_exporter_table(exporter_table_t *tab) {
     uint32_t old_cap = tab->capacity;
     exporter_entry_t *old_entries = tab->entries;
 
+    if (old_cap >= MAX_EXPORTERS_CAPACITY) {
+        // hard cap reached - refuse to grow further. Prevent a memory-exhaustion DoS vector
+        static int warned = 0;
+        if (!warned) {
+            warned = 1;
+            LogError(
+                "expand_exporter_table: exporter table capacity limit of %u reached for this flow source; additional distinct exporters will be "
+                "dropped (raise MAX_EXPORTERS_CAPACITY and rebuild to override)",
+                MAX_EXPORTERS_CAPACITY);
+        }
+        return;
+    }
+
     uint32_t new_cap = old_cap * 2;
     dbg_printf("Expand eporter table old: %u -> new: %u\n", old_cap, new_cap);
     exporter_entry_t *new_entries = calloc(new_cap, sizeof(exporter_entry_t));

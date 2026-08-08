@@ -209,7 +209,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             LogError("Dynamic flow sources are not supported with -H flow forwarding backend");
             return;
         }
-        if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
+        if (Init_nffile_backend(fs, nffile_backend_ctx)) {
             LogError("Failed to initialise backend for new source");
             queue_abort(fs->blockQueue);
             done = 1;
@@ -852,6 +852,14 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
+    // -f, -d and -Y each select a different input source; silently letting
+    // one win over the others on misconfiguration is a trap for operators -
+    // fail loudly instead.
+    if ((!!pcap_file + !!pcap_device + !!yaf_file) > 1) {
+        LogError("-f, -d and -Y are mutually exclusive. Use only one input source.");
+        exit(EXIT_FAILURE);
+    }
+
     if (ConfOpen(configFile, "nfcapd", nfcapdOption) < 0) exit(EXIT_FAILURE);
 
     if (init_collector_ctx(&collector_ctx) == 0) {
@@ -863,6 +871,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
     collector_ctx.dynMaxSources = (uint32_t)dynMaxSources;
+
+    // -w, -n and -M each select a different (mutually exclusive) flow source
+    // model; silently letting one win over the others on misconfiguration is
+    // a trap for operators - fail loudly instead.
+    if ((!!dataDir + (sourceList.num_strings > 0) + !!dynFlowDir) > 1) {
+        LogError("-w, -n and -M are mutually exclusive. Use only one flow source model.");
+        exit(EXIT_FAILURE);
+    }
 
     if (sendHost) {
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {
