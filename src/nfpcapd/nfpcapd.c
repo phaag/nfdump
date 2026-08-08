@@ -72,6 +72,7 @@
 #include "flowdump.h"
 #include "flowhash.h"
 #include "flowsend.h"
+#include "ip_frag.h"
 #include "logging.h"
 #include "metric.h"
 #include "network/nfd_udp_crypto.h"
@@ -772,6 +773,9 @@ int main(int argc, char *argv[]) {
 
     pthread_join(packetParam.tid, NULL);
     dbg_printf("Packet thread joined\n");
+
+    // The packet thread exclusively owns fragment reassembly state.
+    DisposeIPFragments();
 
     if (pcap_datadir) {
         pthread_join(flushParam.tid, NULL);

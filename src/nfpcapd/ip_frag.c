@@ -69,7 +69,7 @@ typedef struct hole_s {
 typedef struct ip6Frag_s {
     ip128_t srcAddr;
     ip128_t dstAddr;
-    time_t created;          // timestamp, when created, so we can expire old entries
+    time_t lastSeen;         // timestamp of last successfully accepted fragment
     void *payload;           // memory block to reassemble payload and hole list
     uint32_t fragID;         // fragment ID
     uint32_t numHoles;       // number of total holes
@@ -81,6 +81,7 @@ typedef struct ip6Frag_s {
 #define MAXINDEX 0xFFFF
 
 #define FRAGMENT_TIMEOUT 10
+#define FRAGMENT_MAINTENANCE_INTERVAL 5
 
 // fragment list
 // use dynamic batches of NUMFRAGMENTS for the fragment array
@@ -90,6 +91,7 @@ static struct ipFragList_s {
     uint32_t numFrags;   // number of fragments in array
     ipFrag_t *fragList;  // dynamic array of fragments. Batches of NUMFRAGMENTS
 } ipFragList = {.numFrags = 0, .fragList = NULL};
+static time_t lastFragmentMaintenance = 0;
 
 // init a new fragment in slot
 static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, uint8_t proto, time_t when) {
@@ -105,21 +107,23 @@ static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, co
     hole_t *hole = (hole_t *)payload;
     *hole = (hole_t){.first = 0, .last = MAXINDEX, .next = 0xFFFF, .fill = 0};
 
-    ipFragList.fragList[slot] = (ipFrag_t){.payload = payload, .fragID = fragID, .proto = proto, .holeList = 0, .numHoles = 1, .created = when};
+    ipFragList.fragList[slot] =
+        (ipFrag_t){.payload = payload, .fragID = fragID, .proto = proto, .holeList = 0, .numHoles = 1, .lastSeen = when};
     memcpy(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16);
     memcpy(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16);
 
     return 1;
 }  // End of initSlot
 
-static void expireFragmentList(time_t now, time_t timeout) {
+static uint32_t expireFragmentList(time_t now) {
     uint32_t cnt = 0;
     for (int slot = 0; slot < (int)ipFragList.numFrags; slot++) {
         // skip empty slots
-        if (ipFragList.fragList[slot].created == 0) continue;
+        if (ipFragList.fragList[slot].lastSeen == 0) continue;
 
-        // free up old entries not completed, since created + timeout
-        if ((ipFragList.fragList[slot].created + timeout) < now) {
+        // Expire incomplete assemblies after a period without accepted fragments.
+        if (now >= ipFragList.fragList[slot].lastSeen &&
+            (uint64_t)(now - ipFragList.fragList[slot].lastSeen) >= FRAGMENT_TIMEOUT) {
             free(ipFragList.fragList[slot].payload);
             memset(&ipFragList.fragList[slot], 0, sizeof(ipFrag_t));
             cnt++;
@@ -127,21 +131,40 @@ static void expireFragmentList(time_t now, time_t timeout) {
     }
     if (cnt) LogVerbose("Deleted %u incomplete IP fragments", cnt);
 
+    return cnt;
 }  // End of expireFragmentList
+
+void MaintainIPFragments(time_t now) {
+    if (lastFragmentMaintenance != 0) {
+        if (now < lastFragmentMaintenance) return;
+        if ((uint64_t)(now - lastFragmentMaintenance) < FRAGMENT_MAINTENANCE_INTERVAL) return;
+    }
+
+    lastFragmentMaintenance = now;
+    expireFragmentList(now);
+}  // End of MaintainIPFragments
+
+void DisposeIPFragments(void) {
+    uint32_t cnt = 0;
+
+    for (uint32_t slot = 0; slot < ipFragList.numFrags; slot++) {
+        if (ipFragList.fragList[slot].lastSeen == 0) continue;
+        free(ipFragList.fragList[slot].payload);
+        cnt++;
+    }
+    free(ipFragList.fragList);
+    ipFragList = (struct ipFragList_s){.numFrags = 0, .fragList = NULL};
+    lastFragmentMaintenance = 0;
+
+    if (cnt) LogVerbose("Disposed %u incomplete IP fragments", cnt);
+}  // End of DisposeIPFragments
 
 // get the existing or a new fragment struct for srcAddr/dstAddr/fragID
 static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, uint8_t proto, time_t when) {
-    // Periodically expire old fragments
-    static time_t lastExpire = 0;
-    if (when - lastExpire > 10) {
-        expireFragmentList(when, FRAGMENT_TIMEOUT);
-        lastExpire = when;
-    }
-
     unsigned slot;
     int firstEmpty = -1;
     for (slot = 0; slot < ipFragList.numFrags; slot++) {
-        if (ipFragList.fragList[slot].created == 0 && firstEmpty < 0) firstEmpty = slot;
+        if (ipFragList.fragList[slot].lastSeen == 0 && firstEmpty < 0) firstEmpty = slot;
         if (ipFragList.fragList[slot].fragID == fragID && ipFragList.fragList[slot].proto == proto &&
             (memcmp(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16) == 0) &&
             (memcmp(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16) == 0))
@@ -339,6 +362,7 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const uint8_t *ip6_frag_in, 
         // This fragment is a duplicate or doesn't fit any current hole
         return NULL;
     }
+    fragment->lastSeen = when;
 
     // copy fragment into payload
     uint8_t *payload = (uint8_t *)fragment->payload;
@@ -413,6 +437,7 @@ void *ProcessIP4Fragment(const uint8_t *ip4In, const void *eodata, uint32_t *pay
         // This fragment is a duplicate or doesn't fit any current hole
         return NULL;
     }
+    fragment->lastSeen = when;
 
     // copy fragment into payload
     uint8_t *payload = (uint8_t *)fragment->payload;

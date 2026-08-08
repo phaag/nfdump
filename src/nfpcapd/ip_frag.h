@@ -40,4 +40,9 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const uint8_t *ip6_frag, con
 
 void *ProcessIP4Fragment(const uint8_t *ip4, const void *eodata, uint32_t *payloadLength, time_t when);
 
+// Packet-thread maintenance and final shutdown cleanup for incomplete assemblies.
+void MaintainIPFragments(time_t now);
+
+void DisposeIPFragments(void);
+
 #endif

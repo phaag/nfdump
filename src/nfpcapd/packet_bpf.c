@@ -297,7 +297,9 @@ void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
                 Push_SyncNode(packetParam->NodeList, t_start);
                 t_start = t_packet - (t_packet % t_win);
             }
-            CacheCheck(packetParam->NodeList, t_start);
+            // Use wall-clock time for idle maintenance; t_start changes only
+            // on file rotation and would delay flow/fragment expiry otherwise.
+            CacheCheck(packetParam->NodeList, t_packet);
             done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
             continue;
         }

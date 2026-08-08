@@ -49,6 +49,7 @@
 #ifdef HAVE_LIBBSD
 #include <bsd/stdlib.h>
 #endif
+#include "ip_frag.h"
 #include "logging.h"
 #include "nfdump.h"
 #include "util.h"
@@ -842,6 +843,7 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t from, time_t when) 
 
 void CacheCheck(NodeList_t *NodeList, time_t when) {
     if (!wheelClockValid) {
+        MaintainIPFragments(when);
         lastWheelTick = when;
         lastMaintenance = when;
         wheelClockValid = true;
@@ -855,6 +857,10 @@ void CacheCheck(NodeList_t *NodeList, time_t when) {
         dbg_printf("CacheCheck() - Ignore backward timestamp\n");
         return;
     }
+
+    // Fragment reassembly has its own short, elapsed-time maintenance gate.
+    // Keep it independent from the configurable flow expiry batch interval.
+    MaintainIPFragments(when);
 
     if ((uint64_t)(when - lastMaintenance) < expireInterval) {
         dbg_printf("CacheCheck() - Skip cache check\n");
