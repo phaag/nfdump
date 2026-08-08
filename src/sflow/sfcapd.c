@@ -702,7 +702,11 @@ int main(int argc, char **argv) {
                 break;
             case 'x':
                 CheckArgLen(optarg, 256);
-                launch_process = optarg;
+                launch_process = strdup(optarg);
+                if (!launch_process) {
+                    LogError("strdup() failed for -x command: %s", strerror(errno));
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'X':
                 CheckArgLen(optarg, 256);
