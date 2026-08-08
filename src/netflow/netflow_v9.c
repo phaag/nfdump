@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -244,7 +245,7 @@ static int32_t defaultSampling;
 /* local function prototypes */
 static void InsertSampler(exporter_entry_t *exporter_entry, sampler_record_v4_t *sampler_record_v4);
 
-static void expand_template_table(exporter_v9_t *exporter_v9);
+static bool expand_template_table(exporter_v9_t *exporter_v9);
 
 static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_id);
 
@@ -433,7 +434,12 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
             memcpy(e->info->ip, fs->ipAddr.bytes, 16);
 
             e->v9 = (exporter_v9_t){0};
-            expand_template_table(&e->v9);
+            if (!expand_template_table(&e->v9)) {
+                free(e->info);
+                *e = (exporter_entry_t){0};
+                tab->count--;
+                return NULL;
+            }
 
             if (defaultSampling < 0) {
                 // map hard overwrite sampling into a static sampler
@@ -684,11 +690,13 @@ static template_t *getTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
     // return lastTemplate, if id matches
     if (likely(exporter_v9->lastTemplateID == id)) return exporter_v9->lastTemplate;
 
+    if (exporter_v9->templateCapacity == 0) return NULL;
+
     // search template
     uint32_t mask = exporter_v9->templateCapacity - 1;
     uint32_t idx = id & mask;
     template_t *template = exporter_v9->template;
-    for (;;) {
+    for (uint32_t probes = 0; probes < exporter_v9->templateCapacity; probes++) {
         __builtin_prefetch(&template[(idx + 1) & mask]);
         if (template[idx].id == EMPTY_SLOT) {
             exporter_v9->lastTemplateID = 0;
@@ -705,26 +713,33 @@ static template_t *getTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
         idx = (idx + 1) & mask;
     }
 
-    // unreached
+    exporter_v9->lastTemplateID = 0;
+    exporter_v9->lastTemplate = NULL;
     return NULL;
 
 }  // End of getTemplate
 
-static void expand_template_table(exporter_v9_t *exporter_v9) {
+static bool expand_template_table(exporter_v9_t *exporter_v9) {
     uint32_t old_cap = exporter_v9->templateCapacity;
     template_t *old_template = exporter_v9->template;
 
-    uint32_t new_cap = exporter_v9->templateCapacity != 0 ? exporter_v9->templateCapacity * 2 : NUMTEMPLATES;
+    uint32_t new_cap = NUMTEMPLATES;
+    if (old_cap != 0) {
+        // Keep the table at most half full at the active-template limit. Once
+        // it has reached that size, rebuild it in place to remove tombstones.
+        new_cap = old_cap < (MAX_TEMPLATES_PER_EXPORTER * 2u) ? old_cap * 2u : old_cap;
+    }
     template_t *new_template = calloc(new_cap, sizeof(template_t));
     if (!new_template) {
         LogError("expand_template_table() error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
-        return;
+        return false;
     }
     dbg_printf("Expand exporter table: %u -> %u\n", old_cap, new_cap);
 
     exporter_v9->template = new_template;
     exporter_v9->templateCapacity = new_cap;
     exporter_v9->templateCount = 0;
+    exporter_v9->templateDeleted = 0;
 
     uint32_t mask = exporter_v9->templateCapacity - 1;
     for (int i = 0; i < (int)old_cap; i++) {
@@ -741,19 +756,28 @@ static void expand_template_table(exporter_v9_t *exporter_v9) {
     dbg_printf("Expand exporter table count: %u\n", exporter_v9->templateCount);
 
     if (old_template) free(old_template);
+    return true;
 }  // End of expand_template_table
 
 static template_t *newTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
+    if (exporter_v9->templateCount >= MAX_TEMPLATES_PER_EXPORTER) {
+        if (exporter_v9->droppedTemplates++ == 0) {
+            LogError("Process_v9: template limit of %u reached for exporter; discarding template %u and further new templates", MAX_TEMPLATES_PER_EXPORTER,
+                     id);
+        }
+        return NULL;
+    }
+
     if (((exporter_v9->templateCount + exporter_v9->templateDeleted) * 4) >= (exporter_v9->templateCapacity * 3)) {
         // expand exporter index
-        expand_template_table(exporter_v9);
+        if (!expand_template_table(exporter_v9)) return NULL;
     }
 
     int firstDeleted = -1;
     template_t *template = exporter_v9->template;
     uint32_t mask = exporter_v9->templateCapacity - 1;
     uint32_t idx = id & mask;
-    for (;;) {
+    for (uint32_t probes = 0; probes < exporter_v9->templateCapacity; probes++) {
         __builtin_prefetch(&template[(idx + 1) & mask]);
         if (template[idx].id == EMPTY_SLOT) {
             if (firstDeleted != -1) idx = firstDeleted;
@@ -770,7 +794,17 @@ static template_t *newTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
         idx = (idx + 1) & mask;
     }
 
-    return template;
+    if (firstDeleted != -1) {
+        template[firstDeleted] = (template_t){.id = id, .updated = time(NULL), .data = NULL};
+        exporter_v9->templateCount++;
+        exporter_v9->templateDeleted--;
+        exporter_v9->lastTemplateID = id;
+        exporter_v9->lastTemplate = template + firstDeleted;
+        return exporter_v9->lastTemplate;
+    }
+
+    LogError("Process_v9: template table unexpectedly full; discarding template %u", id);
+    return NULL;
 
 }  // End of newTemplate
 
@@ -781,7 +815,7 @@ static int removeTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
     uint32_t idx = id & mask;
     template_t *table = exporter_v9->template;
 
-    for (;;) {
+    for (uint32_t probes = 0; probes < exporter_v9->templateCapacity; probes++) {
         if (table[idx].id == EMPTY_SLOT) {
             // not found
             return 0;
@@ -811,6 +845,7 @@ static int removeTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
 
         idx = (idx + 1) & mask;
     }
+    return 0;
 }  // End of removeTemplate
 
 static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const uint8_t *DataPtr, FlowSource_t *fs) {
@@ -964,7 +999,6 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
         }
 
         if (!template) {
-            LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
             free(pipeline);
             return;
         }
@@ -1189,7 +1223,6 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
             }
 
             if (!template) {
-                LogError("Process_ipfix: Failed option template add: %s line %d", __FILE__, __LINE__);
                 free(optionTemplate);
                 return;
             }

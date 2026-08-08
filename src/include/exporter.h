@@ -132,6 +132,7 @@ typedef struct exporter_v9_s {
     // statistics
     uint64_t DataRecords;      // stat counter
     uint32_t TemplateRecords;  // stat counter
+    uint32_t droppedTemplates; // templates rejected after reaching the per-exporter limit
 
     // often, many data records in sequence are sent for the
     // same template. Cache last template to speed up access
@@ -141,6 +142,9 @@ typedef struct exporter_v9_s {
 // simple hash for all templates of this exporter
 // defaults to 32 templates in hash
 #define NUMTEMPLATES 32
+// Maximum number of active NetFlow v9/IPFIX templates per exporter. The
+// backing hash table may use twice this number of slots to keep lookups fast.
+#define MAX_TEMPLATES_PER_EXPORTER 4096u
 #define EMPTY_SLOT 0
 #define DELETED_SLOT 0xFFFFFFFF
     uint32_t templateCount;     // number of templates in list
@@ -163,6 +167,7 @@ typedef struct exporter_ipfix_s {
     // statistics
     uint64_t DataRecords;      // stat counter
     uint32_t TemplateRecords;  // stat counter
+    uint32_t droppedTemplates; // templates rejected after reaching the per-exporter limit
 
     // often, many data records in sequence are sent for the
     // same template. Cache last template to speed up access
