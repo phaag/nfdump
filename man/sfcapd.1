@@ -65,6 +65,8 @@
 .Op Fl W Ar num
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+.Op Fl N Ar seconds
+.Op Fl Q Ar bits
 .Op Fl v Ar level
 .Op Fl V
 .Sh DESCRIPTION
@@ -337,6 +339,40 @@ Trailing newlines are stripped.
 .It Fl k
 (no argument) Prompt interactively from the terminal with echo disabled.
 .El
+.It Fl N Ar seconds
+Set the epoch-based UDP transport rekey interval for encrypted forwarding.
+Requires
+.Fl H
+and
+.Fl k .
+The value must be in the range 0 through 604800 seconds; 0 disables rekeying.
+It overrides
+.Sy crypt.rekeyIntervalSecs
+from the
+.Sy [common]
+section of
+.Xr nfdump.conf 5 .
+.It Fl Q Ar bits
+Set the UDP anti-replay window width to a power of two from 64 through 1024
+bits. Requires
+.Fl H
+and
+.Fl k .
+It overrides
+.Sy crypt.antiReplayWindowBits
+from the
+.Sy [common]
+section of
+.Xr nfdump.conf 5 .
+The receiving collector applies the anti-replay window; its setting may be
+configured independently.
+.Pp
+Before deriving the forwarding key, sfcapd also applies
+.Sy crypt.salt
+from the
+.Sy [common]
+section when present. The forwarding sender and receiving collector must use
+the same passphrase and salt.
 .It Fl W Ar num
 Set the core limit to
 .Ar num

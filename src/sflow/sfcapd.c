@@ -155,6 +155,8 @@ static void usage(char *name) {
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
         "-k[=passphrase|@keyfile]\tEncrypt UDP transport to -H host (v251). Passphrase from argument, key file, or interactive prompt.\n"
+        "-N <secs>\t\tUDP transport rekey interval in seconds (requires -k). Default 0 (disabled).\n"
+        "-Q <bits>\t\tUDP anti-replay window in bits (power of 2, 64\342\200\2231024). Default 256.\n"
 #endif
         ,
         name);
@@ -475,6 +477,8 @@ int main(int argc, char **argv) {
     repeater_host_t repeater_host = {0};
     repeater_t *sendHost = NULL;
     uint8_t *udpSessionKey = NULL;
+    int64_t udpRekeyOverride = -1;
+    int64_t udpReplayWindowOverride = -1;
 
     collector_ctx_t collector_ctx = {0};
     stringlist_t sourceList = {0};
@@ -509,7 +513,7 @@ int main(int argc, char **argv) {
     parse_tun = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:g:hH:I:i:J:K::k::m:M:n:o:p:P:R:S:t:u:v:VW:w:x:X:z:Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:g:hH:I:i:J:K::k::m:M:n:N:o:p:P:Q:R:S:t:u:v:VW:w:x:X:z:Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -782,6 +786,27 @@ int main(int argc, char **argv) {
                 }
                 break;
             }
+            case 'N': {
+                char *endN = NULL;
+                errno = 0;
+                udpRekeyOverride = strtoll(optarg, &endN, 10);
+                if (errno != 0 || endN == optarg || *endN != '\0' || udpRekeyOverride < 0 || udpRekeyOverride > 604800) {
+                    LogError("-N: rekey interval must be in range 0..604800 seconds");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
+            case 'Q': {
+                char *endQ = NULL;
+                errno = 0;
+                udpReplayWindowOverride = strtoll(optarg, &endQ, 10);
+                if (errno != 0 || endQ == optarg || *endQ != '\0' || udpReplayWindowOverride < 64 || udpReplayWindowOverride > 1024 ||
+                    (udpReplayWindowOverride & (udpReplayWindowOverride - 1)) != 0) {
+                    LogError("-Q: anti-replay window must be a power of 2 in range 64..1024");
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            }
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -934,6 +959,53 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if (transfer_ctx) {
+        if (!sendHost) {
+            LogError("sfcapd: -k requires flow forwarding via -H");
+            close_sockets(socks, nsocks);
+            exit(EXIT_FAILURE);
+        }
+
+        const char *confSalt = ConfGetString("crypt.salt");
+        if (confSalt) SetUdpSalt(confSalt);
+        udpSessionKey = DeriveUdpSessionKey(transfer_ctx);
+        if (!udpSessionKey) {
+            LogError("sfcapd: failed to derive UDP session key \342\200\224 aborting");
+            close_sockets(socks, nsocks);
+            exit(EXIT_FAILURE);
+        }
+
+        uint32_t replayWindowBits = ANTI_REPLAY_WINDOW_DEFAULT;
+        int64_t confWindow = ConfGetValue("crypt.antiReplayWindowBits");
+        if (confWindow != 0) {
+            if (confWindow < 64 || confWindow > 1024 || (confWindow & (confWindow - 1)) != 0) {
+                LogError("sfcapd: nfdump.conf crypt.antiReplayWindowBits %" PRId64
+                         " invalid (power of 2 in [64,1024]); using default %u",
+                         confWindow, ANTI_REPLAY_WINDOW_DEFAULT);
+            } else {
+                replayWindowBits = (uint32_t)confWindow;
+            }
+        }
+
+        uint32_t rekeyIntervalSecs = REKEY_INTERVALSECS_DEFAULT;
+        int64_t confRekey = ConfGetValue("crypt.rekeyIntervalSecs");
+        if (confRekey < 0 || confRekey > 86400 * 7) {
+            LogError("sfcapd: nfdump.conf crypt.rekeyIntervalSecs %" PRId64
+                     " out of range [0, 604800]; use default of %d",
+                     confRekey, REKEY_INTERVALSECS_DEFAULT);
+        } else {
+            rekeyIntervalSecs = (uint32_t)confRekey;
+        }
+        if (udpReplayWindowOverride >= 0) replayWindowBits = (uint32_t)udpReplayWindowOverride;
+        if (udpRekeyOverride >= 0) rekeyIntervalSecs = (uint32_t)udpRekeyOverride;
+        Init_pcapd_udp_crypto(udpSessionKey, replayWindowBits, rekeyIntervalSecs);
+        LogInfo("sfcapd: UDP transport encryption enabled (XChaCha20-Poly1305)");
+    } else if (udpReplayWindowOverride >= 0 || udpRekeyOverride >= 0) {
+        LogError("-N and -Q require encrypted UDP transport via -k");
+        close_sockets(socks, nsocks);
+        exit(EXIT_FAILURE);
+    }
+
     if (!CheckSubDir(subdir_index)) {
         close_sockets(socks, nsocks);
         exit(EXIT_FAILURE);
@@ -968,18 +1040,7 @@ int main(int argc, char **argv) {
     const nffile_backend_ctx_t *use_nffile_ctx = NULL;
 
     if (sendHost) {
-        /* UDP send backend (-H): derive session key if -k was given, open socket and start thread. */
-        if (transfer_ctx) {
-            udpSessionKey = DeriveUdpSessionKey(transfer_ctx);
-            if (!udpSessionKey) {
-                LogError("sfcapd: failed to derive UDP session key \342\200\224 aborting");
-                close_sockets(socks, nsocks);
-                CloseMetric();
-                remove_pid(pidfile);
-                exit(EXIT_FAILURE);
-            }
-            LogInfo("sfcapd: UDP transport encryption enabled (XChaCha20-Poly1305)");
-        }
+        /* UDP send backend (-H): crypto, if requested, is configured above. */
         sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &sendHost->addr, &sendHost->addrlen);
         if (sendHost->sockfd <= 0) {
             LogError("Failed to open UDP send socket to %s/%s", sendHost->hostname, sendHost->port);
