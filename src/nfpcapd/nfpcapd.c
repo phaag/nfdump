@@ -151,7 +151,6 @@ static void usage(char *name) {
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "-D\t\tdetach from terminal (daemonize)\n"
-        "-T\t\tRemoved option; accepted and ignored for compatibility.\n"
         "-V\t\tPrint version and exit.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
@@ -246,7 +245,7 @@ int main(int argc, char *argv[]) {
     limitCores = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:x:z::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::l:m:o:p:P:r:s:S:t:u:v:Vw:W:x:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -432,9 +431,6 @@ int main(int argc, char *argv[]) {
                 }
                 subdir_index = (unsigned)s;
             } break;
-            case 'T':
-                printf("Option -T no longer supported and ignored\n");
-                break;
             case 'v':
                 verbose = ParseVerbose(verbose, optarg);
                 if (verbose < 0) {

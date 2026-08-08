@@ -148,7 +148,6 @@ static void usage(char *name) {
         "-B bufflen\tSet socket buffer to bufflen bytes\n"
         "-e\t\tExpire data at each cycle.\n"
         "-D\t\tFork to background\n"
-        "-E\t\tDeprecated. Use -v 3 to print raw records. For debugging purpose only.\n"
         "-v level\tSet verbose level.\n"
         "-4\t\tListen on IPv4 only.\n"
         "-6\t\tListen on IPv6 only\n"
@@ -546,7 +545,7 @@ int main(int argc, char **argv) {
     limitCores = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hH:I:i:J:K::k::l:m:M:n:N:p:P:Q:R:s:S:t:u:v:VW:w:x:X:Y:z::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:g:hH:I:i:J:K::k::m:M:n:N:p:P:Q:R:s:S:t:u:v:VW:w:x:X:Y:z:Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -611,10 +610,6 @@ int main(int argc, char **argv) {
             case 'Y':
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 yaf_file = optarg;
-                break;
-            case 'E':
-                verbose = 3;
-                printf("Option -E is deprecated. Use -v 3\n");
                 break;
             case 'v':
                 verbose = ParseVerbose(verbose, optarg);
@@ -717,10 +712,6 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'l':
-                LogError("Option -l is deprecated. Use -w");
-                exit(EXIT_FAILURE);
-                break;
             case 'w':
                 if (!CheckPath(optarg, S_IFDIR)) {
                     LogError("No valid directory: %s", optarg);
@@ -776,14 +767,9 @@ int main(int argc, char **argv) {
                     LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
                 }
-                if (optarg == NULL) {
-                    compressType = LZO_COMPRESSED;
-                    LogInfo("Deprecated option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                } else {
-                    if (!ParseCompression(optarg, &compressType, &compressLevel)) {
-                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                        exit(EXIT_FAILURE);
-                    }
+                if (!ParseCompression(optarg, &compressType, &compressLevel)) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                    exit(EXIT_FAILURE);
                 }
                 break;
             case 'Z':

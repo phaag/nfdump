@@ -50,7 +50,6 @@
 .Op Fl P Ar pidfile
 .Op Fl D
 .Op Fl d
-.Op Fl T
 .Op Fl u Ar userid
 .Op Fl g Ar groupid
 .Op Fl o Ar option[,option]
@@ -163,8 +162,6 @@ Specify name of pidfile. Default is no pidfile.
 Daemon mode: fork to background and detach from terminal.
 .Nm
 terminates on signal TERM, INT and HUP.
-.It Fl T
-Retired compatibility option. It is accepted and ignored.
 .It Fl d
 De-duplicate packets with a window size of 8. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they are de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
 If used together with
