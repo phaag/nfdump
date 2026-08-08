@@ -157,11 +157,17 @@ typedef struct NodeList_s {
     pthread_mutex_t m_list;
     pthread_cond_t c_list;
     size_t length;
+    size_t maxLength;
+    size_t highWater;
+    uint64_t droppedFlowNodes;
+    uint64_t backpressureEvents;
+    uint64_t controlWaits;
     int closed;
     time_t closeTimestamp;
 } NodeList_t;
 
-int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive, uint32_t expireInterval);
+int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive, uint32_t expireInterval, uint32_t maxNodes,
+                  uint64_t maxPayloadBytes);
 
 void Init_NodeAllocator(void);
 
@@ -181,6 +187,10 @@ void printHash(void);
 
 void Free_Node(struct FlowNode *node);
 
+bool ReserveFlowPayload(size_t payloadSize);
+
+void ReleaseFlowPayload(size_t payloadSize);
+
 void CacheCheck(NodeList_t *NodeList, time_t when);
 
 struct FlowNode *Insert_Node(struct FlowNode *node);
@@ -190,7 +200,7 @@ void Remove_Node(struct FlowNode *node);
 int Link_RevNode(struct FlowNode *node);
 
 // Node list functions
-NodeList_t *NewNodeList(void);
+NodeList_t *NewNodeList(size_t maxLength);
 
 void DisposeNodeList(NodeList_t *NodeList);
 

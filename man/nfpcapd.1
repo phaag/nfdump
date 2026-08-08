@@ -357,6 +357,20 @@ expiry latency, memory residency, and output batching but not expiry
 correctness.
 Expired flows are flushed and processed and nodes are freed up.
 .Pp
+The flow cache defaults to a maximum of 262144 nodes (about 100 MiB of node
+metadata) and 64 MiB of retained packet payload.
+Set
+.Dq flowcache.max_nodes
+and
+.Dq flowcache.max_payload_bytes
+to change these budgets.
+Set the payload budget to zero to disable retained payloads.
+The packet-to-flow output queue is bounded by
+.Dq flowcache.max_output_nodes
+(65536 by default).
+When it is full, completed flow records are dropped and reported in the final
+queue statistics; rotation and shutdown control records wait for space.
+.Pp
 A smaller snaplen may improve performance, but may result in loss of information.
 The smallest snaplen of 54 bytes can process regular TCP/UDP/ICMP packets. In case of Vlan or MPLS labels, not enough information may be available for correct protocol decoding. Nfdump records may be incomplete and set to 0.
 .Pp

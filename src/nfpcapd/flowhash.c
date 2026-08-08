@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -109,7 +110,7 @@ static inline void TimeWheel_Insert(TimeWheel_t *tw, struct FlowNode *node, time
 static inline void TimeWheel_Remove(TimeWheel_t *tw, struct FlowNode *node);
 
 // node cache
-static int Extend_NodeCache(void);
+static int Extend_NodeCache(uint32_t capacity);
 
 static void DumpTreeStat(NodeList_t *NodeList);
 
@@ -119,8 +120,10 @@ static size_t NodeList_length(NodeList_t *NodeList);
 #define DefaultExpireInterval 5
 #define MaxExpireInterval 60
 #define DefaultCacheSize 8192
+#define DefaultMaxFlowNodes 262144
 #define ExtentSize 4096
-#define MaxSize (1024 * 1024 * 512)
+static uint32_t MaxFlowNodes = DefaultMaxFlowNodes;
+static uint64_t MaxFlowPayloadBytes = 64ULL * 1024ULL * 1024ULL;
 static time_t lastWheelTick = 0;
 static time_t lastMaintenance = 0;
 static bool wheelClockValid = false;
@@ -129,6 +132,10 @@ static uint32_t expireInactiveTimeout = 60;
 static uint32_t expireInterval = DefaultExpireInterval;
 
 static _Atomic uint32_t Allocated = 0;
+static _Atomic uint64_t PayloadBytes = 0;
+static _Atomic uint64_t PayloadHighWater = 0;
+static _Atomic uint64_t PayloadDrops = 0;
+static _Atomic uint64_t NodeLimitDrops = 0;
 
 static struct FlowSlab *SlabList = NULL;
 static struct FlowSlab *PreferredSlab = NULL;
@@ -161,7 +168,8 @@ static uint32_t checkRun = 0;
 
 static flowHashStat_t flowHashStat = {0};
 
-int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive, uint32_t interval) {
+int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive, uint32_t interval, uint32_t maxNodes,
+                  uint64_t maxPayloadBytes) {
     if (expireActive) {
         expireActiveTimeout = expireActive;
         LogInfo("Set active flow expire timeout to %us", expireActiveTimeout);
@@ -182,6 +190,18 @@ int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInac
     expireInterval = interval;
     LogInfo("Set flow cache expire interval to %us", expireInterval);
 
+    if (maxNodes < DefaultCacheSize) {
+        LogError("Flow cache maximum %u is below the minimum cache size %u", maxNodes, DefaultCacheSize);
+        return 0;
+    }
+    MaxFlowNodes = maxNodes;
+    MaxFlowPayloadBytes = maxPayloadBytes;
+    atomic_store_explicit(&PayloadBytes, 0, memory_order_relaxed);
+    atomic_store_explicit(&PayloadHighWater, 0, memory_order_relaxed);
+    atomic_store_explicit(&PayloadDrops, 0, memory_order_relaxed);
+    atomic_store_explicit(&NodeLimitDrops, 0, memory_order_relaxed);
+    LogInfo("Set flow cache limits: nodes=%u, payload=%" PRIu64 " bytes", MaxFlowNodes, MaxFlowPayloadBytes);
+
     // flow hash
     uint32_t hashSize = DefaultHashSize;
     if (Hash_Init(&FlowHashTable, hashSize) == 0) return 0;
@@ -192,8 +212,12 @@ int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInac
 
     // node cache
     if (cacheSize == 0) cacheSize = DefaultCacheSize;
+    if (cacheSize > MaxFlowNodes) {
+        LogError("Initial flow cache size %u exceeds configured maximum %u", cacheSize, MaxFlowNodes);
+        return 0;
+    }
     while (FlowCacheSize < cacheSize)
-        if (!Extend_NodeCache()) return 0;
+        if (!Extend_NodeCache(cacheSize - FlowCacheSize < ExtentSize ? cacheSize - FlowCacheSize : ExtentSize)) return 0;
 
     Allocated = 0;
     PreferredSlab = SlabList;
@@ -262,7 +286,7 @@ static int Hash_Resize(FlowHash_t *h, uint32_t new_cap) {
     return 1;
 }  // End of Hash_Resize
 
-void Hash_Destroy(FlowHash_t *h) {
+static void Hash_Destroy(FlowHash_t *h) {
     free(h->slots);
     memset(h, 0, sizeof(*h));
 }  // End of Hash_Destroy
@@ -284,7 +308,7 @@ static struct FlowNode *Hash_Lookup(FlowHash_t *h, const struct flowKey_s *key, 
 }  // End of Hash_Lookup
 
 /* insert */
-struct FlowNode *Hash_Insert(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash) {
+static struct FlowNode *Hash_Insert(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash) {
     size_t keylen = sizeof(struct flowKey_s);
     if (h->size >= h->resize_at) {
         if (!Hash_Resize(h, h->capacity * 2)) {
@@ -314,7 +338,7 @@ struct FlowNode *Hash_Insert(FlowHash_t *h, struct FlowNode *node, const struct 
 }  // End of Hash_Insert
 
 /* backward-shift delete */
-void Hash_Remove(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash) {
+static void Hash_Remove(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash) {
     uint32_t idx = hash & h->mask;
 
     for (;;) {
@@ -467,6 +491,13 @@ void Dispose_NodeAllocator(void) {
     FlowCacheSize = 0;
     Allocated = 0;
 
+    uint64_t payloadBytes = atomic_load_explicit(&PayloadBytes, memory_order_relaxed);
+    if (payloadBytes != 0) LogError("Dispose_NodeAllocator(): %" PRIu64 " payload bytes still allocated", payloadBytes);
+    LogInfo("Flow cache payload: limit=%" PRIu64 " high-water=%" PRIu64 " dropped=%" PRIu64, MaxFlowPayloadBytes,
+            atomic_load_explicit(&PayloadHighWater, memory_order_relaxed), atomic_load_explicit(&PayloadDrops, memory_order_relaxed));
+    if (atomic_load_explicit(&NodeLimitDrops, memory_order_relaxed))
+        LogInfo("Flow cache node-limit drops: %" PRIu64, atomic_load_explicit(&NodeLimitDrops, memory_order_relaxed));
+
     // Global free list should be empty now
     struct FlowNode *leftover = atomic_load_explicit(&GlobalFree, memory_order_relaxed);
     if (leftover) {
@@ -550,10 +581,26 @@ struct FlowNode *New_Node(void) {
         return n;
     }
 
-    // No free nodes anywhere: extend cache
-    if (FlowCacheSize >= MaxSize) return NULL;
+    // No free nodes anywhere: extend cache within the configured budget.
+    if (FlowCacheSize >= MaxFlowNodes) {
+        atomic_fetch_add_explicit(&NodeLimitDrops, 1, memory_order_relaxed);
+        // Packet thread only - a plain static is safe, and rate-limiting is
+        // required here: under sustained overload this branch can be hit
+        // millions of times per run (empirically confirmed under stress).
+        static time_t lastNodeLimitLog = 0;
+        time_t now = time(NULL);
+        if (now != lastNodeLimitLog) {
+            LogError(
+                "Flow cache exhausted: %u active flows (limit flowcache.max_nodes=%u) - dropping new flows. "
+                "Increase with -x flowcache.max_nodes=<n> or flowcache.max_nodes in nfdump.conf",
+                FlowCacheSize, MaxFlowNodes);
+            lastNodeLimitLog = now;
+        }
+        return NULL;
+    }
 
-    if (!Extend_NodeCache()) return NULL;
+    uint32_t available = MaxFlowNodes - FlowCacheSize;
+    if (!Extend_NodeCache(available < ExtentSize ? available : ExtentSize)) return NULL;
 
     // New slab added at head of SlabList
     PreferredSlab = SlabList;
@@ -582,7 +629,10 @@ void Free_Node(struct FlowNode *node) {
     }
 
     // cleanup node
-    if (node->coldNode.payload) free(node->coldNode.payload);
+    if (node->coldNode.payload) {
+        ReleaseFlowPayload(node->coldNode.payloadSize);
+        free(node->coldNode.payload);
+    }
     memset(&node->hotNode, 0, sizeof(hotNode_t));
     memset(&node->coldNode, 0, sizeof(coldNode_t));
 
@@ -601,18 +651,20 @@ void Free_Node(struct FlowNode *node) {
 
 }  // End of Free_Node
 
-static int Extend_NodeCache(void) {
-    struct FlowSlab *slab = calloc(1, sizeof(struct FlowSlab) + ExtentSize * sizeof(struct FlowNode));
+static int Extend_NodeCache(uint32_t capacity) {
+    if (capacity == 0) return 0;
+
+    struct FlowSlab *slab = calloc(1, sizeof(struct FlowSlab) + (size_t)capacity * sizeof(struct FlowNode));
     if (!slab) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
-    slab->capacity = ExtentSize;
+    slab->capacity = capacity;
     atomic_init(&slab->in_use, 0);
     atomic_init(&slab->free_pending, 0);
 
-    for (uint32_t i = 0; i < ExtentSize; i++) {
+    for (uint32_t i = 0; i < capacity; i++) {
         slab->nodes[i].slab = slab;
         slab->nodes[i].memflag = NODE_FREE;
         slab->nodes[i].next = slab->local_free;
@@ -621,11 +673,49 @@ static int Extend_NodeCache(void) {
 
     slab->next = SlabList;
     SlabList = slab;
-    FlowCacheSize += ExtentSize;
+    FlowCacheSize += capacity;
 
-    LogVerbose("Extended cache slab: %u -> %u", FlowCacheSize - ExtentSize, FlowCacheSize);
+    LogVerbose("Extended cache slab: %u -> %u", FlowCacheSize - capacity, FlowCacheSize);
     return 1;
 }  // End of Extend_NodeCache
+
+bool ReserveFlowPayload(size_t payloadSize) {
+    if (payloadSize == 0) return true;
+
+    uint64_t requested = payloadSize;
+    uint64_t used = atomic_load_explicit(&PayloadBytes, memory_order_relaxed);
+    for (;;) {
+        if (requested > MaxFlowPayloadBytes || used > MaxFlowPayloadBytes - requested) {
+            atomic_fetch_add_explicit(&PayloadDrops, 1, memory_order_relaxed);
+            // AddPayload() (pcaproc.c) is packet-thread only, so this plain
+            // static is safe. Rate-limited for the same reason as the
+            // node-limit log: this can be hit millions of times per run.
+            static time_t lastPayloadLimitLog = 0;
+            time_t now = time(NULL);
+            if (now != lastPayloadLimitLog) {
+                LogError(
+                    "Flow payload budget exhausted: %" PRIu64 " bytes in use (limit flowcache.max_payload_bytes=%" PRIu64
+                    ") - dropping payload capture for new flows. Increase with -x flowcache.max_payload_bytes=<n> or "
+                    "flowcache.max_payload_bytes in nfdump.conf",
+                    used, MaxFlowPayloadBytes);
+                lastPayloadLimitLog = now;
+            }
+            return false;
+        }
+        if (atomic_compare_exchange_weak_explicit(&PayloadBytes, &used, used + requested, memory_order_relaxed, memory_order_relaxed)) {
+            uint64_t highWater = atomic_load_explicit(&PayloadHighWater, memory_order_relaxed);
+            while (used + requested > highWater &&
+                   !atomic_compare_exchange_weak_explicit(&PayloadHighWater, &highWater, used + requested, memory_order_relaxed,
+                                                          memory_order_relaxed)) {
+            }
+            return true;
+        }
+    }
+}  // End of ReserveFlowPayload
+
+void ReleaseFlowPayload(size_t payloadSize) {
+    if (payloadSize) atomic_fetch_sub_explicit(&PayloadBytes, payloadSize, memory_order_relaxed);
+}  // End of ReleaseFlowPayload
 
 // packet thread only
 static void Shrink_NodeCache(time_t now) {
@@ -930,7 +1020,10 @@ uint32_t Hash_Flush(NodeList_t *NodeList, time_t when) {
         /* The active flows may consume the entire cache.  Closing the queue
          * still lets the consumer drain them and terminate without a signal
          * node. */
-        LogError("Flow cache exhausted; closing flow queue without done node");
+        LogError(
+            "Flow cache exhausted: %u active flows (limit flowcache.max_nodes=%u) - closing flow queue without done node. "
+            "Increase with -x flowcache.max_nodes=<n> or flowcache.max_nodes in nfdump.conf",
+            FlowCacheSize, MaxFlowNodes);
         Close_NodeList(NodeList, when);
     }
 
@@ -938,7 +1031,7 @@ uint32_t Hash_Flush(NodeList_t *NodeList, time_t when) {
 }  // End of Hash_Flush
 
 /* Node list functions */
-NodeList_t *NewNodeList(void) {
+NodeList_t *NewNodeList(size_t maxLength) {
     NodeList_t *NodeList;
 
     NodeList = (NodeList_t *)malloc(sizeof(NodeList_t));
@@ -949,6 +1042,11 @@ NodeList_t *NewNodeList(void) {
     NodeList->list = NULL;
     NodeList->last = NULL;
     NodeList->length = 0;
+    NodeList->maxLength = maxLength;
+    NodeList->highWater = 0;
+    NodeList->droppedFlowNodes = 0;
+    NodeList->backpressureEvents = 0;
+    NodeList->controlWaits = 0;
     NodeList->closed = 0;
     NodeList->closeTimestamp = 0;
     pthread_mutex_init(&NodeList->m_list, NULL);
@@ -965,6 +1063,10 @@ void DisposeNodeList(NodeList_t *NodeList) {
         LogError("Try to free non empty NodeList");
         return;
     }
+    LogInfo("Flow output queue: limit=%zu high-water=%zu dropped=%" PRIu64 " backpressure=%" PRIu64 " control-waits=%" PRIu64,
+            NodeList->maxLength, NodeList->highWater, NodeList->droppedFlowNodes, NodeList->backpressureEvents, NodeList->controlWaits);
+    pthread_mutex_destroy(&NodeList->m_list);
+    pthread_cond_destroy(&NodeList->c_list);
     free(NodeList);
 
 }  // End of DisposeNodeList
@@ -978,6 +1080,41 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
     pthread_mutex_lock(&NodeList->m_list);
 
     dbg_assert(node->nodeType != 0);
+    if (node->nodeType == FLOW_NODE && NodeList->length >= NodeList->maxLength) {
+        NodeList->droppedFlowNodes++;
+        NodeList->backpressureEvents++;
+        size_t curLength = NodeList->length;
+        size_t maxLength = NodeList->maxLength;
+        pthread_mutex_unlock(&NodeList->m_list);
+
+        // Push_Node() is called from the packet thread only (single
+        // producer - see the node-cache design note above), so this plain
+        // static is safe without extra synchronization. Rate-limited for
+        // the same reason as the other two limits: sustained backpressure
+        // can hit this branch millions of times per run.
+        static time_t lastQueueLimitLog = 0;
+        time_t now = time(NULL);
+        if (now != lastQueueLimitLog) {
+            LogError(
+                "Flow output queue full: %zu records queued (limit flowcache.max_output_nodes=%zu) - dropping flow record. "
+                "Increase with -x flowcache.max_output_nodes=<n> or flowcache.max_output_nodes in nfdump.conf, or check "
+                "whether the writer/sender thread is keeping up",
+                curLength, maxLength);
+            lastQueueLimitLog = now;
+        }
+        Free_Node(node);
+        return;
+    }
+    while (node->nodeType != FLOW_NODE && NodeList->length >= NodeList->maxLength && !NodeList->closed) {
+        NodeList->backpressureEvents++;
+        NodeList->controlWaits++;
+        pthread_cond_wait(&NodeList->c_list, &NodeList->m_list);
+    }
+    if (NodeList->closed) {
+        pthread_mutex_unlock(&NodeList->m_list);
+        Free_Node(node);
+        return;
+    }
     if (NodeList->length == 0) {
         NodeList->list = node;
     } else {
@@ -986,6 +1123,7 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
     node->next = NULL;
     NodeList->last = node;
     NodeList->length++;
+    if (NodeList->length > NodeList->highWater) NodeList->highWater = NodeList->length;
 
     pthread_cond_signal(&NodeList->c_list);
     pthread_mutex_unlock(&NodeList->m_list);
@@ -1020,6 +1158,7 @@ struct FlowNode *Pop_Node(NodeList_t *NodeList) {
     if (NodeList->list == NULL) NodeList->last = NULL;
 
     NodeList->length--;
+    pthread_cond_signal(&NodeList->c_list);
     pthread_mutex_unlock(&NodeList->m_list);
 
     return node;
@@ -1050,6 +1189,7 @@ size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max) {
         node->next = NULL;
         out[n++] = node;
     }
+    if (n) pthread_cond_signal(&NodeList->c_list);
     pthread_mutex_unlock(&NodeList->m_list);
 
     return n;
@@ -1058,7 +1198,10 @@ size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max) {
 void Push_SyncNode(NodeList_t *NodeList, time_t timestamp) {
     struct FlowNode *Node = New_Node();
     if (!Node) {
-        LogError("Flow cache exhausted; unable to rotate output");
+        LogError(
+            "Flow cache exhausted: %u active flows (limit flowcache.max_nodes=%u) - unable to rotate output. "
+            "Increase with -x flowcache.max_nodes=<n> or flowcache.max_nodes in nfdump.conf",
+            FlowCacheSize, MaxFlowNodes);
         return;
     }
     Node->timestamp = timestamp;

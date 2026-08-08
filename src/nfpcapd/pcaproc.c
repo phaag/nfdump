@@ -285,20 +285,13 @@ static inline void SetApplication_latency(struct FlowNode *node, const struct ti
  * arbitrarily large capture buffer until the flow expires. */
 #define MAX_FLOW_PAYLOAD 4096u
 
-static inline void LogFlowCacheExhausted(void) {
-    static time_t last_log = 0;
-    time_t now = time(NULL);
-    if (now != last_log) {
-        LogError("Flow cache exhausted; dropping new flows");
-        last_log = now;
-    }
-}
-
 static inline void AddPayload(struct FlowNode *Node, void *payload, size_t payloadSize) {
     if (!payload || payloadSize == 0) return;
     if (payloadSize > MAX_FLOW_PAYLOAD) payloadSize = MAX_FLOW_PAYLOAD;
+    if (!ReserveFlowPayload(payloadSize)) return;
     Node->coldNode.payload = malloc(payloadSize);
     if (!Node->coldNode.payload) {
+        ReleaseFlowPayload(payloadSize);
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
     } else {
         memcpy(Node->coldNode.payload, payload, payloadSize);
@@ -318,7 +311,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, const hotNode_t *h
         dbg_printf("New TCP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->packets, hotNode->bytes);
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
-            LogFlowCacheExhausted();
+            // New_Node() already logged the rate-limited, detailed reason.
             return;
         }
 
@@ -410,7 +403,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *h
     if (hotNode->flowKey.src_port == 53 || hotNode->flowKey.dst_port == 53) {
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
-            LogFlowCacheExhausted();
+            // New_Node() already logged the rate-limited, detailed reason.
             return;
         }
 
@@ -435,7 +428,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *h
         dbg_printf("New UDP flow: Packets: %" PRIu64 ", Bytes: %" PRIu64 "\n", hotNode->packets, hotNode->bytes);
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
-            LogFlowCacheExhausted();
+            // New_Node() already logged the rate-limited, detailed reason.
             return;
         }
 
@@ -491,7 +484,7 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, const hotNode_t *
 
     struct FlowNode *NewNode = New_Node();
     if (!NewNode) {
-        LogFlowCacheExhausted();
+        // New_Node() already logged the rate-limited, detailed reason.
         return;
     }
     NewNode->hotNode = *hotNode;
@@ -518,7 +511,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, const hotNode_t 
 
         struct FlowNode *NewNode = New_Node();
         if (!NewNode) {
-            LogFlowCacheExhausted();
+            // New_Node() already logged the rate-limited, detailed reason.
             return;
         }
         NewNode->hotNode = *hotNode;

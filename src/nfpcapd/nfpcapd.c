@@ -103,6 +103,9 @@ static option_t nfpcapdConfig[] = {
     {.type = CONF_BOOL, .key = "opt.payload", .valBool = false},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
     {.type = CONF_UINT64, .key = "flowcache.expireinterval", .valUint64 = 5},
+    {.type = CONF_UINT64, .key = "flowcache.max_nodes", .valUint64 = 262144},
+    {.type = CONF_UINT64, .key = "flowcache.max_payload_bytes", .valUint64 = 64ULL * 1024ULL * 1024ULL},
+    {.type = CONF_UINT64, .key = "flowcache.max_output_nodes", .valUint64 = 65536},
     {.key = NULL},
 };
 
@@ -537,6 +540,27 @@ int main(int argc, char *argv[]) {
     }
     uint32_t expireInterval = (uint32_t)confExpireInterval;
 
+    int64_t confMaxNodes = ConfGetValue("flowcache.max_nodes");
+    if (confMaxNodes < 8192 || (uint64_t)confMaxNodes > UINT32_MAX) {
+        LogError("nfpcapd: flowcache.max_nodes %" PRId64 " out of range [8192, %u]", confMaxNodes, UINT32_MAX);
+        exit(EXIT_FAILURE);
+    }
+    uint32_t maxNodes = (uint32_t)confMaxNodes;
+
+    int64_t confMaxPayloadBytes = ConfGetValue("flowcache.max_payload_bytes");
+    if (confMaxPayloadBytes < 0) {
+        LogError("nfpcapd: flowcache.max_payload_bytes must not be negative");
+        exit(EXIT_FAILURE);
+    }
+    uint64_t maxPayloadBytes = (uint64_t)confMaxPayloadBytes;
+
+    int64_t confMaxOutputNodes = ConfGetValue("flowcache.max_output_nodes");
+    if (confMaxOutputNodes < 1 || (uint64_t)confMaxOutputNodes > maxNodes) {
+        LogError("nfpcapd: flowcache.max_output_nodes %" PRId64 " out of range [1, %u]", confMaxOutputNodes, maxNodes);
+        exit(EXIT_FAILURE);
+    }
+    uint32_t maxOutputNodes = (uint32_t)confMaxOutputNodes;
+
     if ((datadir && sendHost) || (!datadir && !sendHost)) {
         LogError("Specify either a local directory or a remote host to dump flows.");
         exit(EXIT_FAILURE);
@@ -657,7 +681,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout, expireInterval)) {
+    if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout, expireInterval, maxNodes, maxPayloadBytes)) {
         LogError("Init_FlowHash() failed");
         exit(EXIT_FAILURE);
     }
@@ -716,7 +740,7 @@ int main(int argc, char *argv[]) {
     flowParam.t_win = t_win;
     flowParam.subdir_index = subdir_index;
     flowParam.parent = pthread_self();
-    flowParam.NodeList = NewNodeList();
+    flowParam.NodeList = NewNodeList(maxOutputNodes);
     if (!flowParam.NodeList) {
         LogError("Unable to allocate flow queue");
         exit(EXIT_FAILURE);
@@ -771,6 +795,8 @@ int main(int argc, char *argv[]) {
     // // flow thread terminates on end of node queue
     pthread_join(flowParam.tid, NULL);
     dbg_printf("Flow thread joined\n");
+
+    DisposeNodeList(flowParam.NodeList);
 
     Dispose_FlowTree();
 

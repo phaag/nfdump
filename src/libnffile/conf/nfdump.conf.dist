@@ -142,6 +142,21 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # Valid range: 1..60; it must not exceed the shorter active/inactive timeout.
 #flowcache.expireinterval = 5
 
+# Hard flow-cache memory budgets. A FlowNode is currently 400 bytes on
+# 64-bit platforms, so the default max_nodes uses about 100 MiB for node
+# metadata. max_payload_bytes is a *total* budget for all retained -o payload
+# copies, not a per-flow payload length. Each flow retains at most the first
+# 4096 payload bytes, so without this aggregate cap max_nodes could permit up
+# to roughly max_nodes * 4096 bytes of additional heap memory. Set it to 0 to
+# disable payload retention even when -o payload is selected.
+#flowcache.max_nodes = 262144
+#flowcache.max_payload_bytes = 67108864
+
+# Bound the packet-to-flow output queue. Flow records are dropped when the
+# queue is full; output-rotation and shutdown control records wait for space.
+# The final queue statistics report drops and backpressure events.
+#flowcache.max_output_nodes = 65536
+
 # define -o options
 # opt.fat = 1
 # opt.payload = 1
