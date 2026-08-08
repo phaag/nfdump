@@ -92,7 +92,10 @@ typedef struct source_index_s {
     uint32_t count;
 } source_index_t;
 
-#define DEFAULT_DYN_MAX_SOURCES 1024u
+// -M creates a backend and output queue for every new source IP. Keep the
+// unattended default conservative; operators with a known larger population
+// can raise dyn_max_sources in the collector's nfdump.conf section.
+#define DEFAULT_DYN_MAX_SOURCES 64u
 
 typedef struct source_array_s {
     struct source_array_s *next;  // daisy chain
