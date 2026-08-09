@@ -208,8 +208,9 @@ void anonymize_v6(const uint64_t orig_addr[2], uint64_t *anon_addr) {
         // round, only the first bit of rin_output is used.
         Rijndael_blockEncrypt(rin_input, 128, rin_output);
 
-        // Combination: the bits are combined into a pseudorandom one-time-pad
-        result[left_byte] |= (rin_output[0] >> 7) << bit_num;
+        // Combination: pos counts from the most-significant bit of each byte.
+        // Store the generated bit at the same position
+        result[left_byte] |= (rin_output[0] >> 7) << (7 - bit_num);
     }
     // XOR the original address with the pseudorandom one-time-pad
     anon_addr[0] ^= orig_addr[0];
