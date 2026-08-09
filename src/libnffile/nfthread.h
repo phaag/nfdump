@@ -131,6 +131,10 @@ typedef struct {
  */
 threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadPipeline_t pipeline);
 
+/* Parse the common -W CPU-core limit. Accepts only a complete, non-negative
+ * decimal integer representable as int; 0 means automatic core selection. */
+int ParseCoreLimit(const char *arg, int *limit);
+
 /*
  * DeriveReaderCount — per-file nfreader count, called from mmapFileV3().
  *

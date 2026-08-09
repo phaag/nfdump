@@ -33,7 +33,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -92,8 +91,6 @@ static int ProcessExporterBlock(expBlockV3_t *expBlock);
 static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst);
 
 static int ValidateFlowBlock(const flowBlockV3_t *dataBlock);
-
-static int ParseCoreLimit(const char *arg, int *limit);
 
 /* METARecord is a container type. Only these metadata types contain hashes of
  * the original addresses and must be removed after anonymization. */
@@ -400,16 +397,6 @@ static int ValidateFlowBlock(const flowBlockV3_t *dataBlock) {
 
     return 1;
 }  // End of ValidateFlowBlock
-
-static int ParseCoreLimit(const char *arg, int *limit) {
-    char *endPtr = NULL;
-    errno = 0;
-    long value = strtol(arg, &endPtr, 10);
-    if (errno == ERANGE || endPtr == arg || *endPtr != '\0' || value < 0 || value > INT_MAX) return 0;
-
-    *limit = (int)value;
-    return 1;
-}  // End of ParseCoreLimit
 
 static int IsBloomMetadataType(uint16_t metaType) {
     switch (metaType) {

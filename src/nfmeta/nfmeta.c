@@ -498,8 +498,7 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                limitCores = atoi(optarg);
-                if (limitCores < 0) {
+                if (!ParseCoreLimit(optarg, &limitCores)) {
                     LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
                 }

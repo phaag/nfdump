@@ -31,6 +31,7 @@
 #include "nfthread.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -98,6 +99,16 @@ static const codecInfo_t *codecInfo(uint16_t compression) {
 static uint32_t min_u32(uint32_t a, uint32_t b) { return a < b ? a : b; }
 
 static uint32_t max_u32(uint32_t a, uint32_t b) { return a > b ? a : b; }
+
+int ParseCoreLimit(const char *arg, int *limit) {
+    char *endPtr = NULL;
+    errno = 0;
+    long value = strtol(arg, &endPtr, 10);
+    if (errno == ERANGE || endPtr == arg || *endPtr != '\0' || value < 0 || value > INT_MAX) return 0;
+
+    *limit = (int)value;
+    return 1;
+}  // End of ParseCoreLimit
 
 /* Compute-bound share of `total`, i.e. round(total * C/(1+C)) done in
  * integer arithmetic, where C = cost/COST_SCALE.  Used to split a thread
