@@ -35,10 +35,10 @@ echo ""
 echo "── nfanon ───────────────────────────────────────────────────────────────"
 
 # anonymise a flow file and verify the result is readable
-if nfanon -K abcdefghijklmnopqrstuvwxyz012345 \
+if "$NFANON_BIN" -K abcdefghijklmnopqrstuvwxyz012345 \
           -r dummy_flows.nf -w "$WORKDIR/anon.nf" >/dev/null 2>&1 \
-   && nfdump -v check -r "$WORKDIR/anon.nf" >/dev/null 2>&1 \
-   && nfdump -q -r "$WORKDIR/anon.nf" -o raw >/dev/null 2>&1; then
+   && "$NFDUMP_BIN" -v check -r "$WORKDIR/anon.nf" >/dev/null 2>&1 \
+   && "$NFDUMP_BIN" -q -r "$WORKDIR/anon.nf" -o raw >/dev/null 2>&1; then
     pass "nfanon_write_read"
 else
     fail "nfanon_write_read"

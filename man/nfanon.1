@@ -39,18 +39,29 @@
 .Fl K Ar key
 .Op Fl s
 .Op Fl d
-.Op Fl q
-.Op Fl t Ar num
 .Op Fl v Ar level
+.Op Fl V
 .Op Fl W Ar num
+.Op Fl x Ar key=value
 .Op Fl h
 .Sh DESCRIPTION
 .Nm
-anonymizes all IP addresses ( src, dst, next hop, router IP etc. ) in the netflow 
+anonymizes all IP addresses ( src, dst, next hop, router IP, NAT, tunnel
+endpoints, and the recording exporter's own IP, etc. ) in the netflow
 records using the CryptoPAn (Cryptography-based  Prefix-preserving Anonymization)
-module. The key -K is used to initialize the Rijndael cipher. The key is either 
-a 32 character string, or a 64 hex digit string starting with 0x. See 
+module. The key -K is used to initialize the Rijndael cipher. The key is either
+a 32 character string, or a 64 hex digit string starting with 0x. See
 https://en.wikipedia.org/wiki/Crypto-PAn for more information on CryptoPAn.
+.Pp
+Anonymization is prefix-preserving: two original addresses sharing an
+.Ar N Ns -bit
+prefix are guaranteed to share the same
+.Ar N Ns -bit
+prefix after anonymization, for the same
+.Fl K
+key. This holds across all files anonymized with the same key, which
+allows aggregate and subnet-level analysis to continue working on
+anonymized data without revealing the original addresses.
 .Pp
 The source specified by argument
 .Fl r Ar path
@@ -71,14 +82,14 @@ The options are as follows:
 .Bl -tag -width Ds
 .It Fl r Ar path
 Path to read flow files to anonymize. Path may point to a single file or a directory
-containing many flow files.
+containing many flow files. Required.
 .It Fl w Ar nffile
 File name to write anonymized flow records to. If this argument is missing, the source
 file name is taken, which means the original file is overwritten.
 .It Fl K Ar key
 .Ar key
 is either a 32 character string, or a 64 char hex string starting with 0x. This key
-is used to initialize the anonymizer.
+is used to initialize the anonymizer. Required.
 .It Fl C Ar config
 Read configuration from
 .Ar config .
@@ -87,16 +98,15 @@ Use
 to disable configuration-file loading for this invocation.
 .It Fl s
 Preserve source addresses. All other supported addresses are anonymized.
+.Fl s
+and
+.Fl d
+may not both be given, since that would leave nothing to anonymize.
 .It Fl d
 Preserve destination addresses. All other supported addresses are anonymized.
-.It Fl q
-Deprecated. Use
-.Fl v No 0
-to suppress progress output.
-.It Fl t Ar num
-Legacy alias for the core limit. Use
-.Fl W
-in new scripts.
+See
+.Fl s
+above.
 .It Fl v Ar level
 Set verbose level. A verbose level of 0 disables progress output.
 .It Fl W Ar num
@@ -118,7 +128,22 @@ Individual role counts are configured with the
 or
 .Em [common.threads]
 sections in
-.Xr nfdump.conf 5 .
+.Xr nfdump.conf 5 ,
+or overridden per-run with
+.Fl x Ar threads.workers=N
+(anonymization threads),
+.Fl x Ar threads.readers=N
+or
+.Fl x Ar threads.writers=N
+(0 restores the auto-derived count).
+.It Fl V
+Print version and exit.
+.It Fl x Ar key Ns = Ns Ar value
+Override a single configuration key for this run only.
+May be repeated to override multiple keys.
+See
+.Xr nfdump.conf 5
+for the list of available keys.
 .It Fl h
 Print help text to stdout and exit.
 .El
@@ -131,6 +156,7 @@ or
 and use this output as argument for -K
 .Sh RETURN VALUES
 .Nm
-returns 0 on success and 255 otherwise.
+returns 0 on success and a nonzero value on error (1 or 255, depending on
+the failure).
 .Sh SEE ALSO
 .Xr nfdump 1

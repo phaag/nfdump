@@ -61,6 +61,7 @@
 #include "nfxV4.h"
 #include "panonymizer.h"
 #include "util.h"
+#include "version.h"
 
 #define MAXANONWORKERS 8
 
@@ -96,15 +97,15 @@ static void usage(char *name) {
         "usage %s [options] \n"
         "-C <file>\tRead optional config file.\n"
         "-h\t\tthis text you see right here.\n"
-        "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
+        "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>. Required.\n"
         "-s\t\tPreserve source address.\n"
-        "-d\t\tPreserve destination address.\n"
-        "-q\t\tDeprecated; use -v 0 to suppress progress output.\n"
-        "-r <path>\tread input from single file or all files in directory.\n"
+        "-d\t\tPreserve destination address. (-s and -d are not both allowed)\n"
+        "-r <path>\tread input from single file or all files in directory. Required.\n"
         "-v level\tSet verbose level.\n"
         "-w <file>\tName of output file. Defaults to input file.\n"
-        "-t <num>\tLegacy core-limit option; use -W instead.\n"
-        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n",
+        "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
+        "-V\t\tPrint version and exit.\n",
         name);
 } /* usage */
 
@@ -376,9 +377,24 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         }
 
         if ((*dataBlockPtr)->type != BLOCK_TYPE_FLOW) {
-            LogError("Can't process block type %u. Write block unmodified", (*dataBlockPtr)->type);
+            if ((*dataBlockPtr)->type == BLOCK_TYPE_EXP) {
+                // Exporter records carry the exporter's own IP address (exporter_info_record_v4_t,
+                // the same layout AnonExporterInfo() already handles for records embedded inside
+                // flow blocks). Anonymize them here too - otherwise the exporter IP is written to
+                // the output file completely unmodified, leaking it from an "anonymized" file.
+                expBlockV3_t *expBlock = (expBlockV3_t *)*dataBlockPtr;
+                exporter_info_record_v4_t *record = ResetCursor(expBlock);
+                for (uint32_t i = 0; i < expBlock->numExporter; i++) {
+                    AnonExporterInfo(record);
+                    record = (exporter_info_record_v4_t *)((uint8_t *)record + record->size);
+                }
+            } else {
+                LogError("Can't process block type %u. Write block unmodified", (*dataBlockPtr)->type);
+            }
             PushBlockV3(nffile_w->processQueue, *dataBlockPtr);
-            InitDataBlock(*dataBlockPtr, nffile_w->fileHeader->blockSize);
+            // note: *dataBlockPtr is unconditionally overwritten by the next loop iteration's
+            // "*dataBlockPtr = nextBlock;" - do not InitDataBlock() a replacement here, it would
+            // just leak the freshly allocated block.
             nextBlock = ReadBlockV3(nffile_r);
             continue;
         }
@@ -516,6 +532,7 @@ static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
 int main(int argc, char **argv) {
     char *wfile = NULL;
     char CryptoPAnKey[32] = {0};
+    int keyProvided = 0;
     flist_t flist = {0};
 
     char *configFile = NULL;
@@ -524,7 +541,7 @@ int main(int argc, char **argv) {
     int anon_src = 1;
     int anon_dst = 1;
     int c;
-    while ((c = getopt(argc, argv, "C:hsdK:qr:t:v:w:W:")) != EOF) {
+    while ((c = getopt(argc, argv, "C:hsdK:r:v:Vw:W:x:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -545,6 +562,7 @@ int main(int argc, char **argv) {
                     LogError("Invalid key '%s' for CryptoPAn", optarg);
                     exit(255);
                 }
+                keyProvided = 1;
                 PAnonymizer_Init((uint8_t *)CryptoPAnKey);
                 break;
             case 's':
@@ -552,10 +570,6 @@ int main(int argc, char **argv) {
                 break;
             case 'd':
                 anon_dst = 0;
-                break;
-            case 'q':
-                LogError("Option -q deprecated. Use -v 0");
-                exit(EXIT_FAILURE);
                 break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -574,14 +588,14 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 'V':
+                printf("%s: %s\n", argv[0], versionString());
+                exit(EXIT_SUCCESS);
+                break;
             case 'w':
                 CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
-            case 't':
-                // legacy option - fall through
-                LogError("Legacy option. Use -W <num> to set core limit");
-                /* fallthrough */
             case 'W':
                 CheckArgLen(optarg, 16);
                 limitCores = atoi(optarg);
@@ -595,6 +609,10 @@ int main(int argc, char **argv) {
                         LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld", limitCores, onlineCores, onlineCores);
                 }
                 break;
+            case 'x':
+                CheckArgLen(optarg, 256);
+                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
+                break;
             default:
                 usage(argv[0]);
                 exit(0);
@@ -605,8 +623,14 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (CryptoPAnKey[0] == '\0') {
+    if (!keyProvided) {
         LogError("Expect -K <key>");
+        usage(argv[0]);
+        exit(255);
+    }
+
+    if (!flist.single_file && !flist.multiple_files) {
+        LogError("Expect -r <path>");
         usage(argv[0]);
         exit(255);
     }
