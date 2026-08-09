@@ -90,4 +90,8 @@ int book_expire(book_handle_t *book_handle, time_t first, uint32_t expired_files
 
 uint64_t book_sequence(book_handle_t *book_handle);
 
+void book_mark_dirty(book_handle_t *book_handle);
+
+int book_is_dirty(book_handle_t *book_handle);
+
 #endif  //_BOOKKEEPER_H

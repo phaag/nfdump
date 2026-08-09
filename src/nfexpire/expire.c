@@ -782,7 +782,7 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
                                     total_size = 0;
                             } else {
                                 LogError("unlink() error for %s/%s: %s", ch->datadir, rel, strerror(errno));
-                                ch->book_handle->bookkeeper->dirty = 1;
+                                book_mark_dirty(ch->book_handle);
                                 // if unlink failes, abort expire process
                                 done = 1;
                             }
@@ -868,11 +868,11 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
 #endif
             } else {
                 LogError("book_update rejected - rescan channel %s", ch->datadir);
-                ch->book_handle->bookkeeper->dirty = 1;
+                book_mark_dirty(ch->book_handle);
             }
         } else {
             // rescan dir
-            ch->book_handle->bookkeeper->dirty = 1;
+            book_mark_dirty(ch->book_handle);
         }
     }
 
@@ -883,7 +883,7 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
 
     dirty = 0;
     for (channel_t *ch = channel; ch; ch = ch->next) {
-        if (ch->book_handle->bookkeeper->dirty) {
+        if (book_is_dirty(ch->book_handle)) {
             LogVerbose("Expire profile %s: inconsistent data - rescan ..", profile);
             int ok = 0;
             int maxTries = 3;

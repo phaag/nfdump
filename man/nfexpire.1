@@ -72,16 +72,28 @@ interacts with the collector, therefore it is safe to setup and expire files fro
 which is used by any collector to store flow files.
 .Pp
 .Nm
-stores a statistics file
-.Ar .nfstat
-in the given directory to maintain the status and parameters. You should not modify this file
-manually unless you know what you do. The
+stores its bookkeeping - accumulated file size, file count, first/last timestamps and the
+configured limits - in a
+.Ar .nfcapd.book
+file in the given directory. This is the same file a collector
+.Ar ( nfcapd , sfcapd )
+updates incrementally on every file rotation, so size and lifetime limits are tracked without
+rescanning the directory on every run. You should not modify this file manually unless you know
+what you do. The
 .Ar directory
 argument for
 .Nm
 corresponds to the
-.Ar -l
-argument on the collector command line.
+.Ar -w
+flow directory argument on the collector command line
+.Ar ( -M
+for dynamic sources ).
+.Pp
+Legacy NfSen profile mode
+.Pq Fl p
+additionally writes a
+.Ar .nfstat
+file for compatibility; it is not used otherwise and is not the bookkeeping source of truth.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -176,7 +188,12 @@ Preview the next expiration run without deleting files:
 .Dl nfexpire -n -e /var/nfdump/edge-router
 .Sh RETURN VALUES
 .Nm
-returns 0 on success and 255 otherwise.
+returns 0 on success and a nonzero value otherwise (1 for most argument or
+runtime errors, 250 for a malformed
+.Fl s , t
+or
+.Fl w
+value).
 .Sh SEE ALSO
 .Xr nfdump 1
 .Xr nfcapd 1

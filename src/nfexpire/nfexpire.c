@@ -72,7 +72,7 @@ static void usage(char *name) {
         "-e datadir\tExpire data in directory\n"
         "-n\t\tdryrun mode. Do not delete but report\n"
         "-r datadir\tRescan data directory\n"
-        "-u datadir\tUpdate expire params from collector logging at <datadir>\n"
+        "-u datadir\tStore -s/-t/-w as the persistent default expire params for <datadir>\n"
         "-p\t\tLegacy NfSen profile mode\n"
         "-Y\t\tPrint NfSen-compatible statistics\n"
         "-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
@@ -129,14 +129,17 @@ static channel_t *GetChannelList(char *datadir, int is_profile) {
         (*c)->datadir = dirlist.list[i];
 
         book_handle_t *book_handle = book_attach((*c)->datadir);
-        if (BOOK_NOT_EXISTS) {
+        if (book_handle == BOOK_NOT_EXISTS) {
             // no existing bookkeeper - create a new one
             book_handle = book_open((*c)->datadir, 0);
-            if (book_handle == BOOK_FAILED) {
+            if (book_handle == BOOK_FAILED || book_handle == BOOK_EXISTS) {
                 book_handle = NULL;
                 LogError("Failed to initialize bookkeeper for %s", (*c)->datadir);
                 exit(EXIT_FAILURE);
             }
+        } else if (book_handle == BOOK_FAILED) {
+            LogError("Failed to attach bookkeeper for %s", (*c)->datadir);
+            exit(EXIT_FAILURE);
         }
 
         // valid bookkeeper
@@ -153,7 +156,7 @@ static int VerifyChannels(const channel_t *channel, int do_rescan) {
     // process do_rescan, if needed
     const channel_t *current_channel = channel;
     while (current_channel) {
-        if (do_rescan || current_channel->book_handle->bookkeeper->dirty) {
+        if (do_rescan || book_is_dirty(current_channel->book_handle)) {
             // A rescan is needed, if no book file exists or the book is dirty for some reason
             int maxTries = 3;
             int ok = 0;

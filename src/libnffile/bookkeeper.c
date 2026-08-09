@@ -233,7 +233,8 @@ void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsi
 
     if (lifetime) book_handle->bookkeeper->max_lifetime = lifetime;
     if (maxsize) book_handle->bookkeeper->max_filesize = maxsize;
-    if (watermark) book_handle->bookkeeper->sequence++;
+    if (watermark) book_handle->bookkeeper->watermark = watermark;
+    book_handle->bookkeeper->sequence++;
 
     msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
 
@@ -299,3 +300,20 @@ uint64_t book_sequence(book_handle_t *book_handle) {
 
     return seq;
 }  // End of book_sequence
+
+// mark the book dirty (needs a rescan) - lock-protected so it never races
+// against a collector's concurrent book_update() on the same mmap'd file
+void book_mark_dirty(book_handle_t *book_handle) {
+    book_lock(book_handle->fd);
+    book_handle->bookkeeper->dirty = 1;
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+    book_unlock(book_handle->fd);
+}  // End of book_mark_dirty
+
+// lock-protected read of the dirty flag
+int book_is_dirty(book_handle_t *book_handle) {
+    book_lock(book_handle->fd);
+    int dirty = book_handle->bookkeeper->dirty != 0;
+    book_unlock(book_handle->fd);
+    return dirty;
+}  // End of book_is_dirty
