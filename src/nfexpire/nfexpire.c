@@ -393,6 +393,7 @@ int main(int argc, char **argv) {
             for (channel_t *ch = channel; ch; ch = ch->next) {
                 book_get(ch->book_handle, &bookkeeper);
                 total_bookkeeper.filesize += bookkeeper.filesize;
+                total_bookkeeper.numfiles += bookkeeper.numfiles;
                 if (total_bookkeeper.first == 0 || bookkeeper.first < total_bookkeeper.first) total_bookkeeper.first = bookkeeper.first;
                 if (total_bookkeeper.last == 0 || bookkeeper.last > total_bookkeeper.last) total_bookkeeper.last = bookkeeper.last;
             }
@@ -413,10 +414,11 @@ int main(int argc, char **argv) {
 
     current_channel = channel;
     while (current_channel) {
-        book_close(current_channel->book_handle);
+        // WriteStatInfo() reads the current bookkeeper via book_get()
         if (is_profile)
             // write legacy .nfsts file
             WriteStatInfo(current_channel);
+        book_close(current_channel->book_handle);
 
         current_channel = current_channel->next;
     }

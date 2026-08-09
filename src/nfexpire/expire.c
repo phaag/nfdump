@@ -416,10 +416,11 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
 
     int need_life_expire = 0;
     char timeLimitStr[32] = {0};
+    time_t timeLimit = 0;
     if (maxlife && bookkeeper.first && bookkeeper.last && (bookkeeper.last - bookkeeper.first) > maxlife) {
         need_life_expire = 1;
 
-        time_t timeLimit = bookkeeper.last - ((maxlife * low_water) / 100);
+        timeLimit = bookkeeper.last - ((maxlife * low_water) / 100);
         strcpy(timeLimitStr, UNIX2ISO(timeLimit));
     }
 
@@ -429,8 +430,7 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
     }
 
 #ifdef DEVEL
-    if (need_size_expire)
-        printf("need_size_expire: %d from %" PRIu64 " down to %" PRIu64, need_size_expire, bookkeeper.filesize, target_size);
+    if (need_size_expire) printf("need_size_expire: %d from %" PRIu64 " down to %" PRIu64, need_size_expire, bookkeeper.filesize, target_size);
     if (need_life_expire) printf("need_life_expire: %d from %s down to %s", need_size_expire, UNIX2ISO(bookkeeper.first), timeLimitStr);
 #endif
 
@@ -499,8 +499,9 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
                 // check for size expiration
                 if (need_size_expire && current_size > target_size) delete_file = 1;
 
-                // check for lifetime expiration
-                int timeCMP = strcmp(timeString, timeLimitStr);
+                // check for lifetime expiration - compare parsed unix time
+                time_t fileTime = ISO2UNIX(timeString);
+                int timeCMP = (fileTime > timeLimit) - (fileTime < timeLimit);
                 if (!delete_file && need_life_expire && timeCMP < 0) delete_file = 1;
 
                 if (delete_file) {
@@ -679,10 +680,11 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
     }
 
     char timeLimitStr[32] = {0};
+    time_t timeLimit = 0;
     if (maxlife && profile_first && profile_last && (profile_last - profile_first) > maxlife) {
         need_life_expire = 1;
 
-        time_t timeLimit = profile_last - ((maxlife * low_water) / 100);
+        timeLimit = profile_last - ((maxlife * low_water) / 100);
         strcat(timeLimitStr, UNIX2ISO(timeLimit));
     }
 
@@ -759,7 +761,8 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
                 int delete_slot = 0;
                 if (need_size_expire && total_size > target_size) delete_slot = 1;
 
-                int timeCMP = strcmp(timeString, timeLimitStr);
+                time_t fileTime = ISO2UNIX(timeString);
+                int timeCMP = (fileTime > timeLimit) - (fileTime < timeLimit);
                 if (!delete_slot && need_life_expire && timeCMP < 0) delete_slot = 1;
 
                 if (delete_slot) {

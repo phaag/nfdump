@@ -2,7 +2,7 @@
 check_PROGRAMS = nftest nfgen4 test_append
 TESTS = nftest test_prepare.sh test_compress_lzo.sh test_compress_lz4.sh
 TESTS += test_append.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh
-TESTS += test_maxmind.sh
+TESTS += test_maxmind.sh test_nfexpire.sh
 
 if HAVE_LIBSODIUM
 TESTS += test_crypto_nfcapd.sh
@@ -49,7 +49,7 @@ test_append_LDFLAGS = -L../libnffile
 
 EXTRA_DIST = testsetup.sh \
              test_prepare.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh \
-             test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh \
+             test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh \
              test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh
 EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt
 CLEANFILES = $(check_PROGRAMS) test.flows.nf *.gch 
