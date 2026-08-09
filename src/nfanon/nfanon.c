@@ -306,7 +306,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
                           dataBlock_t **dataBlockPtr) {
     const char spinner[4] = {'|', '/', '-', '\\'};
-    char *outFile = NULL;
+    char outFile[MAXPATHLEN];
     char *cfile = NULL;
 
     int cnt = 1;
@@ -333,19 +333,26 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         // get next data block
         *dataBlockPtr = nextBlock;
         if (*dataBlockPtr == NULL) {
-            // nffile_w is NULL for 1st entry in while loop
-            if (nffile_w) {
+            /* Without -w, finish and replace each input file separately.
+             * With -w, keep the writer open and append every input file. */
+            if (nffile_w && wfile == NULL) {
                 FlushFile(nffile_w);
                 DisposeFile(nffile_w);
-                if (wfile == NULL && rename(outFile, cfile) < 0) {
+                nffile_w = NULL;
+                if (rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
             }
 
-            DisposeFile(nffile_r);
+            if (nffile_r) DisposeFile(nffile_r);
             nffile_r = GetNextFile();
             if (nffile_r == NULL) {
+                if (nffile_w) {
+                    FlushFile(nffile_w);
+                    DisposeFile(nffile_w);
+                    nffile_w = NULL;
+                }
                 done = 1;
                 printf("\nDone\n");
                 continue;
@@ -359,25 +366,26 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             }
             if (verbose) printf("  %i Processing %s\r", cnt++, cfile);
 
-            char pathBuff[MAXPATHLEN];
-            if (wfile == NULL) {
-                // prepare output file
-                snprintf(pathBuff, MAXPATHLEN - 1, "%s-tmp", cfile);
-                pathBuff[MAXPATHLEN - 1] = '\0';
-                outFile = pathBuff;
+            if (wfile == NULL || nffile_w == NULL) {
+                if (wfile == NULL) {
+                    // prepare output file
+                    snprintf(outFile, sizeof(outFile), "%s-tmp", cfile);
+                } else {
+                    snprintf(outFile, sizeof(outFile), "%s", wfile);
+                }
+
+                nffile_w = OpenNewFile(outFile, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+                if (!nffile_w) {
+                    // can not create output file
+                    DisposeFile(nffile_r);
+                    return;
+                }
+
+                SetIdent(nffile_w, FILE_IDENT(nffile_r));
+                memcpy(nffile_w->stat_record, nffile_r->stat_record, sizeof(stat_record_t));
             } else {
-                outFile = wfile;
+                SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
             }
-
-            nffile_w = OpenNewFile(outFile, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
-            if (!nffile_w) {
-                // can not create output file
-                DisposeFile(nffile_r);
-                return;
-            }
-
-            SetIdent(nffile_w, FILE_IDENT(nffile_r));
-            memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
             // read first block from next file
             nextBlock = ReadBlock(nffile_r, NULL);
