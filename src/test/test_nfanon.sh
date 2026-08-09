@@ -44,6 +44,39 @@ else
     fail "nfanon_write_read"
 fi
 
+# A directory and -w produce one aggregate output file, not one overwritten
+# output per source file.
+multi_input="$WORKDIR/nfanon-multi-input"
+if mkdir "$multi_input" \
+   && cp dummy_flows.nf "$multi_input/flows-a.nf" \
+   && cp dummy_flows.nf "$multi_input/flows-b.nf" \
+   && "$NFANON_BIN" -K abcdefghijklmnopqrstuvwxyz012345 \
+          -r "$multi_input" -w "$WORKDIR/anon-all.nf" >/dev/null 2>&1 \
+   && "$NFDUMP_BIN" -v check -r "$WORKDIR/anon-all.nf" >/dev/null 2>&1 \
+   && "$NFDUMP_BIN" -q -r dummy_flows.nf -o raw >"$WORKDIR/original.raw" \
+   && "$NFDUMP_BIN" -q -r "$WORKDIR/anon-all.nf" -o raw >"$WORKDIR/anon-all.raw" \
+   && [ "$(wc -l < "$WORKDIR/anon-all.raw")" -eq "$((2 * $(wc -l < "$WORKDIR/original.raw")))" ]; then
+    pass "nfanon_directory_single_output"
+else
+    fail "nfanon_directory_single_output"
+fi
+
+# Without -w each input file is replaced in place, including when -r names a
+# directory. The temporary replacement files must not remain behind.
+inplace_input="$WORKDIR/nfanon-inplace-input"
+if mkdir "$inplace_input" \
+   && cp dummy_flows.nf "$inplace_input/flows-a.nf" \
+   && cp dummy_flows.nf "$inplace_input/flows-b.nf" \
+   && "$NFANON_BIN" -K abcdefghijklmnopqrstuvwxyz012345 -r "$inplace_input" >/dev/null 2>&1 \
+   && "$NFDUMP_BIN" -v check -r "$inplace_input/flows-a.nf" >/dev/null 2>&1 \
+   && "$NFDUMP_BIN" -v check -r "$inplace_input/flows-b.nf" >/dev/null 2>&1 \
+   && [ ! -e "$inplace_input/flows-a.nf-tmp" ] \
+   && [ ! -e "$inplace_input/flows-b.nf-tmp" ]; then
+    pass "nfanon_directory_inplace_output"
+else
+    fail "nfanon_directory_inplace_output"
+fi
+
 # Bloom filters contain hashes of the original addresses. nfanon must remove
 # them after anonymization and instruct the user to rebuild them with nfmeta.
 if "$NFMETA_BIN" -r dummy_flows.nf -w "$WORKDIR/indexed.nf" -v 1 >/dev/null 2>&1 \
