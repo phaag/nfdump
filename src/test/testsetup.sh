@@ -39,7 +39,7 @@
 #   BINDIR, TESTDATA                — directory paths
 #   MAXMIND_TESTDATA                — test/maxmind/ fixture directory
 #   NFCAPD_BIN, NFDUMP_BIN,         — binary paths
-#   NFREPLAY_BIN, NFEXPIRE_BIN,
+#   NFREPLAY_BIN, NFEXPIRE_BIN, NFMETA_BIN,
 #   NFANON_BIN, GEOLOOKUP_BIN
 #   nfcapd(), nfdump(), nfreplay(), — wrapper functions (-G none pre-applied
 #   nfexpire(), nfanon(),             to nfdump; all others pass-through)
@@ -65,6 +65,7 @@ NFDUMP_BIN="$BINDIR/nfdump/nfdump"
 NFREPLAY_BIN="$BINDIR/nfreplay/nfreplay"
 NFEXPIRE_BIN="$BINDIR/nfexpire/nfexpire"
 NFANON_BIN="$BINDIR/nfanon/nfanon"
+NFMETA_BIN="$BINDIR/nfmeta/nfmeta"
 GEOLOOKUP_BIN="$BINDIR/maxmind/geolookup"
 
 # Wrapper functions — callers never need to worry about path quoting or

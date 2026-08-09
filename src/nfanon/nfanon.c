@@ -56,6 +56,7 @@
 #include "nbar.h"
 #include "nfconf.h"
 #include "nfdump.h"
+#include "bloom.h"
 #include "nffileV3/nffileV3.h"
 #include "nfthread.h"
 #include "nfxV4.h"
@@ -84,6 +85,14 @@ static void usage(char *name);
 static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record);
 
 static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst);
+
+/* METARecord is a container type. Only these metadata types contain hashes of
+ * the original addresses and must be removed after anonymization. */
+static int IsBloomMetadataType(uint16_t metaType);
+
+/* Remove metadata derived from the original addresses. Returns the number of
+ * bloom records removed, or -1 when the flow block is malformed. */
+static int RemoveBloomMetadata(flowBlockV3_t *dataBlock);
 
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
                          flowBlockV3_t **dataBlockPtr);
@@ -288,6 +297,84 @@ static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon
 
 }  // End of AnonRecord
 
+static int IsBloomMetadataType(uint16_t metaType) {
+    switch (metaType) {
+        case META_TYPE_BLOOM_SRC_IPV4:
+        case META_TYPE_BLOOM_DST_IPV4:
+        case META_TYPE_BLOOM_SRC_IPV6:
+        case META_TYPE_BLOOM_DST_IPV6:
+            return 1;
+        default:
+            return 0;
+    }
+}  // End of IsBloomMetadataType
+
+static int RemoveBloomMetadata(flowBlockV3_t *dataBlock) {
+    if (dataBlock->rawSize < sizeof(*dataBlock)) {
+        LogError("Corrupt flow block: size %u is smaller than its header", dataBlock->rawSize);
+        return -1;
+    }
+
+    uint8_t *readPtr = ResetCursor(dataBlock);
+    uint8_t *endPtr = (uint8_t *)dataBlock + dataBlock->rawSize;
+    int removed = 0;
+
+    /* Validate the complete block before modifying it in place. */
+    for (uint32_t i = 0; i < dataBlock->numRecords; i++) {
+        if ((size_t)(endPtr - readPtr) < sizeof(recordHeader_t)) {
+            LogError("Corrupt flow block: record header exceeds block size");
+            return -1;
+        }
+
+        recordHeader_t *record = (recordHeader_t *)readPtr;
+        if (record->size < sizeof(*record) || record->size > (size_t)(endPtr - readPtr)) {
+            LogError("Corrupt flow block: invalid record size %u", record->size);
+            return -1;
+        }
+
+        if (record->type == METARecord) {
+            if (record->size < sizeof(metaRecordHeader_t)) {
+                LogError("Corrupt flow block: invalid metadata record size %u", record->size);
+                return -1;
+            }
+
+            const metaRecordHeader_t *meta = (const metaRecordHeader_t *)record;
+            if (IsBloomMetadataType(meta->metaType)) {
+                if (record->size != sizeof(*meta) + sizeof(bloomFilter_t)) {
+                    LogError("Corrupt flow block: invalid bloom metadata record size %u", record->size);
+                    return -1;
+                }
+                removed++;
+            }
+        }
+        readPtr += record->size;
+    }
+
+    if (readPtr != endPtr) {
+        LogError("Corrupt flow block: record data does not fill block");
+        return -1;
+    }
+
+    if (!removed) return 0;
+
+    readPtr = ResetCursor(dataBlock);
+    uint8_t *writePtr = readPtr;
+    for (uint32_t i = 0; i < dataBlock->numRecords; i++) {
+        recordHeader_t *record = (recordHeader_t *)readPtr;
+        const int isBloom = record->type == METARecord && IsBloomMetadataType(((metaRecordHeader_t *)record)->metaType);
+        if (!isBloom) {
+            if (writePtr != readPtr) memmove(writePtr, readPtr, record->size);
+            writePtr += record->size;
+        }
+        readPtr += record->size;
+    }
+
+    dataBlock->numRecords -= removed;
+    dataBlock->rawSize = (uint32_t)(writePtr - (uint8_t *)dataBlock);
+
+    return removed;
+}  // End of RemoveBloomMetadata
+
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
                          flowBlockV3_t **dataBlockPtr) {
     const char spinner[4] = {'|', '/', '-', '\\'};
@@ -313,6 +400,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     pthread_controller_wait(barrier);
 
     int blk_count = 0;
+    int bloomMetadataRemoved = 0;
     int done = 0;
     while (!done) {
         // get next data block
@@ -408,6 +496,24 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
         // wait for all workers, work done on previous block
         pthread_controller_wait(barrier);
+
+        int removed = RemoveBloomMetadata(*dataBlockPtr);
+        if (removed < 0) {
+            /* Do not emit a block whose record layout failed validation. */
+            FreeDataBlock(*dataBlockPtr);
+            continue;
+        }
+        if (removed > 0 && !bloomMetadataRemoved) {
+            LogInfo("Removed IP bloom-filter metadata from anonymized output; run nfmeta to rebuild it.");
+            bloomMetadataRemoved = 1;
+        }
+
+        // nfmeta may have emitted a block containing only its four bloom
+        // records. Do not write an empty flow block after removing them.
+        if ((*dataBlockPtr)->numRecords == 0) {
+            FreeDataBlock(*dataBlockPtr);
+            continue;
+        }
 
         // write modified block
         PushBlockV3(nffile_w->processQueue, *dataBlockPtr);
