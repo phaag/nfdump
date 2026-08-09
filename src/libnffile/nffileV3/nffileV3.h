@@ -323,6 +323,12 @@ typedef struct nffile_crypto_s {
     uint8_t rootNonce[12]; /* per-file base nonce                            */
 } nffile_crypto_t;
 
+/* Decode one block from a mapped V3 file. The returned block is heap allocated
+ * and must be released with FreeDataBlock(). The helper is shared by normal
+ * readers and the file checker so both enforce identical wire-format rules. */
+dataBlockV3_t *DecodeBlockV3(const uint8_t *map, size_t mapSize, uint32_t blockSize, const directoryEntryV3_t *entry,
+                             const nffile_crypto_t *crypto);
+
 // file handle for v3 type file
 typedef struct nffileV3_s {
     const uint8_t *map;  // mmap base pointer

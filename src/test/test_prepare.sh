@@ -51,6 +51,19 @@ else
     fail "nffile_check"
 fi
 
+# The checker must inspect decoded V4 records, not only the block directory.
+# nfgen4's first flow block starts at the fixed V3 header (48 bytes); its
+# third record's two-byte size field is at byte 154. Zero it without touching
+# the block or directory headers and expect the deep check to reject the file.
+badfile="$WORKDIR/invalid-v4-record.nf"
+cp dummy_flows.nf "$badfile"
+if printf '\000\000' | dd of="$badfile" bs=1 seek=154 conv=notrunc 2>/dev/null \
+   && ! nfdump -v check -r "$badfile" >/dev/null 2>&1; then
+    pass "nffile_check_rejects_invalid_v4_record"
+else
+    fail "nffile_check_rejects_invalid_v4_record"
+fi
+
 # verify the flow content matches the reference output
 if nfdump -r dummy_flows.nf -q -o raw >"$WORKDIR/raw.txt" 2>/dev/null \
    && diff -u "$WORKDIR/raw.txt" "$SCRIPT_DIR/ref_raw.txt" >/dev/null 2>&1; then

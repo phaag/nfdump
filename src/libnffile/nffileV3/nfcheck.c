@@ -43,7 +43,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "bloom.h"
 #include "conf/nfconf.h"
+#include "exporter.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
@@ -84,6 +86,113 @@ static const char *CompressionType(uint32_t compression) {
            : compression == BZ2_COMPRESSED  ? "bz2 compressed"
                                             : "unknown compression";
 }  // End of CompressionType
+
+static int VerifyExporterInfoRecord(const exporter_info_record_v4_t *exporter, size_t available) {
+    if (available < sizeof(*exporter) || exporter->type != ExporterInfoRecordV4Type || exporter->size < sizeof(*exporter) ||
+        exporter->size > available) {
+        return 0;
+    }
+
+    if (exporter->sampler_count > exporter->sampler_capacity) return 0;
+
+    size_t expectedSize = sizeof(*exporter) + (size_t)exporter->sampler_capacity * sizeof(sampler_record_v4_t);
+    return exporter->size == expectedSize;
+}  // End of VerifyExporterInfoRecord
+
+/* Bloom metadata is a fixed, ordered four-record prefix. nfdump's fast
+ * block-filter path maps these records directly, so accepting a truncated,
+ * duplicate, or misplaced record would make that path unsafe or incorrect. */
+static int BloomMetaIndex(uint16_t metaType) {
+    switch (metaType) {
+        case META_TYPE_BLOOM_SRC_IPV4:
+            return 0;
+        case META_TYPE_BLOOM_DST_IPV4:
+            return 1;
+        case META_TYPE_BLOOM_SRC_IPV6:
+            return 2;
+        case META_TYPE_BLOOM_DST_IPV6:
+            return 3;
+        default:
+            return -1;
+    }
+}  // End of BloomMetaIndex
+
+static int VerifyBloomMetaRecord(const metaRecordHeader_t *meta, size_t available) {
+    return available >= sizeof(*meta) && meta->type == METARecord && meta->align == 0 &&
+           meta->size == sizeof(*meta) + sizeof(bloomFilter_t);
+}  // End of VerifyBloomMetaRecord
+
+/* Validate a decoded flow block. Record boundaries are checked first, then
+ * VerifyV4Record() validates the V4 extension directory and every extension. */
+static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum) {
+    if (flowBlock->rawSize < sizeof(*flowBlock)) {
+        printf("Flow block %u: rawSize %u is smaller than its header\n", blockNum, flowBlock->rawSize);
+        return 0;
+    }
+    if (flowBlock->numRecords == 0) {
+        printf("Flow block %u: contains no records\n", blockNum);
+        return 0;
+    }
+
+    const uint8_t *recordPtr = (const uint8_t *)flowBlock + sizeof(*flowBlock);
+    const uint8_t *endPtr = (const uint8_t *)flowBlock + flowBlock->rawSize;
+    uint8_t bloomMask = 0;
+    for (uint32_t i = 0; i < flowBlock->numRecords; i++) {
+        size_t remaining = (size_t)(endPtr - recordPtr);
+        if (remaining < sizeof(recordHeader_t)) {
+            printf("Flow block %u: record %u header exceeds block size\n", blockNum, i);
+            return 0;
+        }
+
+        const recordHeader_t *record = (const recordHeader_t *)recordPtr;
+        if (record->size < sizeof(*record) || record->size > remaining) {
+            printf("Flow block %u: record %u has invalid size %u\n", blockNum, i, record->size);
+            return 0;
+        }
+
+        if (record->type == V4Record) {
+            if (!VerifyV4Record((const recordHeaderV4_t *)record, record->size)) {
+                printf("Flow block %u: invalid V4 record %u\n", blockNum, i);
+                return 0;
+            }
+        } else if (record->type == ExporterInfoRecordV4Type) {
+            if (!VerifyExporterInfoRecord((const exporter_info_record_v4_t *)record, record->size)) {
+                printf("Flow block %u: invalid exporter record %u\n", blockNum, i);
+                return 0;
+            }
+        } else if (record->type == METARecord) {
+            if (record->size < sizeof(metaRecordHeader_t)) {
+                printf("Flow block %u: metadata record %u is smaller than its header\n", blockNum, i);
+                return 0;
+            }
+
+            const metaRecordHeader_t *meta = (const metaRecordHeader_t *)record;
+            int bloomIndex = BloomMetaIndex(meta->metaType);
+            if (bloomIndex >= 0) {
+                uint8_t bloomBit = (uint8_t)(1u << bloomIndex);
+                if (i != (uint32_t)bloomIndex || (bloomMask & bloomBit) || !VerifyBloomMetaRecord(meta, record->size)) {
+                    printf("Flow block %u: invalid bloom metadata record %u\n", blockNum, i);
+                    return 0;
+                }
+                bloomMask |= bloomBit;
+            }
+        }
+
+        recordPtr += record->size;
+    }
+
+    if (recordPtr != endPtr) {
+        printf("Flow block %u: records do not fill the decoded block\n", blockNum);
+        return 0;
+    }
+
+    if (bloomMask != 0 && bloomMask != 0x0f) {
+        printf("Flow block %u: incomplete bloom metadata prefix\n", blockNum);
+        return 0;
+    }
+
+    return 1;
+}  // End of VerifyFlowBlock
 
 #ifdef HAVE_LIBSODIUM
 static const char *EncryptionType(uint32_t enc) {
@@ -212,14 +321,14 @@ int VerifyFileV3(const char *filename, int verbose) {
     const blockDirectoryV3_t *blockDirectory = NULL;
     uint32_t dirSize = 0;
     int checksumFailed = 0;
-    if (fileHeader->offDirectory && (fileHeader->offDirectory < fileSize)) {
+    if (fileHeader->offDirectory >= sizeof(fileHeaderV3_t) && fileHeader->offDirectory <= fileSize - sizeof(blockDirectoryV3_t)) {
         blockDirectory = (const blockDirectoryV3_t *)(map + fileHeader->offDirectory);
         if (blockDirectory->magic != DIRECTORY_MAGIC) {
             printf("Bad directory magic 0x%X in header for '%s'\n", blockDirectory->magic, filename);
             blockDirectory = NULL;
         } else {
             // check directory size
-            if ((fileHeader->offDirectory + fileHeader->dirSize) > fileSize) {
+            if (fileHeader->dirSize < sizeof(*blockDirectory) || fileHeader->dirSize > fileSize - fileHeader->offDirectory) {
                 printf("Bad directory in header for '%s' - extends beyond EOF\n", filename);
                 blockDirectory = NULL;
             } else {
@@ -236,7 +345,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         do {
             if (blockDirectory == NULL) {
                 // no valid block directory found - try to recover from footer, if it is valid
-                if (footer && footer->offDirectory && (footer->offDirectory < fileSize)) {
+                if (footer && footer->offDirectory >= sizeof(fileHeaderV3_t) && footer->offDirectory <= fileSize - sizeof(blockDirectoryV3_t)) {
                     // block directory within file
                     blockDirectory = (const blockDirectoryV3_t *)(map + footer->offDirectory);
                 } else {
@@ -248,7 +357,7 @@ int VerifyFileV3(const char *filename, int verbose) {
                     break;
                 }
                 // valid block directory
-                if ((footer->offDirectory + footer->dirSize) > fileSize) {
+                if (footer->dirSize < sizeof(*blockDirectory) || footer->dirSize > fileSize - footer->offDirectory) {
                     // block directory valid but extends beyond EOF
                     printf("Bad directory in footer for '%s' - extends beyond EOF\n", filename);
                     blockDirectory = NULL;
@@ -274,8 +383,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         printf("Failed to read or recover a valid block directory in '%s'\n", filename);
     } else {
         // verify directory entries fit
-        size_t expectedDirSize = sizeof(blockDirectoryV3_t) + blockDirectory->numEntries * sizeof(directoryEntryV3_t);
-        if (expectedDirSize > dirSize) {
+        if (blockDirectory->numEntries > (dirSize - sizeof(*blockDirectory)) / sizeof(directoryEntryV3_t)) {
             printf("Directory numEntries %u exceeds dirSize\n", blockDirectory->numEntries);
             printf("Failed to read/recover a valid block directory in '%s'\n", filename);
             blockDirectory = NULL;
@@ -307,6 +415,8 @@ int VerifyFileV3(const char *filename, int verbose) {
      * ----------------------------------------------------------------------- */
     int fileEncrypted = (fileHeader->flags & FILE_FLAG_ENCRYPTED) != 0;
     int keyVerified = 0;
+    nffile_crypto_t verifyCrypto = {0};
+    const nffile_crypto_t *verifyCryptoPtr = NULL;
 
     if (fileEncrypted && blockDirectory) {
         const cryptoHeaderBlock_t *cryptoHdr = NULL;
@@ -314,7 +424,7 @@ int VerifyFileV3(const char *filename, int verbose) {
         for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
             const directoryEntryV3_t *e = &blockDirectory->entries[i];
             if (e->type != BLOCK_TYPE_META) continue;
-            if (e->offset + e->size > fileSize) continue;
+            if (e->offset > fileSize || e->size > fileSize - e->offset) continue;
             if (e->size < sizeof(cryptoHeaderBlock_t)) continue;
             const cryptoHeaderBlock_t *cand = (const cryptoHeaderBlock_t *)(map + e->offset);
             // identify by size and plaintext marker
@@ -336,14 +446,14 @@ int VerifyFileV3(const char *filename, int verbose) {
                 printf("  ERROR: unsupported crypto header version — cannot verify\n");
                 checksumFailed = 1;
             } else {
-                nffile_crypto_t tmpCrypto = {0};
-                if (!DeriveKeyFromFile(cryptoHdr, &tmpCrypto)) {
+                if (!DeriveKeyFromFile(cryptoHdr, &verifyCrypto)) {
                     printf("  Key         : derivation FAILED\n");
-                } else if (!VerifyEncryptionKey(cryptoHdr, &tmpCrypto)) {
+                } else if (!VerifyEncryptionKey(cryptoHdr, &verifyCrypto)) {
                     printf("  Key         : WRONG passphrase or corrupt key-check\n");
                 } else {
                     printf("  Key         : verified OK\n");
                     keyVerified = 1;
+                    verifyCryptoPtr = &verifyCrypto;
                 }
 
                 // verify file-structure MAC (non-zero = MAC present)
@@ -351,7 +461,7 @@ int VerifyFileV3(const char *filename, int verbose) {
                     static const uint8_t zeroMac[32] = {0};
                     if (sodium_memcmp(footer->fileMac, zeroMac, 32) == 0) {
                         printf("  File MAC    : absent (all-zero) — pre-release or unencrypted\n");
-                    } else if (VerifyFileMac(&tmpCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries,
+                    } else if (VerifyFileMac(&verifyCrypto, fileHeader, cryptoHdr, blockDirectory->entries, blockDirectory->numEntries,
                                              footer->fileMac)) {
                         printf("  File MAC    : verified OK\n");
                     } else {
@@ -359,18 +469,17 @@ int VerifyFileV3(const char *filename, int verbose) {
                         checksumFailed = 1;
                     }
                 }
-
-                sodium_memzero(tmpCrypto.encKey, sizeof(tmpCrypto.encKey));
             }
         }
     }
 #else
-    int fileEncrypted = 0;
+    int fileEncrypted = (fileHeader->flags & FILE_FLAG_ENCRYPTED) != 0;
     int keyVerified = 0;
+    const nffile_crypto_t *verifyCryptoPtr = NULL;
     if (fileHeader->flags & FILE_FLAG_ENCRYPTED) {
         printf("\n=== Encryption info ===\n");
         printf("  File is encrypted but encryption support not compiled in (libsodium missing)\n");
-        printf("  Block-level validation will be skipped for encrypted blocks\n");
+        printf("  Encrypted blocks cannot be validated\n");
     }
 #endif /* HAVE_LIBSODIUM */
 
@@ -379,6 +488,9 @@ int VerifyFileV3(const char *filename, int verbose) {
     blockList.entries = malloc(DIR_INIT_CAPACITY * sizeof(directoryEntryV3_t));
     if (!blockList.entries) {
         printf("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+#ifdef HAVE_LIBSODIUM
+        sodium_memzero(&verifyCrypto, sizeof(verifyCrypto));
+#endif
         munmap((void *)map, fileSize);
         close(fd);
         return 0;
@@ -407,14 +519,8 @@ int VerifyFileV3(const char *filename, int verbose) {
         //    printf("\r%c %5u", spinner[totalBlocks & 0x3], totalBlocks);
 
         // block size on disk
-        if (dataBlock->discSize == 0) {
-            printf("Block %u: zero size at offset %jd\n", totalBlocks, (intmax_t)nextOffset);
-            blockCheckFailed = 1;
-            break;
-        }
-
-        if (dataBlock->discSize > blockSize) {
-            printf("Block %u: payload size %u exceeds blockSize %u\n", totalBlocks, dataBlock->discSize, blockSize);
+        if (dataBlock->discSize < sizeof(dataBlockV3_t)) {
+            printf("Block %u: invalid discSize %u at offset %jd\n", totalBlocks, dataBlock->discSize, (intmax_t)nextOffset);
             blockCheckFailed = 1;
             break;
         }
@@ -430,17 +536,12 @@ int VerifyFileV3(const char *filename, int verbose) {
             blockSizeFound = dataBlock->rawSize;
         }
 
-        // verify per-block xxHash checksum if present
-        // For encrypted blocks the checksum covers the ciphertext+tag, which is correct.
-        if (dataBlock->checksum != 0 && dataBlock->discSize > (uint32_t)sizeof(dataBlockV3_t)) {
-            const uint8_t *payload = (const uint8_t *)dataBlock + sizeof(dataBlockV3_t);
-            uint32_t payloadSize = dataBlock->discSize - (uint32_t)sizeof(dataBlockV3_t);
-            uint64_t computed = XXH3_64bits(payload, payloadSize);
-            if (computed != dataBlock->checksum) {
-                printf("Block %u: checksum mismatch at offset %lld: stored %016" PRIx64 " computed %016" PRIx64 "\n", totalBlocks,
-                       (long long)nextOffset, dataBlock->checksum, computed);
-                checksumFailed = 1;
-            }
+        directoryEntryV3_t scanEntry = {.type = dataBlock->type, .size = dataBlock->discSize, .offset = (uint64_t)nextOffset};
+        dataBlockV3_t *decodedBlock = DecodeBlockV3(map, fileSize, blockSize, &scanEntry, verifyCryptoPtr);
+        if (!decodedBlock) {
+            printf("Block %u: could not decode or validate block at offset %jd\n", totalBlocks, (intmax_t)nextOffset);
+            blockCheckFailed = 1;
+            break;
         }
 
         if (verbose)
@@ -452,15 +553,8 @@ int VerifyFileV3(const char *filename, int verbose) {
             case BLOCK_TYPE_FLOW: {
                 blockStat[BLOCK_TYPE_FLOW].numBlocks++;
                 blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
-                /* Skip record-count check for encrypted blocks — the payload is ciphertext
-                 * and cannot be interpreted without decryption. */
-                if (dataBlock->encryption == NOT_ENCRYPTED) {
-                    flowBlockV3_t *flowBlock = (flowBlockV3_t *)dataBlock;
-                    if (flowBlock->numRecords == 0) {
-                        printf("Flow block %u: flowBlock count: 0, but rawSize: %u, discSize: %u\n", totalBlocks, dataBlock->rawSize,
-                               dataBlock->discSize);
-                        blockCheckFailed = 1;
-                    }
+                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks)) {
+                    blockCheckFailed = 1;
                 }
             } break;
             case BLOCK_TYPE_ARRAY:
@@ -478,6 +572,7 @@ int VerifyFileV3(const char *filename, int verbose) {
             case BLOCK_TYPE_META:
                 blockStat[BLOCK_TYPE_META].numBlocks++;
                 blockStat[BLOCK_TYPE_META].compression = dataBlock->compression;
+                break;
             case BLOCK_TYPE_EXP:
                 blockStat[BLOCK_TYPE_EXP].numBlocks++;
                 blockStat[BLOCK_TYPE_EXP].compression = dataBlock->compression;
@@ -487,6 +582,7 @@ int VerifyFileV3(const char *filename, int verbose) {
                 unknownBlocks++;
                 break;
         }
+        FreeDataBlock(decodedBlock);
         if (!AddBlock(&blockList, dataBlock->type, nextOffset, dataBlock->discSize)) {
             blockCheckFailed = 1;
             break;
@@ -566,6 +662,9 @@ int VerifyFileV3(const char *filename, int verbose) {
     }
 
     free(blockList.entries);
+#ifdef HAVE_LIBSODIUM
+    sodium_memzero(&verifyCrypto, sizeof(verifyCrypto));
+#endif
     msync(map, fileSize, MS_SYNC);
     munmap(map, fileSize);
     close(fd);

@@ -87,6 +87,10 @@ fi
 # Bloom filters contain hashes of the original addresses. nfanon must remove
 # them after anonymization and instruct the user to rebuild them with nfmeta.
 if "$NFMETA_BIN" -r dummy_flows.nf -w "$WORKDIR/indexed.nf" -v 1 >/dev/null 2>&1 \
+   && "$NFDUMP_BIN" -v check -r "$WORKDIR/indexed.nf" >/dev/null 2>&1 \
+   && cp "$WORKDIR/indexed.nf" "$WORKDIR/invalid-bloom.nf" \
+   && printf '\000\040' | dd of="$WORKDIR/invalid-bloom.nf" bs=1 seek=106 conv=notrunc 2>/dev/null \
+   && ! "$NFDUMP_BIN" -v check -r "$WORKDIR/invalid-bloom.nf" >/dev/null 2>&1 \
    && "$NFANON_BIN" -K abcdefghijklmnopqrstuvwxyz012345 \
           -r "$WORKDIR/indexed.nf" -w "$WORKDIR/no_bloom.nf" -W 1 -v 1 >"$WORKDIR/nfanon-bloom.log" 2>&1 \
    && grep -q 'Removed IP bloom-filter metadata.*nfmeta' "$WORKDIR/nfanon-bloom.log" \

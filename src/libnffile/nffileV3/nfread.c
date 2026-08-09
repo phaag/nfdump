@@ -75,16 +75,19 @@ typedef struct readerArgs_s {
     uint32_t tnum;  // threadnum
 } readerArgs_t;
 
-// Decompress a single data block located at entry offset/size in the mmap.
+// Decode a single data block located at entry offset/size in a mapped file.
 // Returns a newly allocated block (caller must FreeDataBlock), or NULL on error.
-static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry) {
+dataBlockV3_t *DecodeBlockV3(const uint8_t *map, size_t mapSize, uint32_t blockSize, const directoryEntryV3_t *entry,
+                             const nffile_crypto_t *crypto) {
+    if (!map || !entry || blockSize < sizeof(dataBlockV3_t)) return NULL;
+
     // bounds check: entry must fit inside the mapped region
-    if ((size_t)entry->offset + entry->size > nffile->mapSize) {
+    if (entry->offset > mapSize || entry->size > mapSize - (size_t)entry->offset) {
         LogError("Corrupt data file: block at offset %" PRIu64 " extends beyond EOF", entry->offset);
         return NULL;
     }
 
-    dataBlockV3_t *dataBlock = (dataBlockV3_t *)(nffile->map + entry->offset);
+    dataBlockV3_t *dataBlock = (dataBlockV3_t *)(map + entry->offset);
 
     // validate on-disk size
     if (dataBlock->discSize < sizeof(dataBlockV3_t) || dataBlock->discSize != entry->size) {
@@ -92,8 +95,20 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         return NULL;
     }
 
-    if (dataBlock->rawSize > nffile->fileHeader->blockSize || dataBlock->rawSize == 0) {
+    if (dataBlock->rawSize < sizeof(dataBlockV3_t) || dataBlock->rawSize > blockSize) {
         LogError("Block rawSize error %u at offset %" PRIu64, dataBlock->rawSize, entry->offset);
+        return NULL;
+    }
+
+    if (dataBlock->encryption != NOT_ENCRYPTED && dataBlock->encryption != CHACHA20_POLY1305) {
+        LogError("Unknown encryption type %u at offset %" PRIu64, dataBlock->encryption, entry->offset);
+        return NULL;
+    }
+
+    uint32_t maxDiscSize = blockSize;
+    if (dataBlock->encryption == CHACHA20_POLY1305) maxDiscSize += 16;  // AEAD authentication tag
+    if (dataBlock->discSize > maxDiscSize) {
+        LogError("Block discSize error %u at offset %" PRIu64, dataBlock->discSize, entry->offset);
         return NULL;
     }
 
@@ -112,7 +127,7 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
     dbg_printf("ReadBlock - type: %u, size: %u, compression: %u, checksum: 0x%" PRIx64 ", encryption: %u\n", dataBlock->type, dataBlock->discSize,
                dataBlock->compression, dataBlock->checksum, dataBlock->encryption);
 
-    uint32_t blockSize = nffile->fileHeader->blockSize;
+    uint32_t expectedRawSize = dataBlock->rawSize;
     int compression = dataBlock->compression;
     dataBlockV3_t *outBlock = NULL;
 
@@ -125,12 +140,16 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
      * the normal decompression switch on the decrypted data.
      */
     dataBlockV3_t *decBuf = NULL;
-    if (nffile->crypto && dataBlock->encryption == CHACHA20_POLY1305) {
+    if (dataBlock->encryption == CHACHA20_POLY1305) {
+        if (!crypto) {
+            LogError("Encrypted block at offset %" PRIu64 " has no verified key", entry->offset);
+            return NULL;
+        }
         dbg_printf("Decrypt datablock\n");
 
         // Build per-block nonce = rootNonce XOR le64(offset)
         uint8_t nonce[crypto_aead_chacha20poly1305_ietf_NPUBBYTES];
-        memcpy(nonce, nffile->crypto->rootNonce, sizeof(nonce));
+        memcpy(nonce, crypto->rootNonce, sizeof(nonce));
         uint64_t offsetLE = entry->offset;
         for (int bi = 0; bi < 8; bi++) {
             nonce[bi] ^= (uint8_t)(offsetLE >> (bi * 8));
@@ -162,7 +181,7 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         unsigned long long plainLen = 0;
 
         int rc = crypto_aead_chacha20poly1305_ietf_decrypt(plaintext, &plainLen, NULL, ciphertext, cipherLen, (const uint8_t *)&aad, sizeof(aad),
-                                                           nonce, nffile->crypto->encKey);
+                                                           nonce, crypto->encKey);
         if (rc != 0) {
             LogError("nfread: decryption failed at offset %" PRIu64 " (wrong key or corrupt block)", entry->offset);
             FreeDataBlock(decBuf);
@@ -176,64 +195,83 @@ static dataBlockV3_t *nfread(nffileV3_t *nffile, const directoryEntryV3_t *entry
         dataBlock = decBuf;
         compression = dataBlock->compression;
     }
+#else
+    if (dataBlock->encryption != NOT_ENCRYPTED) {
+        LogError("Encrypted block at offset %" PRIu64 " cannot be read without libsodium", entry->offset);
+        return NULL;
+    }
+    (void)crypto;
 #endif /* HAVE_LIBSODIUM */
 
     switch (compression) {
         case UNDEF_COMPRESSED:
         case NOT_COMPRESSED: {
+            if (dataBlock->discSize != dataBlock->rawSize) {
+                LogError("Uncompressed block size mismatch at offset %" PRIu64 ": raw=%u, disc=%u", entry->offset, dataBlock->rawSize,
+                         dataBlock->discSize);
+                goto done;
+            }
             // uncompressed block — copy out of mmap so consumer can free() it normally
             outBlock = NewDataBlock(blockSize);
-            if (!outBlock) return NULL;
+            if (!outBlock) goto done;
             memcpy(outBlock, dataBlock, dataBlock->discSize);
             break;
         }
         case LZO_COMPRESSED:
             outBlock = NewDataBlock(blockSize);
-            if (!outBlock) return NULL;
+            if (!outBlock) goto done;
             if (Uncompress_Block_LZO(dataBlock, outBlock, blockSize) < 0) {
                 FreeDataBlock(outBlock);
-                return NULL;
+                outBlock = NULL;
+                goto done;
             }
             break;
         case LZ4_COMPRESSED:
             outBlock = NewDataBlock(blockSize);
-            if (!outBlock) return NULL;
+            if (!outBlock) goto done;
             if (Uncompress_Block_LZ4(dataBlock, outBlock, blockSize) < 0) {
                 FreeDataBlock(outBlock);
-                return NULL;
+                outBlock = NULL;
+                goto done;
             }
             break;
         case BZ2_COMPRESSED:
             outBlock = NewDataBlock(blockSize);
-            if (!outBlock) return NULL;
+            if (!outBlock) goto done;
             if (Uncompress_Block_BZ2(dataBlock, outBlock, blockSize) < 0) {
                 FreeDataBlock(outBlock);
-                return NULL;
+                outBlock = NULL;
+                goto done;
             }
             break;
         case ZSTD_COMPRESSED:
             outBlock = NewDataBlock(blockSize);
-            if (!outBlock) return NULL;
+            if (!outBlock) goto done;
             if (Uncompress_Block_ZSTD(dataBlock, outBlock, blockSize) < 0) {
                 FreeDataBlock(outBlock);
-                return NULL;
+                outBlock = NULL;
+                goto done;
             }
             break;
         default:
             LogError("Unknown compression type: %u - skip block", compression);
-#ifdef HAVE_LIBSODIUM
-            FreeDataBlock(decBuf);
-#endif
-            return NULL;
+            goto done;
     }
 
+    if (outBlock->rawSize != expectedRawSize) {
+        LogError("Decoded block size mismatch at offset %" PRIu64 ": expected=%u, actual=%u", entry->offset, expectedRawSize, outBlock->rawSize);
+        FreeDataBlock(outBlock);
+        outBlock = NULL;
+    }
+
+done:
 #ifdef HAVE_LIBSODIUM
     FreeDataBlock(decBuf); /* free temporary decrypt buffer (may be NULL) */
 #endif
 
     return outBlock;
 
-}  // End of nfread
+}  // End of DecodeBlockV3
 
 static void *nfreader(void *arg) {
     readerArgs_t *readerArg = (readerArgs_t *)arg;
@@ -262,7 +300,7 @@ static void *nfreader(void *arg) {
             continue;
         }
 
-        dataBlockV3_t *dataBlock = nfread(nffile, entry);
+        dataBlockV3_t *dataBlock = DecodeBlockV3(nffile->map, nffile->mapSize, nffile->fileHeader->blockSize, entry, nffile->crypto);
         if (!dataBlock) {
             LogError("nfreader: failed to read block %u at offset %" PRIu64, i, entry->offset);
             break;
@@ -596,13 +634,13 @@ nffileV3_t *mmapFileV3(const char *filename) {
 
         /*
          * Second pass: load STATS and IDENT blocks now that the key is
-         * available.  nfread() handles decryption and decompression.
+         * available. DecodeBlockV3() handles decryption and decompression.
          */
         for (uint32_t i = 0; i < blockDirectory->numEntries; i++) {
             const directoryEntryV3_t *e = &blockDirectory->entries[i];
             if (e->type != BLOCK_TYPE_STATS && e->type != BLOCK_TYPE_IDENT) continue;
 
-            dataBlockV3_t *blk = nfread(nffile, e);
+            dataBlockV3_t *blk = DecodeBlockV3(nffile->map, nffile->mapSize, nffile->fileHeader->blockSize, e, nffile->crypto);
             if (!blk) continue;
 
             const uint8_t *payload = (const uint8_t *)blk + sizeof(dataBlockV3_t);
@@ -689,9 +727,10 @@ const expBlockV3_t *getNextExporter(nffileV3_t *nffile, uint32_t *nextOffset) {
             return NULL;
         }
 
-        const expBlockV3_t *expBlock = (const expBlockV3_t *)nfread(nffile, entry);
+        const expBlockV3_t *expBlock =
+            (const expBlockV3_t *)DecodeBlockV3(nffile->map, nffile->mapSize, nffile->fileHeader->blockSize, entry, nffile->crypto);
         if (!expBlock) {
-            LogError("nfread: failed to read block %u at offset %" PRIu64, i, entry->offset);
+            LogError("DecodeBlockV3: failed to read block %u at offset %" PRIu64, i, entry->offset);
         }
 
         return expBlock;
