@@ -969,11 +969,18 @@ int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
     uint16_t *offsetTable = (uint16_t *)(recordBase + sizeof(recordHeaderV4_t));
 
     // offset table must fit
-    uint8_t *offEnd = (uint8_t *)offsetTable + ALIGN8(hdr->numExtensions * sizeof(uint16_t));
-    if (offEnd > eor) {
+    size_t offsetTableSize = ALIGN8((size_t)hdr->numExtensions * sizeof(uint16_t));
+    if (offsetTableSize > hdr->size - sizeof(recordHeaderV4_t)) {
         LogError("Verify v4 record: offset table record boundaries");
         return 0;
     }
+    uint8_t *offEnd = (uint8_t *)offsetTable + offsetTableSize;
+
+    struct {
+        uint32_t start;
+        uint32_t end;
+    } extensions[MAXEXTENSIONS];
+    uint32_t numChecked = 0;
 
     // Validate each extension
     uint64_t bitMap = hdr->extBitmap;
@@ -992,7 +999,7 @@ int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
         uint32_t extSize = extensionTable[extID].size;
         uint8_t *extension = recordBase + offset;
 
-        if (recordBase + offset > eor) {
+        if (offset < (uint32_t)(offEnd - recordBase) || offset >= hdr->size) {
             LogError("Verify v4 record: extension %u offset out of range", extID);
             return 0;
         }
@@ -1001,13 +1008,19 @@ int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
                 LogError("Verify v4 record: extension %u truncated length prefix", extID);
                 return 0;
             }
-            __builtin_memcpy(&extSize, extension, sizeof(uint32_t));
+            uint32_t payloadSize;
+            __builtin_memcpy(&payloadSize, extension, sizeof(payloadSize));
+            if (payloadSize > hdr->size - offset - sizeof(uint32_t)) {
+                LogError("Verify v4 record: extension %u length %u out of range", extID, payloadSize);
+                return 0;
+            }
+            extSize = ALIGN8(sizeof(uint32_t) + payloadSize);
         }
 
         dbg_printf("Extension: type= %s(%u), offset=%u, size=%u\n", extensionTable[extID].name, extID, offset, extSize);
 
         // Extension must fit entirely
-        if ((recordBase + offset + extSize) > eor) {
+        if (extSize == 0 || extSize > hdr->size - offset) {
             LogError("Verify v4 record: extension %u length %u out of range", extID, extSize);
             return 0;
         }
@@ -1017,6 +1030,15 @@ int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
             LogError("Verify v4 record: extension %u not 8-byte aligned", extID);
             return 0;
         }
+
+        uint32_t extEnd = offset + extSize;
+        for (uint32_t i = 0; i < numChecked; i++) {
+            if (offset < extensions[i].end && extEnd > extensions[i].start) {
+                LogError("Verify v4 record: extension %u overlaps another extension", extID);
+                return 0;
+            }
+        }
+        extensions[numChecked++] = (typeof(extensions[0])){.start = offset, .end = extEnd};
     }
 
     return 1;

@@ -34,6 +34,13 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 echo ""
 echo "── nfanon ───────────────────────────────────────────────────────────────"
 
+# -W accepts only a complete, non-negative integer.
+if ! "$NFANON_BIN" -W invalid >/dev/null 2>&1; then
+    pass "nfanon_rejects_invalid_core_limit"
+else
+    fail "nfanon_rejects_invalid_core_limit"
+fi
+
 # anonymise a flow file and verify the result is readable
 if "$NFANON_BIN" -K abcdefghijklmnopqrstuvwxyz012345 \
           -r dummy_flows.nf -w "$WORKDIR/anon.nf" >/dev/null 2>&1 \

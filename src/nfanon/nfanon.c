@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -47,6 +48,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "bloom.h"
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
@@ -56,7 +58,6 @@
 #include "nbar.h"
 #include "nfconf.h"
 #include "nfdump.h"
-#include "bloom.h"
 #include "nffileV3/nffileV3.h"
 #include "nfthread.h"
 #include "nfxV4.h"
@@ -84,7 +85,15 @@ static void usage(char *name);
 
 static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record);
 
+static int ValidateExporterInfo(const exporter_info_record_v4_t *exporter_record, size_t available);
+
+static int ProcessExporterBlock(expBlockV3_t *expBlock);
+
 static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst);
+
+static int ValidateFlowBlock(const flowBlockV3_t *dataBlock);
+
+static int ParseCoreLimit(const char *arg, int *limit);
 
 /* METARecord is a container type. Only these metadata types contain hashes of
  * the original addresses and must be removed after anonymization. */
@@ -94,8 +103,8 @@ static int IsBloomMetadataType(uint16_t metaType);
  * bloom records removed, or -1 when the flow block is malformed. */
 static int RemoveBloomMetadata(flowBlockV3_t *dataBlock);
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
-                         flowBlockV3_t **dataBlockPtr);
+static int process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
+                        flowBlockV3_t **dataBlockPtr);
 
 /* Functions */
 
@@ -119,11 +128,6 @@ static void usage(char *name) {
 } /* usage */
 
 static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record) {
-    if (exporter_record->size < sizeof(exporter_info_record_v4_t)) {
-        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
-        return;
-    }
-
     int is_mapped_v4 = memcmp(exporter_record->ip, prefix, sizeof(prefix)) == 0;
     // anonymizing an IPv4/IPv6 combind record is more complicated,
     // the the anonimizer expects host order bytes and has seperate
@@ -149,6 +153,55 @@ static inline void AnonExporterInfo(exporter_info_record_v4_t *exporter_record) 
 #endif
 
 }  // End of AnonExporterInfo
+
+static int ValidateExporterInfo(const exporter_info_record_v4_t *exporter_record, size_t available) {
+    if (available < sizeof(*exporter_record) || exporter_record->type != ExporterInfoRecordV4Type ||
+        exporter_record->size < sizeof(*exporter_record) || exporter_record->size > available) {
+        LogError("Corrupt exporter record header");
+        return 0;
+    }
+
+    if (exporter_record->sampler_count > exporter_record->sampler_capacity) {
+        LogError("Corrupt exporter record: sampler count exceeds capacity");
+        return 0;
+    }
+
+    size_t expectedSize = sizeof(*exporter_record) + (size_t)exporter_record->sampler_capacity * sizeof(sampler_record_v4_t);
+    if (exporter_record->size != expectedSize) {
+        LogError("Corrupt exporter record: size %u does not match sampler capacity %u", exporter_record->size, exporter_record->sampler_capacity);
+        return 0;
+    }
+
+    return 1;
+}  // End of ValidateExporterInfo
+
+static int ProcessExporterBlock(expBlockV3_t *expBlock) {
+    if (expBlock->rawSize < sizeof(*expBlock)) {
+        LogError("Corrupt exporter block: size %u is smaller than its header", expBlock->rawSize);
+        return 0;
+    }
+
+    uint8_t *recordPtr = ResetCursor(expBlock);
+    uint8_t *endPtr = (uint8_t *)expBlock + expBlock->rawSize;
+    for (uint32_t i = 0; i < expBlock->numExporter; i++) {
+        if ((size_t)(endPtr - recordPtr) < sizeof(exporter_info_record_v4_t) ||
+            !ValidateExporterInfo((const exporter_info_record_v4_t *)recordPtr, (size_t)(endPtr - recordPtr))) {
+            LogError("Corrupt exporter block: invalid record %u", i);
+            return 0;
+        }
+
+        exporter_info_record_v4_t *exporterRecord = (exporter_info_record_v4_t *)recordPtr;
+        AnonExporterInfo(exporterRecord);
+        recordPtr += exporterRecord->size;
+    }
+
+    if (recordPtr != endPtr) {
+        LogError("Corrupt exporter block: records do not fill block");
+        return 0;
+    }
+
+    return 1;
+}  // End of ProcessExporterBlock
 
 static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon_dst) {
     uint8_t *p = (void *)v4Record;
@@ -297,6 +350,67 @@ static inline void AnonRecord(recordHeaderV4_t *v4Record, int anon_src, int anon
 
 }  // End of AnonRecord
 
+/* Validate all record boundaries before the workers modify a flow block.
+ * VerifyV4Record() also checks the extension bitmap/popcount, offset table,
+ * every extension offset and fixed or variable extension size. */
+static int ValidateFlowBlock(const flowBlockV3_t *dataBlock) {
+    if (dataBlock->rawSize < sizeof(*dataBlock)) {
+        LogError("Corrupt flow block: size %u is smaller than its header", dataBlock->rawSize);
+        return 0;
+    }
+
+    const uint8_t *recordPtr = ResetCursor((flowBlockV3_t *)dataBlock);
+    const uint8_t *endPtr = (const uint8_t *)dataBlock + dataBlock->rawSize;
+    for (uint32_t i = 0; i < dataBlock->numRecords; i++) {
+        if ((size_t)(endPtr - recordPtr) < sizeof(recordHeader_t)) {
+            LogError("Corrupt flow block: record header %u exceeds block size", i);
+            return 0;
+        }
+
+        const recordHeader_t *record = (const recordHeader_t *)recordPtr;
+        if (record->size < sizeof(*record) || record->size > (size_t)(endPtr - recordPtr)) {
+            LogError("Corrupt flow block: invalid record %u size %u", i, record->size);
+            return 0;
+        }
+
+        switch (record->type) {
+            case V4Record:
+                if (!VerifyV4Record((const recordHeaderV4_t *)record, record->size)) {
+                    LogError("Corrupt flow block: invalid V4 record %u", i);
+                    return 0;
+                }
+                break;
+            case ExporterInfoRecordV4Type:
+                if (!ValidateExporterInfo((const exporter_info_record_v4_t *)record, record->size)) {
+                    LogError("Corrupt flow block: invalid exporter record %u", i);
+                    return 0;
+                }
+                break;
+            default:
+                break;
+        }
+
+        recordPtr += record->size;
+    }
+
+    if (recordPtr != endPtr) {
+        LogError("Corrupt flow block: records do not fill block");
+        return 0;
+    }
+
+    return 1;
+}  // End of ValidateFlowBlock
+
+static int ParseCoreLimit(const char *arg, int *limit) {
+    char *endPtr = NULL;
+    errno = 0;
+    long value = strtol(arg, &endPtr, 10);
+    if (errno == ERANGE || endPtr == arg || *endPtr != '\0' || value < 0 || value > INT_MAX) return 0;
+
+    *limit = (int)value;
+    return 1;
+}  // End of ParseCoreLimit
+
 static int IsBloomMetadataType(uint16_t metaType) {
     switch (metaType) {
         case META_TYPE_BLOOM_SRC_IPV4:
@@ -375,8 +489,8 @@ static int RemoveBloomMetadata(flowBlockV3_t *dataBlock) {
     return removed;
 }  // End of RemoveBloomMetadata
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
-                         flowBlockV3_t **dataBlockPtr) {
+static int process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
+                        flowBlockV3_t **dataBlockPtr) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     char outFile[MAXPATHLEN];
     char *cfile = NULL;
@@ -401,6 +515,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
     int blk_count = 0;
     int bloomMetadataRemoved = 0;
+    int success = 1;
     int done = 0;
     while (!done) {
         // get next data block
@@ -414,7 +529,8 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 nffile_w = NULL;
                 if (rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                    return;
+                    success = 0;
+                    goto done;
                 }
             }
 
@@ -435,7 +551,9 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d", __FILE__, __LINE__);
                 CloseFileV3(nffile_r);
-                return;
+                nffile_r = NULL;
+                success = 0;
+                goto done;
             }
             if (verbose) printf("  %i Processing %s\r", cnt++, cfile);
 
@@ -453,7 +571,9 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 if (!nffile_w) {
                     // can not create output file
                     CloseFileV3(nffile_r);
-                    return;
+                    nffile_r = NULL;
+                    success = 0;
+                    goto done;
                 }
 
                 SetIdent(nffile_w, nffile_r->ident);
@@ -478,11 +598,10 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 // the same layout AnonExporterInfo() already handles for records embedded inside
                 // flow blocks). Anonymize them here too - otherwise the exporter IP is written to
                 // the output file completely unmodified, leaking it from an "anonymized" file.
-                expBlockV3_t *expBlock = (expBlockV3_t *)*dataBlockPtr;
-                exporter_info_record_v4_t *record = ResetCursor(expBlock);
-                for (uint32_t i = 0; i < expBlock->numExporter; i++) {
-                    AnonExporterInfo(record);
-                    record = (exporter_info_record_v4_t *)((uint8_t *)record + record->size);
+                if (!ProcessExporterBlock((expBlockV3_t *)*dataBlockPtr)) {
+                    FreeDataBlock(*dataBlockPtr);
+                    success = 0;
+                    goto done;
                 }
             } else {
                 LogError("Can't process block type %u. Write block unmodified", (*dataBlockPtr)->type);
@@ -496,6 +615,12 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         }
 
         dbg_printf("Next block: %d, Records: %u\n", blk_count, (*dataBlockPtr)->numRecords);
+        if (!ValidateFlowBlock(*dataBlockPtr)) {
+            FreeDataBlock(*dataBlockPtr);
+            success = 0;
+            goto done;
+        }
+
         // release workers from barrier
         pthread_control_barrier_release(barrier);
 
@@ -509,7 +634,8 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         if (removed < 0) {
             /* Do not emit a block whose record layout failed validation. */
             FreeDataBlock(*dataBlockPtr);
-            continue;
+            success = 0;
+            goto done;
         }
         if (removed > 0 && !bloomMetadataRemoved) {
             LogInfo("Removed IP bloom-filter metadata from anonymized output; run nfmeta to rebuild it.");
@@ -528,12 +654,20 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
     }  // while
 
+done:
+    if (!success) {
+        if (nextBlock) FreeDataBlock(nextBlock);
+        if (nffile_r) CloseFileV3(nffile_r);
+        if (nffile_w) DeleteFileV3(nffile_w);
+    }
+
     // done! - signal all workers to terminate
     *dataBlockPtr = NULL;
     pthread_control_barrier_release(barrier);
 
     if (verbose) LogError("Processed %i files", --cnt);
 
+    return success;
 }  // End of process_data
 
 static void *worker_thread(void *arg) {
@@ -712,8 +846,7 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                limitCores = atoi(optarg);
-                if (limitCores < 0) {
+                if (!ParseCoreLimit(optarg, &limitCores)) {
                     LogError("-W: core limit must be a non-negative integer");
                     exit(EXIT_FAILURE);
                 }
@@ -791,7 +924,7 @@ int main(int argc, char **argv) {
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
     // dataBlock for all workers
     flowBlockV3_t *dataBlock = NULL;
-    process_data(wfile, verbose, workerList, numWorkers, barrier, &dataBlock);
+    int processOK = process_data(wfile, verbose, workerList, numWorkers, barrier, &dataBlock);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
@@ -799,5 +932,5 @@ int main(int argc, char **argv) {
     free(tid);
     free(workerList);
 
-    return 0;
+    return processOK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
