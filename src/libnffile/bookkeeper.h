@@ -63,20 +63,30 @@ typedef struct {
 
 _Static_assert(sizeof(bookkeeper_t) % 8 == 0, "Unexpected struct layout");
 
-#define BOOK_FAILED ((book_handle_t *)-1)
-#define BOOK_EXISTS ((book_handle_t *)-2)
-#define BOOK_NOT_EXISTS ((book_handle_t *)-3)
+// book_open()/book_attach() report success/failure through this status
+// code, never through the returned handle - *out is only ever valid,
+// dereferenceable memory when the return value is BOOK_OK, and is left
+// NULL on every error path. Keeping the status and the payload in two
+// separate values (instead of overloading the handle pointer with magic
+// sentinel addresses) means there is nothing plausible to mistakenly
+// dereference or test as a bare boolean on failure.
+typedef enum {
+    BOOK_OK = 0,
+    BOOK_ERR_NOT_EXISTS,  // book_attach: no bookkeeper file present yet
+    BOOK_ERR_EXISTS,      // book_open: another live collector already owns this bookkeeper
+    BOOK_ERR_FAILED       // I/O, allocation, version or size error
+} book_status_t;
 
 typedef struct {
     int fd;
     bookkeeper_t *bookkeeper;
 } book_handle_t;
 
-book_handle_t *book_open(const char *flowdir, pid_t pid);
+book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out);
 
 void book_close(book_handle_t *book_handle);
 
-book_handle_t *book_attach(const char *flowdir);
+book_status_t book_attach(const char *flowdir, book_handle_t **out);
 
 void book_update(book_handle_t *book_handle, time_t when, uint64_t size);
 

@@ -64,7 +64,8 @@ static int book_unlock(int fd) {
 }  // End of book_unlock
 
 // open the book from th collector
-book_handle_t *book_open(const char *flowdir, pid_t pid) {
+book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out) {
+    *out = NULL;
     char path[PATH_MAX];
 
     snprintf(path, sizeof(path), "%s/.nfcapd.book", flowdir);
@@ -72,20 +73,20 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
     book_handle_t *book_handle = calloc(1, sizeof(book_handle_t));
     if (!book_handle) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     book_handle->fd = open(path, O_RDWR | O_CREAT, 0644);
     if (book_handle->fd < 0) {
         free(book_handle);
         LogError("open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     if (book_lock(book_handle->fd) < 0) {
         close(book_handle->fd);
         free(book_handle);
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     struct stat st;
@@ -97,7 +98,7 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
             close(book_handle->fd);
             free(book_handle);
             LogError("ftruncate() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return BOOK_FAILED;
+            return BOOK_ERR_FAILED;
         }
     }
 
@@ -108,7 +109,7 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
         close(book_handle->fd);
         free(book_handle);
         LogError("mmap() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     if (book_handle->bookkeeper->magic != BOOK_MAGIC) {
@@ -124,7 +125,7 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
         book_unlock(book_handle->fd);
         close(book_handle->fd);
         free(book_handle);
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     // enforce single collector
@@ -135,7 +136,7 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
             munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
             close(book_handle->fd);
             free(book_handle);
-            return BOOK_EXISTS;
+            return BOOK_ERR_EXISTS;
         }
     }
 
@@ -145,7 +146,8 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
     msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
     book_unlock(book_handle->fd);
 
-    return book_handle;
+    *out = book_handle;
+    return BOOK_OK;
 }  // End of book_open
 
 void book_close(book_handle_t *book_handle) {
@@ -157,7 +159,8 @@ void book_close(book_handle_t *book_handle) {
 }  // End of book_close
 
 // access the book from nfexpire
-book_handle_t *book_attach(const char *flowdir) {
+book_status_t book_attach(const char *flowdir, book_handle_t **out) {
+    *out = NULL;
     char path[PATH_MAX];
 
     snprintf(path, sizeof(path), "%s/.nfcapd.book", flowdir);
@@ -165,14 +168,14 @@ book_handle_t *book_attach(const char *flowdir) {
     book_handle_t *book_handle = calloc(1, sizeof(book_handle_t));
     if (!book_handle) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     book_handle->fd = open(path, O_RDWR);
     if (book_handle->fd < 0) {
         if (errno != ENOENT) LogError("open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         free(book_handle);
-        return BOOK_NOT_EXISTS;
+        return BOOK_ERR_NOT_EXISTS;
     }
 
     struct stat st;
@@ -180,7 +183,7 @@ book_handle_t *book_attach(const char *flowdir) {
         LogError("File size error of nfbook file");
         close(book_handle->fd);
         free(book_handle);
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     book_handle->bookkeeper = mmap(NULL, sizeof(bookkeeper_t), PROT_READ | PROT_WRITE, MAP_SHARED, book_handle->fd, 0);
@@ -189,7 +192,7 @@ book_handle_t *book_attach(const char *flowdir) {
         close(book_handle->fd);
         free(book_handle);
         LogError("mmap() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     if (book_handle->bookkeeper->magic != BOOK_MAGIC) {
@@ -197,7 +200,7 @@ book_handle_t *book_attach(const char *flowdir) {
         munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
         close(book_handle->fd);
         free(book_handle);
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
     if (book_handle->bookkeeper->version != BOOK_VERSION) {
@@ -205,10 +208,11 @@ book_handle_t *book_attach(const char *flowdir) {
         munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
         close(book_handle->fd);
         free(book_handle);
-        return BOOK_FAILED;
+        return BOOK_ERR_FAILED;
     }
 
-    return book_handle;
+    *out = book_handle;
+    return BOOK_OK;
 }  // End of book_attach
 
 // collector rotate cycle

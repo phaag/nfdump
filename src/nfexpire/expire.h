@@ -61,8 +61,8 @@ int ParseTimeDef(const char *s, time_t *value);
 
 int RescanDir(const channel_t *channel);
 
+// Handles both a single channel (channel->next == NULL) and a profile's list
+// of channels, expiring the same timeslot from every channel in lockstep.
 int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, time_t runtime, int dryrun);
-
-int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t runtime, int dryrun);
 
 #endif  //_EXPIRE_H

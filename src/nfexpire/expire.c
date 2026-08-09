@@ -362,16 +362,6 @@ int RescanDir(const channel_t *channel) {
     return 1;
 }  // End of RescanDir
 
-static int deleteFile(const char *filename, int dryrun) {
-    if (dryrun) {
-        LogInfo("Would delete file: %s", filename);
-        return 0;
-    } else {
-        return unlink(filename);
-    }
-    // unreached
-}  // End of deleteFile
-
 static int deleteFileAt(int dirfd, const char *base_dir, const char *rel, int dryrun) {
     if (dryrun) {
         LogInfo("Would delete file: %s/%s", base_dir, rel);
@@ -392,46 +382,104 @@ static int deleteDir(const char *dirname, int dryrun) {
     // unreached
 }  // End of deleteDir
 
+static void CleanupChannels(const channel_t *channel) {
+    for (const channel_t *ch = channel; ch; ch = ch->next) {
+        if (ch->dirfd >= 0) close(ch->dirfd);
+    }
+
+}  // End of CleanupChannels
+
+// Unified single-channel / profile expiry. A plain, non-profile expire is
+// just this same lockstep algorithm with a channel list of length one -
+// deleting a timeslot "from every channel in the list" trivially means
+// "from the one channel" when there is only one. Keeping one implementation
+// instead of two means a fix (or a bug) can no longer exist in one copy but
+// not the other, which is exactly how two of this function's own past bugs
+// happened: a lifetime-comparison off-by-one and an unlocked bookkeeper
+// write were each fixed once here, but previously had to be fixed twice.
 int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, time_t runtime, int dryrun) {
-    book_handle_t *book_handle = channel->book_handle;
+    if (!channel) return 0;
 
-    // snapshot bookkeeping
-    bookkeeper_t bookkeeper;
-    book_get(book_handle, &bookkeeper);
+    // A single channel may fall back to its own persisted limits (nfexpire
+    // -u); a multi-channel profile has no single channel a cross-channel
+    // limit could sensibly live in, so -s/-t/-w must always be given
+    // explicitly for -p - this is intentional, not a limitation to fix.
+    int isSingle = (channel->next == NULL);
+    const char *label = isSingle ? channel->datadir : "Profile";
 
-    if (maxsize == 0) maxsize = bookkeeper.max_filesize;
-    if (maxlife == 0) maxlife = bookkeeper.max_lifetime;
-    if (low_water == 0) low_water = bookkeeper.watermark ? bookkeeper.watermark : 95;
+    // Snapshot bookkeeping for every channel and derive combined totals.
+    uint64_t total_size = 0;
+    time_t first = 0;
+    time_t last = 0;
+    channel_t *reference_channel = channel;
+    int failed = 0;
+    for (channel_t *ch = channel; ch; ch = ch->next) {
+        bookkeeper_t bookkeeper;
+        book_get(ch->book_handle, &bookkeeper);
+
+        total_size += bookkeeper.filesize;
+
+        if (!first || bookkeeper.first < first) {
+            first = bookkeeper.first;
+            reference_channel = ch;
+        }
+        if (bookkeeper.last > last) last = bookkeeper.last;
+
+        ch->expired_files = 0;
+        ch->expired_size = 0;
+        ch->expired_time = 0;
+
+        if (isSingle) {
+            if (maxsize == 0) maxsize = bookkeeper.max_filesize;
+            if (maxlife == 0) maxlife = bookkeeper.max_lifetime;
+            if (low_water == 0) low_water = bookkeeper.watermark;
+        }
+
+        ch->dirfd = open(ch->datadir, O_RDONLY | O_DIRECTORY);
+        if (ch->dirfd < 0) {
+            LogError("Failed to open directory %s: %s", ch->datadir, strerror(errno));
+            failed = 1;
+        }
+    }
+    if (low_water == 0) low_water = 95;
+
+    if (failed) {
+        CleanupChannels(channel);
+        return 0;
+    }
 
     if (maxsize == 0 && maxlife == 0) {
-        LogInfo("No limits set for %s. Nothing to expire", channel->datadir);
+        LogInfo("No limits set for %s. Nothing to expire", label);
+        CleanupChannels(channel);
         return 1;
     }
-    time_t expire_start = bookkeeper.first;
+
+    time_t expire_start = first;
     time_t expire_end = 0;
 
     // trigger values
-    uint64_t target_size = (maxsize * low_water) / 100;
-    int need_size_expire = (maxsize && bookkeeper.filesize > maxsize);
+    int need_size_expire = (maxsize && total_size > maxsize);
+    uint64_t target_size = need_size_expire ? (maxsize * low_water) / 100 : 0;
 
     int need_life_expire = 0;
     char timeLimitStr[32] = {0};
     time_t timeLimit = 0;
-    if (maxlife && bookkeeper.first && bookkeeper.last && (bookkeeper.last - bookkeeper.first) > maxlife) {
+    if (maxlife && first && last && (last - first) > maxlife) {
         need_life_expire = 1;
 
-        timeLimit = bookkeeper.last - ((maxlife * low_water) / 100);
+        timeLimit = last - ((maxlife * low_water) / 100);
         strcpy(timeLimitStr, UNIX2ISO(timeLimit));
     }
 
     if (!need_size_expire && !need_life_expire) {
-        LogInfo("Limits do not trigger for %s. Nothing to expire", channel->datadir);
+        LogInfo("Limits do not trigger for %s. Nothing to expire", label);
+        CleanupChannels(channel);
         return 1;
     }
 
 #ifdef DEVEL
-    if (need_size_expire) printf("need_size_expire: %d from %" PRIu64 " down to %" PRIu64, need_size_expire, bookkeeper.filesize, target_size);
-    if (need_life_expire) printf("need_life_expire: %d from %s down to %s", need_size_expire, UNIX2ISO(bookkeeper.first), timeLimitStr);
+    if (need_size_expire) printf("need_size_expire: %d from %" PRIu64 " down to %" PRIu64, need_size_expire, total_size, target_size);
+    if (need_life_expire) printf("need_life_expire: %d from %s down to %s", need_life_expire, UNIX2ISO(first), timeLimitStr);
 #endif
 
     if (dryrun == 0 && runtime) {
@@ -439,15 +487,19 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
         alarm(runtime);
     }
 
-    // directory traversal
-    char *const path[] = {(char *)channel->datadir, NULL};
+    // Traverse the reference channel's timeline; for a single channel that
+    // is trivially the only channel there is.
+    char *const path[] = {reference_channel->datadir, NULL};
     FTS *fts = fts_open(path, FTS_PHYSICAL, compare);
     if (!fts) {
         LogError("fts_open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        CleanupChannels(channel);
         return 0;
     }
 
-    uint64_t current_size = bookkeeper.filesize;
+    size_t base_len = strlen(reference_channel->datadir);
+    uint64_t current_size = total_size;
+    time_t new_first = 0;
     uint32_t numfiles = 0;
     int done = 0;
     FTSENT *ftsent;
@@ -487,286 +539,30 @@ int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low
                 // check, if we are done and set new first value
                 if (need_size_expire == 0 && need_life_expire == 0) {
                     done = 1;
-                    // first existing file
-                    bookkeeper.first = ISO2UNIX(timeString);
-                    expire_end = bookkeeper.first;
-                    bookkeeper.filesize = current_size;
+                    // first remaining file
+                    new_first = ISO2UNIX(timeString);
+                    expire_end = new_first;
                     dbg_printf("Done - first: %s, size: %" PRIu64 "\n", timeString, current_size);
                     break;
                 }
 
-                int delete_file = 0;
-                // check for size expiration
-                if (need_size_expire && current_size > target_size) delete_file = 1;
-
-                // check for lifetime expiration - compare parsed unix time
-                time_t fileTime = ISO2UNIX(timeString);
-                int timeCMP = (fileTime > timeLimit) - (fileTime < timeLimit);
-                if (!delete_file && need_life_expire && timeCMP < 0) delete_file = 1;
-
-                if (delete_file) {
-                    dbg_printf("Delete %s\n", ftsent->fts_name);
-                    if (deleteFile(ftsent->fts_path, dryrun) == 0) {
-                        uint64_t fileSize = (uint64_t)ftsent->fts_statp->st_blocks * 512ULL;
-                        channel->expired_size += fileSize;
-                        channel->expired_files++;
-                        if (current_size >= fileSize)
-                            current_size -= fileSize;
-                        else
-                            current_size = 0;
-                    } else {
-                        LogError("unlink() error for %s: %s", ftsent->fts_path, strerror(errno));
-                        // if unlink failes, abort expire process
-                        bookkeeper.dirty = 1;
-                        done = 1;
-                    }
-                }
-
-                // stop condition
-                // this does not yet terminte the while loop
-                // as we need to get the next valid file for bookkeeper.first
-                if (timeout || (need_size_expire && current_size <= target_size)) need_size_expire = 0;
-                if (timeout || (need_life_expire && timeCMP >= 0)) need_life_expire = 0;
-
-                break;
-            }
-
-            case FTS_DP:
-                if (numfiles == 0 && ftsent->fts_level > 0) {
-                    // directory is empty and can be deleted
-                    dbg_printf("Remove directory %s\n", ftsent->fts_path);
-                    if (deleteDir(ftsent->fts_path, dryrun) != 0) {
-                        LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                    }
-                }
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    if (runtime) alarm(0);
-    fts_close(fts);
-
-    if (expire_end) channel->expired_time = expire_end - expire_start;
-
-    if (dryrun) {
-        // early exit ExpireDir without updating books or rescanning
-        LogInfo("Dryrun expire directory ends");
-        return 1;
-    }
-
-    if (ftsent == NULL) {
-        // end of directory reached - most likely all files expired
-        // make sure bookkeeper get updated correctly
-        bookkeeper.dirty = 1;
-        LogVerbose("Reached end of file list for directory: %s", channel->datadir);
-    }
-
-    if (bookkeeper.dirty == 0) {
-        // maximum all file expired
-        if (bookkeeper.filesize < channel->expired_size || bookkeeper.numfiles < channel->expired_files) {
-            LogError("Inconsisent bookkeeper values - rescan ..");
-            bookkeeper.dirty = 1;
-        } else {
-            bookkeeper.filesize -= channel->expired_size;
-            bookkeeper.numfiles -= channel->expired_files;
-
-            // expire successfully completed
-            if (book_expire(channel->book_handle, bookkeeper.first, channel->expired_files, channel->expired_size)) {
-                // we are done
-#ifdef DEVEL
-                printf("Expire directory - success\n");
-                printf("Expired files: %" PRIu64 ", with size %" PRIu64 "\n", channel->expired_files, channel->expired_size);
-                book_get(book_handle, &bookkeeper);
-                printf("Updated books\n");
-                printf("First: %s, Files: %" PRIu64 ", Size %" PRIu64 "\n", UNIX2ISO(bookkeeper.first), bookkeeper.numfiles, bookkeeper.filesize);
-#endif
-                return 1;
-            } else {
-                LogError("book_update rejected - rescan %s", channel->datadir);
-                bookkeeper.dirty = 1;
-            }
-        }
-    }
-
-    LogVerbose("Expire directory: inconsistent data - rescan ..");
-    // bookkeeper.dirty
-    int ok = 0;
-    int maxTries = 3;
-    do {
-        ok = RescanDir(channel);
-        maxTries--;
-    } while (ok == 0 && maxTries > 0);
-
-    if (ok == 0) {
-        LogError("Failed to re-scan dirty directory %s", channel->datadir);
-        return 0;
-    }
-
-#ifdef DEVEL
-    // rescan updates books
-    book_get(book_handle, &bookkeeper);
-    printf("Rescanned directory - success\n");
-    printf("Files: %" PRIu64 ", with size %" PRIu64 "\n", bookkeeper.numfiles, bookkeeper.filesize);
-#endif
-
-    return 1;
-}  // End of ExpireDir
-
-static void CleanupExpireProfile(const channel_t *channel) {
-    for (const channel_t *ch = channel; ch; ch = ch->next) {
-        if (ch->dirfd >= 0) close(ch->dirfd);
-    }
-
-}  // End of CleanupExpireProfile
-
-int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t runtime, int dryrun) {
-    if (!channel) return 0;
-
-    if (maxsize == 0 && maxlife == 0) {
-        LogInfo("No limits set for profile %s. Nothing to expire", profile);
-        return 1;
-    }
-
-    if (low_water == 0) low_water = 95;
-
-    // Snapshot bookkeeper for all channels
-    uint64_t total_size = 0;
-    time_t profile_first = 0;
-    time_t profile_last = 0;
-    channel_t *reference_channel = channel;
-    int failed = 0;
-    for (channel_t *ch = channel; ch; ch = ch->next) {
-        bookkeeper_t bookkeeper;
-        book_get(ch->book_handle, &bookkeeper);
-
-        total_size += bookkeeper.filesize;
-
-        if (!profile_first || bookkeeper.first < profile_first) {
-            profile_first = bookkeeper.first;
-            reference_channel = ch;
-        }
-
-        if (bookkeeper.last > profile_last) profile_last = bookkeeper.last;
-        ch->expired_files = 0;
-        ch->expired_size = 0;
-        ch->expired_time = 0;
-
-        ch->dirfd = open(ch->datadir, O_RDONLY | O_DIRECTORY);
-        if (ch->dirfd < 0) {
-            LogError("Failed to open directory %s: %s", ch->datadir, strerror(errno));
-            failed = 1;
-        }
-    }
-
-    time_t expire_start = profile_first;
-    time_t expire_end = 0;
-
-    if (failed) {
-        CleanupExpireProfile(channel);
-        return 0;
-    }
-
-    int need_size_expire = 0;
-    int need_life_expire = 0;
-
-    // trigger settings
-    uint64_t target_size = 0;
-    if (maxsize && total_size > maxsize) {
-        need_size_expire = 1;
-        target_size = (maxsize * low_water) / 100;
-    }
-
-    char timeLimitStr[32] = {0};
-    time_t timeLimit = 0;
-    if (maxlife && profile_first && profile_last && (profile_last - profile_first) > maxlife) {
-        need_life_expire = 1;
-
-        timeLimit = profile_last - ((maxlife * low_water) / 100);
-        strcat(timeLimitStr, UNIX2ISO(timeLimit));
-    }
-
-    if (!need_size_expire && !need_life_expire) {
-        LogInfo("Limits do not trigger expire for profile %s. Nothing to expire", profile);
-        return 1;
-    }
-
-    if (dryrun == 0 && runtime) {
-        SetupSignalHandler();
-        alarm(runtime);
-    }
-
-    // traverse first channel as authoritative timeline
-    if (!reference_channel) {
-        LogError("No reference_channel channel found for profile: %s", profile);
-        return 0;
-    }
-
-    char *const path[] = {reference_channel->datadir, NULL};
-    FTS *fts = fts_open(path, FTS_PHYSICAL, compare);
-    if (!fts) {
-        LogError("fts_open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CleanupExpireProfile(channel);
-        return 0;
-    }
-
-    size_t base_len = strlen(reference_channel->datadir);
-    profile_first = 0;
-    uint32_t numfiles = 0;
-    int done = 0;
-    FTSENT *ftsent;
-    while (!done && (ftsent = fts_read(fts)) != NULL) {
-        switch (ftsent->fts_info) {
-            case FTS_D:
-                // enter subdirectory - set file counter
-                numfiles = 0;
-
-                // skip all '.' entries
-                if (ftsent->fts_level > 0 && (ftsent->fts_name[0] == '.' || !isdigit((unsigned char)ftsent->fts_name[0]))) {
-                    dbg_printf("FTS: skip directory: %s\n", ftsent->fts_name);
-                    fts_set(fts, ftsent, FTS_SKIP);
-                }
-
-                break;
-
-            case FTS_F: {
-                if ((ftsent->fts_namelen != 19 && ftsent->fts_namelen != 21) || strncmp(ftsent->fts_name, "nfcapd.", 7) != 0) break;
-
-                // literal date string
-                const char *timeString = ftsent->fts_name + 7;
-                size_t len = strlen(timeString);
-                if (len != 12 && len != 14) break;
-
-                // date string need to be all numbers
-                int invalid = 0;
-                for (size_t i = 0; i < len; i++)
-                    if (!isdigit((unsigned char)timeString[i])) invalid = 1;
-
-                if (invalid) break;
-
-                numfiles++;
-
-                // check, if we are done and set new first value
-                if (need_size_expire == 0 && need_life_expire == 0) {
-                    done = 1;
-                    // first existing file
-                    profile_first = ISO2UNIX(timeString);
-                    expire_end = profile_first;
-                    dbg_printf("Done - first: %s, size: %" PRIu64 "\n", timeString, total_size);
-                    break;
-                }
-
                 int delete_slot = 0;
-                if (need_size_expire && total_size > target_size) delete_slot = 1;
+                // check for size expiration
+                if (need_size_expire && current_size > target_size) delete_slot = 1;
 
+                // check for lifetime expiration - compare parsed unix time, not
+                // the raw filename strings: a 12-char "no seconds" filename
+                // (the default for any rotation interval >= 60s) is a strict
+                // prefix of timeLimitStr's 14-char "with seconds" form, and
+                // strcmp() ranks any prefix as "less than" its longer
+                // extension regardless of the actual moment in time - which
+                // wrongly deleted a file exactly at the watermark boundary.
                 time_t fileTime = ISO2UNIX(timeString);
                 int timeCMP = (fileTime > timeLimit) - (fileTime < timeLimit);
                 if (!delete_slot && need_life_expire && timeCMP < 0) delete_slot = 1;
 
                 if (delete_slot) {
-                    // delete same slot in all channels
+                    // delete the same timeslot in every channel
                     dbg_printf("Delete %s\n", ftsent->fts_name);
                     const char *rel = ftsent->fts_path + base_len + 1;
 
@@ -779,34 +575,38 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
                             if (deleteFileAt(ch->dirfd, ch->datadir, rel, dryrun) == 0) {
                                 ch->expired_size += fileSize;
                                 ch->expired_files++;
-                                if (total_size > fileSize)
-                                    total_size -= fileSize;
+                                if (current_size >= fileSize)
+                                    current_size -= fileSize;
                                 else
-                                    total_size = 0;
+                                    current_size = 0;
                             } else {
                                 LogError("unlink() error for %s/%s: %s", ch->datadir, rel, strerror(errno));
-                                book_mark_dirty(ch->book_handle);
+                                if (!dryrun) book_mark_dirty(ch->book_handle);
                                 // if unlink failes, abort expire process
                                 done = 1;
                             }
                         } else {
-                            // file does not exists
-                            // maybe some channel inconsistency - can be irgnored
-                            LogError("stat() error: %s", strerror(errno));
+                            // Expected for a profile channel legitimately missing this
+                            // timeslot; for a single channel this branch is unreachable
+                            // since the file we are looking at came from its own listing.
+                            LogError("stat() error for %s/%s: %s", ch->datadir, rel, strerror(errno));
                         }
                     }
                 }
 
-                // stop logic
-                if (timeout || (need_size_expire && total_size <= target_size)) need_size_expire = 0;
+                // stop condition
+                // this does not yet terminte the while loop
+                // as we need to get the next valid file for the new first timestamp
+                if (timeout || (need_size_expire && current_size <= target_size)) need_size_expire = 0;
                 if (timeout || (need_life_expire && timeCMP >= 0)) need_life_expire = 0;
 
                 break;
             }
 
             case FTS_DP: {
-                size_t len = strlen(reference_channel->datadir);
                 if (numfiles == 0 && ftsent->fts_level > 0) {
+                    // directory is empty in the reference channel - remove it in every channel
+                    size_t len = strlen(reference_channel->datadir);
                     for (channel_t *ch = channel; ch; ch = ch->next) {
                         char dirpath[MAXPATHLEN];
                         snprintf(dirpath, sizeof(dirpath), "%s/%s", ch->datadir, ftsent->fts_path + len + 1);
@@ -827,67 +627,55 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
     if (runtime) alarm(0);
     fts_close(fts);
 
-    time_t expire_time = 0;
-    if (expire_end) expire_time = expire_end - expire_start;
+    if (expire_end) {
+        time_t expire_time = expire_end - expire_start;
+        for (channel_t *ch = channel; ch; ch = ch->next) ch->expired_time = expire_time;
+    }
 
     for (channel_t *ch = channel; ch; ch = ch->next) {
         if (ch->dirfd >= 0) close(ch->dirfd);
-        ch->expired_time = expire_time;
     }
 
     if (dryrun) {
-        // early exit ExpireDir without updating books or rescanning
-        LogInfo("Dryrun expire profile ends");
+        // early exit without updating books or rescanning
+        LogInfo("Dryrun expire %s ends", label);
         return 1;
     }
 
     int dirty = 0;
     if (ftsent == NULL) {
         // end of directory reached - most likely all files expired
-        // rescan profile channels
+        // make sure bookkeeper gets updated correctly
         dirty = 1;
-        LogVerbose("Reached end of file list for profile: %s", profile);
+        LogVerbose("Reached end of file list for %s", label);
     }
-
-    if (profile_first == 0) {
-        // end of directory reached - most likely all files expired
-        // rescan profile channels
+    if (new_first == 0) {
         dirty = 1;
-        LogVerbose("Unclean expire for profile: %s", profile);
+        LogVerbose("Unclean expire for %s", label);
     }
 
     for (channel_t *ch = channel; ch; ch = ch->next) {
         if (dirty == 0) {
-            // Update books
-            if (book_expire(ch->book_handle, profile_first, ch->expired_files, ch->expired_size)) {
-                // we are done
-#ifdef DEVEL
-                bookkeeper_t bookkeeper;
-                printf("Expire channel - success\n");
-                printf("Expired files: %" PRIu64 ", with size %" PRIu64 "\n", ch->expired_files, ch->expired_size);
-                book_get(ch->book_handle, &bookkeeper);
-                printf("Updated books\n");
-                printf("First: %s, Files: %" PRIu64 ", Size %" PRIu64 "\n", UNIX2ISO(bookkeeper.first), bookkeeper.numfiles, bookkeeper.filesize);
-#endif
-            } else {
+            // expire successfully completed - book_expire() itself rejects the
+            // update (and leaves the book untouched) if the numbers don't add up
+            if (!book_expire(ch->book_handle, new_first, ch->expired_files, ch->expired_size)) {
                 LogError("book_update rejected - rescan channel %s", ch->datadir);
                 book_mark_dirty(ch->book_handle);
             }
         } else {
-            // rescan dir
             book_mark_dirty(ch->book_handle);
         }
     }
 
     if (timeout) {
-        // leave channels dirty, if time runs out
+        // leave channels dirty, if time runs out - picked up on the next run
         return 1;
     }
 
-    dirty = 0;
+    int rescanFailed = 0;
     for (channel_t *ch = channel; ch; ch = ch->next) {
         if (book_is_dirty(ch->book_handle)) {
-            LogVerbose("Expire profile %s: inconsistent data - rescan ..", profile);
+            LogVerbose("Expire %s: inconsistent data - rescan ..", label);
             int ok = 0;
             int maxTries = 3;
             do {
@@ -897,10 +685,10 @@ int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, tim
 
             if (ok == 0) {
                 LogError("Failed to re-scan dirty channel %s", ch->datadir);
-                dirty = 1;
+                rescanFailed = 1;
             }
         }
     }
 
-    return dirty == 0;
-}  // End of ExpireProfile
+    return rescanFailed == 0;
+}  // End of ExpireDir

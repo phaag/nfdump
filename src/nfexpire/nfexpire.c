@@ -128,16 +128,15 @@ static channel_t *GetChannelList(char *datadir, int is_profile) {
         (*c)->next = NULL;
         (*c)->datadir = dirlist.list[i];
 
-        book_handle_t *book_handle = book_attach((*c)->datadir);
-        if (book_handle == BOOK_NOT_EXISTS) {
+        book_handle_t *book_handle = NULL;
+        book_status_t status = book_attach((*c)->datadir, &book_handle);
+        if (status == BOOK_ERR_NOT_EXISTS) {
             // no existing bookkeeper - create a new one
-            book_handle = book_open((*c)->datadir, 0);
-            if (book_handle == BOOK_FAILED || book_handle == BOOK_EXISTS) {
-                book_handle = NULL;
+            if (book_open((*c)->datadir, 0, &book_handle) != BOOK_OK) {
                 LogError("Failed to initialize bookkeeper for %s", (*c)->datadir);
                 exit(EXIT_FAILURE);
             }
-        } else if (book_handle == BOOK_FAILED) {
+        } else if (status != BOOK_OK) {
             LogError("Failed to attach bookkeeper for %s", (*c)->datadir);
             exit(EXIT_FAILURE);
         }
@@ -354,17 +353,12 @@ int main(int argc, char **argv) {
         uint64_t expired_size = 0;
         time_t expired_time;
 
-        int ok = 0;
-        if (is_profile) {
-            ok = ExpireProfile("Profile", channel, maxsize, maxlife, low_water, runtime, dryrun);
-            for (channel_t *ch = channel; ch; ch = ch->next) {
-                expired_files += ch->expired_files;
-                expired_size += ch->expired_size;
-            }
-        } else {
-            ok = ExpireDir(channel, maxsize, maxlife, low_water, runtime, dryrun);
-            expired_files = channel->expired_files;
-            expired_size = channel->expired_size;
+        // ExpireDir() handles both a single channel and a profile's channel
+        // list uniformly - it sums to the same thing for a single channel.
+        int ok = ExpireDir(channel, maxsize, maxlife, low_water, runtime, dryrun);
+        for (channel_t *ch = channel; ch; ch = ch->next) {
+            expired_files += ch->expired_files;
+            expired_size += ch->expired_size;
         }
         expired_time = channel->expired_time;
         // Report, what we have done

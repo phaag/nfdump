@@ -335,10 +335,12 @@ void UpdateChannels(time_t tslot) {
             if (rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0) {
                 LogError("Failed to rename file %s to %s: %s\n", profile_channels[num].ofile, profile_channels[num].wfile, strerror(errno));
             } else {
-                book_handle_t *book_handle = book_attach(profile_channels[num].dirstat_path);
-                if (book_handle != BOOK_FAILED && book_handle != BOOK_NOT_EXISTS) {
+                book_handle_t *book_handle = NULL;
+                if (book_attach(profile_channels[num].dirstat_path, &book_handle) == BOOK_OK) {
                     uint64_t file_size = 512LL * fstat.st_blocks;
-                    book_update(NULL, tslot, file_size);
+                    // was book_update(NULL, ...) - a pre-existing NULL-handle bug found
+                    // while adapting this call site to the new book_attach() signature.
+                    book_update(book_handle, tslot, file_size);
                     channel_t channel = {.book_handle = book_handle};
                     WriteStatInfo(&channel);
                     book_close(book_handle);

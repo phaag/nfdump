@@ -54,8 +54,8 @@ static noreturn void *nffile_backend_thread(void *arg);
 // return err status - 1 on error, 0 otherwise
 int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffile_ctx) {
     nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
-    book_handle_t *book_handle = book_open(nffile_ctx->datadir, getpid());
-    if (book_handle == BOOK_FAILED || book_handle == BOOK_EXISTS) {
+    book_handle_t *book_handle = NULL;
+    if (book_open(nffile_ctx->datadir, getpid(), &book_handle) != BOOK_OK) {
         LogError("Initialize bookkeeper failed");
         return 1;
     }
