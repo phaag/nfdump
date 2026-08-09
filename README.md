@@ -40,8 +40,8 @@ was needed by older implementations.
   offset table; the fields available to filters and output formats remain the
   same logical flow data.
 - Configuration is TOML-based. More settings are available in `nfdump.conf`,
-  including shared and per-program thread settings. `nfdump` and `nfpcapd`
-  support runtime configuration overrides with `-x <key>=<value>`.
+  including shared and per-program thread settings. `nfdump` and all
+  collectors support runtime configuration overrides with `-x <key>=<value>`.
 
 ### Collectors
 
@@ -84,7 +84,7 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
   the gain depends on the capture and host.
 - Native pcap reading and writing avoids unnecessary format conversion in the
   pcap-output path.
-- `nfpcapd` adds `-x <key>=<value>` for runtime configuration overrides.
+- All collectors support `-x <key>=<value>` for runtime configuration overrides.
 
 ### Analysis and metadata tools
 
@@ -186,11 +186,11 @@ Several option meanings have changed from the 1.7.x release:
 | `nfcapd`, `sfcapd`, `nfpcapd` | Use `-z=lzo|lz4|bz2|zstd[:level]` for compression. The old per-codec `-j` and `-y` options are gone. |
 | `nfcapd`, `sfcapd` | `-R` accepts one repeater, not the former advertised set of up to eight. |
 | `nfcapd`, `sfcapd`, `nfpcapd` | `-H` enables native UDP forwarding; encryption-related options require a libsodium build. |
-| `nfdump`, `nfpcapd` | `-x <key>=<value>` overrides a configuration value for that invocation. |
+| `nfdump`, `nfcapd`, `sfcapd`, `nfpcapd` | `-x <key>=<value>` overrides a configuration value for that invocation. |
 
-In `nfcapd` and `sfcapd`, `-x` retains its collector-specific post-rotation
-command meaning; it is not the runtime configuration override flag. Always
-check the installed program's `--help` or manual page when updating scripts.
+In 1.8.x, nfcapd and sfcapd move their post-rotation launcher command from
+`-x command` to `-l command`; `-x` is now the common configuration-override
+switch. nfpcapd's long-deprecated `-l` alias for `-w` is removed.
 
 ## Quick examples
 
@@ -206,7 +206,7 @@ Read a collection and apply a filter:
 nfdump -r /var/nfdump/flows 'proto tcp and port 443'
 ```
 
-Apply a temporary configuration override in `nfdump` or `nfpcapd`:
+Apply a temporary configuration override in nfdump or any collector:
 
 ```sh
 nfdump -x threads.workers=4 -r /var/nfdump/flows

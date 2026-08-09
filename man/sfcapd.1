@@ -60,7 +60,8 @@
 .Op Fl m Ar metricpath
 .Op Fl o Ar optionlist
 .Op Fl e
-.Op Fl x Ar command
+.Op Fl l Ar command
+.Op Fl x Ar key=value
 .Op Fl X Ar extensionList
 .Op Fl W Ar num
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
@@ -398,7 +399,12 @@ Sets auto-expire mode. At the end of every rotate interval
 .Fl t
 .Nm
 runs an expire cycle to delete files according to max lifetime and max filesize as defined by nfexpire(1)
-.It Fl x Ar command
+.It Fl x Ar key Ns = Ns Ar value
+Override a configuration key for this invocation only. May be repeated.
+Overrides have higher priority than the configuration file and program defaults.
+For example,
+.Dl sfcapd -x threads.writers=4 -w /var/nfdump/flows
+.It Fl l Ar command
 At the end of every
 .Fl t
 interval and after the file rotate has completed, 

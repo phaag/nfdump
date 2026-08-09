@@ -135,7 +135,6 @@ static void usage(char *name) {
         "-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
         "-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
         "-w flowdir \tset the flow output directory. (no default) \n"
-        "-l flowdir \tlegacy alias for -w; use -w instead.\n"
         "-C <file>\tRead optional config file.\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
@@ -246,7 +245,7 @@ int main(int argc, char *argv[]) {
     limitCores = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::l:m:o:p:P:r:s:S:t:u:v:Vw:W:x:z::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::m:o:p:P:r:s:S:t:u:v:Vw:W:x:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -325,8 +324,6 @@ int main(int argc, char *argv[]) {
             case 'i':
                 device = optarg;
                 break;
-            case 'l':
-                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
                 if (!CheckPath(optarg, S_IFDIR)) {
                     LogError("No valid directory: %s", optarg);

@@ -82,6 +82,10 @@ static bool confTableGetBool(toml_table_t *root, const char *key, bool *out);
  *  1 successfully read config
  */
 int ConfOpen(char *filename, char *section, option_t *defaultConf) {
+    // Program defaults remain available even when configuration-file loading
+    // is disabled or no file exists.
+    nfconfFile.defaultConf = defaultConf;
+
     // if read prevented
     if (filename && strcmp(filename, NOCONF) == 0) return 0;
 

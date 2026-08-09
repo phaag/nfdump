@@ -358,7 +358,10 @@ are used.
 .Sh CLI OVERRIDES
 The programs
 .Xr nfdump 1 ,
+.Xr nfcapd 1 ,
+.Xr sfcapd 1 ,
 .Xr nfpcapd 1 ,
+.Xr nfanon 1 ,
 and
 .Xr nfmeta 1
 can override configuration keys at run time without modifying the
@@ -386,17 +389,8 @@ is not present in the configuration file and has no compiled-in default,
 a warning is logged but the override is accepted and remains effective
 for the duration of the process.
 .Pp
-Overrides are processed after the configuration file is opened, so they
-take effect for every key lookup that follows.
+Overrides take effect for every configuration key lookup in the process.
 They do not modify the configuration file on disk.
-.Pp
-In
-.Xr nfcapd 1
-and
-.Xr sfcapd 1 ,
-.Fl x
-has the separate, longstanding meaning of a post-rotation command. It is not
-a configuration override in those collectors.
 .Sh EXAMPLES
 .Ss Minimal common settings
 .Bd -literal -offset indent

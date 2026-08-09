@@ -137,7 +137,8 @@ static void usage(char *name) {
         "-R IP[/port]\tRepeat incoming packets to IP address/port.\n"
         "-H host[/port]\tForward collected flows to host or IP address[/port]. Default port 9995.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
-        "-x process\tlaunch process after a new file becomes available\n"
+        "-l process\tlaunch process after a new file becomes available\n"
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
@@ -513,7 +514,7 @@ int main(int argc, char **argv) {
     parse_tun = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:g:hH:I:i:J:K::k::m:M:n:N:o:p:P:Q:R:S:t:u:v:VW:w:x:X:z:Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:g:hH:I:i:J:K::k::l:m:M:n:N:o:p:P:Q:R:S:t:u:v:VW:w:x:X:z:Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -704,13 +705,17 @@ int main(int argc, char **argv) {
                     time_extension = "%Y%m%d%H%M%S";
                 }
                 break;
-            case 'x':
+            case 'l':
                 CheckArgLen(optarg, 256);
                 launch_process = strdup(optarg);
                 if (!launch_process) {
-                    LogError("strdup() failed for -x command: %s", strerror(errno));
+                    LogError("strdup() failed for -l command: %s", strerror(errno));
                     exit(EXIT_FAILURE);
                 }
+                break;
+            case 'x':
+                CheckArgLen(optarg, 256);
+                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
                 break;
             case 'X':
                 CheckArgLen(optarg, 256);

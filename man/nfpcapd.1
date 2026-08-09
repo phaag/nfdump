@@ -41,7 +41,6 @@
 .Op Fl I Ar ident
 .Op Fl C Ar config
 .Op Fl w Ar flowdir
-.Op Fl l Ar flowdir
 .Op Fl p Ar pcapdir
 .Op Fl H Ar host[/port]
 .Op Fl m Ar socket
@@ -130,12 +129,6 @@ If a sub hierarchy is specified with
 .Fl S
 the final directory is concatenated to
 .Ar base_directory/sub_hierarchy .
-.It Fl l Ar flowdir
-Legacy alias for
-.Fl w .
-Use
-.Fl w
-in new scripts.
 .It Fl p Ar pcapdir
 Optionally stores network packets in pcap compatible files in this directory and rotate files the same as the flow files. Sub hierarchy directories are applied likewise.
 .It Fl H Ar host[/port]
