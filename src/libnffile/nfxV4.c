@@ -938,9 +938,10 @@ void PrintPipeline(pipeline_t *pipeline) {
     printf("\n");
 }
 
-// Verify a V4record
-// return 1 if ok, 0 otherwise
-int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
+// Verify a V4 record. Basic mode is sufficient for record framing; extension
+// mode additionally validates the complete V4 extension directory and data.
+// Return 1 if valid, 0 otherwise.
+int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available, v4RecordCheck_t checkLevel) {
     if (!hdr || available < sizeof(*hdr) || hdr->size < sizeof(*hdr) || hdr->size > available) return 0;
 
     // all parts of a record must be 8byte aligned
@@ -952,6 +953,12 @@ int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available) {
     dbg_printf("\nVerifyV4 record:\n");
     if (hdr->type != V4Record) {
         LogError("Verify v4 record: wrong type: %u", hdr->type);
+        return 0;
+    }
+
+    if (checkLevel == V4RECORD_CHECK_BASIC) return 1;
+    if (checkLevel != V4RECORD_CHECK_EXTENSIONS) {
+        LogError("Verify v4 record: invalid check level %u", checkLevel);
         return 0;
     }
 

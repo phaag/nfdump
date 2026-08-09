@@ -400,7 +400,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             uint32_t exporterIdent = MetricExpporterID(recordHeader);
             UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
-            dbg(VerifyV4Record(recordHeader, recordHeader->size));
+            dbg(VerifyV4Record(recordHeader, recordHeader->size, V4RECORD_CHECK_EXTENSIONS));
             if (printRecord) {
                 flow_record_short(stdout, recordHeader);
             }

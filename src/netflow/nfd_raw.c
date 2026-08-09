@@ -357,7 +357,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // Verify only after the declared record size is known to fit in this datagram.
-        if (VerifyV4Record(recordHeaderV4, (size_t)size_left) == 0) {
+        if (VerifyV4Record(recordHeaderV4, (size_t)size_left, V4RECORD_CHECK_EXTENSIONS) == 0) {
             LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
             return;
         }

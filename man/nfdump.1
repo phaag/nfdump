@@ -747,9 +747,14 @@ Verify or repair the file given by
 .Ar mode
 is one of
 .Sq check
-(verify consistency and print file parameters and record count),
+(perform a fast structural integrity check and print file parameters and record
+count).  This verifies the file and block layout, checksums, decoded block
+sizes and record framing.  For V4 flow records it verifies the record header,
+type, size and alignment, but does not inspect the extension directory,
 .Sq check-verbose
-(same, with per-block detail), or
+(perform the same checks with per-block detail and full V4 flow-record
+validation, including the extension bitmap, offset directory and extension
+layout), or
 .Sq repair
 (rewrite the file, fixing recoverable inconsistencies).
 .It Fl E Ar flowfile

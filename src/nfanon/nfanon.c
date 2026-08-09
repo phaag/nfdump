@@ -372,7 +372,7 @@ static int ValidateFlowBlock(const flowBlockV3_t *dataBlock) {
 
         switch (record->type) {
             case V4Record:
-                if (!VerifyV4Record((const recordHeaderV4_t *)record, record->size)) {
+                if (!VerifyV4Record((const recordHeaderV4_t *)record, record->size, V4RECORD_CHECK_EXTENSIONS)) {
                     LogError("Corrupt flow block: invalid V4 record %u", i);
                     return 0;
                 }

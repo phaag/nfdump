@@ -64,6 +64,19 @@ else
     fail "nffile_check_rejects_invalid_v4_record"
 fi
 
+# A mismatched extension count leaves the generic V4 record framing intact.
+# The quick check accepts it, while check-verbose must inspect the extension
+# directory and reject it. The field belongs to nfgen4's third V4 record.
+detailfile="$WORKDIR/invalid-v4-directory.nf"
+cp dummy_flows.nf "$detailfile"
+if printf '\000\000' | dd of="$detailfile" bs=1 seek=156 conv=notrunc 2>/dev/null \
+   && nfdump -v check -r "$detailfile" >/dev/null 2>&1 \
+   && ! nfdump -v check-verbose -r "$detailfile" >/dev/null 2>&1; then
+    pass "nffile_check_verbose_validates_v4_directory"
+else
+    fail "nffile_check_verbose_validates_v4_directory"
+fi
+
 # verify the flow content matches the reference output
 if nfdump -r dummy_flows.nf -q -o raw >"$WORKDIR/raw.txt" 2>/dev/null \
    && diff -u "$WORKDIR/raw.txt" "$SCRIPT_DIR/ref_raw.txt" >/dev/null 2>&1; then

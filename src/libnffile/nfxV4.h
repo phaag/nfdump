@@ -912,6 +912,11 @@ ssize_t PipelineRun(const pipeline_t *restrict pipeline, const uint8_t *restrict
 
 void PrintPipeline(pipeline_t *pipeline);
 
-int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available);
+typedef enum {
+    V4RECORD_CHECK_BASIC,       // record header, type, size and alignment
+    V4RECORD_CHECK_EXTENSIONS,  // additionally validate extension directory and data
+} v4RecordCheck_t;
+
+int VerifyV4Record(const recordHeaderV4_t *hdr, size_t available, v4RecordCheck_t checkLevel);
 
 #endif

@@ -122,9 +122,9 @@ static int VerifyBloomMetaRecord(const metaRecordHeader_t *meta, size_t availabl
            meta->size == sizeof(*meta) + sizeof(bloomFilter_t);
 }  // End of VerifyBloomMetaRecord
 
-/* Validate a decoded flow block. Record boundaries are checked first, then
- * VerifyV4Record() validates the V4 extension directory and every extension. */
-static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum) {
+/* Validate a decoded flow block. Record boundaries are always checked;
+ * check-verbose additionally validates every V4 extension directory. */
+static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4RecordCheck_t checkLevel) {
     if (flowBlock->rawSize < sizeof(*flowBlock)) {
         printf("Flow block %u: rawSize %u is smaller than its header\n", blockNum, flowBlock->rawSize);
         return 0;
@@ -151,7 +151,7 @@ static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum) {
         }
 
         if (record->type == V4Record) {
-            if (!VerifyV4Record((const recordHeaderV4_t *)record, record->size)) {
+            if (!VerifyV4Record((const recordHeaderV4_t *)record, record->size, checkLevel)) {
                 printf("Flow block %u: invalid V4 record %u\n", blockNum, i);
                 return 0;
             }
@@ -507,6 +507,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     int blockCheckFailed = 0;
     uint32_t totalBlocks = 0;
     uint32_t unknownBlocks = 0;
+    const v4RecordCheck_t v4CheckLevel = verbose ? V4RECORD_CHECK_EXTENSIONS : V4RECORD_CHECK_BASIC;
 
     off_t scanEnd = fileHeader->offDirectory ? (off_t)fileHeader->offDirectory : fileSize;
     off_t nextOffset = sizeof(fileHeaderV3_t);
@@ -553,7 +554,7 @@ int VerifyFileV3(const char *filename, int verbose) {
             case BLOCK_TYPE_FLOW: {
                 blockStat[BLOCK_TYPE_FLOW].numBlocks++;
                 blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
-                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks)) {
+                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks, v4CheckLevel)) {
                     blockCheckFailed = 1;
                 }
             } break;
