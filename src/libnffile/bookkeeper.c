@@ -89,8 +89,15 @@ book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out) {
         return BOOK_ERR_FAILED;
     }
 
+    int initialise = 0;
     struct stat st;
-    fstat(book_handle->fd, &st);
+    if (fstat(book_handle->fd, &st) < 0) {
+        LogError("fstat() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        book_unlock(book_handle->fd);
+        close(book_handle->fd);
+        free(book_handle);
+        return BOOK_ERR_FAILED;
+    }
     if (st.st_size != sizeof(bookkeeper_t)) {
         // new file or corrupt file
         if (ftruncate(book_handle->fd, sizeof(bookkeeper_t)) < 0) {
@@ -100,6 +107,7 @@ book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out) {
             LogError("ftruncate() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return BOOK_ERR_FAILED;
         }
+        initialise = 1;
     }
 
     book_handle->bookkeeper = mmap(NULL, sizeof(bookkeeper_t), PROT_READ | PROT_WRITE, MAP_SHARED, book_handle->fd, 0);
@@ -117,6 +125,7 @@ book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out) {
         memset(book_handle->bookkeeper, 0, sizeof(bookkeeper_t));
         book_handle->bookkeeper->magic = BOOK_MAGIC;
         book_handle->bookkeeper->version = BOOK_VERSION;
+        initialise = 1;
     }
 
     if (book_handle->bookkeeper->version != BOOK_VERSION) {
@@ -141,6 +150,9 @@ book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out) {
     }
 
     book_handle->bookkeeper->nfcapd_pid = pid;
+    // A newly created or recovered book has no trustworthy cumulative
+    // counters.  Its first nfexpire user must rebuild them from disk.
+    if (initialise) book_handle->bookkeeper->dirty = 1;
     book_handle->bookkeeper->sequence++;
 
     msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
@@ -232,12 +244,12 @@ void book_update(book_handle_t *book_handle, time_t when, uint64_t size) {
 }  // End of book_update
 
 // nfexpire set parameters
-void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark) {
+void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark, uint32_t set_mask) {
     book_lock(book_handle->fd);
 
-    if (lifetime) book_handle->bookkeeper->max_lifetime = lifetime;
-    if (maxsize) book_handle->bookkeeper->max_filesize = maxsize;
-    if (watermark) book_handle->bookkeeper->watermark = watermark;
+    if (set_mask & BOOK_LIMIT_LIFETIME) book_handle->bookkeeper->max_lifetime = lifetime;
+    if (set_mask & BOOK_LIMIT_MAXSIZE) book_handle->bookkeeper->max_filesize = maxsize;
+    if (set_mask & BOOK_LIMIT_WATERMARK) book_handle->bookkeeper->watermark = watermark;
     book_handle->bookkeeper->sequence++;
 
     msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
@@ -287,6 +299,8 @@ int book_expire(book_handle_t *book_handle, time_t first, uint32_t expired_files
         bookkeeper->first = first;
         bookkeeper->numfiles -= expired_files;
         bookkeeper->filesize -= expired_size;
+        bookkeeper->sequence++;
+        msync(bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
         ok = 1;
     }
     book_unlock(book_handle->fd);
@@ -321,3 +335,37 @@ int book_is_dirty(book_handle_t *book_handle) {
     book_unlock(book_handle->fd);
     return dirty;
 }  // End of book_is_dirty
+
+// nfexpire: claim exclusive right to scan/modify this directory - see the
+// prototype comment in bookkeeper.h. Mirrors book_open()'s single-collector
+// check: a stale pid left behind by a crashed nfexpire is indistinguishable
+// from "no lock" here, so a dead holder never blocks the next run.
+book_status_t book_claim_expire(book_handle_t *book_handle, pid_t pid, pid_t *holder) {
+    if (holder) *holder = 0;
+    if (!book_handle) return BOOK_ERR_FAILED;
+
+    book_lock(book_handle->fd);
+
+    pid_t current = book_handle->bookkeeper->expire_pid;
+    if (current > 0 && current != pid && (kill(current, 0) == 0 || errno == EPERM)) {
+        if (holder) *holder = current;
+        book_unlock(book_handle->fd);
+        return BOOK_ERR_EXISTS;
+    }
+
+    book_handle->bookkeeper->expire_pid = pid;
+    book_handle->bookkeeper->sequence++;
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
+
+    book_unlock(book_handle->fd);
+    return BOOK_OK;
+}  // End of book_claim_expire
+
+void book_release_expire(book_handle_t *book_handle) {
+    if (!book_handle) return;
+
+    book_lock(book_handle->fd);
+    book_handle->bookkeeper->expire_pid = 0;
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+    book_unlock(book_handle->fd);
+}  // End of book_release_expire

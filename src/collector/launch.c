@@ -551,11 +551,9 @@ static void *launcher_thread_main(void *arg) {
     launcher_ctx_t *launcher_ctx = (launcher_ctx_t *)arg;
 
     dbg_printf("Startup %s()\n", __func__);
-    while (!atomic_load(&launcher_ctx->done)) {
+    for (;;) {
         launcher_msg_t *msg = queue_pop(launcher_ctx->msgQueue);
         if (msg == QUEUE_CLOSED) {
-            // msg cannot get NULL, but handle it anyway
-            atomic_store(&launcher_ctx->done, 1);
             break;
         }
 
@@ -569,6 +567,8 @@ static void *launcher_thread_main(void *arg) {
 
         free(msg);
     }
+
+    atomic_store(&launcher_ctx->done, 1);
 
     dbg_printf("Exit %s()\n", __func__);
     return NULL;
@@ -585,11 +585,18 @@ launcher_ctx_t *LauncherInit(char *command, int expire) {
     atomic_store(&launcher_ctx->done, 0);
     launcher_ctx->cmd_template = command;
     launcher_ctx->msgQueue = queue_init(1024);
+    if (!launcher_ctx->msgQueue) {
+        LogError("Failed to create launcher queue");
+        free(launcher_ctx);
+        return NULL;
+    }
     if (expire) {
         size_t len = strlen(INSTALL_PREFIX) + strlen("/bin/nfexpire -e %d") + 1;
         launcher_ctx->cmd_expire = malloc(len);
         if (!launcher_ctx->cmd_expire) {
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            queue_free(launcher_ctx->msgQueue);
+            free(launcher_ctx);
             return NULL;
         }
         snprintf(launcher_ctx->cmd_expire, len, "%s%s", INSTALL_PREFIX, "/bin/nfexpire -e %d");
@@ -630,12 +637,12 @@ void LauncherShutdown(launcher_ctx_t *launcher_ctx) {
     if (!launcher_ctx) return;
 
     dbg_printf("%s() Start\n", __func__);
-    atomic_store(&launcher_ctx->done, 1);
     queue_close(launcher_ctx->msgQueue);
     // wait for launcher thread
     if (launcher_ctx->ltid) {
         pthread_join(launcher_ctx->ltid, NULL);
     }
+    atomic_store(&launcher_ctx->done, 1);
     // wait for reaper thread
     if (launcher_ctx->rtid) {
         pthread_join(launcher_ctx->rtid, NULL);

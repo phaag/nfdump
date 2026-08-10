@@ -197,6 +197,7 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current
     // file otherwise, we will loose flows and can not continue collecting new flows
+    int rotated = 0;
     if (RenameAppendV3(nffile->fileName, nfcapd_filename) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", nffile_ctx->Ident, strerror(errno));
 
@@ -205,12 +206,16 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, msgBlockV3_t *da
     } else {
         struct stat fstat;
 
-        // Update books
-        stat(nfcapd_filename, &fstat);
-        book_update(nffile_ctx->book_handle, cycle_message.when, (uint64_t)(STAT_BLOCK_SIZE * fstat.st_blocks));
+        rotated = 1;
+        if (stat(nfcapd_filename, &fstat) == 0) {
+            book_update(nffile_ctx->book_handle, cycle_message.when, (uint64_t)(STAT_BLOCK_SIZE * fstat.st_blocks));
+        } else {
+            LogError("Ident: %s, can't stat rotated file %s: %s", nffile_ctx->Ident, nfcapd_filename, strerror(errno));
+            book_mark_dirty(nffile_ctx->book_handle);
+        }
     }
 
-    if (nffile_ctx->msgQueue) {
+    if (rotated && nffile_ctx->msgQueue) {
         // compile argument %f
         // nfcapd_filename => full path - cut of datadir/
         char *filename = nfcapd_filename + strlen(nffile_ctx->datadir) + 1;  //

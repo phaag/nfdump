@@ -43,10 +43,12 @@ typedef struct {
 // file header
 #define BOOK_MAGIC 0x4E46424B  // "NFBK"
     uint32_t magic;            // identify this file
-#define BOOK_VERSION 1
+#define BOOK_VERSION 2
     uint32_t version;       // version of this file
                             // collector
     pid_t nfcapd_pid;       // nfcapd process, if a collector is running
+    pid_t expire_pid;       // nfexpire process currently scanning/modifying this
+                            // directory, 0 if idle - see book_claim_expire()
     uint64_t sequence;      // book sequence
                             // timestamps
     time_t first;           // timestamp of first file
@@ -82,6 +84,12 @@ typedef struct {
     bookkeeper_t *bookkeeper;
 } book_handle_t;
 
+enum {
+    BOOK_LIMIT_LIFETIME = 1U << 0,
+    BOOK_LIMIT_MAXSIZE = 1U << 1,
+    BOOK_LIMIT_WATERMARK = 1U << 2,
+};
+
 book_status_t book_open(const char *flowdir, pid_t pid, book_handle_t **out);
 
 void book_close(book_handle_t *book_handle);
@@ -90,7 +98,7 @@ book_status_t book_attach(const char *flowdir, book_handle_t **out);
 
 void book_update(book_handle_t *book_handle, time_t when, uint64_t size);
 
-void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark);
+void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark, uint32_t set_mask);
 
 void book_get(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
 
@@ -103,5 +111,17 @@ uint64_t book_sequence(book_handle_t *book_handle);
 void book_mark_dirty(book_handle_t *book_handle);
 
 int book_is_dirty(book_handle_t *book_handle);
+
+// nfexpire: claim exclusive right to scan/modify this directory's files and
+// book, so two concurrent nfexpire processes on the same directory never
+// race on the same files or bookkeeper. Mirrors book_open()'s single-
+// collector enforcement. Returns BOOK_OK once claimed (including when the
+// caller already holds it, or the previous holder is no longer alive);
+// BOOK_ERR_EXISTS if another live nfexpire process holds it - *holder, if
+// non-NULL, then receives that process' pid; BOOK_ERR_FAILED on error.
+book_status_t book_claim_expire(book_handle_t *book_handle, pid_t pid, pid_t *holder);
+
+// Release a lock claimed by book_claim_expire(). No-op if not held.
+void book_release_expire(book_handle_t *book_handle);
 
 #endif  //_BOOKKEEPER_H

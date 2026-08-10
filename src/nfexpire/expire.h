@@ -53,7 +53,20 @@ typedef struct channel_s {
     uint64_t expired_size;       // expired size of file blocks
     uint64_t expired_files;      // expired files
     time_t expired_time;         // time span expired
+    int slot_present;            // profile expiry preflight state
 } channel_t;
+
+// EXPIRE_TIMEOUT and EXPIRE_ABORTED both mean: the run ended before its
+// limits were satisfied, but the bookkeeping is guaranteed consistent - not
+// left dirty - either way. They exist as distinct values purely so the
+// caller can log *why* (the -T runtime ran out vs. an external signal
+// arrived) without either expire.c or the caller having to re-derive it.
+typedef enum {
+    EXPIRE_OK = 0,
+    EXPIRE_TIMEOUT,
+    EXPIRE_ABORTED,
+    EXPIRE_FAILED,
+} expire_status_t;
 
 int ParseSizeDef(const char *s, uint64_t *value);
 
@@ -63,6 +76,7 @@ int RescanDir(const channel_t *channel);
 
 // Handles both a single channel (channel->next == NULL) and a profile's list
 // of channels, expiring the same timeslot from every channel in lockstep.
-int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, time_t runtime, int dryrun);
+expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t limit_mask, time_t runtime,
+                          int dryrun);
 
 #endif  //_EXPIRE_H

@@ -859,6 +859,10 @@ int main(int argc, char **argv) {
     parse_tun = ConfGetBool("opt.tun");
 
     if (sendHost) {
+        if (expire) {
+            LogError("-e requires local file output and cannot be combined with -H");
+            exit(EXIT_FAILURE);
+        }
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {
             LogError("-H cannot be combined with -w, -n, or -M");
             exit(EXIT_FAILURE);
@@ -932,6 +936,11 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (pcap_file && expire) {
+        LogError("Disable expire mode when reading from a file");
+        expire = 0;
+    }
+
     // before we drop our privileges, check for srcSpoofing and a repeater
     if (nsocks <= 0 && repeater_host.hostname) {
         LogError("Packet repeaters can be used only together with a live network socket");
@@ -956,6 +965,11 @@ int main(int argc, char **argv) {
     launcher_ctx_t *launcher_ctx = NULL;
     if (launch_process || expire) {
         launcher_ctx = LauncherInit(launch_process, expire);
+        if (!launcher_ctx) {
+            LogError("Failed to initialize launcher");
+            close_sockets(socks, nsocks);
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (!Init_sflow(verbose, extensionList)) {

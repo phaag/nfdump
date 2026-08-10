@@ -64,6 +64,11 @@
 #include "nfstatfile.h"
 #include "util.h"
 
+// How long a run waits for another live nfexpire process to release a
+// channel it holds, before giving up: 30 retries, one second apart.
+#define EXPIRE_LOCK_MAX_RETRIES 30
+#define EXPIRE_LOCK_RETRY_SECONDS 1
+
 static void usage(char *name) {
     printf(
         "usage %s [options] \n"
@@ -127,6 +132,7 @@ static channel_t *GetChannelList(char *datadir, int is_profile) {
         }
         (*c)->next = NULL;
         (*c)->datadir = dirlist.list[i];
+        (*c)->dirfd = -1;
 
         book_handle_t *book_handle = NULL;
         book_status_t status = book_attach((*c)->datadir, &book_handle);
@@ -168,7 +174,7 @@ static int VerifyChannels(const channel_t *channel, int do_rescan) {
                 maxTries--;
             } while (ok == 0 && maxTries > 0);
 
-            if (maxTries == 0) {
+            if (!ok) {
                 LogError("Could not rescan directory %s", current_channel->datadir);
                 return 0;
             }
@@ -181,6 +187,64 @@ static int VerifyChannels(const channel_t *channel, int do_rescan) {
     return 1;
 }  // End of VerifyChannels
 
+// Release every channel lock claimed so far, up to (but not including)
+// 'stop'. stop == NULL releases the whole list. Used both for the final,
+// successful cleanup and to roll back a partial claim before a retry.
+static void ReleaseChannelLocksUpTo(channel_t *channel, const channel_t *stop) {
+    for (channel_t *ch = channel; ch && ch != stop; ch = ch->next) {
+        book_release_expire(ch->book_handle);
+    }
+}  // End of ReleaseChannelLocksUpTo
+
+static void ReleaseChannelLocks(channel_t *channel) { ReleaseChannelLocksUpTo(channel, NULL); }  // End of ReleaseChannelLocks
+
+// Claim every channel's exclusive nfexpire lock as a single all-or-nothing
+// unit - a profile's channels are expired in lockstep by ExpireDir(), so a
+// partial claim (some channels ours, some still held by another process)
+// would be worse than no claim at all. If any channel is currently held by
+// another live nfexpire process, release whatever this attempt managed to
+// claim and retry the whole set a second later, for up to
+// EXPIRE_LOCK_MAX_RETRIES seconds before giving up.
+static int AcquireChannelLocks(channel_t *channel) {
+    pid_t self = getpid();
+
+    for (int attempt = 0; attempt <= EXPIRE_LOCK_MAX_RETRIES; attempt++) {
+        channel_t *busy = NULL;
+        pid_t holder = 0;
+
+        for (channel_t *ch = channel; ch; ch = ch->next) {
+            pid_t this_holder = 0;
+            book_status_t status = book_claim_expire(ch->book_handle, self, &this_holder);
+            if (status == BOOK_OK) continue;
+            if (status == BOOK_ERR_EXISTS) {
+                busy = ch;
+                holder = this_holder;
+                break;
+            }
+            // I/O failure - not something a retry can fix
+            LogError("Failed to claim exclusive access to %s", ch->datadir);
+            ReleaseChannelLocksUpTo(channel, ch);
+            return 0;
+        }
+
+        if (!busy) return 1;  // every channel claimed
+
+        ReleaseChannelLocksUpTo(channel, busy);
+
+        if (attempt == EXPIRE_LOCK_MAX_RETRIES) {
+            LogError("Directory %s is still in use by nfexpire pid %d after %d seconds - giving up", busy->datadir, (int)holder,
+                      EXPIRE_LOCK_MAX_RETRIES);
+            return 0;
+        }
+
+        LogInfo("Directory %s is in use by nfexpire pid %d - retrying (%d/%d)", busy->datadir, (int)holder, attempt + 1,
+                EXPIRE_LOCK_MAX_RETRIES);
+        sleep(EXPIRE_LOCK_RETRY_SECONDS);
+    }
+
+    return 0;
+}  // End of AcquireChannelLocks
+
 static void PrintBookKeeper(bookkeeper_t *bookkeeper) {
     if (!bookkeeper) {
         LogError("No bookkeeper record available");
@@ -188,6 +252,7 @@ static void PrintBookKeeper(bookkeeper_t *bookkeeper) {
     }
 
     printf("Collector pid   : %lu\n", (unsigned long)bookkeeper->nfcapd_pid);
+    printf("Expire pid      : %lu\n", (unsigned long)bookkeeper->expire_pid);
     printf("Record sequence : %llu\n", (unsigned long long)bookkeeper->sequence);
 
     char string[32];
@@ -221,9 +286,11 @@ int main(int argc, char **argv) {
 
     time_t maxlife = 0;
     uint64_t maxsize = 0;
-    uint64_t low_water = 0;
+    uint32_t low_water = 0;
+    uint32_t limit_mask = 0;
     datadir = NULL;
     int dryrun = 0;
+    int exit_status = EXIT_SUCCESS;
     do_rescan = 0;
     do_expire = 0;
     do_update_param = 0;
@@ -269,19 +336,21 @@ int main(int argc, char **argv) {
                 dryrun = 1;
                 break;
             case 's':
-                if (maxsize) {
+                if (limit_mask & BOOK_LIMIT_MAXSIZE) {
                     LogError("Max size already set");
                     exit(EXIT_FAILURE);
                 }
                 if (ParseSizeDef(optarg, &maxsize) == 0) exit(250);
+                limit_mask |= BOOK_LIMIT_MAXSIZE;
                 break;
             case 't':
                 CheckArgLen(optarg, 32);
-                if (maxlife) {
+                if (limit_mask & BOOK_LIMIT_LIFETIME) {
                     LogError("Max lifetime already set");
                     exit(EXIT_FAILURE);
                 }
                 if (ParseTimeDef(optarg, &maxlife) == 0) exit(250);
+                limit_mask |= BOOK_LIMIT_LIFETIME;
                 break;
             case 'u':
                 if (TestPath(optarg, S_IFDIR) != PATH_OK) {
@@ -291,22 +360,33 @@ int main(int argc, char **argv) {
                 do_update_param = 1;
                 break;
             case 'w':
-                if (low_water) {
+                if (limit_mask & BOOK_LIMIT_WATERMARK) {
                     LogError("Low water already set");
                     exit(EXIT_FAILURE);
                 }
-                low_water = strtoll(optarg, NULL, 10);
+                errno = 0;
+                char *end = NULL;
+                unsigned long watermark = strtoul(optarg, &end, 10);
+                if (errno == ERANGE || end == optarg || *end != '\0' || watermark > UINT32_MAX) {
+                    LogError("Invalid low water mark: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
+                low_water = (uint32_t)watermark;
                 if (low_water <= 0 || low_water >= 100) {
                     LogError("Low water mark needs to be a 0 < value < 100%%");
                     exit(EXIT_FAILURE);
                 }
+                limit_mask |= BOOK_LIMIT_WATERMARK;
                 break;
             case 'T':
-                runtime = strtoll(optarg, NULL, 10);
-                if (runtime < 0 || runtime > 3600) {
-                    LogError("Runtime > 3600 (1h)");
+                errno = 0;
+                char *runtime_end = NULL;
+                unsigned long runtime_value = strtoul(optarg, &runtime_end, 10);
+                if (errno == ERANGE || runtime_end == optarg || *runtime_end != '\0' || runtime_value > 3600) {
+                    LogError("Runtime must be an integer between 0 and 3600 seconds");
                     exit(250);
                 }
+                runtime = (uint32_t)runtime_value;
                 break;
             case 'Y':
                 nfsen_format = 1;
@@ -337,8 +417,18 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    // Claim every channel before touching anything - VerifyChannels() below
+    // may rescan (it does so unconditionally whenever the book is dirty,
+    // regardless of which option was given), and a rescan racing another
+    // process' rescan or expire is exactly the corruption this guards
+    // against. AcquireChannelLocks() has already logged the reason on failure.
+    if (!AcquireChannelLocks(channel)) {
+        exit(EXIT_FAILURE);
+    }
+
     if (!VerifyChannels(channel, do_rescan)) {
         LogError("Failed to verify channels");
+        ReleaseChannelLocks(channel);
         exit(EXIT_FAILURE);
     }
 
@@ -355,14 +445,32 @@ int main(int argc, char **argv) {
 
         // ExpireDir() handles both a single channel and a profile's channel
         // list uniformly - it sums to the same thing for a single channel.
-        int ok = ExpireDir(channel, maxsize, maxlife, low_water, runtime, dryrun);
+        expire_status_t status = ExpireDir(channel, maxsize, maxlife, low_water, limit_mask, runtime, dryrun);
         for (channel_t *ch = channel; ch; ch = ch->next) {
             expired_files += ch->expired_files;
             expired_size += ch->expired_size;
         }
         expired_time = channel->expired_time;
-        // Report, what we have done
-        LogInfo("Expire %s:", ok ? "successfully terminated" : "failed");
+        // Report, what we have done - TIMEOUT/ABORTED are a deliberate,
+        // consistent partial completion, not a failure: the bookkeeping is
+        // guaranteed to reflect exactly what got deleted, so cron/monitoring
+        // should not treat this run as broken.
+        switch (status) {
+            case EXPIRE_OK:
+                LogInfo("Expire %s: successfully terminated", datadir);
+                break;
+            case EXPIRE_TIMEOUT:
+                LogError("Expire %s: aborted - -T runtime limit reached, bookkeeping left consistent", datadir);
+                break;
+            case EXPIRE_ABORTED:
+                LogError("Expire %s: aborted by signal, bookkeeping left consistent", datadir);
+                break;
+            case EXPIRE_FAILED:
+            default:
+                LogError("Expire %s: failed", datadir);
+                exit_status = EXIT_FAILURE;
+                break;
+        }
         LogInfo("Expired files:      %llu", (unsigned long long)(expired_files));
         char string[128];
         LogInfo("Expired file size:  %sB", ScaleByteValue(string, sizeof(string), expired_size, PRINT_SCALED, 0));
@@ -372,13 +480,19 @@ int main(int argc, char **argv) {
     if (do_update_param) {
         if (is_profile) {
             LogError("nfexpire cannot update profile parameters");
+            ReleaseChannelLocks(channel);
             exit(EXIT_FAILURE);
         }
         // single flow directory
-        LogInfo("Update expire settings for %d", channel->datadir);
-        book_set_limits(channel->book_handle, maxlife, maxsize, low_water);
+        LogInfo("Update expire settings for %s", channel->datadir);
+        book_set_limits(channel->book_handle, maxlife, maxsize, low_water, limit_mask);
         print_stat = 1;
     }
+
+    // Release as soon as the mutating work is done - print_stat below only
+    // reads (book_get() is itself lock-protected), so there is no reason to
+    // keep another waiting nfexpire blocked for it.
+    ReleaseChannelLocks(channel);
 
     if (print_stat) {
         bookkeeper_t bookkeeper;
@@ -417,5 +531,5 @@ int main(int argc, char **argv) {
         current_channel = current_channel->next;
     }
 
-    return 0;
+    return exit_status;
 }

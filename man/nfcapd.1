@@ -446,7 +446,16 @@ section in
 Sets auto-expire mode. At the end of every rotate interval
 .Fl t
 .Nm
-runs an expire cycle to delete files according to max lifetime and max filesize as defined by nfexpire(1)
+runs an expire cycle to delete files according to the persisted lifetime and
+size limits configured with
+.Xr nfexpire 1 .
+This option requires local file output
+.Pq Fl w , Fl n , or Fl M
+and cannot be combined with flow forwarding
+.Pq Fl H
+or the timezone filename suffix
+.Pq Fl Z .
+Offline file readers disable auto-expire.
 .It Fl x Ar key Ns = Ns Ar value
 Override a configuration key for this invocation only. May be repeated.
 Overrides have higher priority than the configuration file and program defaults.
@@ -500,7 +509,7 @@ Sets the interval for the flow metric exporter. This interval may be different f
 interval
 .Ar t 
 and is therefore independent from file rotation.
-.It Fl v
+.It Fl v Ar level
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
 printf netflow records in raw format while collecting. Please note, that not all elements
 are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.

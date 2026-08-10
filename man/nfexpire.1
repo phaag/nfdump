@@ -72,6 +72,16 @@ interacts with the collector, therefore it is safe to setup and expire files fro
 which is used by any collector to store flow files.
 .Pp
 .Nm
+also protects a directory against two of its own instances running at once: before scanning
+or modifying a directory, it records its pid as the active worker in the bookkeeping file. If
+another
+.Nm
+process is already recorded there and is still alive, the new instance retries once a second for
+up to 30 seconds, logging each retry, and exits with an error if the directory is still busy
+afterwards. A pid left behind by a process that no longer exists (for example after a crash) is
+never mistaken for a live one, so this never causes a permanent lock.
+.Pp
+.Nm
 stores its bookkeeping - accumulated file size, file count, first/last timestamps and the
 configured limits - in a
 .Ar .nfcapd.book
@@ -114,7 +124,7 @@ Expire data files according to the parameters
 .Ar maxsize
 and
 .Ar maxlife .
-The expire parameters are taken from the statfile, if they were previously set with
+The expire parameters are taken from the bookkeeping file, if they were previously set with
 .Fl u
 or they can be overwritten with the additional options
 .Fl s t
@@ -147,8 +157,9 @@ A value of 0 disables the max size limit.
 .It Fl t Ar maxlife
 This option sets the max lifetime for the data files. 
 .Ar maxlife
-accepts values such as 31d, 240H 1.5d (number + quantity factor) etc. Accepted time
-factors are w (weeks) d (days) H (hours). If no factor is given, hours (H) is assumed.
+accepts integral values such as 31d, 240H, 90M or 1w2d3H15M. Accepted time
+factors are w (weeks), d (days), H (hours), and M (minutes). If no factor is given,
+hours (H) is assumed.
 A value of 0 disables the max lifetime limit.
 .It Fl w Ar watermark
 This options sets the water mark in % of any limit. It applies to both limits
@@ -162,14 +173,20 @@ level in % of the limit. This means files are allowed to grow between
 % lower level and 100% upper level. The default for 
 .Ar watermark
 is 95%.
+Valid values are 1 through 99.
 .It Fl T Ar runtime
 This option forces
 .Nm
 to end the expire task after
 .Ar runtime
 seconds, even if the task is not yet completed.
+simply stops deleting further files at that point and exits cleanly. Whatever
+was already expired is booked normally, so the bookkeeping remains consistent
+and no rescan is required on the next run. Only if
 .Nm
-updates the statistics and exists cleanly, so it will pick up next time where it left.
+cannot determine a safe stopping point does it rescan the directory before
+exiting, the same as it would without
+.Fl T .
 By default nfexpire runs until the task is done.
 .It Fl p 
 This option puts

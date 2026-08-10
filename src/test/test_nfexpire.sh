@@ -65,6 +65,26 @@ make_files() {
     done
 }
 
+# make_many_files <dir> <count>
+# Fast bulk fixture generator for tests that need enough real work to keep
+# nfexpire measurably busy (e.g. the lock-contention tests below) - a plain
+# per-file "cp" loop with a forked "date" call per timestamp is far too slow
+# at this scale, so this does the timestamp arithmetic and the copy in a
+# single perl process instead. Requires perl; caller must skip if absent.
+make_many_files() {
+    dir="$1"
+    count="$2"
+    perl -e '
+        use File::Copy;
+        my ($base, $n, $src, $dir) = @ARGV;
+        for my $i (0 .. $n - 1) {
+            my @t = gmtime($base + $i * 60);
+            my $ts = sprintf("%04d%02d%02d%02d%02d", $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1]);
+            copy($src, "$dir/nfcapd.$ts") or die $!;
+        }
+    ' "$(date -j -f "%Y%m%d%H%M" 202601010000 +%s 2>/dev/null || date -d "2026-01-01 00:00" +%s)" "$count" dummy_flows.nf "$dir"
+}
+
 # get_stat_field <nfexpire -l output> <field prefix>
 # Field separator is exactly ": " (colon + one space) - NOT ": *", which
 # would also split on the bare colons inside "First"/"Last" time values
@@ -76,7 +96,25 @@ get_stat_field() {
 ONE_FILE_BYTES=$(file_disk_bytes dummy_flows.nf)
 
 # ---------------------------------------------------------------------------
-# 1. Rescan populates correct bookkeeping from pre-existing files
+# 1. The first access to an unbooked directory rescans automatically. This
+#    is essential for collector -e: a newly created book must not ignore
+#    files which were already present in the archive.
+# ---------------------------------------------------------------------------
+D0="$EXPBASE/0_first_access"
+mkdir -p "$D0"
+make_files "$D0" 202601010000
+
+STAT=$(nfexpire -l "$D0" 2>&1)
+NUMFILES=$(get_stat_field "$STAT" "Number of files")
+
+if [ "$NUMFILES" = "1" ]; then
+    pass "nfexpire_first_access_rescan"
+else
+    fail "nfexpire_first_access_rescan: numfiles=$NUMFILES (want 1)"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Rescan populates correct bookkeeping from pre-existing files
 # ---------------------------------------------------------------------------
 D1="$EXPBASE/1_rescan"
 mkdir -p "$D1"
@@ -98,7 +136,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. -u persists size, lifetime AND watermark - direct regression test for
+# 3. -u persists size, lifetime AND watermark - direct regression test for
 #    the watermark bug (book_set_limits() used to bump ->sequence instead of
 #    storing ->watermark, so this field silently stayed 0 forever).
 # ---------------------------------------------------------------------------
@@ -119,8 +157,20 @@ else
     fail "nfexpire_update_limits: maxsize=$MAXSIZE maxlife=$MAXLIFE watermark=$WATERMARK (want 102400/2592000/50)"
 fi
 
+# Explicit zero is distinct from an omitted setting: it clears a persisted
+# size/lifetime limit rather than falling back to the old value.
+nfexpire -u "$D2" -s 0 -t 0 >/dev/null 2>&1
+STAT=$(nfexpire -l "$D2" 2>&1)
+MAXSIZE=$(get_stat_field "$STAT" "Max file size")
+MAXLIFE=$(get_stat_field "$STAT" "Max life time")
+if [ "$MAXSIZE" = "0" ] && [ "$MAXLIFE" = "0" ]; then
+    pass "nfexpire_clear_limits"
+else
+    fail "nfexpire_clear_limits: maxsize=$MAXSIZE maxlife=$MAXLIFE (want 0/0)"
+fi
+
 # ---------------------------------------------------------------------------
-# 3. Dry-run reports without deleting anything
+# 4. Dry-run reports without deleting anything
 # ---------------------------------------------------------------------------
 D3="$EXPBASE/3_dryrun"
 mkdir -p "$D3"
@@ -139,7 +189,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Real size-triggered expiry: FIFO oldest-first, stops at the watermark
+# 5. Real size-triggered expiry: FIFO oldest-first, stops at the watermark
 #    target. 6 files, maxsize=4x, watermark=50% -> target=2x -> the 4 oldest
 #    are deleted, the 2 newest survive (hand-verified arithmetic, see the
 #    review notes: current_size must drop to <= target before a file is kept).
@@ -168,7 +218,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Real lifetime-triggered expiry: same 6 files 5 minutes apart (span
+# 6. Real lifetime-triggered expiry: same 6 files 5 minutes apart (span
 #    1500s). maxlife=10M (600s), watermark=50% -> timeLimit = last - 300s
 #    = :20 -> files strictly older than :20 are deleted, :20 and :25 survive.
 # ---------------------------------------------------------------------------
@@ -193,7 +243,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Concurrent-collector safety - direct regression test for the
+# 7. Concurrent-collector safety - direct regression test for the
 #    BOOK_NOT_EXISTS crash: nfexpire used to segfault (and silently clobber
 #    the registered collector pid) whenever it touched a directory a live
 #    nfcapd owned. Requires nfreplay/live listener support like test_collect.sh.
@@ -212,14 +262,19 @@ else
         skip "nfexpire_live_collector: nfcapd did not start"
     else
         COLLECTOR_PID=$(cat "$D6/pidfile")
-        BEFORE=$(nfexpire -l "$D6" 2>&1 | head -1)
+        # Compare the "Collector pid" field specifically, not raw first-line
+        # output: the very first -l against a fresh directory legitimately
+        # prints a "Re-scanning files in .." line before the stat block, so
+        # the first line differs from later, already-scanned runs even when
+        # nothing is actually wrong.
+        BEFORE=$(get_stat_field "$(nfexpire -l "$D6" 2>&1)" "Collector pid")
 
         nfexpire -l "$D6" >"$WORKDIR/6_live_l.log" 2>&1
         RC_L=$?
         nfexpire -e "$D6" -s 1 -w 50 -n >"$WORKDIR/6_live_e.log" 2>&1
         RC_E=$?
 
-        AFTER=$(nfexpire -l "$D6" 2>&1 | head -1)
+        AFTER=$(get_stat_field "$(nfexpire -l "$D6" 2>&1)" "Collector pid")
         STILL_ALIVE=0
         kill -0 "$COLLECTOR_PID" 2>/dev/null && STILL_ALIVE=1
 
@@ -231,16 +286,16 @@ else
         done
 
         if [ "$RC_L" -eq 0 ] && [ "$RC_E" -eq 0 ] && [ "$STILL_ALIVE" = "1" ] \
-           && [ "$BEFORE" = "$AFTER" ] && printf '%s' "$BEFORE" | grep -q "$COLLECTOR_PID"; then
+           && [ "$BEFORE" = "$COLLECTOR_PID" ] && [ "$AFTER" = "$COLLECTOR_PID" ]; then
             pass "nfexpire_live_collector"
         else
-            fail "nfexpire_live_collector: rc_l=$RC_L rc_e=$RC_E alive=$STILL_ALIVE before='$BEFORE' after='$AFTER'"
+            fail "nfexpire_live_collector: rc_l=$RC_L rc_e=$RC_E alive=$STILL_ALIVE before='$BEFORE' after='$AFTER' want='$COLLECTOR_PID'"
         fi
     fi
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Profile mode (-p): lockstep expiry across multiple channel directories.
+# 8. Profile mode (-p): lockstep expiry across multiple channel directories.
 #    This is the code path (ExpireProfile) that had a real use-after-free
 #    crash (WriteStatInfo() was called after book_close() freed the handle
 #    it reads) - exercise it for basic correctness/crash safety.
@@ -270,8 +325,112 @@ else
     fail "nfexpire_profile_lockstep: rc=$RC_P chanA=$A_REMAIN chanB=$B_REMAIN (want equal counts, some expired)"
 fi
 
+# A profile channel may legitimately miss a timeslot. Expiry must traverse
+# the union, rather than use one channel as a reference and falsely report
+# success while another channel still exceeds the aggregate limit.
+D7A="$EXPBASE/7_profile_asymmetric"
+mkdir -p "$D7A/chanA" "$D7A/chanB"
+make_files "$D7A/chanA" 202601010000
+make_files "$D7A/chanB" 202601010000 202601010005 202601010010
+nfexpire -p -r "$D7A" >/dev/null 2>&1
+nfexpire -p -e "$D7A" -s "$((ONE_FILE_BYTES * 2))" -w 50 >/dev/null 2>&1
+ASYM_LEFT=$(find "$D7A" -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+if [ "$ASYM_LEFT" = "1" ]; then
+    pass "nfexpire_profile_union"
+else
+    fail "nfexpire_profile_union: files-left=$ASYM_LEFT (want 1)"
+fi
+
+# A symlink in an archive path must never redirect profile expiry outside its
+# configured root. The whole timeslot is rejected before any channel is
+# modified, preserving profile lockstep as well as the external file.
+D7S="$EXPBASE/7_profile_symlink"
+mkdir -p "$D7S/profile/chanA/2026" "$D7S/profile/chanB" "$D7S/outside"
+cp dummy_flows.nf "$D7S/profile/chanA/2026/nfcapd.202601010000"
+cp dummy_flows.nf "$D7S/outside/nfcapd.202601010000"
+ln -s "$D7S/outside" "$D7S/profile/chanB/2026"
+nfexpire -p -r "$D7S/profile" >/dev/null 2>&1
+if nfexpire -p -e "$D7S/profile" -s 1 -w 50 >/dev/null 2>&1; then
+    fail "nfexpire_profile_symlink: unsafe profile expiry unexpectedly succeeded"
+elif [ -f "$D7S/outside/nfcapd.202601010000" ] && [ -f "$D7S/profile/chanA/2026/nfcapd.202601010000" ]; then
+    pass "nfexpire_profile_symlink"
+else
+    fail "nfexpire_profile_symlink: a protected file was removed"
+fi
+
 # ---------------------------------------------------------------------------
-# 8. Basic CLI sanity
+# 9. Concurrency lock - two nfexpire processes must never scan/modify the
+#    same directory at once, but a lock left behind by a process that no
+#    longer exists must never block anyone permanently.
+# ---------------------------------------------------------------------------
+if command -v perl >/dev/null 2>&1; then
+    D9="$EXPBASE/9_lock"
+    mkdir -p "$D9"
+    make_many_files "$D9" 3000
+    nfexpire -r "$D9" >/dev/null 2>&1  # prime, so both runs below do real work only via -e
+
+    # 9a. A live holder must block a second instance, which retries and then
+    #     succeeds once the holder actually finishes. Both are launched via
+    #     $NFEXPIRE_BIN directly, not the nfexpire() wrapper function: the
+    #     wrapper backgrounds a shell function, so $! is that subshell's pid,
+    #     not necessarily the actual binary's own getpid() recorded in the
+    #     lock - signalling $! would then miss the real process entirely.
+    "$NFEXPIRE_BIN" -e "$D9" -s "$((ONE_FILE_BYTES * 500))" -w 50 >"$WORKDIR/9a_holder.log" 2>&1 &
+    HOLDER_PID=$!
+    sleep 0.1
+    if kill -STOP "$HOLDER_PID" 2>/dev/null; then
+        "$NFEXPIRE_BIN" -e "$D9" -s "$((ONE_FILE_BYTES * 500))" -w 50 >"$WORKDIR/9a_waiter.log" 2>&1 &
+        WAITER_PID=$!
+        sleep 2
+        kill -CONT "$HOLDER_PID" 2>/dev/null
+
+        wait "$HOLDER_PID"
+        wait "$WAITER_PID"
+        RC_WAITER=$?
+
+        RETRIES=$(grep -c "is in use by nfexpire pid $HOLDER_PID" "$WORKDIR/9a_waiter.log")
+        if [ "$RC_WAITER" -eq 0 ] && [ "$RETRIES" -ge 1 ]; then
+            pass "nfexpire_lock_retry_and_succeed"
+        else
+            fail "nfexpire_lock_retry_and_succeed: rc=$RC_WAITER retries=$RETRIES holder=$HOLDER_PID"
+        fi
+    else
+        skip "nfexpire_lock_retry_and_succeed: could not signal holder process"
+    fi
+
+    # 9b. A pid recorded by a process that has since died (kill -9, before it
+    #     could release) must never be mistaken for a live one - the very
+    #     next run must proceed immediately, not stall through the retry
+    #     loop. (Deliberately not inspected via "nfexpire -l" first: -l goes
+    #     through the very same claim/release cycle, so it would silently
+    #     self-heal the stale pid as a side effect before we could observe it.)
+    D9B="$EXPBASE/9b_lock_stale"
+    mkdir -p "$D9B"
+    make_files "$D9B" 202601010000
+    nfexpire -r "$D9B" >/dev/null 2>&1
+
+    "$NFEXPIRE_BIN" -e "$D9B" -s 999999999 -w 50 >/dev/null 2>&1 &
+    DOOMED_PID=$!
+    sleep 0.05
+    kill -KILL "$DOOMED_PID" 2>/dev/null
+    wait "$DOOMED_PID" 2>/dev/null
+
+    START=$(date +%s)
+    nfexpire -e "$D9B" -s 999999999 -w 50 >/dev/null 2>&1
+    RC_HEAL=$?
+    ELAPSED=$(($(date +%s) - START))
+    if [ "$RC_HEAL" -eq 0 ] && [ "$ELAPSED" -lt 5 ]; then
+        pass "nfexpire_lock_stale_pid_self_heals"
+    else
+        fail "nfexpire_lock_stale_pid_self_heals: rc=$RC_HEAL elapsed=${ELAPSED}s"
+    fi
+else
+    skip "nfexpire_lock_retry_and_succeed: perl not available"
+    skip "nfexpire_lock_stale_pid_self_heals: perl not available"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. Basic CLI sanity
 # ---------------------------------------------------------------------------
 if nfexpire -h >"$WORKDIR/8_help.log" 2>&1; then
     if grep -q '\-e datadir' "$WORKDIR/8_help.log" && grep -q '\-w watermark' "$WORKDIR/8_help.log"; then

@@ -889,6 +889,10 @@ int main(int argc, char **argv) {
     }
 
     if (sendHost) {
+        if (expire) {
+            LogError("-e requires local file output and cannot be combined with -H");
+            exit(EXIT_FAILURE);
+        }
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {
             LogError("-H cannot be combined with -w, -n, or -M");
             exit(EXIT_FAILURE);
@@ -997,6 +1001,11 @@ int main(int argc, char **argv) {
     launcher_ctx_t *launcher_ctx = NULL;
     if (launch_process || expire) {
         launcher_ctx = LauncherInit(launch_process, expire);
+        if (!launcher_ctx) {
+            LogError("Failed to initialize launcher");
+            close_sockets(socks, nsocks);
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||
