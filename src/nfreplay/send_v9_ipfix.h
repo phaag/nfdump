@@ -98,8 +98,46 @@
 
 #define NF9_FORWARDING_STATUS 89
 
+#define NF9_MIN_TTL 52
+#define NF9_MAX_TTL 53
+#define NF9_FRAGMENT_FLAGS 197
+
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
+
+/* Cisco ASA NSEL / NAT event logging fields - RFC 6759 "Export of Logging
+ * Information using IPFIX" registers these as standard IPFIX/NetFlow v9
+ * Information Elements; they are not Cisco enterprise-specific numbers
+ * (unlike e.g. the 33000+/40000+ ACL and username fields, deliberately not
+ * added here since only a Cisco-aware collector understands those). */
+#define NF_F_CONN_ID 148 /* connectionId - decoded as flowId(148) under IPFIX instead, see IPFIX_FLOW_ID below */
+#define NF_N_NAT_EVENT 230
+#define NF_F_FW_EVENT 233
+#define NF_N_INGRESS_VRFID 234
+#define NF_N_EGRESS_VRFID 235
+#define NF_F_EVENT_TIME_MSEC 323
+
+#define NF_F_XLATE_SRC_ADDR_IPV4 225
+#define NF_F_XLATE_DST_ADDR_IPV4 226
+#define NF_F_XLATE_SRC_PORT 227
+#define NF_F_XLATE_DST_PORT 228
+#define NF_F_XLATE_SRC_ADDR_IPV6 281
+#define NF_F_XLATE_DST_ADDR_IPV6 282
+#define NF_N_NATPOOL_ID 283
+
+#define NF_F_XLATE_PORT_BLOCK_START 361
+#define NF_F_XLATE_PORT_BLOCK_END 362
+#define NF_F_XLATE_PORT_BLOCK_STEP 363
+#define NF_F_XLATE_PORT_BLOCK_SIZE 364
+
+/* IPFIX-only: this codebase's own IPFIX decoder maps wire IE 148 to flowId
+ * (RFC 7011 base registry), while its NetFlow v9 decoder maps the same
+ * number 148 to connectionId (NF_F_CONN_ID above, RFC 6759) - the two
+ * meanings collide on the wire and only the enclosing protocol disambiguates
+ * them, so each is only ever encoded under its own protocol. */
+#define IPFIX_FLOW_ID 148
+#define IPFIX_OBSERVATION_POINT_ID 138
+#define IPFIX_OBSERVATION_DOMAIN_ID 149
 
 #define NF_F_dot1qVlanId 243
 #define NF_F_postDot1qVlanId 254

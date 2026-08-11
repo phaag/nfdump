@@ -53,7 +53,6 @@
 #include <stdio_ext.h>
 #endif
 
-#include "nfthread.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "id.h"
@@ -62,6 +61,7 @@
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "send_net.h"
 #include "send_v5.h"
@@ -122,7 +122,6 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-E\t\tPrint verbose messages. For debugging purpose only.\n"
         "-H <Host/ip>\tTarget IP address default: 127.0.0.1\n"
-        "-i <Host/ip>\tLegacy alias for -H.\n"
         "-j <mcast>\tSend packets to multicast group\n"
         "-4\t\tForce IPv4 protocol.\n"
         "-6\t\tForce IPv6 protocol.\n"
@@ -144,8 +143,7 @@ static void usage(char *name) {
         "\t\t\t\tPassphrase from argument, @keyfile, or interactive prompt.\n"
         "\t\t\t\tUse together with -v 250.\n");
 #endif
-    printf("-Y\t\tConfirm each UDP packet before sending.\n"
-           "-t <arg>\tRemoved. Use 'first seen'/'last seen' filter expressions instead.\n");
+    printf("-Y\t\tConfirm each UDP packet before sending.\n");
 } /* usage */
 
 static void Flush_nfd_header(send_peer_t *peer) {
@@ -534,7 +532,7 @@ int main(int argc, char **argv) {
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
 
     int c = 0;
-    while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VYk::")) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:v:z:VYk::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -551,9 +549,11 @@ int main(int argc, char **argv) {
                 confirm = 1;
                 break;
             case 'H':
-            case 'i':  // compatibility with old version
+                if (peer.mcast) {
+                    LogError("ERROR, -H(-i) and -j are mutually exclusive!!\n");
+                    exit(EXIT_FAILURE);
+                }
                 peer.hostname = strdup(optarg);
-                peer.mcast = 0;
                 break;
             case 'j':
                 if (peer.hostname == NULL) {
@@ -609,10 +609,6 @@ int main(int argc, char **argv) {
             case 'f':
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 ffile = optarg;
-                break;
-            case 't':
-                LogInfo("Option -t is no longer supported. Use 'first seen' and 'last seen' filter expressions.");
-                exit(EXIT_FAILURE);
                 break;
             case 'r':
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
@@ -708,7 +704,8 @@ int main(int argc, char **argv) {
         .fixedThreads = 1,    // main replay loop thread
     };
     threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
-    if (!Init_nffile(threadConfig, fileList)) exit(254);
+
+    if (!Init_nffile(threadConfig, fileList)) exit(EXIT_FAILURE);
 
     send_data(engine, count, delay, confirm, netflow_version, distribution);
 

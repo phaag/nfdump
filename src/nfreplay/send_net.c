@@ -195,7 +195,7 @@ int Multicast_send_socket(const char *shostname, const char *dhostname, const ch
         return -1;
     }
 
-    if (isMulticast((struct sockaddr_storage *)res->ai_addr) < 0) {
+    if (isMulticast((struct sockaddr_storage *)res->ai_addr) <= 0) {
         fprintf(stderr, "Not a multicast address [%s]\n", dhostname);
         LogError("Not a multicast address [%s]", dhostname);
         freeaddrinfo(ressave);
@@ -204,6 +204,11 @@ int Multicast_send_socket(const char *shostname, const char *dhostname, const ch
 
     close(sockfd);
     sockfd = socket(res->ai_family, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        LogError("socket() error: %s", strerror(errno));
+        freeaddrinfo(ressave);
+        return -1;
+    }
 
     if (shostname != NULL) {
         if (setSourceAddress(sockfd, shostname, family, SOCK_DGRAM) == -1) {

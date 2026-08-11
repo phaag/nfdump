@@ -124,6 +124,20 @@ static outTemplate_t *outTemplates = NULL;
 static sender_data_t *sender_data = NULL;
 static int use_ipfix = 0;  /* 0 = NetFlow v9, 1 = IPFIX v10 */
 
+// Fires once per run, the first time a record carries an extension this
+// output path has no field mapping for (e.g. DNS/SSL/JA3/JA4/payload/NBAR) -
+// that extension is silently left out of the NetFlow v9/IPFIX template and
+// every record using it, unlike -v 250 (nfdump native), which forwards the
+// raw record - and therefore every extension - verbatim.
+static int dropNoticeShown = 0;
+static void NoticeExtensionDropped(void) {
+    if (dropNoticeShown) return;
+    dropNoticeShown = 1;
+    LogInfo(
+        "nfreplay: one or more record extensions have no NetFlow v9/IPFIX field mapping and are dropped from the output "
+        "(this is logged once per run). Use -v 250 (nfdump native protocol) to forward every record verbatim instead.");
+}  // End of NoticeExtensionDropped
+
 // Get_valxx, a  macros
 #include "inline.c"
 
@@ -142,6 +156,723 @@ static void CloseDataFlowset(send_peer_t *peer);
 static void FinalizePacket(send_peer_t *peer);
 
 static int CheckSendBufferSpace(size_t size, send_peer_t *peer);
+
+/*
+ * Table-driven extension -> NetFlow v9/IPFIX field mapping.
+ *
+ * One BuildTemplate_* function (emits (type,length) pairs into the template)
+ * and one WriteRecord_* function (emits the actual field values into the
+ * data flowset) per supported extension, both reached only via extMap[]
+ * below, indexed directly by extension ID. This is the single authoritative
+ * list of what this output path understands - GetOutputTemplate() and
+ * Append_Record() no longer each carry their own independent switch that
+ * has to be kept in sync by hand; a template and its data can no longer
+ * silently drift apart.
+ *
+ * v9Length/ipfixLength are 0 when an extension has no field mapping for that
+ * particular protocol (see the per-extension comments below for why - some
+ * fields are protocol-exclusive, e.g. IPFIX's flowId(148) collides on the
+ * wire with NetFlow v9's connectionId(148)); FindExtMap() below treats
+ * either "no builder at all" and "zero length for this protocol" the same
+ * way: report the one-time drop notice and skip the extension.
+ */
+typedef int (*buildTemplateFn_t)(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle);
+typedef void (*writeRecordFn_t)(const void *elementPtr, send_peer_t *peer);
+
+typedef struct extMapEntry_s {
+    buildTemplateFn_t buildTemplate;
+    writeRecordFn_t writeRecord;
+    uint16_t v9Length;     // wire bytes this extension adds under NetFlow v9, 0 if not available
+    uint16_t ipfixLength;  // wire bytes this extension adds under IPFIX, 0 if not available
+} extMapEntry_t;
+
+// ---------------------------------------------------------------------
+// Original extension set - present since NetFlow v9/IPFIX output existed.
+// Identical field mapping and byte width for both protocols.
+// ---------------------------------------------------------------------
+
+static int BuildTemplate_GenericFlow(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_FLOW_CREATE_TIME_MSEC);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(NF_F_FLOW_END_TIME_MSEC);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(NF9_IN_PACKETS);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(NF9_IN_BYTES);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(NF9_L4_SRC_PORT);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF9_L4_DST_PORT);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF9_ICMP);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF9_IN_PROTOCOL);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_TCP_FLAGS);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_FORWARDING_STATUS);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_SRC_TOS);
+    flowset->field[count].length = htons(1);
+    count++;
+    return count;
+}  // End of BuildTemplate_GenericFlow
+
+static void WriteRecord_GenericFlow(const void *elementPtr, send_peer_t *peer) {
+    const EXgenericFlow_t *genericFlow = (const EXgenericFlow_t *)elementPtr;
+    Put_val64(htonll(genericFlow->msecFirst), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(genericFlow->msecLast), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(genericFlow->inPackets), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(genericFlow->inBytes), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val16(htons(genericFlow->srcPort), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {
+        Put_val16(0, peer->buff_ptr);
+        peer->buff_ptr += 2;
+        Put_val16(htons(genericFlow->dstPort), peer->buff_ptr);
+        peer->buff_ptr += 2;
+    } else {
+        Put_val16(htons(genericFlow->dstPort), peer->buff_ptr);
+        peer->buff_ptr += 2;
+        Put_val16(0, peer->buff_ptr);
+        peer->buff_ptr += 2;
+    }
+    Put_val8(genericFlow->proto, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(genericFlow->tcpFlags, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(genericFlow->fwdStatus, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(genericFlow->srcTos, peer->buff_ptr);
+    peer->buff_ptr += 1;
+}  // End of WriteRecord_GenericFlow
+
+static int BuildTemplate_Ipv4Flow(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_IPV4_SRC_ADDR);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF9_IPV4_DST_ADDR);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_Ipv4Flow
+
+static void WriteRecord_Ipv4Flow(const void *elementPtr, send_peer_t *peer) {
+    const EXipv4Flow_t *ipv4Flow = (const EXipv4Flow_t *)elementPtr;
+    Put_val32(htonl(ipv4Flow->srcAddr), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(ipv4Flow->dstAddr), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_Ipv4Flow
+
+static int BuildTemplate_Ipv6Flow(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_IPV6_SRC_ADDR);
+    flowset->field[count].length = htons(16);
+    count++;
+    flowset->field[count].type = htons(NF9_IPV6_DST_ADDR);
+    flowset->field[count].length = htons(16);
+    count++;
+    return count;
+}  // End of BuildTemplate_Ipv6Flow
+
+static void WriteRecord_Ipv6Flow(const void *elementPtr, send_peer_t *peer) {
+    const EXipv6Flow_t *ipv6Flow = (const EXipv6Flow_t *)elementPtr;
+    Put_val64(htonll(ipv6Flow->srcAddr[0]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(ipv6Flow->srcAddr[1]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(ipv6Flow->dstAddr[0]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(ipv6Flow->dstAddr[1]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+}  // End of WriteRecord_Ipv6Flow
+
+static int BuildTemplate_Interface(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_INPUT_SNMP);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF9_OUTPUT_SNMP);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_Interface
+
+static void WriteRecord_Interface(const void *elementPtr, send_peer_t *peer) {
+    const EXinterface_t *interface = (const EXinterface_t *)elementPtr;
+    Put_val32(htonl(interface->input), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(interface->output), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_Interface
+
+// The src/dst mask field type depends on whether this record is IPv4 or
+// IPv6 - looked up directly from the record rather than relying on
+// EXipv4Flow/EXipv6Flow having already run earlier in the same iteration
+// (true today since their extension IDs are numerically smaller, but that
+// is no longer something this function needs to assume).
+static int BuildTemplate_FlowMisc(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    uint16_t srcMaskType = NF9_SRC_MASK;
+    uint16_t dstMaskType = NF9_DST_MASK;
+    if (recordHandle->extensionList[EXipv6FlowID]) {
+        srcMaskType = NF9_IPV6_SRC_MASK;
+        dstMaskType = NF9_IPV6_DST_MASK;
+    }
+    flowset->field[count].type = htons(srcMaskType);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(dstMaskType);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_DIRECTION);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_DST_TOS);
+    flowset->field[count].length = htons(1);
+    count++;
+    return count;
+}  // End of BuildTemplate_FlowMisc
+
+static void WriteRecord_FlowMisc(const void *elementPtr, send_peer_t *peer) {
+    const EXflowMisc_t *flowMisc = (const EXflowMisc_t *)elementPtr;
+    Put_val8(flowMisc->srcMask, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(flowMisc->dstMask, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(flowMisc->direction, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(flowMisc->dstTos, peer->buff_ptr);
+    peer->buff_ptr += 1;
+}  // End of WriteRecord_FlowMisc
+
+static int BuildTemplate_CntFlow(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_FLOWS_AGGR);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(NF9_OUT_PKTS);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(NF9_OUT_BYTES);
+    flowset->field[count].length = htons(8);
+    count++;
+    return count;
+}  // End of BuildTemplate_CntFlow
+
+static void WriteRecord_CntFlow(const void *elementPtr, send_peer_t *peer) {
+    const EXcntFlow_t *cntFlow = (const EXcntFlow_t *)elementPtr;
+    Put_val64(htonll(cntFlow->flows), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(cntFlow->outPackets), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(cntFlow->outBytes), peer->buff_ptr);
+    peer->buff_ptr += 8;
+}  // End of WriteRecord_CntFlow
+
+static int BuildTemplate_VLan(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_SRC_VLAN);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF9_DST_VLAN);
+    flowset->field[count].length = htons(2);
+    count++;
+    return count;
+}  // End of BuildTemplate_VLan
+
+static void WriteRecord_VLan(const void *elementPtr, send_peer_t *peer) {
+    const EXvLan_t *vLan = (const EXvLan_t *)elementPtr;
+    Put_val16(htons(vLan->srcVlan), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(vLan->dstVlan), peer->buff_ptr);
+    peer->buff_ptr += 2;
+}  // End of WriteRecord_VLan
+
+static int BuildTemplate_AsInfo(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_SRC_AS);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF9_DST_AS);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_AsInfo
+
+static void WriteRecord_AsInfo(const void *elementPtr, send_peer_t *peer) {
+    const EXasInfo_t *asInfo = (const EXasInfo_t *)elementPtr;
+    Put_val32(htonl(asInfo->srcAS), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(asInfo->dstAS), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_AsInfo
+
+static int BuildTemplate_AsRoutingV4(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_V4_NEXT_HOP);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF9_BGP_V4_NEXT_HOP);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_AsRoutingV4
+
+static void WriteRecord_AsRoutingV4(const void *elementPtr, send_peer_t *peer) {
+    const EXasRoutingV4_t *asRouting = (const EXasRoutingV4_t *)elementPtr;
+    Put_val32(htonl(asRouting->nextHop), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(asRouting->bgpNextHop), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_AsRoutingV4
+
+static int BuildTemplate_AsRoutingV6(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_V6_NEXT_HOP);
+    flowset->field[count].length = htons(16);
+    count++;
+    flowset->field[count].type = htons(NF9_BPG_V6_NEXT_HOP);
+    flowset->field[count].length = htons(16);
+    count++;
+    return count;
+}  // End of BuildTemplate_AsRoutingV6
+
+static void WriteRecord_AsRoutingV6(const void *elementPtr, send_peer_t *peer) {
+    const EXasRoutingV6_t *asRouting = (const EXasRoutingV6_t *)elementPtr;
+    Put_val64(htonll(asRouting->nextHop[0]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(asRouting->nextHop[1]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(asRouting->bgpNextHop[0]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(asRouting->bgpNextHop[1]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+}  // End of WriteRecord_AsRoutingV6
+
+static int BuildTemplate_Mpls(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    static const uint16_t mplsLabelType[10] = {NF9_MPLS_LABEL_1, NF9_MPLS_LABEL_2, NF9_MPLS_LABEL_3, NF9_MPLS_LABEL_4, NF9_MPLS_LABEL_5,
+                                               NF9_MPLS_LABEL_6, NF9_MPLS_LABEL_7, NF9_MPLS_LABEL_8, NF9_MPLS_LABEL_9, NF9_MPLS_LABEL_10};
+    for (int i = 0; i < 10; i++) {
+        flowset->field[count].type = htons(mplsLabelType[i]);
+        flowset->field[count].length = htons(3);
+        count++;
+    }
+    return count;
+}  // End of BuildTemplate_Mpls
+
+static void WriteRecord_Mpls(const void *elementPtr, send_peer_t *peer) {
+    const EXmpls_t *mpls = (const EXmpls_t *)elementPtr;
+    for (int i = 0; i < 10; i++) {
+        uint32_t val32 = htonl(mpls->label[i]);
+        Put_val24(val32, peer->buff_ptr);
+        peer->buff_ptr += 3;
+    }
+}  // End of WriteRecord_Mpls
+
+static int BuildTemplate_InMacAddr(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_IN_SRC_MAC);
+    flowset->field[count].length = htons(6);
+    count++;
+    flowset->field[count].type = htons(NF9_OUT_DST_MAC);
+    flowset->field[count].length = htons(6);
+    count++;
+    return count;
+}  // End of BuildTemplate_InMacAddr
+
+static void WriteRecord_InMacAddr(const void *elementPtr, send_peer_t *peer) {
+    const EXinMacAddr_t *macAddr = (const EXinMacAddr_t *)elementPtr;
+    uint64_t val64 = htonll(macAddr->inSrcMac);
+    Put_val48(val64, peer->buff_ptr);
+    peer->buff_ptr += 6;
+    val64 = htonll(macAddr->outDstMac);
+    Put_val48(val64, peer->buff_ptr);
+    peer->buff_ptr += 6;
+}  // End of WriteRecord_InMacAddr
+
+static int BuildTemplate_OutMacAddr(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_IN_DST_MAC);
+    flowset->field[count].length = htons(6);
+    count++;
+    flowset->field[count].type = htons(NF9_OUT_SRC_MAC);
+    flowset->field[count].length = htons(6);
+    count++;
+    return count;
+}  // End of BuildTemplate_OutMacAddr
+
+static void WriteRecord_OutMacAddr(const void *elementPtr, send_peer_t *peer) {
+    const EXoutMacAddr_t *macAddr = (const EXoutMacAddr_t *)elementPtr;
+    uint64_t val64 = htonll(macAddr->inDstMac);
+    Put_val48(val64, peer->buff_ptr);
+    peer->buff_ptr += 6;
+    val64 = htonll(macAddr->outSrcMac);
+    Put_val48(val64, peer->buff_ptr);
+    peer->buff_ptr += 6;
+}  // End of WriteRecord_OutMacAddr
+
+static int BuildTemplate_AsAdjacent(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_BGP_ADJ_NEXT_AS);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF_F_BGP_ADJ_PREV_AS);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_AsAdjacent
+
+static void WriteRecord_AsAdjacent(const void *elementPtr, send_peer_t *peer) {
+    const EXasAdjacent_t *asAdjacent = (const EXasAdjacent_t *)elementPtr;
+    Put_val32(htonl(asAdjacent->nextAdjacentAS), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(asAdjacent->prevAdjacentAS), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_AsAdjacent
+
+static int BuildTemplate_Layer2(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_dot1qVlanId);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_postDot1qVlanId);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_dot1qCustomerVlanId);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_postDot1qCustomerVlanId);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_9_IP_PROTOCOL_VERSION);
+    flowset->field[count].length = htons(1);
+    count++;
+    return count;
+}  // End of BuildTemplate_Layer2
+
+static void WriteRecord_Layer2(const void *elementPtr, send_peer_t *peer) {
+    const EXlayer2_t *layer2 = (const EXlayer2_t *)elementPtr;
+    Put_val16(htons(layer2->vlanID), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(layer2->postVlanID), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(layer2->customerVlanId), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(layer2->postCustomerVlanId), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val8(layer2->ipVersion, peer->buff_ptr);
+    peer->buff_ptr += 1;
+}  // End of WriteRecord_Layer2
+
+// ---------------------------------------------------------------------
+// Extensions added after auditing this codebase's own NetFlow v9/IPFIX
+// *decoder* (src/netflow/netflow_v9.c, ipfix.c) for which wire element
+// numbers it already treats as authoritative for each field - the same
+// numbers a real collector receiving from a real exporter would send, not
+// numbers picked from a spec reading alone. Extensions whose decoder-side
+// mapping turned out to be a receiver-local synthesized value (LOCAL_*: no
+// real wire field exists to encode, e.g. "which IP sent us this packet" or
+// nfpcapd's own DPI payload capture) or that have no decoder mapping at all
+// anywhere in this codebase (EXlatency, EXpfinfo, EXtunnelV4/V6 - nfpcapd or
+// BSD pf specific, no known standard IE) are deliberately not in this table;
+// they fall through to the generic drop notice like any other unmapped
+// extension. Cisco ASA ACL/username fields and Nokia NAT fields are also
+// deliberately excluded: real, documented numbers, but enterprise-specific -
+// only a Cisco- or Nokia-aware collector understands them, not "any"
+// v9/IPFIX collector. Variable-length fields (EXnbarAppID, the
+// EXpacketMeta/EXpacketFrame pair) are excluded too: this table only
+// supports fixed-length fields today.
+// ---------------------------------------------------------------------
+
+// minimumTTL(52)/maximumTTL(53)/fragmentFlags(197) - RFC 5102 base IPFIX
+// information model; numerically identical under NetFlow v9.
+static int BuildTemplate_IpInfo(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF9_MIN_TTL);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_MAX_TTL);
+    flowset->field[count].length = htons(1);
+    count++;
+    flowset->field[count].type = htons(NF9_FRAGMENT_FLAGS);
+    flowset->field[count].length = htons(1);
+    count++;
+    return count;
+}  // End of BuildTemplate_IpInfo
+
+static void WriteRecord_IpInfo(const void *elementPtr, send_peer_t *peer) {
+    const EXipInfo_t *ipInfo = (const EXipInfo_t *)elementPtr;
+    Put_val8(ipInfo->minTTL, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(ipInfo->maxTTL, peer->buff_ptr);
+    peer->buff_ptr += 1;
+    Put_val8(ipInfo->fragmentFlags, peer->buff_ptr);
+    peer->buff_ptr += 1;
+}  // End of WriteRecord_IpInfo
+
+// ingressVRFID(234)/egressVRFID(235) - RFC 6759 "Export of Logging
+// Information using IPFIX"; identical under NetFlow v9.
+static int BuildTemplate_Vrf(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_N_INGRESS_VRFID);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF_N_EGRESS_VRFID);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_Vrf
+
+static void WriteRecord_Vrf(const void *elementPtr, send_peer_t *peer) {
+    const EXvrf_t *vrf = (const EXvrf_t *)elementPtr;
+    Put_val32(htonl(vrf->ingressVrf), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(vrf->egressVrf), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_Vrf
+
+// postNATSourceIPv4Address(225)/postNATDestinationIPv4Address(226) - RFC 6759.
+static int BuildTemplate_NatXlateV4(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_XLATE_SRC_ADDR_IPV4);
+    flowset->field[count].length = htons(4);
+    count++;
+    flowset->field[count].type = htons(NF_F_XLATE_DST_ADDR_IPV4);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_NatXlateV4
+
+static void WriteRecord_NatXlateV4(const void *elementPtr, send_peer_t *peer) {
+    const EXnatXlateV4_t *nat = (const EXnatXlateV4_t *)elementPtr;
+    Put_val32(htonl(nat->xlateSrcAddr), peer->buff_ptr);
+    peer->buff_ptr += 4;
+    Put_val32(htonl(nat->xlateDstAddr), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_NatXlateV4
+
+// postNATSourceIPv6Address(281)/postNATDestinationIPv6Address(282) - RFC 6759.
+static int BuildTemplate_NatXlateV6(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_XLATE_SRC_ADDR_IPV6);
+    flowset->field[count].length = htons(16);
+    count++;
+    flowset->field[count].type = htons(NF_F_XLATE_DST_ADDR_IPV6);
+    flowset->field[count].length = htons(16);
+    count++;
+    return count;
+}  // End of BuildTemplate_NatXlateV6
+
+static void WriteRecord_NatXlateV6(const void *elementPtr, send_peer_t *peer) {
+    const EXnatXlateV6_t *nat = (const EXnatXlateV6_t *)elementPtr;
+    Put_val64(htonll(nat->xlateSrcAddr[0]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(nat->xlateSrcAddr[1]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(nat->xlateDstAddr[0]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(nat->xlateDstAddr[1]), peer->buff_ptr);
+    peer->buff_ptr += 8;
+}  // End of WriteRecord_NatXlateV6
+
+// postNAPTSourceTransportPort(227)/postNAPTDestinationTransportPort(228) - RFC 6759.
+static int BuildTemplate_NatXlatePort(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_XLATE_SRC_PORT);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_XLATE_DST_PORT);
+    flowset->field[count].length = htons(2);
+    count++;
+    return count;
+}  // End of BuildTemplate_NatXlatePort
+
+static void WriteRecord_NatXlatePort(const void *elementPtr, send_peer_t *peer) {
+    const EXnatXlatePort_t *nat = (const EXnatXlatePort_t *)elementPtr;
+    Put_val16(htons(nat->xlateSrcPort), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(nat->xlateDstPort), peer->buff_ptr);
+    peer->buff_ptr += 2;
+}  // End of WriteRecord_NatXlatePort
+
+// natPortBlockStart/End/Step/Size(361-364) - decoded identically under both
+// NetFlow v9 and IPFIX by this codebase's own decoder.
+static int BuildTemplate_NatPortBlock(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(NF_F_XLATE_PORT_BLOCK_START);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_XLATE_PORT_BLOCK_END);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_XLATE_PORT_BLOCK_STEP);
+    flowset->field[count].length = htons(2);
+    count++;
+    flowset->field[count].type = htons(NF_F_XLATE_PORT_BLOCK_SIZE);
+    flowset->field[count].length = htons(2);
+    count++;
+    return count;
+}  // End of BuildTemplate_NatPortBlock
+
+static void WriteRecord_NatPortBlock(const void *elementPtr, send_peer_t *peer) {
+    const EXnatPortBlock_t *block = (const EXnatPortBlock_t *)elementPtr;
+    Put_val16(htons(block->blockStart), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(block->blockEnd), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(block->blockStep), peer->buff_ptr);
+    peer->buff_ptr += 2;
+    Put_val16(htons(block->blockSize), peer->buff_ptr);
+    peer->buff_ptr += 2;
+}  // End of WriteRecord_NatPortBlock
+
+// NSEL common (Cisco ASA event logging, standardised by RFC 6759):
+// eventTimeMilliseconds(323), connectionId(148), firewallEvent(233),
+// natEvent(230) are only ever decoded by this codebase under NetFlow v9;
+// natPoolId(283) is decoded under both. Mirror that split on encode: a v9
+// receiver gets the full set, an IPFIX receiver only natPoolId. connID uses
+// wire number 148, the same number IPFIX assigns to flowId - encoding it
+// under IPFIX would collide with EXflowId below, which is why it is v9-only.
+static int BuildTemplate_NselCommon(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    if (!use_ipfix) {
+        flowset->field[count].type = htons(NF_F_EVENT_TIME_MSEC);
+        flowset->field[count].length = htons(8);
+        count++;
+        flowset->field[count].type = htons(NF_F_CONN_ID);
+        flowset->field[count].length = htons(4);
+        count++;
+        flowset->field[count].type = htons(NF_F_FW_EVENT);
+        flowset->field[count].length = htons(1);
+        count++;
+        flowset->field[count].type = htons(NF_N_NAT_EVENT);
+        flowset->field[count].length = htons(2);
+        count++;
+    }
+    flowset->field[count].type = htons(NF_N_NATPOOL_ID);
+    flowset->field[count].length = htons(4);
+    count++;
+    return count;
+}  // End of BuildTemplate_NselCommon
+
+static void WriteRecord_NselCommon(const void *elementPtr, send_peer_t *peer) {
+    const EXnselCommon_t *nsel = (const EXnselCommon_t *)elementPtr;
+    if (!use_ipfix) {
+        Put_val64(htonll(nsel->msecEvent), peer->buff_ptr);
+        peer->buff_ptr += 8;
+        Put_val32(htonl(nsel->connID), peer->buff_ptr);
+        peer->buff_ptr += 4;
+        Put_val8(nsel->fwEvent, peer->buff_ptr);
+        peer->buff_ptr += 1;
+        Put_val16(htons(nsel->natEvent), peer->buff_ptr);
+        peer->buff_ptr += 2;
+    }
+    Put_val32(htonl(nsel->natPoolID), peer->buff_ptr);
+    peer->buff_ptr += 4;
+}  // End of WriteRecord_NselCommon
+
+// flowId(148) - RFC 7011 base IPFIX information model. IPFIX-only: this
+// codebase's own NetFlow v9 decoder already assigns wire number 148 to
+// connectionId (see EXnselCommon above), so a v9 collector receiving 148
+// here would misinterpret it.
+static int BuildTemplate_FlowId(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(IPFIX_FLOW_ID);
+    flowset->field[count].length = htons(8);
+    count++;
+    return count;
+}  // End of BuildTemplate_FlowId
+
+static void WriteRecord_FlowId(const void *elementPtr, send_peer_t *peer) {
+    const EXflowId_t *flowId = (const EXflowId_t *)elementPtr;
+    Put_val64(htonll(flowId->flowId), peer->buff_ptr);
+    peer->buff_ptr += 8;
+}  // End of WriteRecord_FlowId
+
+// observationPointId(138)/observationDomainId(149) - RFC 7011. IPFIX-only:
+// this codebase's decoder never maps these under NetFlow v9, which already
+// carries a per-message source_id serving the same purpose in its header.
+static int BuildTemplate_Observation(template_flowset_t *flowset, int count, const recordHandle_t *recordHandle) {
+    (void)recordHandle;
+    flowset->field[count].type = htons(IPFIX_OBSERVATION_POINT_ID);
+    flowset->field[count].length = htons(8);
+    count++;
+    flowset->field[count].type = htons(IPFIX_OBSERVATION_DOMAIN_ID);
+    flowset->field[count].length = htons(8);
+    count++;
+    return count;
+}  // End of BuildTemplate_Observation
+
+static void WriteRecord_Observation(const void *elementPtr, send_peer_t *peer) {
+    const EXobservation_t *obs = (const EXobservation_t *)elementPtr;
+    Put_val64(htonll(obs->pointID), peer->buff_ptr);
+    peer->buff_ptr += 8;
+    Put_val64(htonll(obs->domainID), peer->buff_ptr);
+    peer->buff_ptr += 8;
+}  // End of WriteRecord_Observation
+
+// O(1) direct-indexed lookup, designated initializers so an unlisted
+// extension ID is guaranteed zero-initialized (buildTemplate/writeRecord
+// NULL, both lengths 0) without having to list it explicitly.
+static const extMapEntry_t extMap[MAXEXTENSIONS] = {
+    [EXgenericFlowID] = {BuildTemplate_GenericFlow, WriteRecord_GenericFlow, 42, 42},
+    [EXipv4FlowID] = {BuildTemplate_Ipv4Flow, WriteRecord_Ipv4Flow, 8, 8},
+    [EXipv6FlowID] = {BuildTemplate_Ipv6Flow, WriteRecord_Ipv6Flow, 32, 32},
+    [EXinterfaceID] = {BuildTemplate_Interface, WriteRecord_Interface, 8, 8},
+    [EXflowMiscID] = {BuildTemplate_FlowMisc, WriteRecord_FlowMisc, 4, 4},
+    [EXcntFlowID] = {BuildTemplate_CntFlow, WriteRecord_CntFlow, 24, 24},
+    [EXvLanID] = {BuildTemplate_VLan, WriteRecord_VLan, 4, 4},
+    [EXasInfoID] = {BuildTemplate_AsInfo, WriteRecord_AsInfo, 8, 8},
+    [EXasRoutingV4ID] = {BuildTemplate_AsRoutingV4, WriteRecord_AsRoutingV4, 8, 8},
+    [EXasRoutingV6ID] = {BuildTemplate_AsRoutingV6, WriteRecord_AsRoutingV6, 32, 32},
+    [EXmplsID] = {BuildTemplate_Mpls, WriteRecord_Mpls, 30, 30},
+    [EXinMacAddrID] = {BuildTemplate_InMacAddr, WriteRecord_InMacAddr, 12, 12},
+    [EXoutMacAddrID] = {BuildTemplate_OutMacAddr, WriteRecord_OutMacAddr, 12, 12},
+    [EXasAdjacentID] = {BuildTemplate_AsAdjacent, WriteRecord_AsAdjacent, 8, 8},
+    [EXlayer2ID] = {BuildTemplate_Layer2, WriteRecord_Layer2, 9, 9},
+    [EXipInfoID] = {BuildTemplate_IpInfo, WriteRecord_IpInfo, 3, 3},
+    [EXvrfID] = {BuildTemplate_Vrf, WriteRecord_Vrf, 8, 8},
+    [EXnatXlateV4ID] = {BuildTemplate_NatXlateV4, WriteRecord_NatXlateV4, 8, 8},
+    [EXnatXlateV6ID] = {BuildTemplate_NatXlateV6, WriteRecord_NatXlateV6, 32, 32},
+    [EXnatXlatePortID] = {BuildTemplate_NatXlatePort, WriteRecord_NatXlatePort, 4, 4},
+    [EXnatPortBlockID] = {BuildTemplate_NatPortBlock, WriteRecord_NatPortBlock, 8, 8},
+    [EXnselCommonID] = {BuildTemplate_NselCommon, WriteRecord_NselCommon, 19, 4},
+    [EXflowIdID] = {BuildTemplate_FlowId, WriteRecord_FlowId, 0, 8},
+    [EXobservationID] = {BuildTemplate_Observation, WriteRecord_Observation, 0, 16},
+};
+
+// Resolve ext to its mapping for the protocol currently in use. Returns NULL
+// (and reports the drop notice) both when the extension has no mapping at
+// all and when it has one but not for this particular protocol - either way
+// the caller must treat it exactly like an unmapped extension.
+static const extMapEntry_t *FindExtMap(int ext, uint16_t *length) {
+    const extMapEntry_t *m = &extMap[ext];
+    uint16_t len = use_ipfix ? m->ipfixLength : m->v9Length;
+    if (!m->buildTemplate || len == 0) {
+        NoticeExtensionDropped();
+        return NULL;
+    }
+    *length = len;
+    return m;
+}  // End of FindExtMap
 
 int Init_v9_output(send_peer_t *peer) {
     use_ipfix = 0;
@@ -271,12 +1002,15 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
 
     dbg_printf("Generate template for %u extensions\n", recordHandle->numElements);
     // iterate over all extensions
-    uint16_t srcMaskType = 0;
-    uint16_t dstMaskType = 0;
     int added = 0;
     for (int ext = 1; ext < MAXEXTENSIONS; ext++) {
         if (added == recordHandle->numElements) break;
         if (recordHandle->extensionList[ext] == 0) continue;
+        added++;
+
+        uint16_t length = 0;
+        const extMapEntry_t *m = FindExtMap(ext, &length);
+        if (!m) continue;
 
         // dynamically increase flowset table, if too little slots are left
         if ((numV9Elements - count) < 15) {
@@ -291,221 +1025,9 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
             // remap flowset
             flowset = (*t)->template_flowset;
         }
-        added++;
         dbg_printf("Add extension: %d\n", ext);
-        switch (ext) {
-            case EXnull:
-                LogError("Unexpected NULL extension");
-                break;
-            case EXgenericFlowID:
-                flowset->field[count].type = htons(NF_F_FLOW_CREATE_TIME_MSEC);
-                flowset->field[count].length = htons(8);
-                count++;
-                flowset->field[count].type = htons(NF_F_FLOW_END_TIME_MSEC);
-                flowset->field[count].length = htons(8);
-                count++;
-                flowset->field[count].type = htons(NF9_IN_PACKETS);
-                flowset->field[count].length = htons(8);
-                count++;
-                flowset->field[count].type = htons(NF9_IN_BYTES);
-                flowset->field[count].length = htons(8);
-                count++;
-                flowset->field[count].type = htons(NF9_L4_SRC_PORT);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF9_L4_DST_PORT);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF9_ICMP);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF9_IN_PROTOCOL);
-                flowset->field[count].length = htons(1);
-                count++;
-                flowset->field[count].type = htons(NF9_TCP_FLAGS);
-                flowset->field[count].length = htons(1);
-                count++;
-                flowset->field[count].type = htons(NF9_FORWARDING_STATUS);
-                flowset->field[count].length = htons(1);
-                count++;
-                flowset->field[count].type = htons(NF9_SRC_TOS);
-                flowset->field[count].length = htons(1);
-                count++;
-                data_length += 42;
-                break;
-            case EXipv4FlowID:
-                flowset->field[count].type = htons(NF9_IPV4_SRC_ADDR);
-                flowset->field[count].length = htons(4);
-                count++;
-                flowset->field[count].type = htons(NF9_IPV4_DST_ADDR);
-                flowset->field[count].length = htons(4);
-                count++;
-                data_length += 8;
-                srcMaskType = NF9_SRC_MASK;
-                dstMaskType = NF9_DST_MASK;
-                break;
-            case EXipv6FlowID:
-                flowset->field[count].type = htons(NF9_IPV6_SRC_ADDR);
-                flowset->field[count].length = htons(16);
-                count++;
-                flowset->field[count].type = htons(NF9_IPV6_DST_ADDR);
-                flowset->field[count].length = htons(16);
-                count++;
-                data_length += 32;
-                srcMaskType = NF9_IPV6_SRC_MASK;
-                dstMaskType = NF9_IPV6_DST_MASK;
-                break;
-            case EXinterfaceID:
-                flowset->field[count].type = htons(NF9_INPUT_SNMP);
-                flowset->field[count].length = htons(4);
-                count++;
-                flowset->field[count].type = htons(NF9_OUTPUT_SNMP);
-                flowset->field[count].length = htons(4);
-                count++;
-                data_length += 8;
-                break;
-            case EXflowMiscID:
-                flowset->field[count].type = htons(srcMaskType);
-                flowset->field[count].length = htons(1);
-                count++;
-                flowset->field[count].type = htons(dstMaskType);
-                flowset->field[count].length = htons(1);
-                count++;
-                flowset->field[count].type = htons(NF9_DIRECTION);
-                flowset->field[count].length = htons(1);
-                count++;
-                flowset->field[count].type = htons(NF9_DST_TOS);
-                flowset->field[count].length = htons(1);
-                count++;
-                data_length += 4;
-                break;
-            case EXcntFlowID:
-                flowset->field[count].type = htons(NF9_FLOWS_AGGR);
-                flowset->field[count].length = htons(8);
-                count++;
-                flowset->field[count].type = htons(NF9_OUT_PKTS);
-                flowset->field[count].length = htons(8);
-                count++;
-                flowset->field[count].type = htons(NF9_OUT_BYTES);
-                flowset->field[count].length = htons(8);
-                count++;
-                data_length += 24;
-                break;
-            case EXvLanID:
-                flowset->field[count].type = htons(NF9_SRC_VLAN);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF9_DST_VLAN);
-                flowset->field[count].length = htons(2);
-                count++;
-                data_length += 4;
-                break;
-            case EXasInfoID:
-                flowset->field[count].type = htons(NF9_SRC_AS);
-                flowset->field[count].length = htons(4);
-                count++;
-                flowset->field[count].type = htons(NF9_DST_AS);
-                flowset->field[count].length = htons(4);
-                count++;
-                data_length += 8;
-                break;
-            case EXasRoutingV4ID:
-                flowset->field[count].type = htons(NF9_V4_NEXT_HOP);
-                flowset->field[count].length = htons(4);
-                count++;
-                flowset->field[count].type = htons(NF9_BGP_V4_NEXT_HOP);
-                flowset->field[count].length = htons(4);
-                count++;
-                data_length += 8;
-                break;
-            case EXasRoutingV6ID:
-                flowset->field[count].type = htons(NF9_V6_NEXT_HOP);
-                flowset->field[count].length = htons(16);
-                count++;
-                flowset->field[count].type = htons(NF9_BPG_V6_NEXT_HOP);
-                flowset->field[count].length = htons(16);
-                count++;
-                data_length += 32;
-                break;
-            case EXmplsID:
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_1);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_2);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_3);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_4);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_5);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_6);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_7);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_8);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_9);
-                flowset->field[count].length = htons(3);
-                count++;
-                flowset->field[count].type = htons(NF9_MPLS_LABEL_10);
-                flowset->field[count].length = htons(3);
-                count++;
-                data_length += 30;
-                break;
-            case EXinMacAddrID:
-                flowset->field[count].type = htons(NF9_IN_SRC_MAC);
-                flowset->field[count].length = htons(6);
-                count++;
-                flowset->field[count].type = htons(NF9_OUT_DST_MAC);
-                flowset->field[count].length = htons(6);
-                count++;
-                data_length += 12;
-                break;
-            case EXoutMacAddrID:
-                flowset->field[count].type = htons(NF9_IN_DST_MAC);
-                flowset->field[count].length = htons(6);
-                count++;
-                flowset->field[count].type = htons(NF9_OUT_SRC_MAC);
-                flowset->field[count].length = htons(6);
-                count++;
-                data_length += 12;
-                break;
-            case EXasAdjacentID:
-                flowset->field[count].type = htons(NF_F_BGP_ADJ_NEXT_AS);
-                flowset->field[count].length = htons(4);
-                count++;
-                flowset->field[count].type = htons(NF_F_BGP_ADJ_PREV_AS);
-                flowset->field[count].length = htons(4);
-                count++;
-                data_length += 8;
-                break;
-            case EXlayer2ID:
-                flowset->field[count].type = htons(NF_F_dot1qVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_F_postDot1qVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_F_dot1qCustomerVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_F_postDot1qCustomerVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_9_IP_PROTOCOL_VERSION);
-                flowset->field[count].length = htons(1);
-                count++;
-                data_length += 9;
-                break;
-        }
+        count = m->buildTemplate(flowset, count, recordHandle);
+        data_length += length;
     }
 
     // one potential padding field
@@ -547,165 +1069,15 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
         void *elementPtr = recordHandle->extensionList[ext];
         if (elementPtr == NULL) continue;
         added++;
-        switch (ext) {
-            case EXgenericFlowID: {
-                EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)elementPtr;
-                Put_val64(htonll(genericFlow->msecFirst), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(genericFlow->msecLast), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(genericFlow->inPackets), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(genericFlow->inBytes), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val16(htons(genericFlow->srcPort), peer->buff_ptr);
-                peer->buff_ptr += 2;
-                if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {
-                    Put_val16(0, peer->buff_ptr);
-                    peer->buff_ptr += 2;
-                    Put_val16(htons(genericFlow->dstPort), peer->buff_ptr);
-                    peer->buff_ptr += 2;
-                } else {
-                    Put_val16(htons(genericFlow->dstPort), peer->buff_ptr);
-                    peer->buff_ptr += 2;
-                    Put_val16(0, peer->buff_ptr);
-                    peer->buff_ptr += 2;
-                }
-                Put_val8(genericFlow->proto, peer->buff_ptr);
-                peer->buff_ptr += 1;
-                Put_val8(genericFlow->tcpFlags, peer->buff_ptr);
-                peer->buff_ptr += 1;
-                Put_val8(genericFlow->fwdStatus, peer->buff_ptr);
-                peer->buff_ptr += 1;
-                Put_val8(genericFlow->srcTos, peer->buff_ptr);
-                peer->buff_ptr += 1;
-            } break;
-            case EXipv4FlowID: {
-                EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)elementPtr;
-                Put_val32(htonl(ipv4Flow->srcAddr), peer->buff_ptr);
-                peer->buff_ptr += 4;
-                Put_val32(htonl(ipv4Flow->dstAddr), peer->buff_ptr);
-                peer->buff_ptr += 4;
-            } break;
-            case EXipv6FlowID: {
-                EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)elementPtr;
-                Put_val64(htonll(ipv6Flow->srcAddr[0]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(ipv6Flow->srcAddr[1]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(ipv6Flow->dstAddr[0]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(ipv6Flow->dstAddr[1]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-            } break;
-            case EXinterfaceID: {
-                EXinterface_t *interface = (EXinterface_t *)elementPtr;
-                Put_val32(htonl(interface->input), peer->buff_ptr);
-                peer->buff_ptr += 4;
-                Put_val32(htonl(interface->output), peer->buff_ptr);
-                peer->buff_ptr += 4;
-            } break;
-            case EXflowMiscID: {
-                EXflowMisc_t *flowMisc = (EXflowMisc_t *)elementPtr;
-                Put_val8(flowMisc->srcMask, peer->buff_ptr);
-                peer->buff_ptr += 1;
-                Put_val8(flowMisc->dstMask, peer->buff_ptr);
-                peer->buff_ptr += 1;
-                Put_val8(flowMisc->direction, peer->buff_ptr);
-                peer->buff_ptr += 1;
-                Put_val8(flowMisc->dstTos, peer->buff_ptr);
-                peer->buff_ptr += 1;
-            } break;
-            case EXcntFlowID: {
-                EXcntFlow_t *cntFlow = (EXcntFlow_t *)elementPtr;
-                Put_val64(htonll(cntFlow->flows), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(cntFlow->outPackets), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(cntFlow->outBytes), peer->buff_ptr);
-                peer->buff_ptr += 8;
-            } break;
-            case EXvLanID: {
-                EXvLan_t *vLan = (EXvLan_t *)elementPtr;
-                Put_val16(htons(vLan->srcVlan), peer->buff_ptr);
-                peer->buff_ptr += 2;
-                Put_val16(htons(vLan->dstVlan), peer->buff_ptr);
-                peer->buff_ptr += 2;
-            } break;
-            case EXlayer2ID: {
-                EXlayer2_t *layer2 = (EXlayer2_t *)elementPtr;
-                Put_val16(htons(layer2->vlanID), peer->buff_ptr);
-                peer->buff_ptr += 2;
-                Put_val16(htons(layer2->postVlanID), peer->buff_ptr);
-                peer->buff_ptr += 2;
-                Put_val16(htons(layer2->customerVlanId), peer->buff_ptr);
-                peer->buff_ptr += 2;
-                Put_val16(htons(layer2->postCustomerVlanId), peer->buff_ptr);
-                peer->buff_ptr += 2;
-                Put_val8(layer2->ipVersion, peer->buff_ptr);
-                peer->buff_ptr += 1;
-            } break;
-            case EXasInfoID: {
-                EXasInfo_t *asInfo = (EXasInfo_t *)elementPtr;
-                Put_val32(htonl(asInfo->srcAS), peer->buff_ptr);
-                peer->buff_ptr += 4;
-                Put_val32(htonl(asInfo->dstAS), peer->buff_ptr);
-                peer->buff_ptr += 4;
-            } break;
-            case EXasRoutingV4ID: {
-                EXasRoutingV4_t *asRouting = (EXasRoutingV4_t *)elementPtr;
-                Put_val32(htonl(asRouting->nextHop), peer->buff_ptr);
-                peer->buff_ptr += 4;
-                Put_val32(htonl(asRouting->bgpNextHop), peer->buff_ptr);
-                peer->buff_ptr += 4;
-            } break;
-            case EXasRoutingV6ID: {
-                EXasRoutingV6_t *asRouting = (EXasRoutingV6_t *)elementPtr;
-                Put_val64(htonll(asRouting->nextHop[0]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(asRouting->nextHop[1]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(asRouting->bgpNextHop[0]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-                Put_val64(htonll(asRouting->bgpNextHop[1]), peer->buff_ptr);
-                peer->buff_ptr += 8;
-            } break;
-            case EXmplsID: {
-                EXmpls_t *mpls = (EXmpls_t *)elementPtr;
-                for (int i = 0; i < 10; i++) {
-                    uint32_t val32 = htonl(mpls->label[i]);
-                    Put_val24(val32, peer->buff_ptr);
-                    peer->buff_ptr += 3;
-                }
-            } break;
-            case EXinMacAddrID: {
-                EXinMacAddr_t *macAddr = (EXinMacAddr_t *)elementPtr;
-                uint64_t val64 = htonll(macAddr->inSrcMac);
-                Put_val48(val64, peer->buff_ptr);
-                peer->buff_ptr += 6;
 
-                val64 = htonll(macAddr->outDstMac);
-                Put_val48(val64, peer->buff_ptr);
-                peer->buff_ptr += 6;
-            } break;
-            case EXoutMacAddrID: {
-                EXoutMacAddr_t *macAddr = (EXoutMacAddr_t *)elementPtr;
-                uint64_t val64 = htonll(macAddr->inDstMac);
-                Put_val48(val64, peer->buff_ptr);
-                peer->buff_ptr += 6;
-
-                val64 = htonll(macAddr->outSrcMac);
-                Put_val48(val64, peer->buff_ptr);
-                peer->buff_ptr += 6;
-            } break;
-            case EXasAdjacentID: {
-                EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)elementPtr;
-                Put_val32(htonl(asAdjacent->nextAdjacentAS), peer->buff_ptr);
-                peer->buff_ptr += 4;
-                Put_val32(htonl(asAdjacent->prevAdjacentAS), peer->buff_ptr);
-                peer->buff_ptr += 4;
-            } break;
-        }
+        // Same resolution as GetOutputTemplate() above, so the two always
+        // agree on exactly which extensions this record actually carries in
+        // its wire encoding - already reported once by GetOutputTemplate()
+        // if unmapped, nothing more to do here for that case.
+        uint16_t length;
+        const extMapEntry_t *m = FindExtMap(ext, &length);
+        if (!m) continue;
+        m->writeRecord(elementPtr, peer);
     }
 
     sender_data->header.record_count++;
@@ -830,6 +1202,11 @@ int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
         if (template->record_count == 0 || template->needs_refresh) {
             Add_template_flowset(template, peer);
             template->time_sent = now;
+            // Consume the refresh request - leaving this set would resend
+            // the template flowset with every subsequent record for the
+            // rest of the run instead of only once every MAX_LIFETIME
+            // seconds or 4096 records.
+            template->needs_refresh = 0;
         }
 
         // Add data flowset
