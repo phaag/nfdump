@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdarg.h>
@@ -110,6 +111,28 @@ static void Close_nfd_output(send_peer_t *peer);
 
 static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer);
 
+/* Parse command-line quantities strictly.  atoi() accepts malformed values
+ * as zero and may overflow, which is especially unsafe for replay pacing. */
+static int ParseUnsignedOption(const char *option, const char *argument, uint64_t maximum, uint64_t *value) {
+    char *end = NULL;
+    unsigned long long parsed;
+
+    if (argument == NULL || *argument == '\0' || *argument == '-') {
+        LogError("Invalid value for %s: %s", option, argument ? argument : "(null)");
+        return 0;
+    }
+
+    errno = 0;
+    parsed = strtoull(argument, &end, 10);
+    if (errno == ERANGE || end == argument || *end != '\0' || parsed > maximum) {
+        LogError("Invalid value for %s: %s", option, argument);
+        return 0;
+    }
+
+    *value = (uint64_t)parsed;
+    return 1;
+}  // End of ParseUnsignedOption
+
 /* Functions */
 
 #include "nfdump_inline.c"
@@ -131,11 +154,10 @@ static void usage(char *name) {
         "-d <usec>\tDelay in usec between packets. default 10\n"
         "-c <cnt>\tPacket count. default send all packets\n"
         "-b <bsize>\tSend buffer size.\n"
-        "-r <input>\tread from file. default: stdin\n"
+        "-r <input>\tRead input from a regular nfdump file (required).\n"
         "-f <filter>\tfilter syntaxfile\n"
         "-v <version>\tUse netflow version to send flows. Either 5, 9, 10 (IPFIX) or 250 (nfdump native).\n"
-        "-z <distribution>\tSimulate real time distribution with coefficient\n"
-        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
+        "-z <factor>\tSimulate recorded timing; 1 = real time, N = N times faster.\n",
         name);
 #ifdef HAVE_LIBSODIUM
     printf(
@@ -520,9 +542,9 @@ int main(int argc, char **argv) {
     peer.port = DEFAULTCISCOPORT;
     peer.mcast = 0;
     peer.family = AF_UNSPEC;
-    peer.sockfd = 0;
+    peer.sockfd = -1;
 
-    delay = 1;
+    delay = 10;
     sockbuff_size = 0;
     int verbose = -1;
     int netflow_version = VERSION_NETFLOW_V9;
@@ -532,7 +554,7 @@ int main(int argc, char **argv) {
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
 
     int c = 0;
-    while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:v:z:VYk::")) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:L:p:S:d:c:b:j:r:f:v:z:VYk::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -550,7 +572,7 @@ int main(int argc, char **argv) {
                 break;
             case 'H':
                 if (peer.mcast) {
-                    LogError("ERROR, -H(-i) and -j are mutually exclusive!!\n");
+                    LogError("ERROR, -H and -j are mutually exclusive!!\n");
                     exit(EXIT_FAILURE);
                 }
                 peer.hostname = strdup(optarg);
@@ -560,7 +582,7 @@ int main(int argc, char **argv) {
                     peer.hostname = strdup(optarg);
                     peer.mcast = 1;
                 } else {
-                    LogError("ERROR, -H(-i) and -j are mutually exclusive!!\n");
+                    LogError("ERROR, -H and -j are mutually exclusive!!\n");
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -574,37 +596,26 @@ int main(int argc, char **argv) {
                 peer.shostname = strdup(optarg);
                 break;
             case 'd': {
-                int d = atoi(optarg);
-                if (d < 0) {
-                    LogError("Send delay cannot be < 0: %d", d);
-                    exit(EXIT_FAILURE);
-                }
-
-                delay = (unsigned)atoi(optarg);
+                uint64_t value;
+                if (!ParseUnsignedOption("-d", optarg, UINT_MAX, &value)) exit(EXIT_FAILURE);
+                delay = (unsigned int)value;
             } break;
-            case 'v':
-                netflow_version = atoi(optarg);
+            case 'v': {
+                uint64_t value;
+                if (!ParseUnsignedOption("-v", optarg, INT_MAX, &value)) exit(EXIT_FAILURE);
+                netflow_version = (int)value;
                 if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_IPFIX && netflow_version != VERSION_NFDUMP) {
                     LogError("Invalid netflow version: %s. Accept only 5, 9, 10 (IPFIX) or %d", optarg, VERSION_NFDUMP);
                     exit(EXIT_FAILURE);
                 }
-                break;
+            } break;
             case 'c': {
-                int i = atoi(optarg);
-                if (i < 0) {
-                    LogError("Count cannot be < 0: %d", i);
-                    exit(EXIT_FAILURE);
-                }
-                count = (uint64_t)i;
+                if (!ParseUnsignedOption("-c", optarg, UINT64_MAX, &count)) exit(EXIT_FAILURE);
             } break;
             case 'b': {
-                int b = atoi(optarg);
-                if (b < 0) {
-                    LogError("Buffer size cannot be < 0: %d", b);
-                    exit(EXIT_FAILURE);
-                }
-
-                sockbuff_size = (unsigned)b;
+                uint64_t value;
+                if (!ParseUnsignedOption("-b", optarg, INT_MAX, &value)) exit(EXIT_FAILURE);
+                sockbuff_size = (unsigned int)value;
             } break;
             case 'f':
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
@@ -614,9 +625,11 @@ int main(int argc, char **argv) {
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 flist.single_file = strdup(optarg);
                 break;
-            case 'z':
-                distribution = atoi(optarg);
-                break;
+            case 'z': {
+                uint64_t value;
+                if (!ParseUnsignedOption("-z", optarg, INT_MAX, &value)) exit(EXIT_FAILURE);
+                distribution = (int)value;
+            } break;
             case '4':
                 if (peer.family == AF_UNSPEC)
                     peer.family = AF_INET;
@@ -634,6 +647,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'k': {
+#ifdef HAVE_LIBSODIUM
                 char *pp = ParsePassphrase(optarg, "Enter UDP transfer passphrase: ");
                 if (!pp) exit(EXIT_FAILURE);
                 transfer_ctx = NewCryptoCtx(pp);
@@ -643,11 +657,15 @@ int main(int argc, char **argv) {
                     LogError("Failed to initialize UDP transfer encryption context");
                     exit(EXIT_FAILURE);
                 }
+#else
+                LogError("-k requires a build with libsodium support");
+                exit(EXIT_FAILURE);
+#endif
                 break;
             }
             default:
                 usage(argv[0]);
-                exit(0);
+                exit(EXIT_FAILURE);
         }
     }
     if (argc - optind > 1) {
@@ -691,11 +709,12 @@ int main(int argc, char **argv) {
     else
         peer.sockfd =
             Unicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
-    if (peer.sockfd <= 0) {
+    if (peer.sockfd < 0) {
         exit(EXIT_FAILURE);
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
+    if (!fileList) exit(EXIT_FAILURE);
     threadPipeline_t pipeline = {
         .role = TC_ROLE_ANALYZE,
         .hasReaders = true,   // nffile reader threads decompress input

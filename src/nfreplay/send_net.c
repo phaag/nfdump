@@ -53,6 +53,30 @@ static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_sto
 
 static int setSourceAddress(int sockfd, const char *srcaddr, int family, int socktype);
 
+static void SetSendBuffer(int sockfd, unsigned int requested) {
+    int actual;
+    int size;
+    socklen_t optlen = sizeof(actual);
+
+    if (requested == 0) return;
+
+    /* nfreplay validates the CLI value against INT_MAX before it reaches
+     * here; SO_SNDBUF is specified as an int on the supported platforms. */
+    size = (int)requested;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)) < 0) {
+        LogError("setsockopt(SO_SNDBUF, %u) failed: %s", requested, strerror(errno));
+        return;
+    }
+
+    if (getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &actual, &optlen) < 0) {
+        LogError("getsockopt(SO_SNDBUF) failed: %s", strerror(errno));
+        return;
+    }
+    if (actual != size) {
+        LogInfo("Socket write buffer requested: %u; kernel set: %d", requested, actual);
+    }
+}  // End of SetSendBuffer
+
 int setSourceAddress(int sockfd, const char *shostname, int family, int socktype) {
     struct addrinfo shints, *sres;
     int error;
@@ -80,8 +104,6 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
                         struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, unsigned *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
-    unsigned int wmem_actual;
-    socklen_t optlen;
 
     if (!dhostname || !sendport) {
         LogError("hostname and listen port required!");
@@ -119,7 +141,8 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
     }
 
     if (shostname != NULL) {
-        if (setSourceAddress(sockfd, shostname, family, SOCK_DGRAM) == -1) {
+        if (setSourceAddress(sockfd, shostname, res->ai_family, SOCK_DGRAM) == -1) {
+            close(sockfd);
             freeaddrinfo(ressave);
             return -1;
         }
@@ -128,21 +151,7 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
     memcpy(daddr, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(ressave);
 
-    // Set socket write buffer. Need to be root!
-    if (wmem_size > 0) {
-        if (geteuid() == 0) {
-            setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &wmem_size, sizeof(wmem_size));
-
-            // check what was set (e.g. linux 2.4.20 sets twice of what was requested)
-            getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &wmem_actual, &optlen);
-
-            if (wmem_size != wmem_actual) {
-                printf("Warning: Socket write buffer size requested: %u set: %u\n", wmem_size, wmem_actual);
-            }
-        } else {
-            printf("Warning: Socket buffer size can only be changed by root!\n");
-        }
-    }
+    SetSendBuffer(sockfd, wmem_size);
 
     return sockfd;
 
@@ -211,13 +220,16 @@ int Multicast_send_socket(const char *shostname, const char *dhostname, const ch
     }
 
     if (shostname != NULL) {
-        if (setSourceAddress(sockfd, shostname, family, SOCK_DGRAM) == -1) {
+        if (setSourceAddress(sockfd, shostname, res->ai_family, SOCK_DGRAM) == -1) {
+            close(sockfd);
             freeaddrinfo(ressave);
             return -1;
         }
     }
     *addrlen = res->ai_addrlen;
     memcpy(daddr, res->ai_addr, res->ai_addrlen);
+
+    SetSendBuffer(sockfd, wmem_size);
 
     if (joinGroup(sockfd, 1, 1, (struct sockaddr_storage *)res->ai_addr) < 0) {
         close(sockfd);

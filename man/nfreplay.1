@@ -34,7 +34,7 @@
 .Sh SYNOPSIS
 .Nm
 .Fl r Ar flowfile
-.Fl H Ar remotehost
+.Op Fl H Ar remotehost
 .Fl p Ar port
 .Op Fl E
 .Op Fl L Ar facility
@@ -71,12 +71,10 @@ The options are as follows:
 .It Fl r Ar flowfile
 Read input data from
 .Ar flowfile.
+This required argument must name one regular nfdump data file.
 .It Fl H Ar remotehost
 Send all flows to this remote host. Accepts a symbolic name or a IPv4/IPv6 
 IP address.
-.It Fl i Ar remotehost
-Legacy alias for
-.Fl H .
 .It Fl E
 Enable verbose diagnostic output.
 .It Fl L Ar facility
@@ -109,7 +107,9 @@ All extensions beyond the standard v5 record are silently dropped;
 IPv6 flows are skipped.
 .It 9
 NetFlow v9 (default).
-All nfdump extensions are exported as typed fields inside NF9 flowsets.
+The extensions with a NetFlow v9 field mapping are exported as typed fields
+inside NF9 flowsets. Extensions without a mapping, such as payload, DNS, SSL,
+JA3, JA4 and NBAR data, are omitted. A notice is logged once when this occurs.
 .It 10
 IPFIX (RFC 7011).
 Uses the same information element numbers as NetFlow v9 for all standard
@@ -162,28 +162,27 @@ option.
 .Pp
 Available only when nfreplay is compiled with libsodium support.
 .It Fl d Ar usec
-Delay each record by
+Delay each sent UDP datagram by
 .Ar usec
 microseconds, to avoid overrun on the remote host. Default is 10 microseconds.
 .It Fl b Ar bytes
-Set send buffer to
+Request a socket send buffer of
 .Ar bytes
-size in bytes. Useful to buffer larger data transfers.
+bytes. The operating system may clamp the requested value.
 .It Fl f Ar filterfile
 Read the filter from
 .Ar filterfile
 instead of from the command line. Ignored if a filter is also given as the
 trailing command line argument.
 .It Fl z Ar num
-Flows are sent with their "real distribution" acrross time (with a speed coefficient)
+Replay flows using their recorded end timestamps, with the specified speed factor.
+A value of 0 disables timestamp pacing (the default); 1 replays at recorded
+speed; and a value of N replays N times faster.
 .Bl -item -compact
 .It
-.Fl z
-1 : 5 minutes of records will be sent in 5 minutes.
+With a factor of 1, 5 minutes of records are sent in 5 minutes.
 .It
-.Fl
-z
-20 : 5 minutes of record will be sent in 5/20 = 0.25 minutes.
+With a factor of 20, 5 minutes of records are sent in 5/20 = 0.25 minutes.
 .El
 .It Fl c Ar num
 Limit number of records to send to the first 
@@ -199,21 +198,19 @@ version and exit.
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
-.Sh RETURN VALUES
-.Bl -item -compact
-.Nm
-returns
-.It
-0 Success, and also after
+.Sh EXIT STATUS
+.Bl -tag -width 3n
+.It 0
+Success, and also after
 .Fl h
 or
 .Fl V .
-.It
-1 Argument, socket, encryption or input file setup failed.
-.It
-254 Error in filter syntax.
-.It
-255 Internal error \- should not normally occur.
+.It 1
+Argument, socket, encryption or input file setup failed.
+.It 254
+Error in filter syntax.
+.It 255
+Internal error \- should not normally occur.
 .El
 .Sh SEE ALSO
 .Xr nfdump 1
