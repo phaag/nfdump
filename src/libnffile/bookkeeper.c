@@ -245,14 +245,14 @@ void book_update(book_handle_t *book_handle, time_t when, uint64_t size) {
 
 // nfexpire set parameters
 void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark, uint32_t set_mask) {
-    book_lock(book_handle->fd);
+    if (book_lock(book_handle->fd) < 0) return;
 
     if (set_mask & BOOK_LIMIT_LIFETIME) book_handle->bookkeeper->max_lifetime = lifetime;
     if (set_mask & BOOK_LIMIT_MAXSIZE) book_handle->bookkeeper->max_filesize = maxsize;
     if (set_mask & BOOK_LIMIT_WATERMARK) book_handle->bookkeeper->watermark = watermark;
     book_handle->bookkeeper->sequence++;
 
-    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
 
     book_unlock(book_handle->fd);
 }  // End of book_set_limits
@@ -287,21 +287,34 @@ int book_set(book_handle_t *book_handle, bookkeeper_t *bookkeeper) {
 
 // nfexpire removes old files, nfcapd potentially adds new files
 // they do not interfer - therefor update cummulativ
-int book_expire(book_handle_t *book_handle, time_t first, uint32_t expired_files, uint64_t expired_size) {
-    book_lock(book_handle->fd);
+int book_expire(book_handle_t *book_handle, time_t first, uint64_t expired_files, uint64_t expired_size) {
+    if (book_lock(book_handle->fd) < 0) return 0;
 
     bookkeeper_t *bookkeeper = book_handle->bookkeeper;
     // check for error condition
     int ok = 0;
-    if (first < bookkeeper->first || expired_files > bookkeeper->numfiles || expired_size > bookkeeper->filesize) {
+    if (expired_files > bookkeeper->numfiles || expired_size > bookkeeper->filesize) {
         ok = 0;
     } else {
-        bookkeeper->first = first;
-        bookkeeper->numfiles -= expired_files;
+        uint64_t remaining_files = bookkeeper->numfiles - expired_files;
+        // first == 0 is an exact empty archive, not an error. A non-empty
+        // archive always needs a verified first remaining timestamp.
+        if ((remaining_files && (first == 0 || first < bookkeeper->first)) ||
+            (remaining_files == 0 && expired_size != bookkeeper->filesize)) {
+            book_unlock(book_handle->fd);
+            return 0;
+        }
+
+        bookkeeper->numfiles = remaining_files;
         bookkeeper->filesize -= expired_size;
+        if (remaining_files == 0) {
+            bookkeeper->first = 0;
+            bookkeeper->last = 0;
+        } else {
+            bookkeeper->first = first;
+        }
         bookkeeper->sequence++;
-        msync(bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
-        ok = 1;
+        ok = msync(bookkeeper, sizeof(bookkeeper_t), MS_SYNC) == 0;
     }
     book_unlock(book_handle->fd);
     return ok;
@@ -321,16 +334,17 @@ uint64_t book_sequence(book_handle_t *book_handle) {
 
 // mark the book dirty (needs a rescan) - lock-protected so it never races
 // against a collector's concurrent book_update() on the same mmap'd file
-void book_mark_dirty(book_handle_t *book_handle) {
-    book_lock(book_handle->fd);
+int book_mark_dirty(book_handle_t *book_handle) {
+    if (!book_handle || book_lock(book_handle->fd) < 0) return 0;
     book_handle->bookkeeper->dirty = 1;
-    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+    int ok = msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC) == 0;
     book_unlock(book_handle->fd);
+    return ok;
 }  // End of book_mark_dirty
 
 // lock-protected read of the dirty flag
 int book_is_dirty(book_handle_t *book_handle) {
-    book_lock(book_handle->fd);
+    if (!book_handle || book_lock(book_handle->fd) < 0) return 1;
     int dirty = book_handle->bookkeeper->dirty != 0;
     book_unlock(book_handle->fd);
     return dirty;
@@ -344,7 +358,7 @@ book_status_t book_claim_expire(book_handle_t *book_handle, pid_t pid, pid_t *ho
     if (holder) *holder = 0;
     if (!book_handle) return BOOK_ERR_FAILED;
 
-    book_lock(book_handle->fd);
+    if (book_lock(book_handle->fd) < 0) return BOOK_ERR_FAILED;
 
     pid_t current = book_handle->bookkeeper->expire_pid;
     if (current > 0 && current != pid && (kill(current, 0) == 0 || errno == EPERM)) {
@@ -364,8 +378,8 @@ book_status_t book_claim_expire(book_handle_t *book_handle, pid_t pid, pid_t *ho
 void book_release_expire(book_handle_t *book_handle) {
     if (!book_handle) return;
 
-    book_lock(book_handle->fd);
+    if (book_lock(book_handle->fd) < 0) return;
     book_handle->bookkeeper->expire_pid = 0;
-    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
     book_unlock(book_handle->fd);
 }  // End of book_release_expire

@@ -104,11 +104,13 @@ void book_get(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
 
 int book_set(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
 
-int book_expire(book_handle_t *book_handle, time_t first, uint32_t expired_files, uint64_t expired_size);
+int book_expire(book_handle_t *book_handle, time_t first, uint64_t expired_files, uint64_t expired_size);
 
 uint64_t book_sequence(book_handle_t *book_handle);
 
-void book_mark_dirty(book_handle_t *book_handle);
+// Persist the recovery marker before returning. It is reserved for actual
+// inconsistencies which require a subsequent directory rebuild.
+int book_mark_dirty(book_handle_t *book_handle);
 
 int book_is_dirty(book_handle_t *book_handle);
 

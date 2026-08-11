@@ -430,7 +430,108 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 10. Basic CLI sanity
+# 10. A cooperative external stop must never leave a plausible-but-stale
+#     book: after deletion has demonstrably started, SIGTERM stops further
+#     work and commits exact partial counters without requiring a rebuild.
+#     The poll avoids racing a very fast machine before it reaches the unlink
+#     loop. Requires perl for the bulk fixture helper.
+# ---------------------------------------------------------------------------
+if command -v perl >/dev/null 2>&1; then
+    D10="$EXPBASE/10_signal"
+    mkdir -p "$D10"
+    make_many_files "$D10" 20000
+    nfexpire -r "$D10" >/dev/null 2>&1
+
+    "$NFEXPIRE_BIN" -e "$D10" -s 1 -w 50 >"$WORKDIR/10_signal.log" 2>&1 &
+    SIGNAL_PID=$!
+    BEFORE_COUNT=$(find "$D10" -maxdepth 1 -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+    DELETING=0
+    i=0
+    while [ "$i" -lt 80 ]; do
+        sleep 0.025
+        NOW_COUNT=$(find "$D10" -maxdepth 1 -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+        if [ "$NOW_COUNT" -lt "$BEFORE_COUNT" ]; then
+            DELETING=1
+            break
+        fi
+        i=$((i + 1))
+    done
+
+    if [ "$DELETING" = 1 ] && kill -TERM "$SIGNAL_PID" 2>/dev/null; then
+        wait "$SIGNAL_PID"
+        RC_SIGNAL=$?
+        ACTUAL_COUNT=$(find "$D10" -maxdepth 1 -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+        STAT=$(nfexpire -l "$D10" 2>&1)
+        BOOK_COUNT=$(get_stat_field "$STAT" "Number of files")
+        if [ "$RC_SIGNAL" -eq 0 ] && [ "$ACTUAL_COUNT" = "$BOOK_COUNT" ] \
+           && grep -q "stopped by signal" "$WORKDIR/10_signal.log" \
+           && ! printf '%s\n' "$STAT" | grep -q "Re-scanning files"; then
+            pass "nfexpire_signal_commits_partial_book"
+        else
+            fail "nfexpire_signal_commits_partial_book: rc=$RC_SIGNAL actual=$ACTUAL_COUNT book=$BOOK_COUNT"
+        fi
+    else
+        kill -TERM "$SIGNAL_PID" 2>/dev/null || true
+        wait "$SIGNAL_PID" 2>/dev/null || true
+        skip "nfexpire_signal_commits_partial_book: expiry completed before signal test could interrupt it"
+    fi
+else
+    skip "nfexpire_signal_commits_partial_book: perl not available"
+fi
+
+# ---------------------------------------------------------------------------
+# 11. The same stop rule applies to a profile: the current lockstep slot is
+#     completed, both channels retain the same files, and their aggregate book
+#     is committed without a rescan.
+# ---------------------------------------------------------------------------
+if command -v perl >/dev/null 2>&1; then
+    D11="$EXPBASE/11_profile_signal"
+    mkdir -p "$D11/chanA" "$D11/chanB"
+    make_many_files "$D11/chanA" 5000
+    make_many_files "$D11/chanB" 5000
+    nfexpire -p -r "$D11" >/dev/null 2>&1
+
+    "$NFEXPIRE_BIN" -p -e "$D11" -s 1 -w 50 >"$WORKDIR/11_profile_signal.log" 2>&1 &
+    PROFILE_SIGNAL_PID=$!
+    BEFORE_COUNT=$(find "$D11" -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+    DELETING=0
+    i=0
+    while [ "$i" -lt 80 ]; do
+        sleep 0.025
+        NOW_COUNT=$(find "$D11" -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+        if [ "$NOW_COUNT" -lt "$BEFORE_COUNT" ]; then
+            DELETING=1
+            break
+        fi
+        i=$((i + 1))
+    done
+
+    if [ "$DELETING" = 1 ] && kill -TERM "$PROFILE_SIGNAL_PID" 2>/dev/null; then
+        wait "$PROFILE_SIGNAL_PID"
+        RC_SIGNAL=$?
+        A_COUNT=$(find "$D11/chanA" -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+        B_COUNT=$(find "$D11/chanB" -name 'nfcapd.*' -type f | wc -l | tr -d ' ')
+        STAT=$(nfexpire -p -l "$D11" 2>&1)
+        BOOK_COUNT=$(get_stat_field "$STAT" "Number of files")
+        ACTUAL_COUNT=$((A_COUNT + B_COUNT))
+        if [ "$RC_SIGNAL" -eq 0 ] && [ "$A_COUNT" = "$B_COUNT" ] && [ "$ACTUAL_COUNT" = "$BOOK_COUNT" ] \
+           && grep -q "stopped by signal" "$WORKDIR/11_profile_signal.log" \
+           && ! printf '%s\n' "$STAT" | grep -q "Re-scanning files"; then
+            pass "nfexpire_profile_signal_commits_lockstep_book"
+        else
+            fail "nfexpire_profile_signal_commits_lockstep_book: rc=$RC_SIGNAL a=$A_COUNT b=$B_COUNT book=$BOOK_COUNT"
+        fi
+    else
+        kill -TERM "$PROFILE_SIGNAL_PID" 2>/dev/null || true
+        wait "$PROFILE_SIGNAL_PID" 2>/dev/null || true
+        skip "nfexpire_profile_signal_commits_lockstep_book: expiry completed before signal test could interrupt it"
+    fi
+else
+    skip "nfexpire_profile_signal_commits_lockstep_book: perl not available"
+fi
+
+# ---------------------------------------------------------------------------
+# 12. Basic CLI sanity
 # ---------------------------------------------------------------------------
 if nfexpire -h >"$WORKDIR/8_help.log" 2>&1; then
     if grep -q '\-e datadir' "$WORKDIR/8_help.log" && grep -q '\-w watermark' "$WORKDIR/8_help.log"; then

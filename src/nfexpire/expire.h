@@ -68,6 +68,20 @@ typedef enum {
     EXPIRE_FAILED,
 } expire_status_t;
 
+// Install the lightweight termination handler used by nfexpire's mutating
+// operations.  The handler only records a stop request; all cleanup and book
+// updates remain in normal process context.
+void ExpireSetupSignalHandling(uint32_t runtime);
+
+// Stop the optional -T timer once the mutating work has completed.
+void ExpireCancelTimeout(void);
+
+// True after SIGTERM, SIGINT, SIGHUP or the -T SIGALRM was received.
+int ExpireStopRequested(void);
+
+// Translate a pending stop request into the public expiry status.
+expire_status_t ExpireTerminationStatus(void);
+
 int ParseSizeDef(const char *s, uint64_t *value);
 
 int ParseTimeDef(const char *s, time_t *value);
@@ -76,7 +90,6 @@ int RescanDir(const channel_t *channel);
 
 // Handles both a single channel (channel->next == NULL) and a profile's list
 // of channels, expiring the same timeslot from every channel in lockstep.
-expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t limit_mask, time_t runtime,
-                          int dryrun);
+expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t limit_mask, int dryrun);
 
 #endif  //_EXPIRE_H

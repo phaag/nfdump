@@ -161,6 +161,7 @@ static int VerifyChannels(const channel_t *channel, int do_rescan) {
     // process do_rescan, if needed
     const channel_t *current_channel = channel;
     while (current_channel) {
+        if (ExpireStopRequested()) return -1;
         if (do_rescan || book_is_dirty(current_channel->book_handle)) {
             // A rescan is needed, if no book file exists or the book is dirty for some reason
             int maxTries = 3;
@@ -172,7 +173,9 @@ static int VerifyChannels(const channel_t *channel, int do_rescan) {
                     LogVerbose("Failed to rescan directory: %s", current_channel->datadir);
                 }
                 maxTries--;
-            } while (ok == 0 && maxTries > 0);
+            } while (ok == 0 && !ExpireStopRequested() && maxTries > 0);
+
+            if (ExpireStopRequested()) return -1;
 
             if (!ok) {
                 LogError("Could not rescan directory %s", current_channel->datadir);
@@ -209,10 +212,15 @@ static int AcquireChannelLocks(channel_t *channel) {
     pid_t self = getpid();
 
     for (int attempt = 0; attempt <= EXPIRE_LOCK_MAX_RETRIES; attempt++) {
+        if (ExpireStopRequested()) return -1;
         channel_t *busy = NULL;
         pid_t holder = 0;
 
         for (channel_t *ch = channel; ch; ch = ch->next) {
+            if (ExpireStopRequested()) {
+                ReleaseChannelLocksUpTo(channel, ch);
+                return -1;
+            }
             pid_t this_holder = 0;
             book_status_t status = book_claim_expire(ch->book_handle, self, &this_holder);
             if (status == BOOK_OK) continue;
@@ -240,6 +248,7 @@ static int AcquireChannelLocks(channel_t *channel) {
         LogInfo("Directory %s is in use by nfexpire pid %d - retrying (%d/%d)", busy->datadir, (int)holder, attempt + 1,
                 EXPIRE_LOCK_MAX_RETRIES);
         sleep(EXPIRE_LOCK_RETRY_SECONDS);
+        if (ExpireStopRequested()) return -1;
     }
 
     return 0;
@@ -291,6 +300,7 @@ int main(int argc, char **argv) {
     datadir = NULL;
     int dryrun = 0;
     int exit_status = EXIT_SUCCESS;
+    int locks_claimed = 0;
     do_rescan = 0;
     do_expire = 0;
     do_update_param = 0;
@@ -411,59 +421,79 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if (dryrun && runtime) {
+        LogInfo("Disable timeout for dryrun");
+        runtime = 0;
+    }
+
+    // Install handlers before acquiring an expire lock or rescanning a dirty
+    // book. The handler only sets a flag; normal control flow below releases
+    // locks and, if deletion has started, ExpireDir() commits its partial book.
+    // The optional -T timer therefore covers profile indexing as well as the
+    // actual unlink loop.
+    ExpireSetupSignalHandling(do_expire && !dryrun ? runtime : 0);
+
     channel = GetChannelList(datadir, is_profile);
     if (!channel) {
         LogError("Failed to get channel list");
         exit(EXIT_FAILURE);
     }
 
+    if (ExpireStopRequested()) goto interrupted;
+
     // Claim every channel before touching anything - VerifyChannels() below
     // may rescan (it does so unconditionally whenever the book is dirty,
     // regardless of which option was given), and a rescan racing another
     // process' rescan or expire is exactly the corruption this guards
     // against. AcquireChannelLocks() has already logged the reason on failure.
-    if (!AcquireChannelLocks(channel)) {
-        exit(EXIT_FAILURE);
+    int lock_status = AcquireChannelLocks(channel);
+    if (lock_status <= 0) {
+        if (lock_status < 0) goto interrupted;
+        exit_status = EXIT_FAILURE;
+        goto cleanup;
     }
+    locks_claimed = 1;
 
-    if (!VerifyChannels(channel, do_rescan)) {
+    int verify_status = VerifyChannels(channel, do_rescan);
+    if (verify_status <= 0) {
+        if (verify_status < 0 || ExpireStopRequested()) goto interrupted;
         LogError("Failed to verify channels");
-        ReleaseChannelLocks(channel);
-        exit(EXIT_FAILURE);
+        exit_status = EXIT_FAILURE;
+        goto cleanup;
     }
 
-    if (dryrun && runtime) {
-        LogInfo("Disable timeout for dryrun");
-        runtime = 0;
-    }
+    if (ExpireStopRequested()) goto interrupted;
 
     // now process do_expire if required
     if (do_expire) {
-        uint32_t expired_files = 0;
+        uint64_t expired_files = 0;
         uint64_t expired_size = 0;
         time_t expired_time;
 
         // ExpireDir() handles both a single channel and a profile's channel
         // list uniformly - it sums to the same thing for a single channel.
-        expire_status_t status = ExpireDir(channel, maxsize, maxlife, low_water, limit_mask, runtime, dryrun);
+        expire_status_t status = ExpireDir(channel, maxsize, maxlife, low_water, limit_mask, dryrun);
         for (channel_t *ch = channel; ch; ch = ch->next) {
             expired_files += ch->expired_files;
             expired_size += ch->expired_size;
         }
         expired_time = channel->expired_time;
-        // Report, what we have done - TIMEOUT/ABORTED are a deliberate,
-        // consistent partial completion, not a failure: the bookkeeping is
-        // guaranteed to reflect exactly what got deleted, so cron/monitoring
-        // should not treat this run as broken.
+        // A stopped run commits the files removed before the stop request and
+        // retains the next valid slot as the new book head. A dirty book is
+        // reserved for an actual filesystem or bookkeeping inconsistency.
+        // TIMEOUT/ABORTED are not failures - the bookkeeping is guaranteed
+        // consistent - but they are still logged via LogError(): both a -T
+        // runtime limit and an operator-sent kill are events that need to
+        // reach the user's attention, not scroll by at LogInfo level.
         switch (status) {
             case EXPIRE_OK:
                 LogInfo("Expire %s: successfully terminated", datadir);
                 break;
             case EXPIRE_TIMEOUT:
-                LogError("Expire %s: aborted - -T runtime limit reached, bookkeeping left consistent", datadir);
+                LogError("Expire %s: stopped - -T runtime limit reached; partial bookkeeping committed", datadir);
                 break;
             case EXPIRE_ABORTED:
-                LogError("Expire %s: aborted by signal, bookkeeping left consistent", datadir);
+                LogError("Expire %s: stopped by signal; partial bookkeeping committed", datadir);
                 break;
             case EXPIRE_FAILED:
             default:
@@ -475,13 +505,18 @@ int main(int argc, char **argv) {
         char string[128];
         LogInfo("Expired file size:  %sB", ScaleByteValue(string, sizeof(string), expired_size, PRINT_SCALED, 0));
         LogInfo("Expired time range: %s", ScaleDuration(string, sizeof(string), expired_time, PRINT_SCALED, WIDTH_VAR));
+
+        ExpireCancelTimeout();
+        if (status == EXPIRE_TIMEOUT || status == EXPIRE_ABORTED || ExpireStopRequested()) goto cleanup;
     }
+
+    if (ExpireStopRequested()) goto interrupted;
 
     if (do_update_param) {
         if (is_profile) {
             LogError("nfexpire cannot update profile parameters");
-            ReleaseChannelLocks(channel);
-            exit(EXIT_FAILURE);
+            exit_status = EXIT_FAILURE;
+            goto cleanup;
         }
         // single flow directory
         LogInfo("Update expire settings for %s", channel->datadir);
@@ -489,12 +524,16 @@ int main(int argc, char **argv) {
         print_stat = 1;
     }
 
+    if (ExpireStopRequested()) goto interrupted;
+
+cleanup:
+    ExpireCancelTimeout();
     // Release as soon as the mutating work is done - print_stat below only
     // reads (book_get() is itself lock-protected), so there is no reason to
     // keep another waiting nfexpire blocked for it.
-    ReleaseChannelLocks(channel);
+    if (locks_claimed) ReleaseChannelLocks(channel);
 
-    if (print_stat) {
+    if (print_stat && !ExpireStopRequested()) {
         bookkeeper_t bookkeeper;
         if (is_profile) {
             bookkeeper_t total_bookkeeper = {0};
@@ -512,8 +551,9 @@ int main(int argc, char **argv) {
             } else
                 PrintBookKeeper(&total_bookkeeper);
         } else if (nfsen_format) {
-            printf("Stat|%llu|%llu|%llu\n", (unsigned long long)channel->book_handle->bookkeeper->filesize,
-                   (unsigned long long)channel->book_handle->bookkeeper->first, (unsigned long long)channel->book_handle->bookkeeper->last);
+            book_get(channel->book_handle, &bookkeeper);
+            printf("Stat|%llu|%llu|%llu\n", (unsigned long long)bookkeeper.filesize, (unsigned long long)bookkeeper.first,
+                   (unsigned long long)bookkeeper.last);
         } else {
             book_get(channel->book_handle, &bookkeeper);
             PrintBookKeeper(&bookkeeper);
@@ -523,7 +563,7 @@ int main(int argc, char **argv) {
     current_channel = channel;
     while (current_channel) {
         // WriteStatInfo() reads the current bookkeeper via book_get()
-        if (is_profile)
+        if (is_profile && !ExpireStopRequested())
             // write legacy .nfsts file
             WriteStatInfo(current_channel);
         book_close(current_channel->book_handle);
@@ -532,4 +572,17 @@ int main(int argc, char **argv) {
     }
 
     return exit_status;
+
+interrupted:
+    // If expiry itself had started, ExpireDir() has committed the partial
+    // deletion before returning. Before that point no flow files have
+    // changed, so releasing any acquired claims is sufficient. Same as the
+    // do_expire status switch above: LogError(), not LogInfo() - a -T
+    // runtime limit or an operator-sent kill needs to reach the user's
+    // attention even when it happens before any deletion started.
+    if (ExpireTerminationStatus() == EXPIRE_TIMEOUT)
+        LogError("nfexpire stopped: -T runtime limit reached");
+    else
+        LogError("nfexpire stopped by signal");
+    goto cleanup;
 }

@@ -65,10 +65,13 @@
 #include "logging.h"
 #include "util.h"
 
-static uint32_t timeout = 0;
+// These are the only state variables touched by the signal handler. POSIX
+// permits volatile sig_atomic_t accesses there; using an ordinary uint32_t
+// lets an optimiser legally cache the value and miss a stop request.
+static volatile sig_atomic_t stop_requested = 0;
 // Which signal actually caused the abort - SIGALRM means the -T runtime ran
-// out; SIGTERM/SIGINT/SIGHUP mean someone asked us to stop. `timeout` alone
-// can't tell those apart, and ExpireDir()'s caller needs to.
+// out; SIGTERM/SIGINT/SIGHUP mean someone asked us to stop. The stop flag
+// alone cannot tell those apart, and ExpireDir()'s caller needs to.
 static volatile sig_atomic_t abort_signal = 0;
 
 typedef struct {
@@ -101,7 +104,7 @@ static void IntHandler(int signal) {
         case SIGHUP:
         case SIGINT:
         case SIGTERM:
-            timeout = 1;
+            stop_requested = 1;
             abort_signal = signal;
             break;
         default:
@@ -111,8 +114,26 @@ static void IntHandler(int signal) {
 
 } /* End of IntHandler */
 
-static void SetupSignalHandler(void) {
+void ExpireSetupSignalHandling(uint32_t runtime) {
     struct sigaction act;
+    sigset_t signals;
+    sigset_t oldmask;
+
+    // Do not lose a termination signal in the small interval while handlers
+    // are installed and their state is initialised. Pending signals are
+    // delivered to IntHandler() once the prior mask is restored below.
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGTERM);
+    sigaddset(&signals, SIGINT);
+    sigaddset(&signals, SIGHUP);
+    sigaddset(&signals, SIGALRM);
+    int mask_saved = sigprocmask(SIG_BLOCK, &signals, &oldmask) == 0;
+    if (!mask_saved) {
+        LogError("sigprocmask() failed while installing nfexpire signal handlers: %s", strerror(errno));
+    }
+
+    stop_requested = 0;
+    abort_signal = 0;
 
     memset((void *)&act, 0, sizeof(struct sigaction));
     act.sa_handler = IntHandler;
@@ -123,16 +144,27 @@ static void SetupSignalHandler(void) {
     sigaction(SIGHUP, &act, NULL);
     sigaction(SIGALRM, &act, NULL);
 
-}  // End of SetupSignalHandler
+    if (runtime) alarm(runtime);
+    if (mask_saved && sigprocmask(SIG_SETMASK, &oldmask, NULL) < 0) {
+        LogError("sigprocmask() failed while enabling nfexpire signal handlers: %s", strerror(errno));
+    }
+
+}  // End of ExpireSetupSignalHandling
+
+void ExpireCancelTimeout(void) { alarm(0); }  // End of ExpireCancelTimeout
+
+int ExpireStopRequested(void) { return stop_requested != 0; }  // End of ExpireStopRequested
 
 // Resolve the outcome of a run into the status the caller sees. Every
 // ExpireDir()/ExpireProfileSlots() return funnels through here, so the
 // timeout/signal distinction only has to be made in one place.
 static expire_status_t FinalStatus(int operationFailed) {
     if (operationFailed) return EXPIRE_FAILED;
-    if (!timeout) return EXPIRE_OK;
+    if (!stop_requested) return EXPIRE_OK;
     return abort_signal == SIGALRM ? EXPIRE_TIMEOUT : EXPIRE_ABORTED;
 }  // End of FinalStatus
+
+expire_status_t ExpireTerminationStatus(void) { return FinalStatus(0); }  // End of ExpireTerminationStatus
 
 /*
  * Parses size string into uint64_t
@@ -441,6 +473,17 @@ int RescanDir(const channel_t *channel) {
 
     errno = 0;
     while ((ent = fts_read(fts)) != NULL) {
+        // A full rescan can run long on a large directory, and is meant to
+        // stay interruptible - a signal here (fresh, not one already
+        // consumed by an earlier phase of this run; see RescanDirtyChannels())
+        // simply leaves the channel dirty, to be picked up on the next
+        // invocation. That is different from the deletion loop in
+        // ExpireDir(), which always commits a clean, consistent partial
+        // state before stopping.
+        if (ExpireStopRequested()) {
+            fts_close(fts);
+            return 0;
+        }
         if (ent->fts_info == FTS_F) {
             time_t timestamp;
             if (!ParseFlowFilename(ent->fts_name, ent->fts_namelen, &timestamp)) continue;
@@ -621,17 +664,33 @@ static void CleanupChannels(const channel_t *channel) {
 
 }  // End of CleanupChannels
 
+// The last-resort pass that gets a channel out of the dirty state. A stop
+// request already consumed by the deletion phase above must not also block
+// this repair from ever starting - it is reset here for a clean slate, so
+// the common case (an orderly stop with nothing left to repair) never even
+// reaches this function with a leftover flag in the way. A *fresh* signal
+// arriving once this pass is actually running is a different matter: a
+// rescan can run long on a large directory, so it stays interruptible - the
+// channel(s) not yet repaired simply stay dirty, to be picked up on the
+// next invocation.
 static int RescanDirtyChannels(channel_t *channel, const char *label) {
+    stop_requested = 0;
+    abort_signal = 0;
+
     int failed = 0;
     for (channel_t *ch = channel; ch; ch = ch->next) {
         if (!book_is_dirty(ch->book_handle)) continue;
+        if (ExpireStopRequested()) {
+            failed = 1;
+            break;
+        }
         LogVerbose("Expire %s: inconsistent data - rescan ..", label);
         int ok = 0;
         int maxTries = 3;
         do {
             ok = RescanDir(ch);
             maxTries--;
-        } while (!ok && maxTries > 0);
+        } while (!ok && !ExpireStopRequested() && maxTries > 0);
         if (!ok) {
             LogError("Failed to re-scan dirty channel %s", ch->datadir);
             failed = 1;
@@ -644,7 +703,7 @@ static int RescanDirtyChannels(channel_t *channel, const char *label) {
 // their union rather than selecting one channel as a reference; otherwise an
 // incomplete reference channel can leave the aggregate profile above limit.
 static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_size, time_t first, time_t last, uint64_t maxsize,
-                                          time_t maxlife, uint32_t low_water, time_t runtime, int dryrun) {
+                                          time_t maxlife, uint32_t low_water, int dryrun) {
     const char *label = "Profile";
     int need_size_expire = maxsize && total_size > maxsize;
     uint64_t target_size = (maxsize / 100) * low_water + ((maxsize % 100) * low_water) / 100;
@@ -654,18 +713,21 @@ static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_siz
     expire_slots_t slots;
     if (!CollectProfileSlots(channel, &slots)) {
         CleanupChannels(channel);
-        return EXPIRE_FAILED;
-    }
-
-    if (!dryrun && runtime) {
-        SetupSignalHandler();
-        alarm(runtime);
+        return ExpireStopRequested() ? ExpireTerminationStatus() : EXPIRE_FAILED;
     }
 
     uint64_t current_size = total_size;
     size_t first_remaining = slots.used;
     int failed = 0;
     for (size_t i = 0; i < slots.used; i++) {
+        // Never begin another lockstep slot after a stop request. If a signal
+        // arrives while deleting a slot, the inner channel loop completes that
+        // slot before reaching this check, so profiles remain symmetrical.
+        if (ExpireStopRequested()) {
+            // The current slot is the first retained one. Do not delete it.
+            first_remaining = i;
+            break;
+        }
         if (!need_size_expire && !need_life_expire) {
             first_remaining = i;
             break;
@@ -709,11 +771,9 @@ static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_siz
         }
         if (failed) break;
 
-        if (timeout || (need_size_expire && current_size <= target_size)) need_size_expire = 0;
-        if (timeout || (need_life_expire && time_cmp >= 0)) need_life_expire = 0;
+        if (stop_requested || (need_size_expire && current_size <= target_size)) need_size_expire = 0;
+        if (stop_requested || (need_life_expire && time_cmp >= 0)) need_life_expire = 0;
     }
-
-    if (runtime) alarm(0);
 
     if (dryrun) {
         CleanupChannels(channel);
@@ -722,13 +782,10 @@ static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_siz
         return FinalStatus(failed);
     }
 
-    // A timeout with a valid stopping point is an orderly abort, not a
-    // failure: book exactly what was deleted below, the same as a normal
-    // run. Only a genuinely ambiguous state - a real failure, or having
-    // walked the whole slot union without ever finding a stopping point -
-    // needs a rescan, and that is resolved here rather than deferred: -T
-    // must never exit leaving a dirty bookkeeper behind.
-    if (failed || first_remaining == slots.used) {
+    // An empty remaining union is valid: book_expire() records an empty
+    // channel when its deleted-file count consumes its full book count.
+    // Only a real failed operation needs a rebuild.
+    if (failed) {
         CleanupChannels(channel);
         for (channel_t *ch = channel; ch; ch = ch->next) book_mark_dirty(ch->book_handle);
         FreeExpireSlots(&slots);
@@ -736,7 +793,7 @@ static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_siz
         return FinalStatus(failed || !rescan_ok);
     }
 
-    time_t expired_time = slots.slots[first_remaining].timestamp - first;
+    time_t expired_time = first_remaining < slots.used ? slots.slots[first_remaining].timestamp - first : last - first;
     for (channel_t *ch = channel; ch; ch = ch->next) ch->expired_time = expired_time;
 
     for (channel_t *ch = channel; ch; ch = ch->next) {
@@ -750,17 +807,23 @@ static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_siz
             }
             if (exists < 0) {
                 LogError("Failed to inspect %s/%s safely: %s", ch->datadir, slots.slots[i].relpath, strerror(errno));
+                failed = 1;
                 break;
             }
         }
-        if (channel_first == 0 || !book_expire(ch->book_handle, channel_first, ch->expired_files, ch->expired_size)) {
+        if (failed || !book_expire(ch->book_handle, channel_first, ch->expired_files, ch->expired_size)) {
             book_mark_dirty(ch->book_handle);
         }
     }
 
     CleanupChannels(channel);
     FreeExpireSlots(&slots);
-    return FinalStatus(!RescanDirtyChannels(channel, label));
+    // Capture the outcome of the deletion phase before RescanDirtyChannels()
+    // runs: it resets the stop-request flags (see its own comment) so a
+    // repair it does not even need to attempt cannot silently turn a real
+    // EXPIRE_TIMEOUT/EXPIRE_ABORTED back into EXPIRE_OK.
+    expire_status_t status = FinalStatus(0);
+    return RescanDirtyChannels(channel, label) ? status : EXPIRE_FAILED;
 }  // End of ExpireProfileSlots
 
 // Unified single-channel / profile expiry. A plain, non-profile expire is
@@ -771,8 +834,7 @@ static expire_status_t ExpireProfileSlots(channel_t *channel, uint64_t total_siz
 // not the other, which is exactly how two of this function's own past bugs
 // happened: a lifetime-comparison off-by-one and an unlocked bookkeeper
 // write were each fixed once here, but previously had to be fixed twice.
-expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t limit_mask, time_t runtime,
-                          int dryrun) {
+expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t limit_mask, int dryrun) {
     if (!channel) return EXPIRE_FAILED;
 
     // A single channel may fall back to its own persisted limits (nfexpire
@@ -857,17 +919,12 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
         return EXPIRE_OK;
     }
 
-    if (!isSingle) return ExpireProfileSlots(channel, total_size, first, last, maxsize, maxlife, low_water, runtime, dryrun);
+    if (!isSingle) return ExpireProfileSlots(channel, total_size, first, last, maxsize, maxlife, low_water, dryrun);
 
 #ifdef DEVEL
     if (need_size_expire) printf("need_size_expire: %d from %" PRIu64 " down to %" PRIu64, need_size_expire, total_size, target_size);
     if (need_life_expire) printf("need_life_expire: %d from %s down to %s", need_life_expire, UNIX2ISO(first), timeLimitStr);
 #endif
-
-    if (dryrun == 0 && runtime) {
-        SetupSignalHandler();
-        alarm(runtime);
-    }
 
     // Traverse the reference channel's timeline; for a single channel that
     // is trivially the only channel there is.
@@ -884,7 +941,22 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
     time_t new_first = 0;
     int done = 0;
     FTSENT *ftsent;
-    while (!done && (ftsent = fts_read(fts)) != NULL) {
+    int stopping = 0;
+    int fts_errno = 0;
+    while (!done) {
+        // fts_read() reports traversal errors through errno. Reset it for
+        // this call: unlinkat()/rmdir() in the prior iteration may have set
+        // errno even though their expected outcome was handled successfully.
+        errno = 0;
+        ftsent = fts_read(fts);
+        if (ftsent == NULL) {
+            fts_errno = errno;
+            break;
+        }
+        // On a stop request, continue only until the next valid flow file.
+        // That file is retained and supplies the exact new book head; no more
+        // unlink operations are started.
+        if (ExpireStopRequested()) stopping = 1;
         switch (ftsent->fts_info) {
             case FTS_D:
                 // skip all '.' entries
@@ -898,6 +970,13 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
             case FTS_F: {
                 time_t fileTime;
                 if (!ParseFlowFilename(ftsent->fts_name, ftsent->fts_namelen, &fileTime)) break;
+
+                if (stopping) {
+                    done = 1;
+                    new_first = fileTime;
+                    expire_end = new_first;
+                    break;
+                }
 
                 // check, if we are done and set new first value
                 if (need_size_expire == 0 && need_life_expire == 0) {
@@ -955,8 +1034,8 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
                 // stop condition
                 // this does not yet terminte the while loop
                 // as we need to get the next valid file for the new first timestamp
-                if (timeout || (need_size_expire && current_size <= target_size)) need_size_expire = 0;
-                if (timeout || (need_life_expire && timeCMP >= 0)) need_life_expire = 0;
+                if (stop_requested || (need_size_expire && current_size <= target_size)) need_size_expire = 0;
+                if (stop_requested || (need_life_expire && timeCMP >= 0)) need_life_expire = 0;
 
                 break;
             }
@@ -965,7 +1044,7 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
                 // Remove now-empty archive directories after their files have
                 // been considered. Use the same no-follow traversal as file
                 // deletion, so a replacement symlink cannot escape a channel.
-                if (ftsent->fts_level > 0) {
+                if (!stopping && ftsent->fts_level > 0) {
                     const char *rel = ftsent->fts_path + base_len + 1;
                     for (channel_t *ch = channel; ch; ch = ch->next) {
                         if (RemoveEmptyDirectory(ch, rel, dryrun) < 0) {
@@ -981,7 +1060,6 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
         }
     }
 
-    if (runtime) alarm(0);
     fts_close(fts);
 
     if (expire_end) {
@@ -999,22 +1077,13 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
         return FinalStatus(0);
     }
 
-    int dirty = 0;
-    if (ftsent == NULL) {
-        // end of directory reached - most likely all files expired
-        // make sure bookkeeper gets updated correctly
-        dirty = 1;
-        LogVerbose("Reached end of file list for %s", label);
-    }
-    if (new_first == 0) {
-        dirty = 1;
-        LogVerbose("Unclean expire for %s", label);
-    }
+    int dirty = fts_errno != 0;
+    if (dirty) LogError("fts_read() error for %s: %s", label, strerror(fts_errno));
 
     for (channel_t *ch = channel; ch; ch = ch->next) {
         if (dirty == 0) {
-            // expire successfully completed - book_expire() itself rejects the
-            // update (and leaves the book untouched) if the numbers don't add up
+            // This commits either the next retained file or a verified empty
+            // archive. book_expire() rejects a concurrent/inconsistent state.
             if (!book_expire(ch->book_handle, new_first, ch->expired_files, ch->expired_size)) {
                 LogError("book_update rejected - rescan channel %s", ch->datadir);
                 book_mark_dirty(ch->book_handle);
@@ -1024,28 +1093,17 @@ expire_status_t ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, 
         }
     }
 
-    // A timeout is an orderly abort, not a failure: whatever was already
-    // deleted was just booked above like any normal run. Only the rare,
-    // genuinely ambiguous case above (end of listing / no stopping point)
-    // left a channel dirty, and that gets resolved right here rather than
-    // deferred - -T must never exit leaving a dirty bookkeeper behind.
-    int rescanFailed = 0;
-    for (channel_t *ch = channel; ch; ch = ch->next) {
-        if (book_is_dirty(ch->book_handle)) {
-            LogVerbose("Expire %s: inconsistent data - rescan ..", label);
-            int ok = 0;
-            int maxTries = 3;
-            do {
-                ok = RescanDir(ch);
-                maxTries--;
-            } while (ok == 0 && maxTries > 0);
-
-            if (ok == 0) {
-                LogError("Failed to re-scan dirty channel %s", ch->datadir);
-                rescanFailed = 1;
-            }
-        }
-    }
-
-    return FinalStatus(rescanFailed);
+    // A timeout is an orderly partial completion: the deleted prefix and the
+    // next retained file were committed above. Only a real filesystem or
+    // concurrent-bookkeeping inconsistency needs a rebuild here - and that
+    // repair (see RescanDirtyChannels()) is deliberately not gated on the
+    // stop request that got us here, only on one that arrives fresh while
+    // it is itself running.
+    //
+    // Capture the outcome of the deletion phase before calling it:
+    // RescanDirtyChannels() resets the stop-request flags (see its own
+    // comment) so a repair it does not even need to attempt cannot silently
+    // turn a real EXPIRE_TIMEOUT/EXPIRE_ABORTED back into EXPIRE_OK.
+    expire_status_t status = FinalStatus(0);
+    return RescanDirtyChannels(channel, label) ? status : EXPIRE_FAILED;
 }  // End of ExpireDir
