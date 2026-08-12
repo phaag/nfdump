@@ -1240,8 +1240,10 @@ int main(int argc, char **argv) {
     }
 
     if (flist.multiple_dirs == NULL && flist.single_file == NULL && flist.multiple_files == NULL) {
+        // No -r/-R/-M given: unlike -h, this is not an explicit help
+        // request, so it must not report success to the shell.
         usage(argv[0]);
-        exit(EXIT_SUCCESS);
+        exit(EXIT_FAILURE);
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
