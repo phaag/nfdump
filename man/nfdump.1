@@ -624,16 +624,8 @@ NSEL/ASA nat dst port
 NSEL/ASA nat src/dst port
 .It Cm iacl
 NSEL/ASA ingress ACL
-.It Cm iace
-NSEL/ASA ingress ACE
-.It Cm ixace
-NSEL/ASA ingress xACE
 .It Cm eacl
 NSEL/ASA egress ACL
-.It Cm eace
-NSEL/ASA egress ACE
-.It Cm exace
-NSEL/ASA egress xACE
 .El
 .Pp
 Example:
@@ -1069,8 +1061,8 @@ the source or destination IP may match. If
 .Ar ipaddr
 is set to
 .Cm tor
-then flows are listed, if the respective ip addr is a to tor exit not. For this filter
-to work, you need a working nftordb. 
+then flows are listed, if the respective ip addr is a tor exit node. For this filter
+to work, you need a working nftordb.
 .It Cm host Ar ipaddr
 .Cm host
 is just a synonym for
@@ -2265,8 +2257,19 @@ Aggregate all flows and write the result back to a binary file, sorted by the st
 .Pp
 .Dl % nfdump -r flowfile -a -Otstart -w newfile
 .Sh RETURN VALUES
+.Bl -item -compact
 .Nm
-returns 0 on success and 255 if processing failed.
+returns
+.It
+0 Success.
+.It
+1 Error - bad arguments, a missing or invalid input/filter file, filter
+syntax error, or a failed file check/repair
+.Po Fl v Ic check , check-verbose , repair Pc .
+.It
+255 Internal fault (out of memory or unable to create a worker thread) -
+should not normally occur.
+.El
 .Sh SEE ALSO
 https://www.iana.org/assignments/ipfix/ipfix.xhtml
 .Pp

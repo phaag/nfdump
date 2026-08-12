@@ -139,7 +139,7 @@ static void usage(char *name) {
         "usage %s [options] [\"filter\"]\n"
         "-h\t\tthis text you see right here\n"
         "-V\t\tPrint version and exit.\n"
-        "-l <num>\tSet log level: 0=none, 1=standard, 2=verbose.\n"
+        "-l <num>\tSet log level 1 through 4: 1=standard, higher values add diagnostic detail.\n"
         "-a\t\tAggregate netflow data.\n"
         "-A <expr>[/net]\tHow to aggregate: ',' sep list of tags see nfdump(1)\n"
         "\t\tor subnet aggregation: srcip4/24, srcip6/64.\n"
@@ -1010,7 +1010,7 @@ int main(int argc, char **argv) {
                 outputParams->printPlain = 1;
                 break;
             case 'f':
-                if (!CheckPath(optarg, S_IFREG)) exit(255);
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 ffile = optarg;
                 break;
             case 't':
@@ -1068,7 +1068,7 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 16);
                 outputParams->topN = atoi(optarg);
                 if (outputParams->topN < 0) {
-                    LogError("TopnN number %i out of range", outputParams->topN);
+                    LogError("TopN number %i out of range", outputParams->topN);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -1201,11 +1201,14 @@ int main(int argc, char **argv) {
         } else if (strcmp(query_type, "check-verbose") == 0) {
             exit(VerifyFileV3(flist.single_file, 1) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
         } else if (strcmp(query_type, "repair") == 0) {
-            ReWriteV3(flist.single_file);
+            // ReWriteV3() returns 1 on success, 0 on failure - both silently
+            // ignored before, so a failed check/repair reported EXIT_SUCCESS
+            // to the shell either way.
+            exit(ReWriteV3(flist.single_file) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
         } else {
-            LogError("Unknown mode to verify file: %s. Use -v check, or -v repair", query_type);
+            LogError("Unknown mode to verify file: %s. Use -v check, check-verbose, or repair", query_type);
+            exit(EXIT_FAILURE);
         }
-        exit(EXIT_SUCCESS);
     }
 
     void *engine = NULL;
@@ -1219,7 +1222,7 @@ int main(int argc, char **argv) {
 
     if (postFilter) {
         outputParams->postFilter = CompileFilter(postFilter);
-        if (!outputParams->postFilter) exit(254);
+        if (!outputParams->postFilter) exit(EXIT_FAILURE);
     }
 
     if (fdump) {
@@ -1292,10 +1295,9 @@ int main(int argc, char **argv) {
             LogInfo("Successfully changed ident to %s for %s", Ident, flist.single_file);
             exit(EXIT_SUCCESS);
         } else {
-            LogInfo("Failed to change ident to %s for %s", Ident, flist.single_file);
+            LogError("Failed to change ident to %s for %s", Ident, flist.single_file);
             exit(EXIT_FAILURE);
         }
-        exit(ChangeIdent(flist.single_file, Ident) ? EXIT_SUCCESS : EXIT_FAILURE);
     }
 
     if (print_stat) {
@@ -1309,7 +1311,7 @@ int main(int argc, char **argv) {
         nffileV3_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error - open file failed");
-            exit(250);
+            exit(EXIT_FAILURE);
         }
         char *ident = NULL;
         if (nffile->ident) {
@@ -1325,7 +1327,7 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    if ((aggregate || flow_stat || print_order) && !Init_FlowCache(outputParams->hasGeoDB)) exit(250);
+    if ((aggregate || flow_stat || print_order) && !Init_FlowCache(outputParams->hasGeoDB)) exit(EXIT_FAILURE);
 
     if (aggregate && (flow_stat || element_stat)) {
         aggregate = 0;
@@ -1343,7 +1345,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
     }
-    if (element_stat && !Init_StatTable(outputParams->hasGeoDB)) exit(250);
+    if (element_stat && !Init_StatTable(outputParams->hasGeoDB)) exit(EXIT_FAILURE);
 
     if (gnuplot_stat) {
         if (!flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
@@ -1354,7 +1356,7 @@ int main(int argc, char **argv) {
         nffileV3_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error - open file failed");
-            exit(250);
+            exit(EXIT_FAILURE);
         }
         printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
         while (nffile != NULL) {
