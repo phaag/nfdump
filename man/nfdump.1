@@ -221,9 +221,30 @@ to select a time window instead.
 .It Fl P Ar postfilter
 Apply
 .Ar postfilter
-to already aggregated or statistics output records before printing, using the same
-filter syntax as
+before printing or writing out the resulting flow records of an aggregation
+.Po Fl a , Fl A , Fl b , Fl B Pc
+or a sort order
+.Pq Fl O ,
+using the same filter syntax as
 .Ar filter .
+These are the operations whose output is itself a set of flow records -
+the same records a plain read prints, or
+.Fl w
+writes back out - just re-grouped or re-ordered, so a second filtering
+pass over that result is meaningful. A plain read without
+.Fl a , A , b , B
+or
+.Fl O
+prints/writes each matching record as it is read and never builds such a
+result set, so
+.Fl P
+has no effect there -
+.Ar filter
+already covers that case. Likewise,
+.Fl P
+does not apply to
+.Fl s
+statistics output, which is a different, non-flow record type.
 .It Fl c Ar num
 Limit the number of records to be processed to the first
 .Ar num

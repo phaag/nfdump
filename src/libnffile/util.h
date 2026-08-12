@@ -94,6 +94,8 @@ void xsleep(suseconds_t usec);
 
 void CheckArgLen(char *arg, size_t len);
 
+int ParseInt(const char *argument, const char *optName, int min, int max, int *value);
+
 int CheckPath(const char *path, unsigned type);
 
 #define PATH_ERROR -1

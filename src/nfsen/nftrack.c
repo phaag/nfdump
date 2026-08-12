@@ -298,11 +298,7 @@ int main(int argc, char **argv) {
                 lastupdate = 1;
                 break;
             case 'n':
-                topN = atoi(optarg);
-                if (topN < 0) {
-                    fprintf(stderr, "TopnN number %i out of range\n", topN);
-                    exit(255);
-                }
+                if (!ParseInt(optarg, "-n", 0, INT32_MAX, &topN)) exit(255);
                 break;
             case 'p':
                 output_mode = 1;

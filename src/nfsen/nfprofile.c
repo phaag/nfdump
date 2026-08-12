@@ -118,27 +118,6 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-static void FreeRecordHandle(recordHandle_t *handle) {
-    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
-    if (payloadHandle) {
-        if (payloadHandle->dns) free(payloadHandle->dns);
-        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
-        if (payloadHandle->ja3) free(payloadHandle->ja3);
-        if (payloadHandle->ja4) free(payloadHandle->ja4);
-        free(payloadHandle);
-        handle->extensionList[EXinPayloadHandle] = NULL;
-    }
-    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
-    if (payloadHandle) {
-        if (payloadHandle->dns) free(payloadHandle->dns);
-        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
-        if (payloadHandle->ja3) free(payloadHandle->ja3);
-        if (payloadHandle->ja4) free(payloadHandle->ja4);
-        free(payloadHandle);
-        handle->extensionList[EXoutPayloadHandle] = NULL;
-    }
-}  // End of FreeRecordHandle
-
 static void *worker_thread(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
 
@@ -556,7 +535,7 @@ int main(int argc, char **argv) {
                 break;
             case 'S':
                 CheckArgLen(optarg, 2);
-                subdir_index = atoi(optarg);
+                if (!ParseInt(optarg, "-S", 0, 99, &subdir_index)) exit(EXIT_FAILURE);
                 break;
             case 'V':
                 printf("%s: %s\n", argv[0], versionString());
@@ -579,10 +558,12 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, MAXPATHLEN);
                 ffile = optarg;
                 break;
-            case 't':
+            case 't': {
                 CheckArgLen(optarg, 32);
-                tslot = atoi(optarg);
-                break;
+                int t;
+                if (!ParseInt(optarg, "-t", 0, INT32_MAX, &t)) exit(EXIT_FAILURE);
+                tslot = (time_t)t;
+            } break;
             case 'M':
                 CheckArgLen(optarg, MAXPATHLEN);
                 flist.multiple_dirs = strdup(optarg);

@@ -29,6 +29,8 @@
  *
  */
 
+#include "ssl/ssl.h"
+
 static inline void UpdateStatRecord(stat_record_t *stat_record, recordHandle_t *recordHandle);
 
 static inline void UpdateStatRecord(stat_record_t *stat_record, recordHandle_t *recordHandle) {
@@ -169,3 +171,26 @@ static inline void UpdateRawStat(stat_record_t *stat_record, EXgenericFlow_t *ge
     }
 
 }  // End of UpdateRawStat
+
+static inline void FreeRecordHandle(recordHandle_t *handle);
+
+static inline void FreeRecordHandle(recordHandle_t *handle) {
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXinPayloadHandle] = NULL;
+    }
+    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXoutPayloadHandle] = NULL;
+    }
+}  // End of FreeRecordHandle

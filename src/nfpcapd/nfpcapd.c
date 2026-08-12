@@ -277,11 +277,8 @@ int main(int argc, char *argv[]) {
                 do_daemonize = 1;
                 break;
             case 'B': {
-                int i = atoi(optarg);
-                if (i <= 0) {
-                    LogError("ERROR: Cache size must not be < 0");
-                    exit(EXIT_FAILURE);
-                }
+                int i;
+                if (!ParseInt(optarg, "-B", 1, INT32_MAX, &i)) exit(EXIT_FAILURE);
                 cache_size = (unsigned)i;
             } break;
             case 'I':
@@ -350,11 +347,9 @@ int main(int argc, char *argv[]) {
                 pcapfile = optarg;
                 break;
             case 's': {
-                int i = atoi(optarg);
-                if (i < (14 + 20 + 20)) {  // ethernet, IP , TCP, no payload
-                    LogError("ERROR: snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
-                    exit(EXIT_FAILURE);
-                }
+                int i;
+                // ethernet, IP, TCP, no payload
+                if (!ParseInt(optarg, "-s", 14 + 20 + 20, INT32_MAX, &i)) exit(EXIT_FAILURE);
                 snaplen = (unsigned)i;
             } break;
             case 'e': {
@@ -363,29 +358,26 @@ int main(int argc, char *argv[]) {
                 char *sep = strchr(s, ',');
                 if (!sep) {
                     LogError("ERROR: timeout values format error");
+                    free(s);
                     exit(EXIT_FAILURE);
                 }
                 *sep = '\0';
                 sep++;
-                int a = atoi(s);
-                int i = atoi(sep);
-                if (a <= 0 || i <= 0 || a > 3600 || i > 3600) {
-                    LogError("ERROR: invalid timeout values: %d:%d", a, i);
-                    exit(EXIT_FAILURE);
-                }
+                int a, i;
+                int ok = ParseInt(s, "-e (active)", 1, 3600, &a) && ParseInt(sep, "-e (inactive)", 1, 3600, &i);
+                free(s);
+                if (!ok) exit(EXIT_FAILURE);
                 activeTimeout = (unsigned)a;
                 inactiveTimeout = (unsigned)i;
             } break;
-            case 't':
-                t_win = atoi(optarg);
-                if (t_win < 2) {
-                    LogError("time interval <= 2s not allowed");
-                    exit(EXIT_FAILURE);
-                }
+            case 't': {
+                int t;
+                if (!ParseInt(optarg, "-t", 2, INT32_MAX, &t)) exit(EXIT_FAILURE);
+                t_win = (time_t)t;
                 if (t_win < 60) {
                     time_extension = "%Y%m%d%H%M%S";
                 }
-                break;
+            } break;
             case 'W':
                 CheckArgLen(optarg, 16);
                 if (!ParseCoreLimit(optarg, &limitCores)) {
@@ -421,11 +413,8 @@ int main(int argc, char *argv[]) {
                 break;
             case 'S': {
                 CheckArgLen(optarg, 16);
-                int s = atoi(optarg);
-                if (s < 0) {
-                    LogError("ERROR: invalid subdir index: %d", s);
-                    exit(EXIT_FAILURE);
-                }
+                int s;
+                if (!ParseInt(optarg, "-S", 0, 99, &s)) exit(EXIT_FAILURE);
                 subdir_index = (unsigned)s;
             } break;
             case 'v':

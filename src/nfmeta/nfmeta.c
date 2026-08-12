@@ -511,11 +511,7 @@ int main(int argc, char **argv) {
                 break;
             case 'v':
                 CheckArgLen(optarg, 16);
-                verbose = atoi(optarg);
-                if (verbose <= 0 || verbose > 4) {
-                    LogError("log level %i out of range 1..4", verbose);
-                    exit(EXIT_FAILURE);
-                }
+                if (!ParseInt(optarg, "-v", 1, 4, &verbose)) exit(EXIT_FAILURE);
                 break;
             case 'x':
                 CheckArgLen(optarg, 256);

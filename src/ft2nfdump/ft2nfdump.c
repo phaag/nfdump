@@ -312,13 +312,11 @@ int main(int argc, char **argv) {
             case 'E':
                 extended = 1;
                 break;
-            case 'c':
-                limitflows = atoi(optarg);
-                if (!limitflows) {
-                    LogError("Option -c needs a number > 0");
-                    exit(255);
-                }
-                break;
+            case 'c': {
+                int l;
+                if (!ParseInt(optarg, "-c", 1, INT32_MAX, &l)) exit(255);
+                limitflows = (uint32_t)l;
+            } break;
             case 'z':
                 if (compressType) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");

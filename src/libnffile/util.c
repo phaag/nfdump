@@ -113,6 +113,31 @@ void CheckArgLen(char *arg, size_t len) {
     }
 }  // End of CheckArgLen
 
+// Strictly parse a cli integer argument, e.g. the optarg of a getopt() option.
+//
+// Unlike atoi(), which silently maps any garbage input ("abc", "5abc", "")
+// to 0 and has undefined behaviour on overflow, this requires the entire
+// string to be a valid, in-range integer. On success returns 1 and stores
+// the result in *value. On failure returns 0, logs an error naming optName
+// and the offending argument, and leaves *value untouched.
+int ParseInt(const char *argument, const char *optName, int min, int max, int *value) {
+    if (argument == NULL || *argument == '\0') {
+        LogError("Option %s needs a numeric argument", optName);
+        return 0;
+    }
+
+    errno = 0;
+    char *end = NULL;
+    long parsed = strtol(argument, &end, 10);
+    if (errno == ERANGE || end == argument || *end != '\0' || parsed < min || parsed > max) {
+        LogError("Option %s: invalid number '%s' - expected an integer between %d and %d", optName, argument, min, max);
+        return 0;
+    }
+
+    *value = (int)parsed;
+    return 1;
+}  // End of ParseInt
+
 /*
  * test for file or directory
  * returns:

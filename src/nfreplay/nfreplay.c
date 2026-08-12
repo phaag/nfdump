@@ -310,27 +310,6 @@ static int FlushBuffer(int confirm) {
     return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
-static void FreeRecordHandle(recordHandle_t *handle) {
-    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
-    if (payloadHandle) {
-        if (payloadHandle->dns) free(payloadHandle->dns);
-        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
-        if (payloadHandle->ja3) free(payloadHandle->ja3);
-        if (payloadHandle->ja4) free(payloadHandle->ja4);
-        free(payloadHandle);
-        handle->extensionList[EXinPayloadHandle] = NULL;
-    }
-    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
-    if (payloadHandle) {
-        if (payloadHandle->dns) free(payloadHandle->dns);
-        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
-        if (payloadHandle->ja3) free(payloadHandle->ja3);
-        if (payloadHandle->ja4) free(payloadHandle->ja4);
-        free(payloadHandle);
-        handle->extensionList[EXoutPayloadHandle] = NULL;
-    }
-}  // End of FreeRecordHandle
-
 static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
     nffileV3_t *nffile = NULL;
     uint64_t twin_msecFirst, twin_msecLast;

@@ -319,27 +319,6 @@ static void PrintGNUplotSumStat(nffileV3_t *nffile) {
     }
 }  // End of PrintGNUplotSumStat
 
-static void FreeRecordHandle(recordHandle_t *handle) {
-    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
-    if (payloadHandle) {
-        if (payloadHandle->dns) free(payloadHandle->dns);
-        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
-        if (payloadHandle->ja3) free(payloadHandle->ja3);
-        if (payloadHandle->ja4) free(payloadHandle->ja4);
-        free(payloadHandle);
-        handle->extensionList[EXinPayloadHandle] = NULL;
-    }
-    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
-    if (payloadHandle) {
-        if (payloadHandle->dns) free(payloadHandle->dns);
-        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
-        if (payloadHandle->ja3) free(payloadHandle->ja3);
-        if (payloadHandle->ja4) free(payloadHandle->ja4);
-        free(payloadHandle);
-        handle->extensionList[EXoutPayloadHandle] = NULL;
-    }
-}  // End of FreeRecordHandle
-
 static void ProcessArrayBlock(arrayBlockV3_t *arrayBlock) {
     dbg_printf("ARRAY block, type: %u, size: %u, numElements: %u, elementSize: %u\n", arrayBlock->elementType, arrayBlock->rawSize,
                arrayBlock->numElements, arrayBlock->elementSize);
@@ -980,12 +959,9 @@ int main(int argc, char **argv) {
                 break;
             case 'c': {
                 CheckArgLen(optarg, 16);
-                int l = atoi(optarg);
-                if (l > 0) limitRecords = (uint32_t)l;
-                if (!limitRecords) {
-                    LogError("Option -c needs a number > 0");
-                    exit(EXIT_FAILURE);
-                }
+                int l;
+                if (!ParseInt(optarg, "-c", 1, INT32_MAX, &l)) exit(EXIT_FAILURE);
+                limitRecords = (uint32_t)l;
             } break;
             case 's':
                 CheckArgLen(optarg, 64);
@@ -1000,11 +976,7 @@ int main(int argc, char **argv) {
             } break;
             case 'l':
                 CheckArgLen(optarg, 16);
-                verbose = atoi(optarg);
-                if (verbose <= 0 || verbose > 4) {
-                    LogError("log level %i out of range 1..4", verbose);
-                    exit(EXIT_FAILURE);
-                }
+                if (!ParseInt(optarg, "-l", 1, 4, &verbose)) exit(EXIT_FAILURE);
                 break;
             case 'N':
                 outputParams->printPlain = 1;
@@ -1066,11 +1038,7 @@ int main(int argc, char **argv) {
                 break;
             case 'n':
                 CheckArgLen(optarg, 16);
-                outputParams->topN = atoi(optarg);
-                if (outputParams->topN < 0) {
-                    LogError("TopN number %i out of range", outputParams->topN);
-                    exit(EXIT_FAILURE);
-                }
+                if (!ParseInt(optarg, "-n", 0, INT32_MAX, &outputParams->topN)) exit(EXIT_FAILURE);
                 break;
             case 'T':
                 outputParams->doTag = 1;

@@ -594,11 +594,8 @@ int main(int argc, char **argv) {
                 Ident = strdup(optarg);
                 break;
             case 'i': {
-                int m = atoi(optarg);
-                if (m < 10) {
-                    LogError("metric interval < 10s not allowed");
-                    exit(EXIT_FAILURE);
-                }
+                int m;
+                if (!ParseInt(optarg, "-i", 10, INT32_MAX, &m)) exit(EXIT_FAILURE);
                 metricInterval = (unsigned)m;
                 if (metricInterval > twin) {
                     LogInfo("metric interval %u > twin %ld", metricInterval, (long)twin);
@@ -621,11 +618,8 @@ int main(int argc, char **argv) {
                 break;
             case 'B': {
                 CheckArgLen(optarg, 16);
-                int b = atoi(optarg);
-                if (b <= 0 || b > (1024 * 1024 * 100)) {
-                    LogError("Invalid argument %s for -B", optarg);
-                    exit(EXIT_FAILURE);
-                }
+                int b;
+                if (!ParseInt(optarg, "-B", 1, 1024 * 1024 * 100, &b)) exit(EXIT_FAILURE);
                 bufflen = (unsigned)b;
             } break;
             case 'b':
@@ -688,23 +682,18 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'S': {
-                int s = atoi(optarg);
-                if (s < 0) {
-                    LogError("Invalid number for subdir index: %s", optarg);
-                    exit(EXIT_FAILURE);
-                }
+                int s;
+                if (!ParseInt(optarg, "-S", 0, 99, &s)) exit(EXIT_FAILURE);
                 subdir_index = (unsigned)s;
             } break;
-            case 't':
-                twin = atoi(optarg);
-                if (twin < 1) {
-                    LogError("time interval <= 1s not allowed");
-                    exit(EXIT_FAILURE);
-                }
+            case 't': {
+                int t;
+                if (!ParseInt(optarg, "-t", 1, INT32_MAX, &t)) exit(EXIT_FAILURE);
+                twin = (time_t)t;
                 if (twin < 60) {
                     time_extension = "%Y%m%d%H%M%S";
                 }
-                break;
+            } break;
             case 'l':
                 CheckArgLen(optarg, 256);
                 launch_process = strdup(optarg);
