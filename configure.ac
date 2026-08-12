@@ -166,7 +166,7 @@ AC_CHECK_TYPES([union semun],
     ]]
 )
 
-AC_CHECK_FUNCS([fpurge __fpurge])
+AC_CHECK_FUNCS([fpurge __fpurge clock_nanosleep])
 
 # --- check for arc4random
 dnl Initialize EXTRA_LIBS

@@ -148,6 +148,11 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
         v5_sequence += v5_last_count;
         v5_output_header->flow_sequence = htonl(v5_sequence);
 
+        // +3600: keep SysUptime comfortably (>100s) above every record's
+        // relative Last in this packet, so the receiver's Cisco CSCei12353
+        // 32-bit-uptime-wraparound workaround (netflow_v5_v7.c, "Last >
+        // sysUptime by more than 100s") never misfires and shifts our
+        // timestamps back by 49.7 days.
         uint32_t unix_secs = (genericFlow->msecLast / 1000LL) + 3600;
         v5_output_header->unix_secs = htonl(unix_secs);
         v5_output_header->SysUptime = htonl((uint32_t)(unix_secs * 1000 - msecBoot));

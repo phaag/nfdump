@@ -178,6 +178,8 @@ trailing command line argument.
 Replay flows using their recorded end timestamps, with the specified speed factor.
 A value of 0 disables timestamp pacing (the default); 1 replays at recorded
 speed; and a value of N replays N times faster.
+Pacing uses monotonic absolute deadlines, so processing and scheduling delays
+do not accumulate into subsequent waits.
 .Bl -item -compact
 .It
 With a factor of 1, 5 minutes of records are sent in 5 minutes.

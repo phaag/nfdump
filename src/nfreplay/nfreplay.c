@@ -103,13 +103,78 @@ static uint8_t *sessionKey = NULL;
 /* Function Prototypes */
 static void usage(char *name);
 
-static void send_data(void *engine, uint64_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
+static int send_data(void *engine, uint64_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
 
 static void Close_nfd_output(send_peer_t *peer);
 
 static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer);
+
+/* Sleep until an absolute CLOCK_MONOTONIC deadline.  clock_nanosleep() is
+ * preferable because an interrupted sleep can be retried without recalculating
+ * the deadline.  macOS does not provide it, so retain the same absolute-time
+ * behaviour with nanosleep() there. */
+static int SleepUntilMonotonic(const struct timespec *deadline) {
+#ifdef HAVE_CLOCK_NANOSLEEP
+    int err;
+    do {
+        err = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, deadline, NULL);
+    } while (err == EINTR);
+    if (err != 0) {
+        LogError("clock_nanosleep() failed: %s", strerror(err));
+        return 0;
+    }
+#else
+    struct timespec now;
+    struct timespec remaining;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        LogError("clock_gettime(CLOCK_MONOTONIC) failed: %s", strerror(errno));
+        return 0;
+    }
+    if (now.tv_sec > deadline->tv_sec || (now.tv_sec == deadline->tv_sec && now.tv_nsec >= deadline->tv_nsec)) return 1;
+
+    remaining.tv_sec = deadline->tv_sec - now.tv_sec;
+    remaining.tv_nsec = deadline->tv_nsec - now.tv_nsec;
+    if (remaining.tv_nsec < 0) {
+        remaining.tv_sec--;
+        remaining.tv_nsec += 1000000000L;
+    }
+    while (nanosleep(&remaining, &remaining) != 0) {
+        if (errno != EINTR) {
+            LogError("nanosleep() failed: %s", strerror(errno));
+            return 0;
+        }
+    }
+#endif
+    return 1;
+}  // End of SleepUntilMonotonic
+
+static int PaceReplay(uint64_t msecLast, uint64_t *referenceMsec, const struct timespec *start, int distribution) {
+    const uint64_t minValidMsec = 1000000000000ULL;
+    const uint64_t maxValidMsec = 2000000000000ULL;
+
+    if (distribution == 0 || msecLast < minValidMsec || msecLast >= maxValidMsec) return 1;
+    if (*referenceMsec == 0) {
+        *referenceMsec = msecLast;
+        return 1;
+    }
+    /* Input may not be sorted by time.  A timestamp before the reference is
+     * already due and must never delay replay. */
+    if (msecLast <= *referenceMsec) return 1;
+
+    uint64_t elapsedUsec = ((msecLast - *referenceMsec) * 1000ULL) / (uint64_t)distribution;
+    struct timespec deadline = {
+        .tv_sec = start->tv_sec + (time_t)(elapsedUsec / 1000000ULL),
+        .tv_nsec = start->tv_nsec + (long)((elapsedUsec % 1000000ULL) * 1000ULL),
+    };
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec++;
+        deadline.tv_nsec -= 1000000000L;
+    }
+    return SleepUntilMonotonic(&deadline);
+}  // End of PaceReplay
 
 /* Parse command-line quantities strictly.  atoi() accepts malformed values
  * as zero and may overflow, which is especially unsafe for replay pacing. */
@@ -266,14 +331,15 @@ static void FreeRecordHandle(recordHandle_t *handle) {
     }
 }  // End of FreeRecordHandle
 
-static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
-    nffileV3_t *nffile;
+static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
+    nffileV3_t *nffile = NULL;
     uint64_t twin_msecFirst, twin_msecLast;
 
     // z-parameter variables
-    struct timespec todayTime, currentTime;
-    double today = 0, reftime = 0;
-    int reducer = 0;
+    struct timespec replayStart;
+    uint64_t referenceMsec = 0;
+    int status = 0;
+    recordHandle_t *recordHandle = NULL;
 
     twin_msecFirst = twin_msecLast = 0;
     const blockConstraint_t *bc = GetBlockConstraint(engine);
@@ -283,7 +349,7 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
     nffile = GetNextFile();
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return;
+        goto done;
     }
     FilterSetParam(engine, nffile->ident, NOGEODB);
 
@@ -291,8 +357,7 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
     peer.flush = 0;
     if (!peer.send_buffer) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CloseFileV3(nffile);
-        return;
+        goto done;
     }
     peer.buff_ptr = peer.send_buffer;
     peer.endp = (void *)((ptrdiff_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
@@ -304,16 +369,12 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
             break;
         case VERSION_NETFLOW_V9:
             if (!Init_v9_output(&peer)) {
-                free(peer.send_buffer);
-                CloseFileV3(nffile);
-                return;
+                goto done;
             }
             break;
         case VERSION_IPFIX:
             if (!Init_ipfix_output(&peer)) {
-                free(peer.send_buffer);
-                CloseFileV3(nffile);
-                return;
+                goto done;
             }
             break;
         case VERSION_NFDUMP:
@@ -321,16 +382,20 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
             break;
     }
 
-    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(peer.send_buffer);
-        CloseFileV3(nffile);
-        return;
+        goto done;
+    }
+
+    if (distribution != 0 && clock_gettime(CLOCK_MONOTONIC, &replayStart) != 0) {
+        LogError("clock_gettime(CLOCK_MONOTONIC) failed: %s", strerror(errno));
+        goto done;
     }
 
     uint64_t numflows = 0;
     uint64_t processed = 0;
+    status = 1;
     int done = 0;
     while (!done) {
         // get next data block from file
@@ -369,7 +434,9 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
         for (int i = 0; i < (int)dataBlock->numRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->rawSize || (record_ptr->size < sizeof(recordHeader_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
-                exit(EXIT_FAILURE);
+                status = 0;
+                FreeDataBlock(dataBlock);
+                goto done;
             }
             sumSize += record_ptr->size;
 
@@ -423,8 +490,9 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
 
                         if (err < 0) {
                             LogError("Error sending data");
-                            CloseFileV3(nffile);
-                            return;
+                            status = 0;
+                            FreeDataBlock(dataBlock);
+                            goto done;
                         }
 
                         if (delay) {
@@ -450,6 +518,13 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
                         }
                     }
 
+                    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                    if (genericFlow && !PaceReplay(genericFlow->msecLast, &referenceMsec, &replayStart, distribution)) {
+                        status = 0;
+                        FreeDataBlock(dataBlock);
+                        goto done;
+                    }
+
                 } break;
                 case METARecord:
                     /* bloom META records: consumed by the block-level pre-filter; skip here */
@@ -467,37 +542,12 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
                 }
             }
 
-            // z-parameter
-            // first and last are line (tstart and tend) timestamp with milliseconds
-            // first = (double)genericFlow->msecFirst / 1000.0;
-            double last = 0.0;
-            EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-            if (genericFlow) last = (double)genericFlow->msecLast / 1000.0;
-
-            clock_gettime(CLOCK_MONOTONIC, &currentTime);
-            double now = (double)currentTime.tv_sec + (double)currentTime.tv_nsec / 1000000000.0;
-
-            // remove incoherent values
-            if (reftime == 0 && last > 1000000000 && last < 2000000000) {
-                reftime = last;
-                clock_gettime(CLOCK_MONOTONIC, &todayTime);
-                today = (double)todayTime.tv_sec + (double)todayTime.tv_nsec / 1000000000.0;
-            }
-
-            // Reducer avoid to have too much computation: It takes 1 over 3 line to regulate sending time
-            if (reducer % 3 == 0 && distribution != 0 && reftime != 0 && last > 1000000000) {
-                while (last - reftime > distribution * (now - today)) {
-                    clock_gettime(CLOCK_MONOTONIC, &currentTime);
-                    now = (double)currentTime.tv_sec + (double)currentTime.tv_nsec / 1000000000.0;
-                }
-            }
-            reducer++;
-
         NEXT:
             FreeRecordHandle(recordHandle);
             // Advance pointer by number of bytes for netflow record
             record_ptr = (recordHeader_t *)((ptrdiff_t)record_ptr + record_ptr->size);
         }
+        FreeDataBlock(dataBlock);
     }  // while
 
     // flush still remaining records
@@ -517,15 +567,25 @@ static void send_data(void *engine, uint64_t limitRecords, unsigned int delay, i
     int ret = FlushBuffer(confirm);
     if (ret < 0) {
         LogError("Error flushing send buffer");
+        status = 0;
     }
 
+done:
+    if (recordHandle) {
+        FreeRecordHandle(recordHandle);
+        free(recordHandle);
+    }
     if (nffile) {
         CloseFileV3(nffile);
     }
+    free(peer.send_buffer);
+    peer.send_buffer = peer.buff_ptr = peer.endp = NULL;
+    if (peer.sockfd >= 0) {
+        close(peer.sockfd);
+        peer.sockfd = -1;
+    }
 
-    close(peer.sockfd);
-
-    return;
+    return status;
 
 }  // End of send_data
 
@@ -726,11 +786,12 @@ int main(int argc, char **argv) {
 
     if (!Init_nffile(threadConfig, fileList)) exit(EXIT_FAILURE);
 
-    send_data(engine, count, delay, confirm, netflow_version, distribution);
+    int status = send_data(engine, count, delay, confirm, netflow_version, distribution);
+    DisposeFilter(engine);
 
 #ifdef HAVE_LIBSODIUM
     FreeUdpSessionKey(sessionKey);
     FreeCryptoCtx(transfer_ctx);
 #endif
-    return 0;
+    return status ? EXIT_SUCCESS : EXIT_FAILURE;
 }
