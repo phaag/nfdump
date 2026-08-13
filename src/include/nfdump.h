@@ -81,7 +81,7 @@ typedef struct recordHandle_s {
     recordHeaderV4_t *recordHeaderV4;
     uint16_t *offsetTable;
     void *extensionList[MAXLISTSIZE];
-    char geo[12];
+    char geo[16];
 #define OFFinPayload offsetof(recordHandle_t, inPayload)
 #define OFFoutPayload offsetof(recordHandle_t, outPayload)
 #define OFFgeo offsetof(recordHandle_t, geo)
@@ -91,16 +91,17 @@ typedef struct recordHandle_s {
 #define OFFgeoDstNatIP offsetof(recordHandle_t, geo) + 6
 #define OFFgeoSrcTunIP offsetof(recordHandle_t, geo) + 8
 #define OFFgeoDstTunIP offsetof(recordHandle_t, geo) + 10
+#define OFFgeoRouterIP offsetof(recordHandle_t, geo) + 12
 #define SizeGEOloc 2
+    uint64_t flowCount;
+#define OFFflowCount offsetof(recordHandle_t, flowCount)
+#define SIZEflowCount MemberSize(recordHandle_t, flowCount)
     uint16_t srcTZ;
     uint16_t dstTZ;
 #define OFFsrcTZ offsetof(recordHandle_t, srcTZ)
 #define SizesrcTZ MemberSize(recordHandle_t, srcTZ)
 #define OFFdstTZ offsetof(recordHandle_t, dstTZ)
 #define SizedstTZ MemberSize(recordHandle_t, dstTZ)
-    uint64_t flowCount;
-#define OFFflowCount offsetof(recordHandle_t, flowCount)
-#define SIZEflowCount MemberSize(recordHandle_t, flowCount)
     uint16_t numElements;
     uint16_t slackElements;
     // local slack space
