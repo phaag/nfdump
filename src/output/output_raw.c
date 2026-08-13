@@ -464,7 +464,9 @@ static void stringsEXipReceivedV4(FILE *stream, uint8_t *extensionRecord) {
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
     ip[INET6_ADDRSTRLEN - 1] = 0;
 
-    fprintf(stream, "  ip exporter  =   %16s\n", ip);
+    char rloc[128];
+    LookupV4Location(ipReceivedV4->ip, rloc, 128);
+    fprintf(stream, "  ip exporter  =   %16s%s%s\n", ip, strlen(rloc) ? ": " : "", rloc);
 
 }  // End of stringsEXipReceivedV4
 
@@ -479,7 +481,9 @@ static void stringsEXipReceivedV6(FILE *stream, uint8_t *extensionRecord) {
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
     ip[INET6_ADDRSTRLEN - 1] = 0;
 
-    fprintf(stream, "  ip exporter  =   %16s\n", ip);
+    char rloc[128];
+    LookupV6Location(ipReceivedV6->ip, rloc, 128);
+    fprintf(stream, "  ip exporter  =   %16s%s%s\n", ip, strlen(rloc) ? ": " : "", rloc);
 
 }  // End of stringsEXipReceivedV6
 
