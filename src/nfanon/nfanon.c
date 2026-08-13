@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -80,6 +81,8 @@ static inline void AnonExporterInfo(exporter_info_record_t *exporter_record);
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst);
 
+static int ParseWorkerCount(const char *arg, int *numWorkers);
+
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
                           dataBlock_t **dataBlockPtr);
 
@@ -103,6 +106,16 @@ static void usage(char *name) {
         "-t <num>\tLegacy alias for -W <num>.\n",
         name);
 } /* usage */
+
+static int ParseWorkerCount(const char *arg, int *numWorkers) {
+    char *endPtr = NULL;
+    errno = 0;
+    long value = strtol(arg, &endPtr, 10);
+    if (errno == ERANGE || endPtr == arg || *endPtr != '\0' || value < 0 || value > INT_MAX) return 0;
+
+    *numWorkers = (int)value;
+    return 1;
+}  // End of ParseWorkerCount
 
 static inline void AnonExporterInfo(exporter_info_record_t *exporter_record) {
     const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
@@ -603,9 +616,8 @@ int main(int argc, char **argv) {
                 LogError("Legacy option. Use -W <num> to select the number of workers");
             case 'W':
                 CheckArgLen(optarg, 16);
-                numWorkers = atoi(optarg);
-                if (numWorkers < 0) {
-                    LogError("Invalid number of working threads: %d", numWorkers);
+                if (!ParseWorkerCount(optarg, &numWorkers)) {
+                    LogError("Invalid number of working threads: %s", optarg);
                     exit(EXIT_FAILURE);
                 }
                 break;
