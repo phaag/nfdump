@@ -580,21 +580,21 @@ static struct format_entry_s {
     {"%nats", 0, "nat string", String_natString},  // nat String
 
     // EXlocal
-    {"%ja3", 0, "                                   ja3", String_ja3},  // ja3 hashes
-    {"%ja4", 0, "                                   ja4", String_ja4},  // ja4 hashes
-    {"%sni", 0, "sni name", String_sniName},                            // TLS sni Name
-    {"%tls", 0, "TLS ver", String_tlsVersion},                          // TLS version
-    {"%sc", 0, "SC", String_SrcCountry},                                // src IP 2 letter country code
-    {"%dc", 0, "DC", String_DstCountry},                                // dst IP 2 letter country code
-    {"%sloc", 0, "Src IP location info", String_SrcLocation},           // src IP geo location info
-    {"%dloc", 0, "Dst IP location info", String_DstLocation},           // dst IP geo location info
-    {"%stz", 0, "Src IP time zone", String_SrcTimezone},                // src IP time zone
-    {"%dtz", 0, "Dst IP time zone", String_DstTimezone},                // dst IP time zone
-    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organisation string
-    {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},      // dst IP AS organisation string
-    {"%stor", 0, "STor", String_SrcTor},                                // src IP 2 letter tor node info
-    {"%dtor", 0, "DTor", String_DstTor},                                // dst IP 2 letter tor node info
-    {"%lbl", 0, "           label", String_Label},                      // Flow Label
+    {"%ja3", 0, "                                   ja3", String_ja3},         // ja3 hashes
+    {"%ja4", 0, "                                   ja4", String_ja4},         // ja4 hashes
+    {"%sni", 0, "sni name", String_sniName},                                   // TLS sni Name
+    {"%tls", 0, "TLS ver", String_tlsVersion},                                 // TLS version
+    {"%sc", 0, "SC", String_SrcCountry},                                       // src IP 2 letter country code
+    {"%dc", 0, "DC", String_DstCountry},                                       // dst IP 2 letter country code
+    {"%sloc", 0, "Src IP location info", String_SrcLocation},                  // src IP geo location info
+    {"%dloc", 0, "Dst IP location info", String_DstLocation},                  // dst IP geo location info
+    {"%stz", 0, "Src IP time zone", String_SrcTimezone},                       // src IP time zone
+    {"%dtz", 0, "Dst IP time zone", String_DstTimezone},                       // dst IP time zone
+    {"%sasn", 0, "Src AS organisation           ", String_SrcASorganisation},  // src IP AS organisation string
+    {"%dasn", 0, "Dst AS organisation           ", String_DstASorganisation},  // dst IP AS organisation string
+    {"%stor", 0, "STor", String_SrcTor},                                       // src IP 2 letter tor node info
+    {"%dtor", 0, "DTor", String_DstTor},                                       // dst IP 2 letter tor node info
+    {"%lbl", 0, "           label", String_Label},                             // Flow Label
 
     // EXipInfo
     {"%ttl", 0, "min/maxTTL", String_ipTTL},    // Flow min/max TTL
@@ -2469,13 +2469,13 @@ static void String_SrcASorganisation(FILE *stream, recordHandle_t *recordHandle)
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
+    const char *orgName = "";
     if (ipv4Flow) {
-        fprintf(stream, "%s", LookupV4ASorg(ipv4Flow->srcAddr));
+        orgName = LookupV4ASorg(ipv4Flow->srcAddr);
     } else if (ipv6Flow) {
-        fprintf(stream, "%s", LookupV6ASorg(ipv6Flow->srcAddr));
-    } else {
-        fprintf(stream, "%s", "none");
+        orgName = LookupV6ASorg(ipv6Flow->srcAddr);
     }
+    fprintf(stream, "%30.30s", orgName[0] != '\0' ? orgName : "none");
 
 }  // End of String_SrcASorganisation
 
@@ -2483,13 +2483,13 @@ static void String_DstASorganisation(FILE *stream, recordHandle_t *recordHandle)
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
+    const char *orgName = "";
     if (ipv4Flow) {
-        fprintf(stream, "%s", LookupV4ASorg(ipv4Flow->dstAddr));
+        orgName = LookupV4ASorg(ipv4Flow->dstAddr);
     } else if (ipv6Flow) {
-        fprintf(stream, "%s", LookupV6ASorg(ipv6Flow->dstAddr));
-    } else {
-        fprintf(stream, "%s", "none");
+        orgName = LookupV6ASorg(ipv6Flow->dstAddr);
     }
+    fprintf(stream, "%30.30s", orgName[0] != '\0' ? orgName : "none");
 
 }  // End of String_DstASorganisation
 

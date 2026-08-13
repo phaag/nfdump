@@ -131,6 +131,8 @@ static struct aggregationElement_s {
                         {"outsrcmac", {EXoutMacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%osmc"},
                         {"srcas", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, 0, SRC_AS, 0, 0, "%sas"},
                         {"dstas", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, 0, DST_AS, 0, 0, "%das"},
+                        {"srcasn", {EXasInfoID, OFFsrcAS, SIZEsrcAS, 0}, 0, SRC_AS, 0, 0, "%sasn"},
+                        {"dstasn", {EXasInfoID, OFFdstAS, SIZEdstAS, 0}, 0, DST_AS, 0, 0, "%dasn"},
                         {"nextas", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, 0, NOPREPROCESS, 0, 0, "%nas"},
                         {"prevas", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, 0, NOPREPROCESS, 0, 0, "%pas"},
                         {"inif", {EXinterfaceID, OFFinput, SIZEinput, 0}, 0, NOPREPROCESS, 0, 0, "%in"},
@@ -152,6 +154,7 @@ static struct aggregationElement_s {
                         {"dstvlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, 0, NOPREPROCESS, 0, 0, "%dvln"},
                         {"odid", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, 0, NOPREPROCESS, 0, 0, "%odid"},
                         {"opid", {EXobservationID, OFFpointID, SIZEpointID, 0}, 0, NOPREPROCESS, 0, 0, "%opid"},
+                        {"exp", {EXheader, OFFexporterID, SIZEexporterID, 0}, 0, NOPREPROCESS, 0, 0, "%exp"},
                         {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, SRC_GEO, 0, 0, "%sc"},
                         {"dstgeo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, 0, DST_GEO, 0, 0, "%dc"},
                         {"ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, 0, NOPREPROCESS, 0, 0, "%eth"},
@@ -167,8 +170,8 @@ typedef struct FlowHashRecord {
     recordHeaderV4_t *flowrecord;  // orig flow record for printing
     struct FlowHashRecord *next;   // record chain for flow list, unused otherwise
 
-    uint8_t inFlags;   // tcp in flags
-    uint8_t swap;      // swap flow direction, when printed
+    uint8_t inFlags;  // tcp in flags
+    uint8_t swap;     // swap flow direction, when printed
     // 6 bytes implicit padding to align msecFirst at offset 24
 
     // time info in msec
@@ -484,8 +487,7 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t value, in
     // loop until existing value or empty cell is found
     do {
         // find empty cell or cell with correct flags
-        while (is_used(flowHash->flags, cell) && (flowHash->flags[cell] != flag))
-            cell = (cell + 1) & flowHash->mask;
+        while (is_used(flowHash->flags, cell) && (flowHash->flags[cell] != flag)) cell = (cell + 1) & flowHash->mask;
 
         if (is_free(flowHash->flags, cell)) {
             // free cell found
@@ -527,8 +529,7 @@ static inline int flowHash_get(flowHash_t *flowHash, const hashValue_t value) {
     // cell used, check for correct value
     do {
         // search for matching flag
-        while (is_used(flowHash->flags, cell) && (flowHash->flags[cell] != flag))
-            cell = (cell + 1) & flowHash->mask;
+        while (is_used(flowHash->flags, cell) && (flowHash->flags[cell] != flag)) cell = (cell + 1) & flowHash->mask;
 
         if (is_free(flowHash->flags, cell)) return -1;
         if (valCompare(flowHash->cells[cell], value)) return flowHash->cells[cell].index;
@@ -1336,8 +1337,7 @@ char *ParseAggregateMask(char *print_format, char *arg) {
                 // For dual-stack elements the AF_INET6 entry (same name, next in table) will
                 // contribute the larger IPv6 size; only add len for standalone IPv4-only elements.
                 int next = index + 1;
-                if (!(aggregationTable[next].aggrElement &&
-                      strcasecmp(p, aggregationTable[next].aggrElement) == 0)) {
+                if (!(aggregationTable[next].aggrElement && strcasecmp(p, aggregationTable[next].aggrElement) == 0)) {
                     maxKeyLen += len;
                 }
             } else {
