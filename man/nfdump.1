@@ -1,4 +1,4 @@
-\" Copyright (c) 2024, Peter Haag
+.\" Copyright (c) 2024, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -40,6 +40,7 @@
 .Op Fl R Ar filelist
 .Op Fl M Ar dirlist
 .Op Fl O Ar order
+.Op Fl m
 .Op Fl P Ar filter
 .Op Fl t Ar timewin
 .Op Fl c Ar num
@@ -48,6 +49,7 @@
 .Op Fl b
 .Op Fl B
 .Op Fl I
+.Op Fl g
 .Op Fl G Ar geoDB
 .Op Fl H Ar torDB
 .Op Fl s Ar statistic
@@ -89,7 +91,7 @@ to tcpdump, but adapted and extended for flow filtering. A flow filter may also 
 arrays of many thousand IP addresses etc. to search for specific records.
 .Pp
 .Nm
-can aggreagte flows according to a user defined number of elements. This masks certain
+can aggregate flows according to a user defined number of elements. This masks certain
 elements and allows to sum up flow records matching the same values.
 .Pp
 The combination of flow filtering and aggregation as input for any flow statistics
@@ -117,7 +119,7 @@ or
 to create a binary lookup database for
 .Nm
 Please check the
-.Ar geolooup(1)
+.Ar geolookup(1)
 man page for more details.
 .Pp
 The options are as follows:
@@ -131,7 +133,7 @@ directories.  All files are processed in the order, as listed by the OS.
 Writes all processed records into
 .Ar outfile
 instead of printing. The
-.Ar flowfile
+.Ar outfile
 is a binary flow file and may be processed again with
 .Nm
 This can be useful to limit flows according to a flow filter and/or specific flow
@@ -200,6 +202,9 @@ Sort according to end time of flows
 .It Cm duration
 Sort according to duration of flows
 .El
+.It Fl m
+Deprecated. Equivalent to
+.Fl O Ar tstart .
 .It Fl P Ar filter
 Apply a post filter to the resulting flow table. Unlike the regular netflow filter, which is
 applied while reading the flow records, this filter is applied after flow analysis - stat
@@ -208,17 +213,20 @@ values which only exist after aggregation or statistics, such as the aggregated 
 packets or bytes counters of an aggregated record. The filter syntax is identical to the
 regular netflow filter syntax.
 .It Fl t Ar timewin
-Set time window to process flows. This option is considered legacy and may be replaced
-with a
-.Ar filter
-primitive
-in future releases. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
+Set time window to process flows. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
 Any parts of the time spec may be omitted e.g YYYY/MM/dd expands to YYYY/MM/dd.00:00:00-infinity
-and processes all flow from a given day onwards. 
+and processes all flow from a given day onwards.
+.Sy This option is legacy.
+New filters should use the
+.Cm first seen
+and
+.Cm last seen
+filter primitives instead, e.g.
+.Dl % nfdump -r flowfile 'first seen >= 2024-07-11T09:15:00 and last seen <= 2024-07-11T10:00:00'
 .It Fl c Ar num
 Limit the number of records to be processed to the first
 .Ar num
-records, which passwd the
+records, which passed the
 .Ar filter.
 .It Fl a
 Aggregate flow records. The default aggregation is done at connection level by taking the 5-tuple
@@ -367,7 +375,7 @@ Similar to option
 but tries to guess the correct client to server direction. Automagically swaps flows if
 src port is < dst port for TCP and UDP flows and src port < 1024 and dst port > 1024.
 Some exporters do not really care sending the flows in proper order.
-It's considered to be a conveniency option.
+It's considered to be a convenience option.
 .It Fl I
 Print flow statistics of a single file or the summary of all the files specified by
 .Fl r Ar flowpath.
@@ -433,11 +441,21 @@ By default the statistic is transport protocol independent.
 Each
 .Ar statistic
 may be ordered by the optional parameter
-.Ar orderby
+.Ar orderby .
 This can be
-.Sy flows, packets, bytes, pps, bps
+.Sy flows ,
+.Sy packets , ipkg , opkg ,
+.Sy bytes , ibyte , obyte ,
+.Sy pps , ipps , opps ,
+.Sy bps , ibps , obps ,
 or
-.Sy bpp.
+.Sy bpp , ibpp , obpp ,
+where the
+.Sy i
+and
+.Sy o
+prefixed variants order by the input- or output-only counter/rate, respectively,
+instead of the input+output sum.
 You may specify more than one
 .Ar orderby
 option, which results in the same statistic but ordered differently. If no orderby
@@ -580,10 +598,6 @@ BGP next AS.
 BGP previous AS.
 .It Cm mac
 Any MAC address.
-.It Cm flows , packets , ipkg , opkg , bytes , ibyte , obyte
-Record counters: flows; input/default and output packets; and input/default and output bytes.
-.It Cm pps , ipps , opps , bps , ibps , obps , bpp , ibpp , obpp
-Rates and sizes: input/default and output packets/s, bits/s, and bytes/packet.
 .It Cm odid
 observation domain ID
 .It Cm opid
@@ -592,9 +606,7 @@ observation point ID
 ingress vrf
 .It Cm evrf
 egress vrf
-.It
-.Pp
-NSEL/ASA statistics
+.It Sy NSEL/ASA statistics
 .It Cm event
 NSEL/ASA event
 .It Cm xevent
@@ -622,7 +634,6 @@ NSEL/ASA egress ACL
 .Em Example:
 .Pp
 .Dl % nfdump -s srcip -s ip/flows/bytes -s record/bytes
-.Pp
 .It Fl n Ar num
 Set the number of records to be printed to
 .Ar num.
@@ -651,9 +662,20 @@ below for more details on how to compile your own format.
 .It Cm csv: Ar user
 Print the flow records as user defined csv format. Use a ',' separated list of
 .Ar user
-defined output token compatible with
+defined output tokens, using the same
+.Sy %tag
+syntax as
 .Ar fmt
-format. See the section
+format. Composite tags that combine several values into one field, such as
+.Sy %sap , %dap , %gsa , %gda , %gsap , %gdap , %ttl , %ipl , %opl
+and
+.Sy %n ,
+are only available in
+.Ar fmt
+format and are rejected in
+.Ar csv
+format, since each csv token is expected to expand to a single atomic column.
+See the section
 .Sy OUTPUT
 below for more details on how to compile your own csv format.
 .It Cm json
@@ -748,7 +770,7 @@ Legacy shorthand for
 Compress flow files with LZO1X-1 compression. Fastest compression.
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. May be used
-for archiving files or if you are really short of spce.
+for archiving files or if you are really short of space.
 .It Fl z=lz4[:level]
 Compress flow files with LZ4 compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
@@ -760,16 +782,16 @@ workers. See -W.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.
-
+.Pp
 Worker threads are used to compress data blocks when writing flow files with
 .Ar -w file .
 Using multiple workers can significantly improve throughput, especially when
 using bz2 compression or higher compression levels for lz4 or zstd.
-
+.Pp
 Worker threads are also used when filtering flows with a given filter expression.
 Increasing the number of workers may improve performance for large or complex
 filters.
-
+.Pp
 Note that nfdump uses additional internal threads for reading and processing
 files. These threads are not user‑configurable.
 .It Fl J Ar compress
@@ -1363,7 +1385,7 @@ The regex engine understands the following reduced syntax:
 .Sy (...)
 subexpressions/capture ranges
 .It
-.Sy |
+.Sy \(ba
 the "or" operator
 .It
 .Sy ^ and
@@ -1394,7 +1416,7 @@ numeric character
 alpha numeric character
 .It
 .Sy \er
-carrige return
+carriage return
 .It
 .Sy \en
 new line
@@ -1620,15 +1642,11 @@ True if the comparison of the respective egress access-control entry field match
 .Ar number.
 .Pp
 .It Cm ingress vrf Ar number
-True, if the field of the ingess vrf field of the event record matches
+True, if the field of the ingress vrf field of the event record matches
 .Ar number
 .Pp
 .It Cm egress vrf Ar number
 True if the egress VRF field matches number.
-.Pp
-.It Cm observation domain id Ar comp number
-.It Cm observation point id Ar comp number
-True if the observation-domain or observation-point ID matches number.
 .Pp
 .It Ar comp
 Many filter elements support the comparison with a number.
@@ -1638,7 +1656,6 @@ To prevent collisions with bash interpretation, alternative comparators
 are available:
 .Cm EQ, LT, GT, LE, GE
 If comp is omitted, '==' is assumed.
-.Pp
 .El
 .Sh OUTPUT FORMAT
 This section describes how output formats are compiled.
@@ -1649,7 +1666,6 @@ etc. One line formats supplied with option
 .Fl o
 can be compiled from various elements of a flow record. As a flow record contains many different
 elements it is often useful to compile an output format for specific needs.
-.Pp
 .Ss Format description
 The output format is specified by
 .Cm -o Do fmt: Ar string Dc
@@ -1682,7 +1698,7 @@ is the printing of the header line. Furthermore
 does not have a flow summary at the end. 
 .Ar csv
 output can be processed by any other post processing tool, which understands csv data.
-The examples above show the definitions of the predined formats
+The examples above show the definitions of the predefined formats
 .Cm line
 and
 .Cm csv.
@@ -1695,14 +1711,13 @@ a flow record. You can either extend a predefined format or specify a new one at
 .Pp
 Example: Extend the predefined format
 .Cm long
-with the the IP address of the sending router
+with the IP address of the sending router
 .Dl Fl o Do fmt:%long %ra Dc
 .Pp
 Predefined formats can be extended by simply add their name with a
 .Cm %
 sign somewhere in the format string. As described under the output option
-.Fl o
-.Pp
+.Fl o .
 .Ss Format definition
 .Nm
 has already many formats predefined. Most of the time, these format are good enough. Sometimes
@@ -1732,7 +1747,16 @@ must be unique for all formats in
 as well as 
 .Ar csv
 .Ss Tag definition
-The following list contains all tags, which are available to compile the output format:
+The following list contains all tags, which are available to compile the output format.
+Unless noted otherwise, every tag below is available in both
+.Ar fmt
+and
+.Ar csv
+format. Composite tags combining several values into a single field
+.Pq Sy %sap , %dap , %gsa , %gda , %gsap , %gdap , %ttl , %ipl , %opl , %n
+are available in
+.Ar fmt
+format only:
 .Pp
 .Bl -tag -width "##    ##" -offset indent -compact
 .It Cm %<format>
@@ -1768,7 +1792,7 @@ Duration of flow. Displayed in ddHHMMSS.msec
 .It Cm %tds
 Duration of flow in seconds.
 .It Cm %pr
-Transort protocol
+Transport protocol
 .It Cm %exp
 Exporter ID
 .It Cm %eng
@@ -2040,6 +2064,9 @@ Ethernet type.
 .It Cm %frag
 IP fragment flags.
 .El
+.Sh EXIT STATUS
+.Nm
+returns 0 on success and 255 if processing failed.
 .Sh EXAMPLES
 .Nm
 processes files created by any previous version of nfdump 1.6.x with some
@@ -2072,14 +2099,10 @@ Print a statistic about all ja3 md5 sums for those flows, which a valid ja3 can 
 Aggregate all flows and write the result back to a binary file, sorted by the start time
 .Pp
 .Dl % nfdump -r flowfile -a -Otstart -w newfile
-.Pp
-.Sh RETURN VALUES
-.Nm
-returns 0 on success and 255 if processing failed.
 .Sh SEE ALSO
 https://www.iana.org/assignments/ipfix/ipfix.xhtml
 .Pp
-https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html
+https://datatracker.ietf.org/doc/html/rfc3954
 .Pp
 .Xr nfcapd 1
 .Xr nfpcapd 1

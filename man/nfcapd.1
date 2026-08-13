@@ -1,4 +1,4 @@
-\" Copyright (c) 2023, Peter Haag
+.\" Copyright (c) 2023, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -71,6 +71,7 @@
 .Op Fl Y Ar yaf-file
 .Op Fl v Ar level
 .Op Fl V
+.Op Fl h
 .Sh DESCRIPTION
 .Nm
 reads netflow data from the network and stores the records into binary formatted files. 
@@ -90,7 +91,7 @@ which is also part of the nfdump tools.
 .Nm 
 also accepts pre-processed records from its companion collector nfpcapd.
 .Nm
-safes the flows in an output file, which is automatically rotated at a given interval - typically
+saves the flows in an output file, which is automatically rotated at a given interval - typically
 every 5min.  These rotated output files are stored in the
 .Ar flowdir
 directory and are organized by timestamps. The output files are named according to the time
@@ -170,7 +171,7 @@ and
 is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a valid IP address.
 .Ar port
 may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
-Up to 8 additional repeaters my be defined. Use this method to daisy chain collectors.
+Up to 8 additional repeaters may be defined. Use this method to daisy chain collectors.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packages
 is set to the original IP address. This needs
@@ -219,7 +220,7 @@ Set daemon mode: fork to background and detach from terminal.
 terminates on signal TERM, INT or HUP.
 .It Fl P Ar pidfile
 Writes the running process ID into
-.Ar pidfilw .
+.Ar pidfile .
 Use this option to integrate
 .Nm
 in start/stop files.
@@ -310,7 +311,7 @@ Append the local time-zone offset to generated filenames.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.
-
+.Pp
 Worker threads are used to compress data blocks when writing flow files to disc.
 Using multiple workers can significantly improve throughput, especially when
 using higher compression levels for lz4 or zstd.
@@ -378,7 +379,7 @@ version and exit.
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
-.Sh RETURN VALUES
+.Sh EXIT STATUS
 .Nm
 returns 0 on success and 255 if initialization failed.
 .Sh SEE ALSO

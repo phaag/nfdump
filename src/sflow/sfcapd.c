@@ -126,7 +126,7 @@ static void usage(char *name) {
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
-        "-o options \tAdd sfcpad options, separated with ','. Available: 'tun'\n"
+        "-o options \tAdd sfcapd options, separated with ','. Available: 'tun'\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"

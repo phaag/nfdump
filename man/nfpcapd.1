@@ -47,6 +47,7 @@
 .Op Fl P Ar pidfile
 .Op Fl D
 .Op Fl d
+.Op Fl v Ar level
 .Op Fl u Ar userid
 .Op Fl g Ar groupid
 .Op Fl o Ar option[,option]
@@ -75,8 +76,8 @@ somewhere else in the network.
 is nfcapd's pcap brother and shares many options and generates the same type of files.
 .Nm
 likewise creates, rotates and stores files. See also
-.Xr nfpcap 1
-for more information on common option.
+.Xr nfcapd 1
+for more information on common options.
 .Pp
 .Nm
 optionally also stores pcap traffic data in separate files and
@@ -86,7 +87,6 @@ traffic data file is only possible locally.
 .Nm
 is multithreaded and uses separate threads for packet, netflow
 and pcap processing.
-.Pp
 .Sh OPTIONS
 .Bl -tag -width Ds
 .It Fl i Ar interface
@@ -137,11 +137,11 @@ Daemon mode: fork to background and detach from terminal.
 .Nm
 terminates on signal TERM, INT and HUP.
 .It Fl d
-De-duplicate packets with a window size of 4. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they got de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
+De-duplicate packets with a window size of 8. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they got de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
 If used together with
 .Fl p ,
 the resulting pcaps are de-duplicated as well.
-.It Fl v
+.It Fl v Ar level
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
 printf netflow records in raw format while collecting. Please note, that not all elements
 are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
@@ -189,7 +189,7 @@ Enable the metrics exporter on socket.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online. The value must 
 not exceed the number of online CPU cores.
-
+.Pp
 Worker threads are used to compress data blocks when writing flow files to disc.
 Using multiple workers can significantly improve throughput, especially when
 using higher compression levels for lz4 or zstd.
@@ -200,7 +200,7 @@ Print help text to stdout with all options and exit.
 .It Ar '<filter>'
 Optional pcap compatible packet filter. The filter needs to be put within quotes.
 .El
-.Sh RETURN VALUES
+.Sh EXIT STATUS
 .Nm
 returns 0 on success, or 255 if initialization failed.
 .Sh LOGGING
@@ -226,7 +226,7 @@ Send records to a remote host:
 .Nm
 can store records either locally or send it to a remote host but not both at the same time.
 .Pp
-If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd must be of the same endian architecture (both big or little endian). nfpcapd uses netflow version 240 for sending flows.
+If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd must be of the same endian architecture (both big or little endian). nfpcapd uses netflow version 250 (nfdump's native record format) for sending flows.
 .Pp
 The flow cache is checked in regular 10s intervals and expires flows according to the expire values. Expired flows are flushed and processed and nodes are freed up.
 .Pp

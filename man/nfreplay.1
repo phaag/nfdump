@@ -1,4 +1,4 @@
-\" Copyright (c) 2022, Peter Haag
+.\" Copyright (c) 2022, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -56,7 +56,7 @@
 .Op Ar filter
 .Sh DESCRIPTION
 .Nm
-reads binary flow files stored by any nfdump collector and sents the flow records
+reads binary flow files stored by any nfdump collector and sends the flow records
 to a remote host or a multicast group. 
 .Pp
 .Nm
@@ -93,10 +93,12 @@ to send flows to a IPv6 address only. Can be used if the remote host has
 an IPv4 and IPv6 address record.
 .It Fl v Ar version
 Send flows as netflow version
-.Ar version . 
-Version V5 and v9 are supported. In v5 mode, all additional elements to a 
-stadard v5 record are skipped and 64bit counters are truncated to 32bit. 
-The default is v9. 
+.Ar version .
+Versions 5, 9 and 250 are supported. In v5 mode, all additional elements to a
+standard v5 record are skipped and 64bit counters are truncated to 32bit.
+Version 250 sends flows in nfdump's own native record format, as used
+between nfcapd and nfpcapd, without any conversion or loss of precision.
+The default is v9.
 .It Fl d Ar usec
 Delay each record by
 .Ar usec
@@ -106,14 +108,13 @@ Set send buffer to
 .Ar buffsize
 size in bytes. Useful to buffer larger data transfers.
 .It Fl z Ar num
-Flows are sent with their "real distribution" acrross time (with a speed coefficient)
+Flows are sent with their "real distribution" across time (with a speed coefficient)
 .Bl -item -compact
 .It
 .Fl z
 1 : 5 minutes of records will be sent in 5 minutes.
-.IT
-.Fl
-z
+.It
+.Fl z
 20 : 5 minutes of record will be sent in 5/20 = 0.25 minutes.
 .El
 .It Fl c Ar num
@@ -126,8 +127,10 @@ Read the flow filter from filterfile.
 Restrict replay to an nfdump time-window expression.
 .It Fl E
 Enable diagnostic verbosity (equivalent to verbosity level 1).
-.It Fl L Ar logfile
-Write diagnostic output to logfile.
+.It Fl L Ar facility
+Log diagnostic output to syslog facility
+.Ar facility
+instead of stderr.
 .It Fl i Ar remotehost
 Compatibility alias for
 .Fl H .
@@ -140,10 +143,10 @@ version and exit.
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
-.Sh RETURN VALUES
-.Bl -item -compact
+.Sh EXIT STATUS
 .Nm
 returns
+.Bl -item -compact
 .It
 255 Initialization failed.
 .It
@@ -152,5 +155,5 @@ returns
 250 Internal error.
 .El
 .Sh SEE ALSO
+.Xr nfcapd 1 ,
 .Xr nfdump 1
-.Xr nfcapd 1

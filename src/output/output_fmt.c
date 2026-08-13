@@ -215,6 +215,8 @@ static void String_ipmaxTTL(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_ipFrag(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_EtherType(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_Flags(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_InSrcMac(FILE *stream, recordHandle_t *recordHandle);
@@ -593,6 +595,9 @@ static struct format_entry_s {
     {"%minttl", 0, "minTTL", String_ipminTTL},  // Flow ip min TTL
     {"%maxttl", 0, "maxTTL", String_ipmaxTTL},  // Flow ip max TTL
     {"%frag", 0, "Frag", String_ipFrag},        // IP fragment flags
+
+    // EXlayer2
+    {"%eth", 0, "EtherType", String_EtherType},  // Ethernet type
 
     {"%n", 0, "", String_NewLine},  // \n
     {NULL, 0, NULL, NULL}};
@@ -2091,6 +2096,13 @@ static void String_ipFrag(FILE *stream, recordHandle_t *recordHandle) {
     char *MF = ipInfo->fragmentFlags & flagMF ? "MF" : "--";
     fprintf(stream, "%s%s", DF, MF);
 }  // End of String_ipFrag
+
+static void String_EtherType(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint16_t etherType = layer2 ? layer2->etherType : 0;
+
+    fprintf(stream, "0x%04x", etherType);
+}  // End of String_EtherType
 
 static void String_Flags(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];

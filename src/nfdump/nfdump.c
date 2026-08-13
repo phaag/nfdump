@@ -184,6 +184,7 @@ static void usage(char *name) {
         "\t\t long     Standard output line format with additional fields.\n"
         "\t\t extended Even more information.\n"
         "\t\t csv      ',' separated, machine parseable output format.\n"
+        "\t\t csv-fast ',' separated, compact predefined csv format for high-throughput consumers.\n"
         "\t\t json     json output format.\n"
         "\t\t ndjson   ndjson log output format (one json object per line).\n"
         "\t\t null     no flow records, only statistics output.\n"
@@ -200,7 +201,8 @@ static void usage(char *name) {
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-t <time>\ttime window for filtering packets\n"
-        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
+        "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n"
+        "\t\tLegacy option. Use filter primitives 'first seen'/'last seen' instead. See nfdump(1)\n",
         name);
 } /* usage */
 
@@ -875,7 +877,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:x:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVW:x:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);

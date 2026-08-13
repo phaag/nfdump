@@ -38,7 +38,7 @@
 .Ar iplist
 .Nm
 .Fl d Ar directory
-.Fl w Ar geoDBfile/command line option
+.Fl w Ar geoDBfile
 .Sh DESCRIPTION
 .Nm 
 is a tool to lookup AS and geo location information of one or more IP addresses. You need
@@ -101,13 +101,13 @@ overwrites the nfdump config file and the command line option
 .Fl G
 overwrites the environment variable
 .Ar NFGEODB .
-.Sh RETURN VALUES
-.Nm
-returns 0 on success and 255 otherwise.
 .Sh ENVIRONMENT
 .Nm
 reads the environment variable
 .Ar NFGEODB
+.Sh EXIT STATUS
+.Nm
+returns 0 on success and 255 otherwise.
 .Sh EXAMPLES
 To create a lookup database, you need an account at
 .Ar https://maxmind.com.
@@ -123,7 +123,7 @@ Log into https://maxmind.com and download the corresponding csv files: GeoLite2-
 .It
 Unpack the zip files and put the following csv files into a newly created build directory:
 GeoLite2-ASN-Blocks-IPv4.csv, GeoLite2-ASN-Blocks-IPv6.csv, GeoLite2-City-Blocks-IPv4.csv, GeoLite2-City-Blocks-IPv6.csv, GeoLite2-City-Locations-en.csv
-Maxmind offeres several languages for the City-Locations file. Choose only one.
+Maxmind offers several languages for the City-Locations file. Choose only one.
 .It
 .Nm
 .Fl d Ar builddir Fl w Ar geofile

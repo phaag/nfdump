@@ -344,7 +344,7 @@ int main(int argc, char **argv) {
     }
 
     if (torFileDB == NULL) {
-        LogError("Missing nfdump tor DB. -T or NFTORDB env required");
+        LogError("Missing nfdump tor DB. -H or NFTORDB env required");
         exit(EXIT_FAILURE);
     }
 

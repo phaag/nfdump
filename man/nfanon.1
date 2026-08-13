@@ -1,4 +1,4 @@
-\" Copyright (c) 2022, Peter Haag
+.\" Copyright (c) 2022, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -80,11 +80,11 @@ file name is taken, which means the original file is overwritten.
 is either a 32 character string, or a 64 char hex string starting with 0x. This key
 is used to initialize the anonymizer.
 .It Fl v Ar level
-Set verbose level. A verbose level of 0 disables the actifivy spinner.
+Set verbose level. A verbose level of 0 disables the activity spinner.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online.
 The value must not exceed the number of online CPU cores.
-
+.Pp
 Worker threads are used to anonymize flow records in parallel.
 .It Fl C Ar config
 Read configuration from config; use
@@ -104,17 +104,18 @@ Legacy alias for
 .It Fl h
 Print help text to stdout and exit.
 .El
+.Sh EXIT STATUS
+.Nm
+returns 0 on success and 255 otherwise.
 .Sh EXAMPLES
 To create a random 64 character hex string you may use the following command:
 .Dl % xxd -u -l 32 -p -c 64 /dev/urandom
-.Ed
+.Pp
 Use the resulting output as key, prepended with 0x as -K argument.
-or
+.Pp
+Or
 .Dl % openssl rand -hex 16
-.Ed 
+.Pp
 and use this output as argument for -K
-.Sh RETURN VALUES
-.Nm
-returns 0 on success and 255 otherwise.
 .Sh SEE ALSO
 .Xr nfdump 1

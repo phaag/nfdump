@@ -300,7 +300,7 @@ int main(int argc, char **argv) {
     compress = NOT_COMPRESSED;
 
     int c;
-    while ((c = getopt(argc, argv, "z::jyzEVc:hr:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "z::jyEVc:hr:w:")) != EOF) {
         switch (c) {
             case 'h': /* help */
                 usage(argv[0]);
