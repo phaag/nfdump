@@ -85,6 +85,7 @@ typedef struct recordHandle_s {
 #define OFFgeoDstNatIP offsetof(recordHandle_t, geo) + 6
 #define OFFgeoSrcTunIP offsetof(recordHandle_t, geo) + 8
 #define OFFgeoDstTunIP offsetof(recordHandle_t, geo) + 10
+#define OFFgeoRouterIP offsetof(recordHandle_t, geo) + 12
 #define SizeGEOloc 2
     uint64_t flowCount;
 #define OFFflowCount offsetof(recordHandle_t, flowCount)

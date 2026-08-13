@@ -673,7 +673,7 @@ defined output tokens, using the same
 syntax as
 .Ar fmt
 format. Composite tags that combine several values into one field, such as
-.Sy %sap , %dap , %gsa , %gda , %gsap , %gdap , %ttl , %ipl , %opl
+.Sy %sap , %dap , %gsa , %gda , %gsap , %gdap , %gra , %ttl , %ipl , %opl
 and
 .Sy %n ,
 are only available in
@@ -1759,7 +1759,7 @@ Unless noted otherwise, every tag below is available in both
 and
 .Ar csv
 format. Composite tags combining several values into a single field
-.Pq Sy %sap , %dap , %gsa , %gda , %gsap , %gdap , %ttl , %ipl , %opl , %n
+.Pq Sy %sap , %dap , %gsa , %gda , %gsap , %gdap , %gra , %ttl , %ipl , %opl , %n
 are available in
 .Ar fmt
 format only:
@@ -1845,6 +1845,8 @@ Next-hop IP Address
 BGP Next-hop IP Address
 .It Cm %ra
 Router IP Address
+.It Cm %gra
+Router IP address annotated with geographic data.
 .It Cm %sas
 Source AS
 .It Cm %das

@@ -151,6 +151,8 @@ static void String_BGPNextHop(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_RouterIP(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_RouterGeoIP(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_SrcPort(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_DstPort(FILE *stream, recordHandle_t *recordHandle);
@@ -456,7 +458,8 @@ static struct format_entry_s {
     {"%nh", 1, "     Next-hop IP", String_NextHop},  // Next-hop IP Address
 
     // EXipReceivedV4ID EXipReceivedV6ID
-    {"%ra", 1, "       Router IP", String_RouterIP},  // Router IP Address
+    {"%ra", 1, "       Router IP", String_RouterIP},               // Router IP Address
+    {"%gra", 1, "       Router IP(..)", String_RouterGeoIP},  // Router IP Address, with maxmind geo info
 
     // EXmplsLabelID
     {"%mpls1", 0, " MPLS lbl 1 ", String_MPLS_1},    // MPLS Label 1
@@ -1987,6 +1990,40 @@ static void String_RouterIP(FILE *stream, recordHandle_t *recordHandle) {
         fprintf(stream, "%s%16s", tag_string, tmp_str);
 
 }  // End of String_RouterIP
+
+static void String_RouterGeoIP(FILE *stream, recordHandle_t *recordHandle) {
+    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)recordHandle->extensionList[EXipReceivedV4ID];
+    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)recordHandle->extensionList[EXipReceivedV6ID];
+
+    char tmp_str[INET6_ADDRSTRLEN];
+    tmp_str[0] = 0;
+    if (ipReceivedV4) {
+        uint32_t ip = htonl(ipReceivedV4->ip);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[12] == '\0') LookupV4Country(ipReceivedV4->ip, &recordHandle->geo[12]);
+    } else if (ipReceivedV6) {
+        uint64_t ip[2];
+
+        ip[0] = htonll(ipReceivedV6->ip[0]);
+        ip[1] = htonll(ipReceivedV6->ip[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[12] == '\0') LookupV6Country(ipReceivedV6->ip, &recordHandle->geo[12]);
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        recordHandle->geo[12] = '.';
+        recordHandle->geo[13] = '.';
+    }
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
+
+    if (long_v6)
+        fprintf(stream, "%s%39s(%c%c)", tag_string, tmp_str, recordHandle->geo[12], recordHandle->geo[13]);
+    else
+        fprintf(stream, "%s%16s(%c%c)", tag_string, tmp_str, recordHandle->geo[12], recordHandle->geo[13]);
+
+}  // End of String_RouterGeoIP
 
 static void String_Tos(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
