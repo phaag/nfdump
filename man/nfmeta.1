@@ -1,4 +1,4 @@
-." Copyright (c) 2026, Peter Haag
+.\" Copyright (c) 2026, Peter Haag
 ." All rights reserved.
 ."
 ." Redistribution and use in source and binary forms, with or without
@@ -86,6 +86,9 @@ Override a configuration value for this invocation. The option may be repeated.
 .It Fl h
 Print the short usage summary and exit.
 .El
+.Sh EXIT STATUS
+.Nm
+returns 0 on success and 255 on error.
 .Sh EXAMPLES
 Update one file in place:
 .Dl nfmeta -r nfcapd.202601010000
@@ -98,10 +101,7 @@ Create one annotated output file from a directory:
 .Pp
 Limit processing to four cores and two Bloom-filter workers:
 .Dl nfmeta -W 4 -x threads.workers=2 -r /var/nfdump/edge-router
-.Sh RETURN VALUES
-.Nm
-returns 0 on success and 255 on error.
 .Sh SEE ALSO
+.Xr nfanon 1 ,
 .Xr nfdump 1 ,
-.Xr nfdump.conf 5 ,
-.Xr nfanon 1
+.Xr nfdump.conf 5

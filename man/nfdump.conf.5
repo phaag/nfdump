@@ -154,7 +154,7 @@ is absent or 0, the code falls back to
 New configurations should use
 .Sy limitCores .
 .Pp
-Both supersede the previous behaviour where the default was
+Both supersede the previous behavior where the default was
 .Li cores/2
 clamped to [2,\~8].
 .It Sy crypt.salt
@@ -391,6 +391,24 @@ for the duration of the process.
 .Pp
 Overrides take effect for every configuration key lookup in the process.
 They do not modify the configuration file on disk.
+.Sh ENVIRONMENT
+.Bl -tag -width "NFCONF"
+.It Ev NFCONF
+If set, its value is used as the path to the configuration file when no
+.Fl C
+option is given.
+Takes precedence over the compiled-in default path.
+.El
+.Sh FILES
+.Bl -tag -width "%prefix/etc/nfdump.conf.dist"
+.It Pa %prefix/etc/nfdump.conf
+Default configuration file location.
+.It Pa %prefix/etc/nfdump.conf.dist
+Annotated example configuration distributed with the package.
+Copy this file to
+.Pa nfdump.conf
+and uncomment the desired settings as a starting point.
+.El
 .Sh EXAMPLES
 .Ss Minimal common settings
 .Bd -literal -offset indent
@@ -473,30 +491,12 @@ nfpcapd -x limitCores=4 -x debug.verbose=1 -w /var/nflow
 .Bd -literal -offset indent
 nfdump -C none -r data.nf
 .Ed
-.Sh ENVIRONMENT
-.Bl -tag -width "NFCONF"
-.It Ev NFCONF
-If set, its value is used as the path to the configuration file when no
-.Fl C
-option is given.
-Takes precedence over the compiled-in default path.
-.El
-.Sh FILES
-.Bl -tag -width "%prefix/etc/nfdump.conf.dist"
-.It Pa %prefix/etc/nfdump.conf
-Default configuration file location.
-.It Pa %prefix/etc/nfdump.conf.dist
-Annotated example configuration distributed with the package.
-Copy this file to
-.Pa nfdump.conf
-and uncomment the desired settings as a starting point.
-.El
 .Sh SEE ALSO
-.Xr nfdump 1 ,
-.Xr nfcapd 1 ,
-.Xr sfcapd 1 ,
-.Xr nfpcapd 1 ,
-.Xr nfanon 1 ,
-.Xr nfmeta 1 ,
 .Xr geolookup 1 ,
+.Xr nfanon 1 ,
+.Xr nfcapd 1 ,
+.Xr nfdump 1 ,
+.Xr nfmeta 1 ,
+.Xr nfpcapd 1 ,
+.Xr sfcapd 1 ,
 .Xr torlookup 1

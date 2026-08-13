@@ -1,4 +1,4 @@
-\" Copyright (c) 2023, Peter Haag
+.\" Copyright (c) 2023, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -181,7 +181,7 @@ may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/po
 Only one repeater may be defined. Use this method to daisy chain collectors.
 .It Fl H Ar host[/port]
 Forward all collected flows to a remote
-.Xr nfcapd 1
+.Nm
 collector via UDP instead of writing them to local files.
 .Ar host
 is a valid IPv4/IPv6 address or hostname.
@@ -242,14 +242,14 @@ Set the flow directory for dynamic allocated exporters. New exporters are dynami
 All exporters send netflow data to the same port and IP. For each dynamically added source, a new sub directory
 is created under 
 .Ar flowdir
-with the name of the IP address of the exporter. All '.' and ':" in IP addresses are replaced be '-'. 
+with the name of the IP address of the exporter. All '.' and ':" in IP addresses are replaced by '-'.
 .It Fl D
 Set daemon mode: fork to background and detach from terminal.
 .Nm
 terminates on signal TERM, INT or HUP.
 .It Fl P Ar pidfile
 Writes the running process ID into
-.Ar pidfilw .
+.Ar pidfile .
 Use this option to integrate
 .Nm
 in start/stop files.
@@ -522,7 +522,7 @@ version and exit.
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
-.Sh RETURN VALUES
+.Sh EXIT STATUS
 .Nm
 returns 0 on success and 255 if initialization failed.
 .Sh SEE ALSO

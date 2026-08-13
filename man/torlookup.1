@@ -97,13 +97,24 @@ If multiple locations are specified,
 takes precedence over the
 .Ar NFTORDB
 environment variable, which in turn overrides the nfdump configuration file.
-.Sh RETURN VALUES
+.Sh IMPLEMENTATION NOTES
+If you use the tordb with
+.Cm nfdump
+to list flows and mark them as tor exit nodes, the IP address as well as
+the flow start or flow end timestamp must fall into the appropriate tor exit node interval.
+When piping an nfdump statistic to
 .Nm
-returns 0 on success and 255 otherwise.
+for exit-node verification (see EXAMPLES), timestamps are not considered.
+.Pp
+Use nfdump with the tordb:
+.Dl % nfdump -H tordb.nf -r nfcapd.2024081200 -o tor
 .Sh ENVIRONMENT
 .Nm
 reads the environment variable
 .Ar NFTORDB
+.Sh EXIT STATUS
+.Nm
+returns 0 on success and 255 otherwise.
 .Sh EXAMPLES
 The easiest way for creating or updating the binary lookup database is the use of the script
 .Ar updateTorDB.sh
@@ -130,17 +141,6 @@ returns the number of intervals, the IP was registered as exit node limited by f
 .Pp
 Pipe the output of an nfdump statistic to torlookup for tor exit node verification:
 .Dl % nfdump -r nfcapd.202408011200 -s ip | torlookup -H tordb_full.nf
-.Pp
-.Sh IMPLEMENTATION NOTES
-If you use the tordb with
-.Cm nfdump
-to list flows and mark them as tor exit nodes, the IP address as well as
-the flow start or flow end timestamp must fall into the appropriate tor exit node interval.
-In the pipe example above, torlookup does not care about timestamps.
-.Pp
-Use nfdump with the tordb:
-.Dl % nfdump -H tordb.nf -r nfcapd.2024081200 -o tor
-.Pp
 .Sh SEE ALSO
 .Xr nfdump 1
 includes built-in options to annotate output with Tor exit node information. See also nfdump tags %stor, %dtor.

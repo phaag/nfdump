@@ -1,4 +1,4 @@
-\" Copyright (c) 2024, Peter Haag
+.\" Copyright (c) 2024, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -202,14 +202,14 @@ Set the flow directory for dynamic allocated exporters. New exporters are dynami
 All exporters send netflow data to the same port and IP. For each dynamically added source, a new sub directory
 is created under 
 .Ar flowdir
-with the name of the IP address of the exporter. All '.' and ':" in IP addresses are replaced be '-'. 
+with the name of the IP address of the exporter. All '.' and ':" in IP addresses are replaced by '-'.
 .It Fl D
 Set daemon mode: fork to background and detach from terminal.
 .Nm
 terminates on signal TERM, INT or HUP.
 .It Fl P Ar pidfile
 Writes the running process ID into
-.Ar pidfilw .
+.Ar pidfile .
 Use this option to integrate
 .Nm
 in start/stop files.
@@ -451,12 +451,12 @@ is given, only those elements matching the extension are processed and stored. U
 option is not needed, unless for specific requirements.
 .It Fl o Ar options
 Set
-.Nm 
+.Nm
 options. This is a ',' separated list of options. Available options:
-.It
+.Pp
 .Sy tun
 Enable TUN tunnel decoding.
-.It
+.Pp
 These options may also be defined in the
 .Sy nfdump.conf
 config file. Options specified on the command line overwrite the value in the config file.
@@ -485,7 +485,7 @@ version and exit.
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
-.Sh RETURN VALUES
+.Sh EXIT STATUS
 .Nm
 returns 0 on success and 255 if initialization failed.
 .Sh SEE ALSO

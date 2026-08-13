@@ -1,4 +1,4 @@
-\" Copyright (c) 2022, Peter Haag
+.\" Copyright (c) 2022, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -84,12 +84,12 @@ Print ft2nfdump version and exit.
 .It Fl h
 Print help text to stdout and exit.
 .El
+.Sh EXIT STATUS
+.Nm
+returns 0 on success and 255 otherwise.
 .Sh EXAMPLES
 To convert a flow tools file into nfdump format:
 .Dl % ft2nfdump -r <flow-tools-file> -z=lz4 -w <nfdump-file.nf>
 .Dl % nfdump -r <nfdump-file.nf>
-.Sh RETURN VALUES
-.Nm
-returns 0 on success and 255 otherwise.
 .Sh SEE ALSO
 .Xr nfdump 1

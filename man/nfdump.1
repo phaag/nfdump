@@ -1,4 +1,4 @@
-\" Copyright (c) 2024, Peter Haag
+.\" Copyright (c) 2024, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -525,9 +525,9 @@ source AS numbers
 .It Cm dstas
 destination AS numbers
 .It Cm srcasn
-source AS organisations and numbers
+source AS organizations and numbers
 .It Cm dstasn
-destination AS organisations and numbers
+destination AS organizations and numbers
 .It Cm as
 any (source or destination) AS numbers
 .It Cm asn
@@ -740,7 +740,7 @@ change existing ones, check the config file.
 IPv6 addresses are printed condensed in any
 .Sy fmt
 defined format to prevent cluttering the output with large blank blocks. A condensed IPV6 uses max 16 characters. If it is
-longer, then the middle part of the IP is cut out and replaced be "..". For previewing an output, this fits most needs.
+longer, then the middle part of the IP is cut out and replaced by "..". For previewing an output, this fits most needs.
 For a listing with the full IPV6 addresses add option
 .Fl 6.
 .It Fl 6
@@ -1889,7 +1889,7 @@ is the printing of the header line. Furthermore
 does not have a flow summary at the end. 
 .Ar csv
 output can be processed by any other post processing tool, which understands csv data.
-The examples above show the definitions of the predined formats
+The examples above show the definitions of the predefined formats
 .Cm line
 and
 .Cm csv.
@@ -1902,16 +1902,16 @@ a flow record. You can either extend a predefined format or specify a new one at
 .Pp
 Example: Extend the predefined format
 .Cm long
-with the the IP address of the sending router
+with the IP address of the sending router
 .Dl Fl o Do fmt:%long %ra Dc
 .Pp
-Predefined formats can be extended by simply add their name with a
+Predefined formats can be extended by simply adding their name with a
 .Cm %
 sign somewhere in the format string. As described under the output option
 .Fl o
 .Ss Format definition
 .Nm
-has already many formats predefined. Most of the time, these format are good enough. Sometimes
+has already many formats predefined. Most of the time, these formats are good enough. Sometimes
 you may need different formats, which can be compiled as described above. In order to prevent
 adding the same often used output format each time you run
 .Nm
@@ -2124,9 +2124,9 @@ src IP time zone
 .It Cm %dtz
 dst IP time zone
 .It Cm %sasn
-src AS organisation name
+src AS organization name
 .It Cm %dasn
-dst AS organisation name
+dst AS organization name
 .It Cm %stor
 src IP 2 letter tor exit info: TX tor exit node
 .It Cm %dtor
@@ -2246,6 +2246,20 @@ Server latency
 .It Cm %al
 Application latency
 .El
+.Sh EXIT STATUS
+.Nm
+returns one of the following values:
+.Bl -tag -width "255" -compact
+.It 0
+Success.
+.It 1
+Error - bad arguments, a missing or invalid input/filter file, filter
+syntax error, or a failed file check/repair
+.Po Fl v Ic check , check-verbose , repair Pc .
+.It 255
+Internal fault (out of memory or unable to create a worker thread) -
+should not normally occur.
+.El
 .Sh EXAMPLES
 .Nm
 reads nfdump 1.7.x nffile V2 files transparently and writes the 1.8.x
@@ -2277,24 +2291,10 @@ Print a statistic about all ja3 md5 sums for those flows, which a valid ja3 can 
 Aggregate all flows and write the result back to a binary file, sorted by the start time
 .Pp
 .Dl % nfdump -r flowfile -a -Otstart -w newfile
-.Sh RETURN VALUES
-.Bl -item -compact
-.Nm
-returns
-.It
-0 Success.
-.It
-1 Error - bad arguments, a missing or invalid input/filter file, filter
-syntax error, or a failed file check/repair
-.Po Fl v Ic check , check-verbose , repair Pc .
-.It
-255 Internal fault (out of memory or unable to create a worker thread) -
-should not normally occur.
-.El
 .Sh SEE ALSO
 https://www.iana.org/assignments/ipfix/ipfix.xhtml
 .Pp
-https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html
+https://datatracker.ietf.org/doc/html/rfc3954
 .Pp
 .Xr nfcapd 1
 .Xr nfpcapd 1

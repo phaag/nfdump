@@ -90,7 +90,6 @@ traffic data file is only possible locally.
 .Nm
 is multithreaded and uses separate threads for packet, netflow
 and pcap processing.
-.Pp
 .Sh OPTIONS
 .Bl -tag -width Ds
 .It Fl i Ar interface
@@ -293,7 +292,7 @@ Print help text to stdout with all options and exit.
 .It Ar '<filter>'
 Optional pcap compatible packet filter. The filter needs to be put within quotes.
 .El
-.Sh RETURN VALUES
+.Sh EXIT STATUS
 .Nm
 returns 0 on success, or 255 if initialization failed.
 .Sh LOGGING
