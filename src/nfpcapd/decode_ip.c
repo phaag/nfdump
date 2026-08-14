@@ -101,16 +101,22 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
         return DECODE_SKIP;
     }
 
+    uint16_t wire_plen = ntohs(ip6.ip6_ctlun.ip6_un1.ip6_un1_plen);
+    size_t wire_len = sizeof(struct ip6_hdr) + (size_t)wire_plen;
+    if (wire_len > (size_t)(cur->end - ip6_ptr)) {
+        LogVerbose("IPv6 packet length exceeds captured data");
+        return DECODE_SKIP;
+    }
+
     // IPv6 duplicate check
     // duplicate check starts from the IP header over the rest of the packet
     // vlan, mpls and layer 1 headers are ignored
     if (unlikely(ctx->packetParam->doDedup && ctx->redoLink == 0)) {
         // check for de-dup
-        uint16_t len = ntohs(ip6.ip6_ctlun.ip6_un1.ip6_un1_plen);
         // capture buffers may be read-only (offline mmap); is_duplicate()
         // hashes a normalised copy instead of zeroing the hop limit in the
         // buffer in place.
-        if (is_duplicate(ip6_ptr, (uint32_t)len + 40, sizeof(struct ip6_hdr), 0)) {
+        if (is_duplicate(ip6_ptr, (uint32_t)wire_len, sizeof(struct ip6_hdr), 0)) {
             ctx->packetParam->proc_stat.duplicates++;
             return DECODE_DONE;
         }
@@ -118,7 +124,7 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
         ctx->redoLink++;
     }
 
-    uint16_t remaining_plen = ntohs(ip6.ip6_plen);
+    uint16_t remaining_plen = wire_plen;
 
     // ipv6 Extension headers
     ctx->IPproto = ip6.ip6_nxt;
@@ -210,11 +216,21 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
         return DECODE_ERROR;
     }
 
+    uint16_t wire_len = ntohs(ip4.ip_len);
+    if (wire_len < size_ip4) {
+        LogVerbose("Length error decoding IPv4 header - total length smaller than header");
+        return DECODE_ERROR;
+    }
+    if (wire_len > (size_t)(cur->end - (const uint8_t *)ip)) {
+        LogVerbose("IPv4 packet length exceeds captured data");
+        return DECODE_SKIP;
+    }
+
     if (!cursor_advance(cur, size_ip4)) {
         LogVerbose("Length error decoding IPv4 header");
         return DECODE_SKIP;
     }
-    ctx->ipPayloadLength = ntohs(ip4.ip_len) - size_ip4;
+    ctx->ipPayloadLength = wire_len - size_ip4;
     ctx->ipPayloadEnd = cur->ptr + ctx->ipPayloadLength;
 
     // IPv4 duplicate check
@@ -225,7 +241,7 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
         // capture buffers may be read-only (offline mmap); is_duplicate()
         // hashes a normalised copy instead of zeroing TTL/checksum in the
         // buffer in place.
-        if (is_duplicate((const uint8_t *)ip, ntohs(ip4.ip_len), (size_t)size_ip4, 1)) {
+        if (is_duplicate((const uint8_t *)ip, wire_len, (size_t)size_ip4, 1)) {
             ctx->packetParam->proc_stat.duplicates++;
             return DECODE_DONE;
         }

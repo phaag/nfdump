@@ -55,9 +55,14 @@ PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen) {
     // no payload memory required for mmap file
     if (snaplen == 0) return batch;
 
-    // Add payload memory
-    // round snaplen up to 16-byte boundary
-    size_t payload_size = (snaplen + 15u) & ~15u;
+    // Add payload memory. Cast before rounding: doing this in uint32_t
+    // wraps malicious PCAP snaplen values near UINT32_MAX.
+    size_t payload_size = ((size_t)snaplen + 15u) & ~(size_t)15u;
+    if (payload_size < snaplen || (payload_size != 0 && cap > SIZE_MAX / payload_size)) {
+        LogError("batch_alloc() invalid payload size");
+        free(batch);
+        return NULL;
+    }
     size_t total = payload_size * cap;
 
     void *mem = NULL;

@@ -465,7 +465,9 @@ static void decodeLinkLayer(SFSample *sample) {
     }
 
     /* now we're just looking for IP */
-    if ((end - start) < sizeof(struct myiphdr)) return; /* not enough for an IPv4 header (or IPX, or SNAP) */
+    // VLAN tags above may have advanced ptr.  All following protocol probes
+    // are relative to ptr, not start.
+    if ((end - ptr) < sizeof(struct myiphdr)) return; /* not enough for an IPv4 header (or IPX, or SNAP) */
 
     /* peek for IPX */
     if (type_len == 0x0200 || type_len == 0x0201 || type_len == 0x0600) {
@@ -878,11 +880,23 @@ static void decodeIPV6(SFSample *sample) {
                nextHeader == 51 ||  // auth
                nextHeader == 60) {  // destination options
             uint32_t optionLen;
+            uint32_t extensionType = nextHeader;
             dbg_printf("IP6HeaderExtension %d\n", nextHeader);
+            if ((end - ptr) < 2) return;
             nextHeader = ptr[0];
-            optionLen = 8 * (ptr[1] + 1);  // second byte gives option len in 8-byte chunks, not counting first 8
+            if (extensionType == 44) {
+                // Fragment headers have a fixed length and a reserved second
+                // byte rather than an RFC 8200 extension-length field.
+                optionLen = 8;
+            } else if (extensionType == 51) {
+                // Authentication Header length is in 32-bit words, excluding
+                // the first two 32-bit words.
+                optionLen = 4 * (ptr[1] + 2);
+            } else {
+                optionLen = 8 * (ptr[1] + 1);
+            }
+            if (optionLen > (uint32_t)(end - ptr)) return;
             ptr += optionLen;
-            if (ptr > end) return;  // ran off the end of the header
         }
 
         // now that we have eliminated the extension headers, nextHeader should have what we want to

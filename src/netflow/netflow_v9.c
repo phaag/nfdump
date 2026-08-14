@@ -740,10 +740,17 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
 
 static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry, void *option_template_flowset, FlowSource_t *fs) {
     uint32_t size_left = GET_FLOWSET_LENGTH(option_template_flowset) - 4;  // -4 for flowset header -> id and length
+    // An options template has a 6-byte {template ID, scope length, option
+    // length} header.  Do not read it from a short flowset.
+    if (size_left < 6) {
+        LogError("Process_v9: [%u] option template flowset too short: %u", exporter_entry->info.id, size_left);
+        return;
+    }
     uint8_t *option_template = option_template_flowset + 4;
     uint16_t tableID = GET_OPTION_TEMPLATE_ID(option_template);
     uint16_t scope_length = GET_OPTION_TEMPLATE_FIELD_COUNT(option_template);
     uint16_t option_length = GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(option_template);
+    size_left -= 6;
 
     if (scope_length & 0x3) {
         LogError("Process_v9: [%u] scope length error: length %u not multiple of 4", exporter_entry->info.id, scope_length);
@@ -755,7 +762,7 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
         return;
     }
 
-    if ((scope_length + option_length) > size_left) {
+    if ((uint32_t)scope_length + option_length > size_left) {
         LogError(
             "Process_v9: [%u] option template length error: size left %u too small for %u scopes "
             "length and %u options length",

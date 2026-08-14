@@ -122,17 +122,28 @@ int reader_gz_run(readerParam_t *readerParam) {
         }
         dbg(cnt++);
 
-        int incl = pr.hdr.caplen;
+        uint32_t incl = pr.hdr.caplen;
+
+        // The packet record must not claim more captured bytes than the
+        // global snapshot length.  Truncating the read but retaining the
+        // original caplen lets downstream BPF and packet decoders read past
+        // this batch slot.
+        if (incl > readerParam->snaplen) {
+            LogError("PCAP record caplen %u exceeds snaplen %u", incl, readerParam->snaplen);
+            break;
+        }
 
         // get new payload handle
         void *buf = payload_handle(batch, batch->count);
 
-        // should never trigger - test it anyway to prevent memory corruption
-        dbg_assert(incl <= batch->payload_size);
+        // batch_alloc() rounds snaplen up, so this must hold after the
+        // record-vs-snaplen check above. Keep the runtime guard in release
+        // builds as well.
         if (incl > batch->payload_size) {
-            incl = batch->payload_size;
+            LogError("PCAP record caplen %u exceeds batch payload size %zu", incl, batch->payload_size);
+            break;
         }
-        int got = gzread(gz, buf, incl);
+        int got = gzread(gz, buf, (unsigned)incl);
         if (got != (int)incl) {
             LogError("Failed to gzread payload of size: %u", incl);
             break;

@@ -754,6 +754,14 @@ static void relinkSequencerList(exporter_entry_t *exporter_entry) {
 }  // End of relinkSequencerList
 
 static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flowset_header, uint32_t size_left) {
+    // A template record starts with its 4-byte {template ID, field count}
+    // header.  The caller has only established that the flowset is larger
+    // than its own 4-byte header, so reject short payloads before reading the
+    // field count below.
+    if (size_left < 8) {
+        LogError("Process_ipfix: [%u] template flowset too short: %u", exporter_entry->info.id, size_left);
+        return;
+    }
     size_left -= 4;  // subtract message header
     void *DataPtr = flowset_header + 4;
 
