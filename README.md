@@ -307,7 +307,7 @@ tools that do not have an optional external dependency. Use `./configure
 for portable packages or binaries intended for other CPU models. Library
 checks use `pkg-config` first and a header/library fallback second; the
 corresponding `*_CFLAGS` and `*_LIBS` environment variables can override the
-detected values.
+detected values. If you deliberately want to disable an automatically discovered library, use `--with-xxxx=no`
 
 ### Runtime configuration
 

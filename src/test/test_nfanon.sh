@@ -101,37 +101,48 @@ else
     fail "nfanon_removes_bloom_metadata"
 fi
 
-# -K on read+write: nfanon can process a backend-encrypted input file and
-# produce a backend-encrypted output, using the same convention as nfdump
-# (-K covers both directions with one passphrase). -A (CryptoPAn key) and
-# -K (encryption passphrase) are independent options.
-if "$NFDUMP_BIN" -q -r dummy_flows.nf -z=lz4 -K=anonpass -w "$WORKDIR/enc_src.nf" >/dev/null 2>&1 \
-   && "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K=anonpass \
-          -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_anon.nf" >/dev/null 2>&1 \
-   && "$NFDUMP_BIN" -v check -r "$WORKDIR/enc_anon.nf" -K=anonpass >/dev/null 2>&1 \
-   && "$NFDUMP_BIN" -q -r "$WORKDIR/enc_anon.nf" -K=anonpass -o raw >/dev/null 2>&1; then
-    pass "nfanon_encrypted_round_trip"
-else
-    fail "nfanon_encrypted_round_trip"
-fi
+# -K (backend file encryption) requires nfanon and nfdump both built with
+# libsodium; detected the same way as test_crypto_nfcapd.sh, via 'CRYPTO' in
+# their -V output. Without it, -K is rejected at option-parsing time, so
+# these three tests would fail rather than exercise anything -K-specific.
+if "$NFANON_BIN" -V 2>&1 | grep -q 'CRYPTO' && "$NFDUMP_BIN" -V 2>&1 | grep -q 'CRYPTO'; then
 
-# regression: a wrong -K passphrase must fail cleanly (non-zero exit), not
-# silently report success.
-if "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K=wrongpass \
-          -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_wrong.nf" </dev/null >/dev/null 2>&1; then
-    fail "nfanon_wrong_passphrase_rejected: unexpectedly exited 0"
-else
-    pass "nfanon_wrong_passphrase_rejected"
-fi
+    # -K on read+write: nfanon can process a backend-encrypted input file and
+    # produce a backend-encrypted output, using the same convention as nfdump
+    # (-K covers both directions with one passphrase). -A (CryptoPAn key) and
+    # -K (encryption passphrase) are independent options.
+    if "$NFDUMP_BIN" -q -r dummy_flows.nf -z=lz4 -K=anonpass -w "$WORKDIR/enc_src.nf" >/dev/null 2>&1 \
+       && "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K=anonpass \
+              -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_anon.nf" >/dev/null 2>&1 \
+       && "$NFDUMP_BIN" -v check -r "$WORKDIR/enc_anon.nf" -K=anonpass >/dev/null 2>&1 \
+       && "$NFDUMP_BIN" -q -r "$WORKDIR/enc_anon.nf" -K=anonpass -o raw >/dev/null 2>&1; then
+        pass "nfanon_encrypted_round_trip"
+    else
+        fail "nfanon_encrypted_round_trip"
+    fi
 
-# regression: no -K at all on an encrypted input, in a non-interactive
-# context (no controlling terminal to prompt on), must fail cleanly rather
-# than silently reporting "Processed 0 files" with exit 0.
-if "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 \
-          -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_none.nf" </dev/null >/dev/null 2>&1; then
-    fail "nfanon_missing_passphrase_rejected: unexpectedly exited 0"
+    # regression: a wrong -K passphrase must fail cleanly (non-zero exit), not
+    # silently report success.
+    if "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K=wrongpass \
+              -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_wrong.nf" </dev/null >/dev/null 2>&1; then
+        fail "nfanon_wrong_passphrase_rejected: unexpectedly exited 0"
+    else
+        pass "nfanon_wrong_passphrase_rejected"
+    fi
+
+    # regression: no -K at all on an encrypted input, in a non-interactive
+    # context (no controlling terminal to prompt on), must fail cleanly rather
+    # than silently reporting "Processed 0 files" with exit 0.
+    if "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 \
+              -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_none.nf" </dev/null >/dev/null 2>&1; then
+        fail "nfanon_missing_passphrase_rejected: unexpectedly exited 0"
+    else
+        pass "nfanon_missing_passphrase_rejected"
+    fi
 else
-    pass "nfanon_missing_passphrase_rejected"
+    skip "nfanon_encrypted_round_trip: libsodium not compiled in"
+    skip "nfanon_wrong_passphrase_rejected: libsodium not compiled in"
+    skip "nfanon_missing_passphrase_rejected: libsodium not compiled in"
 fi
 
 summary

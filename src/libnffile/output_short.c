@@ -73,7 +73,7 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
     char datestr1[64], datestr2[64], datestr3[64];
     struct tm ts_buf;
     struct tm *ts;
-    time_t when = genericFlow->msecFirst / 1000LL;
+    time_t when = genericFlow->msecFirst / UINT64_C(1000);
     if (when == 0) {
         strncpy(datestr1, "<unknown>", 63);
     } else {
@@ -81,7 +81,7 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
         strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
     }
 
-    when = genericFlow->msecLast / 1000LL;
+    when = genericFlow->msecLast / UINT64_C(1000);
     if (when == 0) {
         strncpy(datestr2, "<unknown>", 63);
     } else {
@@ -90,7 +90,7 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
     }
 
     if (genericFlow->msecReceived) {
-        when = genericFlow->msecReceived / 1000LL;
+        when = genericFlow->msecReceived / UINT64_C(1000);
         ts = localtime_r(&when, &ts_buf);
         strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
     } else {
@@ -104,8 +104,9 @@ static void stringEXgenericFlow(FILE *stream, uint8_t *extension) {
             "  received at  =      %13llu [%s.%03llu]\n"
             "  proto        =                %3u %s\n"
             "  tcp flags    =               0x%.2x %s\n",
-            (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % 1000LL, (long long unsigned)genericFlow->msecLast,
-            datestr2, genericFlow->msecLast % 1000LL, (long long unsigned)genericFlow->msecReceived, datestr3,
+            (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % UINT64_C(1000),
+            (long long unsigned)genericFlow->msecLast, datestr2, genericFlow->msecLast % UINT64_C(1000),
+            (long long unsigned)genericFlow->msecReceived, datestr3,
             (long long unsigned)genericFlow->msecReceived % 1000L, genericFlow->proto, ProtoString(genericFlow->proto, 0),
             genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0,
             FlagsString(genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0));
