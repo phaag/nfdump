@@ -4,6 +4,9 @@
 
 **nfdump** is a powerful suite of tools for collecting, processing, and analyzing NetFlow, IPFIX, and sFlow data from network devices. It supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
 
+> [!TIP]
+> **Tester wanted:** nfdump 1.8.x is nearing release. See the [devel_1.8.x](https://github.com/phaag/nfdump/tree/devel_1.8.x) branch. Give the new branch a try and let me know whether it works for you.
+
 ---
 
 ## Table of Contents
@@ -21,6 +24,7 @@
 - [Related Projects](#related-projects)
 - [Sponsorship](#sponsorship)
 - [License](#license)
+- [Support & Documentation](#support--documentation)
 
 ---
 
@@ -82,11 +86,11 @@ This enables CPU-specific optimizations (`-march=native`) and link-time optimiza
 
 ### Docker
 
-See _extra/docker/README.md_.
+See [extra/docker/README.md](extra/docker/README.md).
 
 #### Building on CentOS 7.x
 
-Make sure, you have autotools 2.71 installed.
+Make sure you have autotools 2.71 installed.
 
 ```sh
 yum install centos-release-scl
@@ -96,7 +100,7 @@ scl enable devtoolset-8 -- bash
 
 #### Building on Ubuntu 18.04 LTS
 
-Make sure, you have autotools 2.71 installed.
+Make sure you have autotools 2.71 installed.
 
 ```sh
 sudo apt-get install clang-10
@@ -107,11 +111,11 @@ CC=clang-10 ./configure ...
 
 ## Configuration Options
 
-By default ./configure builds:
+By default, `./configure` builds:
 
 - the collectors `nfcapd`, `sfcapd`
 - `nfdump` for processing flows
-- additional tools `geolookup`, and `torlookup`
+- additional tools `geolookup` and `torlookup`
 
 For a full list, run `./configure --help`. Options include:
 
@@ -128,7 +132,7 @@ For a full list, run `./configure --help`. Options include:
 - `--enable-nfprofile`
   Build nfprofile and nftrack, required by NfSen (default: NO)
 - `--enable-devel`
-  Enable debugging aqnd developer options. For developers only (default: NO)
+  Enable debugging and developer options. For developers only (default: NO)
 - `--with-lz4=PATH`, `--with-zstd=PATH`, `--with-bz2=PATH`
   Specify non-default library install locations for compression libraries.
 - `--enable-lto`
@@ -136,18 +140,18 @@ For a full list, run `./configure --help`. Options include:
 - `--enable-native`
   Use `-march=native` to enable CPU-specific optimizations for the build host. This enables vectorization and instruction set tuning based on the local processor. Recommended for local builds, not for portable binaries.
 
-Compared to previous versions, the configure script has changed: many tools that previously required explicit enabling are now built automatically. The old options `--enable-xxxpath=path` have been replaced by the standard `--with-xxx=path`
+Compared to previous versions, the configure script has changed: many tools that previously required explicit enabling are now built automatically. The old options `--enable-xxxpath=path` have been replaced by the standard `--with-xxx=path`.
 
-Compression libraries are searched for and integrated, if found. If you want to explicitly disable a library and therefore a compression method, use the format `--enable-xxx=no` This disables that library.
+Compression libraries are searched for and integrated if found. To explicitly disable a library and its compression method, use the format `--enable-xxx=no`.
 
 The following options no longer exist:
 
 `--enable-nsel`
-NSEL support is built-in by default; you only need to adjust the output format if you prefer the legacy *line* or *long* format for NSEL/NAT. Change the `fmt` formats accordingly in the config file `nfdump.conf`
+NSEL support is built-in by default; you only need to adjust the output format if you prefer the legacy *line* or *long* format for NSEL/NAT. Change the `fmt` formats accordingly in the config file `nfdump.conf`.
 
 Notes:
 
-- Make sure your system does provide autoconf 2.71.
+- Make sure your system provides autoconf 2.71.
 - Older Linux distributions may require libbsd and libbsd-dev installed. 
 
 - `nfprofile` is a legacy binary, used by NfSen and may be moved into a separate archive in future.
@@ -193,21 +197,21 @@ Send metrics to InfluxDB or Prometheus-compatible tools using [nfinflux](https:/
 nfdump includes several related tools for extended workflows:
 
 - **nfcapd**
-  NetFlow collector daemon. Collects NetFlow version v1/v5/v7/v9 and IPFIX streams from one or many exporters and stores the flow record data in nfdump binary files.
+  NetFlow collector daemon. Collects NetFlow version v1/v5/v7/v9 and IPFIX streams from one or more exporters and stores the flow record data in nfdump binary files.
 
 - **sfcapd**
-  sFlow collector daemon. Collects sflow v4/v6 (sflowtool compatible) streams from one or many exporters and stores the flow record data in nfdump binary files.
+  sFlow collector daemon. Collects sFlow v4/v6 (sflowtool compatible) streams from one or more exporters and stores the flow record data in nfdump binary files.
 
 - **nfpcapd**
   Converts live traffic from a host interface or pcap-captured network traffic to NetFlow records. Stores the flow record data in nfdump binary files or forwards a data stream to a running `nfcapd` collector on another host.
 
 - **nfdump**
-  Reads nfdump binary files, filters flow records and post-processes flow records. The extensive filter language (See the available [cheatsheet](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md) ) selects flows for processing. The post-processing includes:
+  Reads nfdump binary files, filters flow records and post-processes flow records. The extensive filter language (see the available [cheatsheet](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md)) selects flows for processing. The post-processing includes:
 
   - Flexible flow aggregation
   - Flow statistics, based on any flow element
   - Flow listings
-  - Flow enrichment with optional geo and/or tor exit node information.
+  - Flow enrichment with optional geo and/or Tor exit-node information.
   
 - **geolookup**
   Look up IP addresses for country, region, city, and optionally AS information. Requires a geo database to work. See the provided `updateGeoDB.sh` script in order to build the database.
