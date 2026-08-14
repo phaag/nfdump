@@ -513,8 +513,11 @@ encryption, and the core limit in use.
   Note: nfdump-1.8.x may run with NfSen, but is **untested** so far.
 
 For usage details, read the installed manual page or run a program with `-h`.
-Please report bugs with the information requested above. Development can be
-supported through [GitHub Sponsors](https://github.com/sponsors/phaag).
+Please report bugs with the information requested above. 
+
+## Sponsorship
+
+Development can be supported through [GitHub Sponsors](https://github.com/sponsors/phaag). Any sponsoring is appreciated.
 
 ## License
 
