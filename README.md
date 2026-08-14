@@ -1,8 +1,8 @@
 # nfdump
 
-Archieved branch of nfdump  v1.6.x. This branch  will get bug fixes if needed, but no new features. The last release for v1.6.x is [nfdump-1.6.25.](https://github.com/phaag/nfdump/releases/tag/v1.6.25)
+Archieved branch of nfdump  v1.6.x. This branch will no longer get bug fixes or new features. The last release for v1.6.x is [nfdump-1.6.25.](https://github.com/phaag/nfdump/releases/tag/v1.6.25)
 
-Please use the latest [release](https://github.com/phaag/nfdump/releases/tag/v1.7.0.1) of nfdump-1.7.x from master branch.
+Please use the latest [release](https://github.com/phaag/nfdump/releases) or master branch.
 
 See the Changelog file for all changes.
 
