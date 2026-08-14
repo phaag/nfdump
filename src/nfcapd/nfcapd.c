@@ -210,7 +210,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             LogError("Dynamic flow sources are not supported with -H flow forwarding backend");
             return;
         }
-        if (Init_nffile_backend(fs, nffile_backend_ctx)) {
+        if (Init_nffile_backend(fs, nffile_backend_ctx) != 0) {
             LogError("Failed to initialise backend for new source");
             queue_abort(fs->blockQueue);
             done = 1;
@@ -263,10 +263,10 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             Process_nfd(pkt_ctx->buffer, cnt, fs);
             break;
         default: {
-            LogError(
-                "Error packet %" PRIu64 ": Ident: %s reading netflow header: "
-                "Unexpected netflow version %i from: %s",
-                *packets, fs->Ident, version, GetClientIPstring(&pkt_ctx->sender, sa_address));
+            LogError("Error packet %" PRIu64
+                     ": Ident: %s reading netflow header: "
+                     "Unexpected netflow version %i from: %s",
+                     *packets, fs->Ident, version, GetClientIPstring(&pkt_ctx->sender, sa_address));
             fs->bad_packets++;
             return;
         } break;

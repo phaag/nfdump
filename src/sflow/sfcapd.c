@@ -216,7 +216,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             done = 1;
             return;
         }
-        if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
+        if (Init_nffile_backend(fs, nffile_backend_ctx) != 0) {
             LogError("Failed to initialise backend for new source");
             queue_abort(fs->blockQueue);
             done = 1;
