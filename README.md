@@ -3,9 +3,13 @@
 [![Build Status](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
 nfdump is a collection of tools for collecting, storing, processing, and
-analysing NetFlow, IPFIX, sFlow, and packet-capture data. Nfdump supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
+analyzing NetFlow, IPFIX, sFlow, and packet-capture data. Nfdump supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
 
-The 1.8.x branch is the next major generation of nfdump.
+The 1.8.x branch (codename "Colibri") is the next major generation of nfdump: a modern file format
+and runtime, secure collector-to-collector forwarding, and richer
+packet-derived flow decoding. It keeps the familiar collection and query
+workflow while giving operators a practical path to higher-volume and more
+security-conscious deployments.
 
 > [!WARNING]
 > **Public beta.** 1.8.x has substantial internal and on-disk format changes.
@@ -14,14 +18,16 @@ The 1.8.x branch is the next major generation of nfdump.
 > format described here are those of the development branch and may still
 > receive compatibility fixes before the final release.
 
+1.8.x is ready to explore, with many new features and improvements. Start
+with a test deployment, then use the collector manuals and migration notes to
+plan a production rollout.
+
 ## Highlights of 1.8.x
 
 ### Core, file format, and runtime
 
-Much of the old code has been removed or rewritten. The new core is designed
-for contemporary CPU and memory hierarchies: hot data structures are arranged
-to be friendlier to L1/L2 caches and the processing pipeline avoids work that
-was needed by older implementations.
+nfdump has received continuous updates over the years, but some design choices needed to be rethought to meet the demands of modern CPU architectures. A large part of the old code has therefore been removed or rewritten. The new core is designed for contemporary CPU and memory hierarchies: hot data structures are arranged
+to be friendlier to L1/L2 caches, and the processing pipeline avoids work that was needed by older implementations.
 
 - A new threading core shares the available CPU budget between readers,
   writers, and worker roles. Set the budget with `-W` or `limitCores`; zero
@@ -35,13 +41,13 @@ was needed by older implementations.
   predictable.
 - V3 files can optionally use xxHash64 integrity checks. With libsodium,
   backend files can also be protected with XChaCha20-Poly1305 authenticated
-  encryption.
-- Flow records have a compact V4 representation with an extension bitmap and
-  offset table; the fields available to filters and output formats remain the
-  same logical flow data.
-- Configuration is TOML-based. More settings are available in `nfdump.conf`,
-  including shared and per-program thread settings. `nfdump` and all
-  collectors support runtime configuration overrides with `-x <key>=<value>`.
+  encryption, a fast and reliable method to protect your data.
+- `nfdump -v check`, `check-verbose`, and `repair` provide increasingly deep
+  V3 file validation and can rewrite recoverable on-disk inconsistencies.
+- Flow records have a new compact representation (record type v4) with an extension bitmap and
+  offset table. The fields available to filters and output formats follow the
+  same logical data flow already proven useful by pre-1.8.x nfdump versions.
+- The TOML-style configuration file `nfdump.conf` has become much more important, since many more settings are now available to tune or preset. The new command-line switch `-x <key>=<value>`, supported by every program, additionally allows any setting to be overridden for a single run.
 
 ### Collectors
 
@@ -52,24 +58,19 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
 #### nfcapd
 
 - The NetFlow/IPFIX collector has been substantially refactored.
-- Native nfdump flow forwarding is available with `-H`. Plain forwarding uses
-  protocol version 250; version 251 adds XChaCha20-Poly1305 transport
-  protection when built with libsodium.
-- `-K`, `-k`, `-N`, and `-Q` configure file and forwarding-transport crypto
-  functions. See `nfcapd(1)` for the exact direction and key-management
-  semantics of each option.
-- NetFlow v9 and IPFIX template decoding now uses a compile-once decoding VM
-  rather than interpreting a per-field loop for every record.
-- IPFIX information element 315, `dataLinkFrameSection`, can reconstruct and
-  decode embedded L2--L4 frames, including VLAN/QinQ, MPLS, PPPoE, GRE/ERSPAN,
-  and IP-in-IP encapsulations where present.
+- In addition to storing flows locally, `nfcapd` can forward decoded flows to another collector over UDP with the new `-H` switch. Plain forwarding uses the nfdump native protocol version 250; version 251 adds XChaCha20-Poly1305 transport protection when built with libsodium.
+- `-K[=passphrase|@keyfile]` instructs `nfcapd` to encrypt locally stored V3 files with XChaCha20-Poly1305.
+- `-k[=passphrase|@keyfile]` authenticates and decrypts/encrypts version-251 forwarding traffic. Rekeying and anti-replay controls are also available. See `nfcapd(1)` for the exact key-management semantics.
+- NetFlow v9 and IPFIX template decoding now uses a compile-once decoding VM rather than interpreting a per-field loop for every record.
+- IPFIX information element 315, `dataLinkFrameSection`, can reconstruct and decode embedded L2--L4 frames, including VLAN/QinQ, MPLS, PPPoE, GRE/ERSPAN, and IP-in-IP encapsulations where present.
 - The receive path has less frontend contention under load.
 - The listener supports a true dual-socket path for platforms that do not
   provide IPv4-mapped IPv6 sockets.
 
 #### sfcapd
 
-- The sFlow decoder has been newly written for the new runtime.
+- The sFlow decoder has been newly written for the new runtime and no longer depends on sflowtool code.
+  It's code is now an integral part of nfdump.
 - It has the same backend, forwarding, encryption, threading, and relevant
   command-line interface changes as `nfcapd`.
 
@@ -77,39 +78,173 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
 
 - Packet-capture ingestion has been refactored around a self-contained,
   state-machine packet decoder.
-- It can forward UDP flow data using the native forwarding transport, including
+- It can forward flow data using the native UDP forwarding transport, including
   optional XChaCha20-Poly1305 protection when built with libsodium.
 - Offline pcap input is batched and mmap-based; compressed gzip input uses a
   batch-copy path. This is expected to improve large offline ingests, though
   the gain depends on the capture and host.
-- Native pcap reading and writing avoids unnecessary format conversion in the
-  pcap-output path.
+- Native and independant of libpcap pcap reading and writing avoids unnecessary 
+  format conversion in the pcap-output path.
+- Configurable limits bound the active-flow cache, queued output, and retained
+  payload state, so capture capacity can be matched to the host.
 - All collectors support `-x <key>=<value>` for runtime configuration overrides.
 
 ### Analysis and metadata tools
 
 - Filter expressions are compiled into a compact filter VM program.
-- Payload regular expressions use system **PCRE2-8** instead of the unmaintained
-  sgregex matcher. Matching is binary-safe: the payload length is supplied
-  explicitly, so embedded NUL bytes do not truncate input. PCRE2 JIT is used
-  when the installed library supports it. If PCRE2 is not available at build
-  time, payload-regex filters fail to compile rather than silently using a
-  different matcher.
-- `nfmeta` maintains per-flow-block IPv4/IPv6 source and destination Bloom
-  filters. `nfdump` can use these metadata filters to skip blocks that cannot
-  satisfy an address query.
+- Payload regular expressions now use system **PCRE2-8** when built with libpcre2, 
+  which is well maintained and faster. Matching is binary-safe: the payload 
+  length is supplied explicitly, so embedded NUL bytes do not truncate input. 
+  PCRE2 JIT is used when the installed library supports it. **Note:** If PCRE2 is not available
+  at build time, payload-regex filters fail to compile.
+- `nfmeta` is a new tool that builds per-flow-block IPv4/IPv6 source and
+  destination Bloom filters for existing flow files. `nfdump` uses these
+  metadata filters to skip whole blocks that cannot satisfy an address query,
+  speeding up host-focused searches over large archives.
+- `nfanon` gains a new `-K` option to read and write backend-encrypted flow
+  files; the CryptoPAn anonymization key, previously `-K`, has moved to `-A`
+  so the two features cannot be confused. See the example below.
 - GeoIP timezone data is available for output and filtering when the relevant
   MaxMind data is installed.
+- Output formats can render an exporter/router address with country information
+  through `%gra`; source and destination AS aggregation is handled consistently.
+- `nfreplay` can now also replay flows as IPFIX, in addition to NetFlow v5, v9,
+  and the native nfdump protocol; forwarded traffic can be authenticated and
+  encrypted with `-k`, the same UDP transport protection used by the collectors.
+
+### Authenticated collector forwarding
+
+For a sensor that runs `nfpcapd`, forward decoded flows to a central `nfcapd`
+without exposing a plaintext collector-to-collector hop. With a libsodium build
+and the same protected key file on both hosts:
+
+```sh
+# Sensor: decode packets and send authenticated, encrypted native flows.
+nfpcapd -i eth1 -H collector.example.net/9995 -k@/etc/nfdump/forward.key
+
+# Collector: authenticate/decrypt v251 packets and write its normal flow files.
+nfcapd -w /var/nfdump/flows -p 9995 -k@/etc/nfdump/forward.key
+```
+
+`-k` selects native protocol v251, which uses XChaCha20-Poly1305; without it,
+`-H` uses plaintext v250. Encryption complements rather than replaces network
+policy: firewall the receiving UDP port to the known sensor addresses.
+
+### nfanon with separated anonymization and encryption
+
+In 1.7.x, `nfanon`'s only crypto-related option was `-K`, the CryptoPAn
+anonymization key. In 1.8.x that key has moved to `-A`, and `-K` now means
+what it means everywhere else in the suite: the backend file-encryption
+passphrase. This frees `nfanon` to read and re-write encrypted archives
+directly, without ever writing the anonymized data to a plaintext
+intermediate file:
+
+```sh
+# Anonymize an encrypted archive, keeping it encrypted end to end.
+nfanon -A 0x<64-char-hex-key> -K@/etc/nfdump/archive.key \
+       -r /var/nfdump/edge-router -w /var/nfdump/edge-router-anon.nf
+```
+
+`-A` and `-K` are independent of each other; use `-A` for the anonymization key
+and `-K` to re-encrypt in case of anonymizing encrypted files.
+See [`nfanon(1)`](man/nfanon.1) for the key-file and interactive-prompt
+forms of `-K`, and the migration table below for the exact 1.7.x-to-1.8.x
+option mapping.
 
 ## Compatibility and migration
 
-1.8.x reads nffile V2 files written by 1.7.x and writes the new V3 format.
-Files from the 1.6.x format are no longer read directly; convert them first
-with nfdump 1.7.8.
+### File formats
+
+1.8.x reads nffile V2 files written by 1.7.x transparently but always writes the new V3 format.
+Reading files in 1.6.x format is no longer supported; convert them first with nfdump 1.7.8.
 
 Do not mix a beta deployment into an archive without first validating your
 readers, exporters, rotation scripts, and backup procedure. Keep the original
 files until the converted or newly collected data has been verified.
+
+### Migrating from 1.7.x: incompatible options
+
+1.8.x reused a number of option letters for different, unrelated purposes,
+and dropped a handful of long-deprecated compatibility flags outright.
+Existing 1.7.x invocations, wrapper scripts, and systemd units should be
+checked against the tables below before switching a production deployment.
+An option that is silently accepted but now does something else is more
+dangerous than one that is rejected outright, so review the "repurposed"
+rows first.
+
+**Changed for most programs** (`nfdump`, `nfcapd`, `sfcapd`, `nfpcapd`,
+`nfanon`, `nfprofile`):
+
+| Option | 1.7.x meaning | 1.8.x meaning |
+| --- | --- | --- |
+| `-W <num>` | Number of compression worker threads. | Total CPU-core budget for the whole process; `0` uses all online cores. Thread roles (reader/writer/worker) are now derived automatically from this budget, or tuned individually in `nfdump.conf`. |
+| `-x` | Not a shared option; program-specific or unused. | New everywhere: `-x <key>=<value>` overrides one `nfdump.conf` setting for this run (repeatable). |
+| `-j`, `-y` | Legacy shorthands for `-z=bz2` and `-z=lz4`. | Still work in `nfdump`. Removed from `nfcapd`, `sfcapd`, and `nfpcapd`; use `-z=bz2` / `-z=lz4[:level]` there. |
+
+**`nfdump`:**
+
+| Option | 1.7.x | 1.8.x |
+| --- | --- | --- |
+| `-v <file>` | Verified a file, given directly as the argument. | `-v check\|check-verbose\|repair`, applied to the file given separately with `-r`. |
+| `-x <file>` | Verified the extension records in a file. | Repurposed; see the shared `-x` row above. nffile v2 1.6.x extension based flow records are no longer supported. |
+| `-J <0-4>` | Selected a compression codec by number. | `-J=<codec>` takes the same codec name as `-z` (`lzo`, `lz4`, `bz2`, `zstd`). |
+| `-t <time>` | Selected a time window. | Removed. Use `'first seen' >= ... and 'last seen' <= ...'` filter expressions instead. |
+| new | — | `-l <num>` sets the log level (1-4); `-K[=passphrase\|@keyfile]` reads and writes backend-encrypted files. |
+
+**`nfcapd`, `sfcapd`:**
+
+| Option | 1.7.x | 1.8.x |
+| --- | --- | --- |
+| `-l <dir>` | Legacy alias for `-w <dir>`. | Launches a program after each file rotation (`-l process`) — the collectors' old `-x process` launcher, moved here now that `-x` is the shared config-override switch. |
+| `-R <ip[/port]>` | Up to eight packet repeaters. | Exactly one repeater. |
+| `-E`, `-T` | Deprecated, silently accepted no-ops. | Removed; now rejected as unknown options. |
+| new | — | `-H` forwards decoded flows to another collector over UDP; `-K`/`-k`/`-N`/`-Q` configure backend and transport encryption. See the forwarding example above. |
+
+**`nfpcapd`:**
+
+| Option | 1.7.x | 1.8.x |
+| --- | --- | --- |
+| `-l <dir>`, `-T` | Legacy alias for `-w`, and a deprecated no-op flag. | Both removed outright (unlike `nfcapd`, the letter `-l` is not reused). |
+| new | — | `-K`/`-k` backend and UDP transport encryption. |
+
+**`nfanon`:**
+
+| Option | 1.7.x | 1.8.x |
+| --- | --- | --- |
+| `-K <key>` | CryptoPAn anonymization key. | Backend file-encryption passphrase (`-K[=passphrase\|@keyfile]`). |
+| `-A <key>` | — | The CryptoPAn anonymization key, moved here from `-K`. Still required. |
+| `-q`, `-t <num>` | Deprecated flags (`-q` for quiet, `-t` as an alias for `-W`). | Both removed. |
+
+This is the change worked through in the [nfanon example](#try-nfanon-with-separated-anonymization-and-encryption) above — it is the option remapping most likely to bite an automated 1.7.x invocation, because old and new `-K` both parse successfully but do something completely different.
+
+**`nfreplay`:**
+
+| Option | 1.7.x | 1.8.x |
+| --- | --- | --- |
+| `-r <file>` | Optional; read from stdin if omitted. | Required. |
+| `-i <host/ip>` | Compatibility alias for `-H`. | Removed; use `-H`. |
+| `-t <time>` | Selected a time window. | Removed. |
+| `-v <version>` | Sent NetFlow v5, v9, or native (250). | Also accepts `10` to send IPFIX. |
+| new | — | `-k[=passphrase\|@keyfile]` authenticates and encrypts forwarded flows (use with `-v 250`). |
+
+**`nfexpire`:**
+
+| Option | 1.7.x | 1.8.x |
+| --- | --- | --- |
+| `-L <datadir>` | Listed stat and bookkeeping records from a directory. | Removed. |
+| new | — | `-n` runs a dry run: reports what would expire without deleting anything. |
+
+### Other behavioral changes
+
+- **Exit codes are now consistent** across `nfdump` and the collectors: `0`
+  for success, `1` for any user-facing error (bad arguments, a missing or
+  invalid input file, a filter syntax error, or a failed `-v check`/`repair`),
+  and `255` reserved for genuine internal faults (out of memory, unable to
+  start a worker thread). Earlier releases mixed `250`, `254`, and `255` for
+  ordinary, expected failures; scripts that specifically branched on one of
+  those numbers should be checked against the new, single `1`.
+- Running `nfdump` with no arguments at all now exits `1` instead of `0`; `-h`
+  is unaffected and still exits `0`.
 
 ## Build from the development tree
 
@@ -128,6 +263,8 @@ Run `./configure --help` for the complete option list. Common feature toggles
 include `--enable-nfpcapd`, `--enable-readpcap`, `--enable-nfprofile`,
 `--enable-ja4`, `--enable-native`, and `--enable-lto`.
 
+As of 1.8.x `./configure` automatically enables building `geolookup` and `torlookup` .
+
 | Dependency or data | Enables |
 | --- | --- |
 | liblz4, libzstd, bzip2 | nffile compression codecs |
@@ -136,11 +273,12 @@ include `--enable-nfpcapd`, `--enable-readpcap`, `--enable-nfprofile`,
 | PCRE2-8 | Payload regular-expression filters |
 | libpcap | Packet-capture reading and `nfpcapd` support |
 | MaxMind database | GeoIP enrichment, including timezones when provided by the database |
+| Tor database | Tor exit node enrichment, when provided by the database. |
 
 The configure summary reports which optional libraries were found. PCRE2 and
 libsodium are optional build dependencies, but the features that require them
-are unavailable without them. MaxMind data is installed and maintained
-separately from the build.
+are unavailable without them. MaxMind and tor data DBs are installed and maintained
+separately from the build. Use the provided scripts to update and build the relevant DB files. Rebuild these databases, if you migrate to 1.8.x.
 
 ## Configuration options
 
@@ -165,32 +303,22 @@ tools that do not have an optional external dependency. Use `./configure
 | `--with-pcre2=PATH`, `--with-libsodium=PATH`, `--with-zlib=PATH` | Search a non-standard prefix for PCRE2, libsodium, or zlib. |
 | `--with-pcap=PATH`, `--with-ft=PATH`, `--with-rrd=PATH` | Search a non-standard prefix for libpcap, flow-tools, or RRD libraries. |
 
-`--enable-native` is appropriate for a local installation, but do not use it
+`--enable-native` is appropriate for a local installation, but *do not use* it
 for portable packages or binaries intended for other CPU models. Library
 checks use `pkg-config` first and a header/library fallback second; the
 corresponding `*_CFLAGS` and `*_LIBS` environment variables can override the
 detected values.
 
-### Runtime configuration and command-line changes
+### Runtime configuration
 
 The distributed [`nfdump.conf.dist`](src/libnffile/conf/nfdump.conf.dist) is the
 authoritative starting point for runtime settings. It includes common settings
 and program-specific sections. Thread allocation can be controlled with
 `limitCores` and the `[common.threads]` or per-program `threads` sections.
 
-Several option meanings have changed from the 1.7.x release:
-
-| Program | Change |
-| --- | --- |
-| `nfcapd`, `sfcapd`, `nfpcapd` | `-W` is the total CPU-core limit; `0` uses all available cores. It is no longer the number of compression workers. |
-| `nfcapd`, `sfcapd`, `nfpcapd` | Use `-z=lzo|lz4|bz2|zstd[:level]` for compression. The old per-codec `-j` and `-y` options are gone. |
-| `nfcapd`, `sfcapd` | `-R` accepts one repeater, not the former advertised set of up to eight. |
-| `nfcapd`, `sfcapd`, `nfpcapd` | `-H` enables native UDP forwarding; encryption-related options require a libsodium build. |
-| `nfdump`, `nfcapd`, `sfcapd`, `nfpcapd` | `-x <key>=<value>` overrides a configuration value for that invocation. |
-
-In 1.8.x, nfcapd and sfcapd move their post-rotation launcher command from
-`-x command` to `-l command`; `-x` is now the common configuration-override
-switch. nfpcapd's long-deprecated `-l` alias for `-w` is removed.
+For the option letters that changed meaning from the 1.7.x release, see
+[Migrating from 1.7.x: incompatible options](#migrating-from-17x-incompatible-options)
+above.
 
 ## Quick examples
 
@@ -209,7 +337,7 @@ nfdump -r /var/nfdump/flows 'proto tcp and port 443'
 Apply a temporary configuration override in nfdump or any collector:
 
 ```sh
-nfdump -x threads.workers=4 -r /var/nfdump/flows
+nfdump -x limitCores=4 -r /var/nfdump/flows
 ```
 
 The exact forwarding and cryptographic setup depends on which program sends or
@@ -267,10 +395,10 @@ job when the flow directory is shared with active collectors.
 ### Operational security
 
 Collectors do not need root privileges unless they bind a UDP port below 1024
-or open a protected capture interface. **Restrict** which exporters may reach the
-collector using **host or network firewall rules.** Treat forwarding keys and
-encrypted-file passphrases as secrets; do not put them in command histories or
-issue reports.
+or open a protected capture interface. **Restrict which exporters may reach
+the collector using host or network firewall rules.** Treat forwarding keys
+and encrypted-file passphrases as secrets; do not put them in command
+histories or issue reports.
 
 ## Compression
 
@@ -306,8 +434,10 @@ in place.
 - `nfmeta` — Create or update flow-file metadata, including address Bloom
   filters for block-level query skipping.
 - `nfreplay` — Send stored flows to another collector using NetFlow v5, NetFlow
-  v9, or IPFIX.
-- `nfanon` — Anonymize flow records using Crypto-PAn.
+  v9, IPFIX, or native nfdump protocol (including encrypted v251 forwarding
+  when built with libsodium).
+- `nfanon` — Anonymize flow records using CryptoPAn (`-A`); can also read and
+  write backend-encrypted files (`-K`, when built with libsodium).
 - `geolookup` — Look up IP geolocation, AS, and timezone information in an
   nfdump MaxMind database.
 - `torlookup` — Look up Tor exit-node information in an nfdump Tor database.
@@ -331,7 +461,7 @@ logging support is optional and requires `--enable-jnat` at build time.
 
 nfdump can enrich flow output, statistics, and filters with local MaxMind and
 Tor databases. The MaxMind database provides country, location, IANA time-zone,
-and AS-organisation information for IP addresses. Generate nfdump's compact
+and AS-organization information for IP addresses. Generate nfdump's compact
 database from the MaxMind **GeoLite2** or commercial City and ASN CSV downloads
 with `geolookup`: set your MaxMind license key in `updateGeoDB.sh`, then run:
 
@@ -354,7 +484,7 @@ nfdump -r /path/to/flows -H "$PWD/tordb.nf" -o 'fmt:%ts %sa %stor %da %dtor'
 
 For persistent use, install the generated files at a suitable local location
 and configure `geodb.path` and `tordb.path` in `nfdump.conf`; `-G` and `-H`
-select them for an individual invocation.
+select them for an individual invocation. You can temporarily disable a configured DB, with `-G none` or `-H none`.  Both update scripts now create a flat cache file along the DB file to speed up loading. 
 
 ## Documentation
 
@@ -366,7 +496,7 @@ Useful project documentation includes:
 
 ## Reporting beta issues
 
-Please report reproducible issues with the command used, the relevant
+Please report reproducible issues with the commands used, the relevant
 configuration (with secrets removed), exporter type and version, platform,
 and a small capture or flow-file sample where possible. For performance
 reports, include CPU model, storage type, input rate, enabled compression or
