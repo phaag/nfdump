@@ -954,13 +954,13 @@ static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
 
     if (msecFirst) {
-        time_t tt = msecFirst / 1000LL;
+        time_t tt = msecFirst / UINT64_C(1000);
         struct tm ts;
         localtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % UINT64_C(1000)));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -973,13 +973,13 @@ static void String_LastSeen(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
 
     if (msecLast) {
-        time_t tt = msecLast / 1000LL;
+        time_t tt = msecLast / UINT64_C(1000);
         struct tm ts;
         localtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % UINT64_C(1000)));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -992,13 +992,13 @@ static void String_Received(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
 
     if (msecReceived) {
-        time_t tt = msecReceived / 1000LL;
+        time_t tt = msecReceived / UINT64_C(1000);
         struct tm ts;
         localtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03" PRIu64, s, msecReceived % 1000LL);
+        fprintf(stream, "%s.%03" PRIu64, s, msecReceived % UINT64_C(1000));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -1011,13 +1011,13 @@ static void String_ReceivedGMT(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
 
     if (msecReceived) {
-        time_t tt = msecReceived / 1000LL;
+        time_t tt = msecReceived / UINT64_C(1000);
         struct tm ts;
         gmtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03" PRIu64, s, msecReceived % 1000LL);
+        fprintf(stream, "%s.%03" PRIu64, s, msecReceived % UINT64_C(1000));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -1028,7 +1028,7 @@ static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
-    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecReceived / 1000LL, msecReceived % 1000LL);
+    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecReceived / UINT64_C(1000), msecReceived % UINT64_C(1000));
 
 }  // End of String_ReceivedRaw
 
@@ -1036,7 +1036,7 @@ static void String_FirstSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
-    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecFirst / 1000LL, msecFirst % 1000LL);
+    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecFirst / UINT64_C(1000), msecFirst % UINT64_C(1000));
 
 }  // End of String_FirstSeenRaw
 
@@ -1044,7 +1044,7 @@ static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
-    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecLast / 1000LL, msecLast % 1000LL);
+    fprintf(stream, "%10" PRIu64 ".%03" PRIu64, msecLast / UINT64_C(1000), msecLast % UINT64_C(1000));
 
 }  // End of String_LastSeenRaw
 
@@ -1054,13 +1054,13 @@ static void String_FirstSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
 
     if (msecFirst) {
-        time_t tt = msecFirst / 1000LL;
+        time_t tt = msecFirst / UINT64_C(1000);
         struct tm ts;
         gmtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % UINT64_C(1000)));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -1073,13 +1073,13 @@ static void String_LastSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
 
     if (msecLast) {
-        time_t tt = msecLast / 1000LL;
+        time_t tt = msecLast / UINT64_C(1000);
         struct tm ts;
         gmtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % UINT64_C(1000)));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
@@ -1435,13 +1435,13 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
 
     uint64_t msecEvent = nselCommon->msecEvent;
     if (msecEvent) {
-        time_t tt = msecEvent / 1000LL;
+        time_t tt = msecEvent / UINT64_C(1000);
         struct tm ts;
         localtime_r(&tt, &ts);
         char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03" PRIu64, s, msecEvent % 1000LL);
+        fprintf(stream, "%s.%03" PRIu64, s, msecEvent % UINT64_C(1000));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }

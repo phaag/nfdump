@@ -76,7 +76,7 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
         EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
         uint64_t eventTime = genericFlow->msecFirst;
         if (nselCommon && nselCommon->msecEvent) eventTime = nselCommon->msecEvent;
-        time_t when = eventTime / 1000LL;
+        time_t when = eventTime / UINT64_C(1000);
         if (when == 0) {
             strncpy(datestr1, "0000-00-00 00:00:00", 63);
         } else {
@@ -84,10 +84,11 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
             struct tm *ts = localtime_r(&when, &ts_buf);
             strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
         }
-        fprintf(stream, "  Event time   =      %13llu [%s.%03" PRIu64 "]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
+        fprintf(stream, "  Event time   =      %13llu [%s.%03" PRIu64 "]\n", (long long unsigned)eventTime, datestr1,
+                eventTime % UINT64_C(1000));
 
     } else {
-        time_t when = genericFlow->msecFirst / 1000LL;
+        time_t when = genericFlow->msecFirst / UINT64_C(1000);
         if (when == 0) {
             strncpy(datestr1, "0000-00-00 00:00:00", 63);
         } else {
@@ -96,7 +97,7 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
             strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
         }
 
-        when = genericFlow->msecLast / 1000LL;
+        when = genericFlow->msecLast / UINT64_C(1000);
         if (when == 0) {
             strncpy(datestr2, "0000-00-00 00:00:00", 63);
         } else {
@@ -108,12 +109,12 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, uint
         fprintf(stream,
                 "  first        =      %13llu [%s.%03" PRIu64 "]\n"
                 "  last         =      %13llu [%s.%03" PRIu64 "]\n",
-                (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % 1000LL, (long long unsigned)genericFlow->msecLast,
-                datestr2, genericFlow->msecLast % 1000LL);
+                (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % UINT64_C(1000),
+                (long long unsigned)genericFlow->msecLast, datestr2, genericFlow->msecLast % UINT64_C(1000));
     }
 
     if (genericFlow->msecReceived) {
-        time_t when = genericFlow->msecReceived / 1000LL;
+        time_t when = genericFlow->msecReceived / UINT64_C(1000);
         struct tm ts_buf;
         struct tm *ts = localtime_r(&when, &ts_buf);
         strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
@@ -601,7 +602,7 @@ static void stringsEXnselCommon(FILE *stream, uint8_t *extensionRecord) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
     char datestr[64];
-    time_t when = nselCommon->msecEvent / 1000LL;
+    time_t when = nselCommon->msecEvent / UINT64_C(1000);
     if (when == 0) {
         strncpy(datestr, "0000-00-00 00:00:00", 63);
     } else {

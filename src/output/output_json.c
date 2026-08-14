@@ -122,18 +122,18 @@ static char *streamBuff = NULL;
 static char *stringEXgenericFlow(char *streamPtr, uint8_t *extensionRecord) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
 
-    time_t when = (genericFlow->msecFirst / 1000LL);
+    time_t when = (genericFlow->msecFirst / UINT64_C(1000));
     struct tm ts = {0};
     localtime_r(&when, &ts);
     char dateBuff1[64];
     strftime(dateBuff1, 63, "%Y-%m-%dT%H:%M:%S", &ts);
 
-    when = (genericFlow->msecLast / 1000LL);
+    when = (genericFlow->msecLast / UINT64_C(1000));
     localtime_r(&when, &ts);
     char dateBuff2[64];
     strftime(dateBuff2, 63, "%Y-%m-%dT%H:%M:%S", &ts);
 
-    when = (genericFlow->msecReceived / 1000LL);
+    when = (genericFlow->msecReceived / UINT64_C(1000));
     localtime_r(&when, &ts);
     char dateBuff3[64];
     strftime(dateBuff3, 63, "%Y-%m-%dT%H:%M:%S", &ts);
@@ -143,8 +143,9 @@ static char *stringEXgenericFlow(char *streamPtr, uint8_t *extensionRecord) {
                        "  \"first\" : \"%s.%03u\",\n"
                        "  \"last\" : \"%s.%03u\",\n"
                        "  \"received\" : \"%s.%03u\",\n",
-                       dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), dateBuff2, (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3,
-                       (unsigned)(genericFlow->msecReceived % 1000LL));
+                       dateBuff1, (unsigned)(genericFlow->msecFirst % UINT64_C(1000)), dateBuff2,
+                       (unsigned)(genericFlow->msecLast % UINT64_C(1000)), dateBuff3,
+                       (unsigned)(genericFlow->msecReceived % UINT64_C(1000)));
     streamPtr += len;
 
     AddElementU64("in_packets", genericFlow->inPackets);
@@ -676,7 +677,7 @@ static char *stringEXnselCommon(char *streamPtr, uint8_t *extensionRecord) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
     char datestr[64];
-    time_t when = nselCommon->msecEvent / 1000LL;
+    time_t when = nselCommon->msecEvent / UINT64_C(1000);
     if (when == 0) {
         strncpy(datestr, "0000-00-00T00:00:00", 64);
     } else {
@@ -698,7 +699,8 @@ static char *stringEXnselCommon(char *streamPtr, uint8_t *extensionRecord) {
         AddElementU32("nat_pool_id", nselCommon->natPoolID);
     }
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%" PRIu64 "\",\n", datestr, nselCommon->msecEvent % 1000LL);
+    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%" PRIu64 "\",\n", datestr,
+                       nselCommon->msecEvent % UINT64_C(1000));
     streamPtr += len;
 
     return streamPtr;

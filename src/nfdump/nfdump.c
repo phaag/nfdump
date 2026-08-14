@@ -296,10 +296,10 @@ static void PrintStat(stat_record_t *s, char *ident) {
     printf("Bytes_udp: %llu\n", (unsigned long long)s->numbytes_udp);
     printf("Bytes_icmp: %llu\n", (unsigned long long)s->numbytes_icmp);
     printf("Bytes_other: %llu\n", (unsigned long long)s->numbytes_other);
-    printf("First: %" PRIu64 "\n", s->msecFirstSeen / 1000LL);
-    printf("Last: %" PRIu64 "\n", s->msecLastSeen / 1000LL);
-    printf("msec_first: %" PRIu64 "\n", s->msecFirstSeen % 1000LL);
-    printf("msec_last: %" PRIu64 "\n", s->msecLastSeen % 1000LL);
+    printf("First: %" PRIu64 "\n", s->msecFirstSeen / UINT64_C(1000));
+    printf("Last: %" PRIu64 "\n", s->msecLastSeen / UINT64_C(1000));
+    printf("msec_first: %" PRIu64 "\n", s->msecFirstSeen % UINT64_C(1000));
+    printf("msec_last: %" PRIu64 "\n", s->msecLastSeen % UINT64_C(1000));
     printf("Sequence failures: %llu\n", (unsigned long long)s->sequence_failure);
 }  // End of PrintStat
 
