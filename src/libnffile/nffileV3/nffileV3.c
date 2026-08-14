@@ -34,6 +34,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +67,17 @@ threadConfig_t threadConfig = {
 
 static queue_t *fileQueue = NULL;
 
+// Set by GetNextFile() whenever it returns NULL because OpenFileV3() failed
+// on a real, existing file (bad/missing decryption passphrase, corrupt file,
+// permission error, ...) - as opposed to a NULL because the queue is simply
+// exhausted, which is the normal, successful end of input. Callers must
+// check this after a NULL return to tell "done" from "failed" apart; both
+// used to collapse into the same NULL, which made a file that failed to
+// open silently look like a clean, empty end of input (0 records, exit 0).
+static bool lastOpenFailed = false;
+
+int GetNextFileFailed(void) { return lastOpenFailed; }
+
 int Init_nffile(threadConfig_t tc, queue_t *fileList) {
     fileQueue = fileList;
 
@@ -85,6 +97,8 @@ int Init_nffile(threadConfig_t tc, queue_t *fileList) {
 }  // End of Init_nffile
 
 nffileV3_t *GetNextFile(void) {
+    lastOpenFailed = false;
+
     if (!fileQueue) {
         LogError("GetNextFile() no file queue to process");
         return NULL;
@@ -99,6 +113,12 @@ nffileV3_t *GetNextFile(void) {
 
         dbg_printf("Process: '%s'\n", nextFile);
         nffileV3_t *nffile = OpenFileV3(nextFile);  // Open the file
+        if (!nffile) {
+            // OpenFileV3() already logged the specific reason (bad
+            // passphrase, corrupt file, ...); record that this NULL is a
+            // real failure, not a normal end of input.
+            lastOpenFailed = true;
+        }
         free(nextFile);
         return nffile;
     }

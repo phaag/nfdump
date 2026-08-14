@@ -383,6 +383,10 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
             CloseFileV3(nffile);
             nffile = GetNextFile();
             if (nffile == NULL) {
+                if (GetNextFileFailed()) {
+                    LogError("Aborting: a subsequent input file failed to open");
+                    status = 0;
+                }
                 done = 1;
             } else {
                 FilterSetParam(engine, nffile->ident, NOGEODB);

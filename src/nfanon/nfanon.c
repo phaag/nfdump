@@ -101,7 +101,7 @@ static int IsBloomMetadataType(uint16_t metaType);
 static int RemoveBloomMetadata(flowBlockV3_t *dataBlock);
 
 static int process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
-                        flowBlockV3_t **dataBlockPtr);
+                        flowBlockV3_t **dataBlockPtr, const crypto_ctx_t *crypto_ctx);
 
 /* Functions */
 
@@ -112,7 +112,7 @@ static void usage(char *name) {
         "usage %s [options] \n"
         "-C <file>\tRead optional config file.\n"
         "-h\t\tthis text you see right here.\n"
-        "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>. Required.\n"
+        "-A <key>\tAnonymize IP addresses using CryptoPAn with key <key>. Required.\n"
         "-s\t\tPreserve source address.\n"
         "-d\t\tPreserve destination address. (-s and -d are not both allowed)\n"
         "-r <path>\tread input from single file or all files in directory. Required.\n"
@@ -120,7 +120,12 @@ static void usage(char *name) {
         "-w <file>\tName of output file. Defaults to input file.\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
-        "-V\t\tPrint version and exit.\n",
+        "-V\t\tPrint version and exit.\n"
+#ifdef HAVE_LIBSODIUM
+        "-K[=passphrase|@keyfile]\tDecrypt encrypted input files (and encrypt output with -w). Passphrase from argument, key file, or interactive "
+        "prompt.\n"
+#endif
+        ,
         name);
 } /* usage */
 
@@ -477,7 +482,7 @@ static int RemoveBloomMetadata(flowBlockV3_t *dataBlock) {
 }  // End of RemoveBloomMetadata
 
 static int process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier,
-                        flowBlockV3_t **dataBlockPtr) {
+                        flowBlockV3_t **dataBlockPtr, const crypto_ctx_t *crypto_ctx) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     char outFile[MAXPATHLEN];
     char *cfile = NULL;
@@ -529,6 +534,12 @@ static int process_data(char *wfile, int verbose, worker_param_t **workerList, i
                     CloseFileV3(nffile_w);
                     nffile_w = NULL;
                 }
+                if (GetNextFileFailed()) {
+                    // A real file failed to open (bad/missing passphrase,
+                    // corrupt file, ...) - must not be reported as success.
+                    LogError("Aborting: a subsequent input file failed to open");
+                    success = 0;
+                }
                 done = 1;
                 printf("\nDone\n");
                 continue;
@@ -554,7 +565,7 @@ static int process_data(char *wfile, int verbose, worker_param_t **workerList, i
 
                 uint32_t compressType = nffile_r->compression;
                 uint32_t compressLevel = nffile_r->compressionLevel;
-                nffile_w = OpenNewFileV3(outFile, CREATOR_NFANON, compressType, compressLevel, NULL);
+                nffile_w = OpenNewFileV3(outFile, CREATOR_NFANON, compressType, compressLevel, crypto_ctx);
                 if (!nffile_w) {
                     // can not create output file
                     CloseFileV3(nffile_r);
@@ -769,6 +780,7 @@ int main(int argc, char **argv) {
     char CryptoPAnKey[32] = {0};
     int keyProvided = 0;
     flist_t flist = {0};
+    crypto_ctx_t *crypto_ctx = NULL;  // -K: backend (file) de/encryption
 
     char *configFile = NULL;
     int limitCores = 0;
@@ -776,7 +788,7 @@ int main(int argc, char **argv) {
     int anon_src = 1;
     int anon_dst = 1;
     int c;
-    while ((c = getopt(argc, argv, "C:hsdK:r:v:Vw:W:x:")) != EOF) {
+    while ((c = getopt(argc, argv, "A:C:hsdK::r:v:Vw:W:x:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -791,7 +803,7 @@ int main(int argc, char **argv) {
                     configFile = optarg;
                 }
                 break;
-            case 'K':
+            case 'A':
                 CheckArgLen(optarg, 66);
                 if (!ParseCryptoPAnKey(optarg, CryptoPAnKey)) {
                     LogError("Invalid key '%s' for CryptoPAn", optarg);
@@ -800,6 +812,19 @@ int main(int argc, char **argv) {
                 keyProvided = 1;
                 PAnonymizer_Init((uint8_t *)CryptoPAnKey);
                 break;
+            case 'K': {
+                char *pp = ParsePassphrase(optarg, "Enter passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                crypto_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!crypto_ctx) {
+                    LogError("Failed to initialize encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                RegisterReadCryptoCtx(crypto_ctx);
+                break;
+            }
             case 's':
                 anon_src = 0;
                 break;
@@ -858,7 +883,7 @@ int main(int argc, char **argv) {
     }
 
     if (!keyProvided) {
-        LogError("Expect -K <key>");
+        LogError("Expect -A <key>");
         usage(argv[0]);
         exit(255);
     }
@@ -911,13 +936,15 @@ int main(int argc, char **argv) {
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
     // dataBlock for all workers
     flowBlockV3_t *dataBlock = NULL;
-    int processOK = process_data(wfile, verbose, workerList, numWorkers, barrier, &dataBlock);
+    int processOK = process_data(wfile, verbose, workerList, numWorkers, barrier, &dataBlock, crypto_ctx);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
 
     free(tid);
     free(workerList);
+    RegisterReadCryptoCtx(NULL);
+    FreeCryptoCtx(crypto_ctx);
 
     return processOK ? EXIT_SUCCESS : EXIT_FAILURE;
 }

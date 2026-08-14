@@ -183,6 +183,12 @@ static data_row *process(void *engine) {
             CloseFileV3(nffile);
             nffile = GetNextFile();
             if (nffile == NULL) {
+                if (GetNextFileFailed()) {
+                    LogError("Aborting: a subsequent input file failed to open");
+                    free(recordHandle);
+                    free(port_table);
+                    return NULL;
+                }
                 done = 1;
                 continue;
             }

@@ -173,8 +173,8 @@ static void process_data(void) {
     // Get the first file handle
     nffileV3_t *nffile = GetNextFile();
     if (nffile == NULL) {
-        LogError("Empty file list. No files to process\n");
-        return;
+        LogError(GetNextFileFailed() ? "Failed to open input file" : "Empty file list. No files to process");
+        exit(EXIT_FAILURE);
     }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
@@ -191,6 +191,10 @@ static void process_data(void) {
 
         if (dataBlock == NULL) {
             if (GetNextFile() == NULL) {
+                if (GetNextFileFailed()) {
+                    LogError("Aborting: a subsequent input file failed to open");
+                    exit(EXIT_FAILURE);
+                }
                 done = 1;
                 printf("\nDone\n");
                 continue;

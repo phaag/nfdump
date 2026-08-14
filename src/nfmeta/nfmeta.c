@@ -55,7 +55,7 @@
 #include "util.h"
 
 static void usage(char *name);
-static void process_data(const char *wfile, int numWorkers, int verbose);
+static int process_data(const char *wfile, int numWorkers, int verbose);
 
 typedef struct {
     queue_t *inputQueue;
@@ -282,7 +282,7 @@ static int flushAndClose(nffileV3_t *nffile_w, const char *wfile, const char *sr
  *   5. Joins workers and frees the per-file queues.
  *   6. Finalizes (and optionally renames) the output file.
  */
-static void process_data(const char *wfile, int numWorkers, int verbose) {
+static int process_data(const char *wfile, int numWorkers, int verbose) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     int blk_count = 0;
     int file_count = 0;
@@ -291,8 +291,8 @@ static void process_data(const char *wfile, int numWorkers, int verbose) {
 
     nffileV3_t *nffile_r = GetNextFile();
     if (!nffile_r) {
-        LogError("Empty file list. No files to process");
-        return;
+        LogError(GetNextFileFailed() ? "Failed to open input file" : "Empty file list. No files to process");
+        return 0;
     }
 
     workerArgs_t workerArgs = {0};
@@ -303,7 +303,7 @@ static void process_data(const char *wfile, int numWorkers, int verbose) {
         LogError("calloc() error: %s", strerror(errno));
         if (nffile_w) CloseFileV3(nffile_w);
         CloseFileV3(nffile_r);
-        return;
+        return 0;
     }
     if (verbose > 1) printf("Use %u workers\n", numWorkers);
 
@@ -312,7 +312,8 @@ static void process_data(const char *wfile, int numWorkers, int verbose) {
         nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
         if (!nffile_w) {
             CloseFileV3(nffile_r);
-            return;
+            free(tids);
+            return 0;
         }
         SetIdent(nffile_w, nffile_r->ident);
         __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
@@ -442,6 +443,10 @@ static void process_data(const char *wfile, int numWorkers, int verbose) {
         CloseFileV3(nffile_r);
         nffile_r = GetNextFile();
     }
+    // A real open failure on a later input file (bad/missing passphrase,
+    // corrupt file, ...) must not be reported as a clean, successful run.
+    int allFilesOpened = !GetNextFileFailed();
+    if (!allFilesOpened) LogError("Aborting: a subsequent input file failed to open");
 
     if (wfile && nffile_w) {
         // single file mode
@@ -466,6 +471,8 @@ static void process_data(const char *wfile, int numWorkers, int verbose) {
     }
     free(tids);
     printf("\rProcessed %d flow blocks across %d file(s)\n", blk_count, file_count);
+
+    return allFilesOpened;
 
 }  // End of process_data
 
@@ -543,6 +550,6 @@ int main(int argc, char **argv) {
     threadConfig_t threadConfig = GetThreadConfig(limitCores, LZ4_COMPRESSED, pipeline);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
-    process_data(wfile, threadConfig.workers, verbose);
-    return 0;
+    int ok = process_data(wfile, threadConfig.workers, verbose);
+    return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }  // End of main

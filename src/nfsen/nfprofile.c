@@ -84,8 +84,8 @@ static void usage(char *name);
 
 static profile_param_info_t *ParseParams(char *profile_datadir);
 
-static void process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
-                         pthread_control_barrier_t *barrier, int hasGeoDB);
+static int process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
+                        pthread_control_barrier_t *barrier, int hasGeoDB);
 
 /* Functions */
 
@@ -228,8 +228,8 @@ static worker_param_t **LaunchWorkers(pthread_t *tid, int numWorkers, pthread_co
 
 }  // End of LaunchWorkers
 
-static void process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
-                         pthread_control_barrier_t *barrier, int hasGeoDB) {
+static int process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
+                        pthread_control_barrier_t *barrier, int hasGeoDB) {
     flowBlockV3_t *nextBlock = NULL;
     flowBlockV3_t *dataBlock = NULL;
     // map datablock for workers - all workers
@@ -244,12 +244,17 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
 
     nffileV3_t *nffile = NULL;
     int done = 0;
+    int ok = 1;
     while (!done) {
         // get next data block from file
         dataBlock = nextBlock;
         if (dataBlock == NULL) {
             nffile = GetNextFile();
             if (nffile == NULL) {
+                if (GetNextFileFailed()) {
+                    LogError("Aborting: a subsequent input file failed to open");
+                    ok = 0;
+                }
                 done = 1;
                 continue;
             }
@@ -305,6 +310,8 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
             CloseFileV3(channels[j].nffile);
         }
     }
+
+    return ok;
 
 }  // End of process_data
 
@@ -747,7 +754,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    process_data(channels, numChannels, workerList, numWorkers, barrier, hasGeoDB);
+    int ok = process_data(channels, numChannels, workerList, numWorkers, barrier, hasGeoDB);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
@@ -758,5 +765,5 @@ int main(int argc, char **argv) {
 #if 0
     VerifyFiles();
 #endif
-    return 0;
+    return ok ? 0 : 1;
 }

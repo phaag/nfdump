@@ -32,11 +32,12 @@
 .Nm nfanon
 .Nd anonymize the IP addresses 
 .Sh SYNOPSIS
-.Nm 
+.Nm
 .Fl r Ar path
 .Op Fl w Ar nffile
 .Op Fl C Ar config
-.Fl K Ar key
+.Fl A Ar key
+.Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl s
 .Op Fl d
 .Op Fl v Ar level
@@ -49,7 +50,7 @@
 anonymizes all IP addresses ( src, dst, next hop, router IP, NAT, tunnel
 endpoints, and the recording exporter's own IP, etc. ) in the netflow
 records using the CryptoPAn (Cryptography-based  Prefix-preserving Anonymization)
-module. The key -K is used to initialize the Rijndael cipher. The key is either
+module. The key -A is used to initialize the Rijndael cipher. The key is either
 a 32 character string, or a 64 hex digit string starting with 0x. See
 https://en.wikipedia.org/wiki/Crypto-PAn for more information on CryptoPAn.
 .Pp
@@ -58,10 +59,17 @@ Anonymization is prefix-preserving: two original addresses sharing an
 prefix are guaranteed to share the same
 .Ar N Ns -bit
 prefix after anonymization, for the same
-.Fl K
+.Fl A
 key. This holds across all files anonymized with the same key, which
 allows aggregate and subnet-level analysis to continue working on
 anonymized data without revealing the original addresses.
+.Pp
+.Fl A
+(the CryptoPAn anonymization key) and
+.Fl K
+(the backend file encryption passphrase, described below) are unrelated
+options for two different cryptographic features and may be used
+independently or together.
 .Pp
 The source specified by argument
 .Fl r Ar path
@@ -86,10 +94,53 @@ containing many flow files. Required.
 .It Fl w Ar nffile
 File name to write anonymized flow records to. If this argument is missing, the source
 file name is taken, which means the original file is overwritten.
-.It Fl K Ar key
+.It Fl A Ar key
 .Ar key
 is either a 32 character string, or a 64 char hex string starting with 0x. This key
 is used to initialize the anonymizer. Required.
+.It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+Decrypt a backend-encrypted input file, and encrypt the output the same way.
+Requires
+.Nm
+to be compiled with libsodium support.
+This is the same per-file, backend encryption used by
+.Xr nfcapd 1 ,
+.Xr sfcapd 1 ,
+.Xr nfpcapd 1 ,
+and read back by
+.Xr nfdump 1
+with their own
+.Fl K
+option - it has nothing to do with the
+.Fl A
+anonymization key above.
+.Pp
+The passphrase may be supplied in one of three ways:
+.Bl -tag -width Ds
+.It Fl K Ns = Ns Ar passphrase
+Use
+.Ar passphrase
+directly.
+The
+.Ql =
+is required; there must be no space between
+.Fl K
+and the passphrase.
+.It Fl K Ns Pf @ Ar keyfile
+Read the passphrase from the first line of
+.Ar keyfile .
+Trailing newlines are stripped.
+.It Fl K
+(no argument) Prompt interactively from the terminal with echo disabled.
+.El
+.Pp
+If the input file is encrypted and
+.Fl K
+is omitted,
+.Nm
+falls back to an interactive prompt; in a non-interactive context (no
+controlling terminal) this fails cleanly with a non-zero exit status rather
+than silently processing zero files.
 .It Fl C Ar config
 Read configuration from
 .Ar config .
@@ -154,9 +205,12 @@ the failure).
 .Sh EXAMPLES
 To create a random 64 character hex string you may use the following command:
 .Dl % xxd -u -l 32 -p -c 64 /dev/urandom
-Use the resulting output as key, prepended with 0x as -K argument.
+Use the resulting output as key, prepended with 0x as -A argument.
 or
 .Dl % openssl rand -hex 16
-and use this output as argument for -K
+and use this output as argument for -A
+.Pp
+Anonymize a backend-encrypted flow file, keeping it encrypted:
+.Dl % nfanon -A 0x<64-char-hex-key> -K=<passphrase> -r encrypted.nf -w anon.nf
 .Sh SEE ALSO
 .Xr nfdump 1

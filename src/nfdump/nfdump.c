@@ -351,6 +351,13 @@ static void *prepareThread(void *arg) {
     queue_t *outQueue = prepareArgs->outQueue;
     nffileV3_t *nffile = GetNextFile();
     if (nffile == NULL) {
+        if (GetNextFileFailed()) {
+            // A real file failed to open (bad/missing passphrase, corrupt
+            // file, ...), not a normal empty input list - must not be
+            // reported as a clean, empty success.
+            queue_close(outQueue);
+            exit(EXIT_FAILURE);
+        }
         queue_close(outQueue);
         dbg_printf("prepareThread exit\n");
         pthread_exit(NULL);
@@ -381,6 +388,11 @@ static void *prepareThread(void *arg) {
             CloseFileV3(nffile);
             nffile = GetNextFile();
             if (nffile == NULL) {
+                if (GetNextFileFailed()) {
+                    LogError("Aborting: a subsequent input file failed to open");
+                    queue_close(outQueue);
+                    exit(EXIT_FAILURE);
+                }
                 done = 1;
             } else {
                 if (nffile->stat_record->msecFirstSeen < t_firstMsec) t_firstMsec = nffile->stat_record->msecFirstSeen;
@@ -1292,6 +1304,11 @@ int main(int argc, char **argv) {
             CloseFileV3(nffile);
             nffile = GetNextFile();
         }
+        if (GetNextFileFailed()) {
+            LogError("Aborting: a subsequent input file failed to open");
+            free(ident);
+            exit(EXIT_FAILURE);
+        }
         PrintStat(&sum_stat, ident);
         free(ident);
         exit(EXIT_SUCCESS);
@@ -1333,6 +1350,10 @@ int main(int argc, char **argv) {
             PrintGNUplotSumStat(nffile);
             CloseFileV3(nffile);
             nffile = GetNextFile();
+        }
+        if (GetNextFileFailed()) {
+            LogError("Aborting: a subsequent input file failed to open");
+            exit(EXIT_FAILURE);
         }
         exit(EXIT_SUCCESS);
     }

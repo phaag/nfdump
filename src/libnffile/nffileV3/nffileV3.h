@@ -391,6 +391,12 @@ int Init_nffile(threadConfig_t tc, queue_t *fileList);
 
 nffileV3_t *GetNextFile(void);
 
+// Returns 1 if the most recent GetNextFile() call returned NULL because
+// OpenFileV3() failed on a real file (bad passphrase, corrupt file,
+// permission error, ...), 0 if it returned NULL because the queue was
+// simply exhausted (normal end of input) or on the next successful open.
+int GetNextFileFailed(void);
+
 int ReportBlocks(void);
 
 nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize);
