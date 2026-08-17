@@ -123,8 +123,8 @@ Settings for
 .Ss Common keys (valid in [common] or any program section)
 .Bl -tag -width "crypt.rekeyIntervalSecs"
 .It Sy xxhash
-Boolean integer (0 or 1).
-When set to 1, an xxHash checksum is appended to each written data block
+Boolean value (\fBtrue\fR/\fBfalse\fR or 0/1).
+When set to true (or 1), an xxHash checksum is appended to each written data block
 and verified on every read.
 Detecting silent data corruption comes at a small CPU cost.
 Default: 0.

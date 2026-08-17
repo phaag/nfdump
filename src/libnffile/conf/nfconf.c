@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -73,6 +74,12 @@ static int numConfOverrides = 0;
 
 static bool confKeyExists(const char *key);
 static bool confTableGetBool(toml_table_t *root, const char *key, bool *out);
+
+static bool confOverrideGetBool(const char *value) {
+    if (strcasecmp(value, "true") == 0) return true;
+    if (strcasecmp(value, "false") == 0) return false;
+    return strtoll(value, NULL, 0) != 0;
+}  // End of confOverrideGetBool
 
 /*
  * Open config file provided
@@ -465,7 +472,7 @@ int64_t ConfGetValue(const char *key) {
 bool ConfGetBool(const char *key) {
     // 1. CLI override
     for (int i = 0; i < numConfOverrides; i++)
-        if (strcmp(confOverrides[i].key, key) == 0) return strtoll(confOverrides[i].valString, NULL, 0) != 0;
+        if (strcmp(confOverrides[i].key, key) == 0) return confOverrideGetBool(confOverrides[i].valString);
 
     // 2. config file
     if (nfconfFile.valid) {

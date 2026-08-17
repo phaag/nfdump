@@ -52,6 +52,16 @@ else
     fail "lzo_compress_read"
 fi
 
+# -x accepts TOML boolean spelling as well as 0/1.  Ensure it enables the
+# block checksums, not merely a successful checksum verification of absent ones.
+if nfdump -x xxhash=true -r dummy_flows.nf -q -z=lz4 -w "$WORKDIR/xxhash.nf" >/dev/null 2>&1 \
+   && out=$(nfdump -v check-verbose -r "$WORKDIR/xxhash.nf" 2>&1) \
+   && echo "$out" | grep -Eq 'checksum: 0x[1-9a-fA-F]'; then
+    pass "xxhash_cli_true"
+else
+    fail "xxhash_cli_true"
+fi
+
 # tstart sort order (uses the lzo-compressed file from the previous test)
 if nfdump -r "$WORKDIR/lzo.nf" -q -O tstart -o raw \
           >"$WORKDIR/tstart_sort.txt" 2>/dev/null \

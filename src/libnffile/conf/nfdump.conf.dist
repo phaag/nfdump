@@ -8,7 +8,7 @@
 
 # calculate checksum for datablocks, while creating a flow file
 # if the checksum is != 0, it will be verified when reading the file
-#xxhash = 1
+#xxhash = true
 
 # limitCores: core limit when no -W flag is given.
 # 0 (or absent) means "use all online CPU cores" — GetThreadConfig() then
