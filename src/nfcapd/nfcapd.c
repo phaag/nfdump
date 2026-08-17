@@ -500,9 +500,7 @@ int main(int argc, char **argv) {
     int socks[2], nsocks, family, do_daemonize, expire, verbose;
     unsigned subdir_index;
     char *pcap_file = NULL;
-#ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
-#endif
 
     unsigned srcSpoofing = 0;
     repeater_host_t repeater_host = {0};

@@ -468,9 +468,7 @@ int main(int argc, char **argv) {
     unsigned subdir_index;
     int limitCores;
     char *pcap_file = NULL;
-#ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
-#endif
     crypto_ctx_t *crypto_ctx = NULL;    // -K: backend (file) encryption
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
 
