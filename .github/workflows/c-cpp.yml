@@ -288,6 +288,9 @@ jobs:
                     libsodium-dev \
                     libbsd-dev
 
+            - name: Configure Git safe directory
+              run: git config --global --add safe.directory '*'
+
             - name: Checkout repository
               uses: actions/checkout@v7
 
