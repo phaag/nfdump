@@ -325,7 +325,12 @@ static struct StatRequest_s {
 } StatRequest[MaxStats];  // This number should do it for a single run
 
 // key.v1 is always set as 64bit value.
-#define key_hash_func(key) (int32_t)((key->v1) >> 33 ^ (key->v1) ^ (key->v1) << 11)
+// v1 is a bit pattern (address bits, not a number), so the mixing shifts
+// below must run in unsigned space: shifting a signed int64_t left when the
+// result doesn't fit the signed range is undefined behavior, not the
+// well-defined wraparound this hash mixing actually relies on.
+#define key_hash_func(key) \
+    (int32_t)(((uint64_t)(key->v1) >> 33) ^ (uint64_t)(key->v1) ^ ((uint64_t)(key->v1) << 11))
 
 // up to 16 bytes (hashkey.v0, hashkey.v1) use faster compare.
 // if > 16 bytes ( ptrSize != 0 ) use memcmp for var length

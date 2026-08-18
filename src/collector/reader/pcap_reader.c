@@ -63,8 +63,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "pcap_reader.h"
 #include "logging.h"
+#include "pcap_reader.h"
 #include "util.h"
 
 // define potential missing types
@@ -157,7 +157,9 @@ static int setup_pcap(char *filter) {
 static ssize_t decode_ipv4_udp(const uint8_t *data, const uint8_t *end, void *buffer, size_t buffer_size, struct sockaddr_storage *sock) {
     if (data + sizeof(struct ip) > end) return -1;
 
-    const struct ip *ip = (const struct ip *)data;
+    struct ip ipHdr;
+    memcpy(&ipHdr, data, sizeof(struct ip));
+    const struct ip *ip = &ipHdr;
     if (ip->ip_v != 4) {
         LogError("Expected IPv4 but found IP version: %u", ip->ip_v);
         return 0;
@@ -223,7 +225,9 @@ static ssize_t decode_ipv6_udp(const uint8_t *data, const uint8_t *end, void *bu
         return -1;
     }
 
-    const struct ip6_hdr *ip6 = (const struct ip6_hdr *)data;
+    struct ip6_hdr ip6Hdr;
+    memcpy(&ip6Hdr, data, sizeof(struct ip6_hdr));
+    const struct ip6_hdr *ip6 = &ip6Hdr;
 
     // Fill real IPV6 sender
     struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)sock;

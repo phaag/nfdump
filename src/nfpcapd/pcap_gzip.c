@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -52,7 +53,9 @@ static void *payload_handle(PktBatch_t *batch, size_t idx) {
     return batch->payload_slab + (ptrdiff_t)idx * (ptrdiff_t)batch->payload_size;
 }  // End of payload_handle
 
+#ifndef swap16
 static uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); }
+#endif
 
 static void swap_pcap_file_header(struct pcap_file_header *header) {
     header->version_major = swap16(header->version_major);

@@ -50,6 +50,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -79,7 +80,9 @@
 
 static proc_stat_t proc_stat = {0};
 
+#ifndef swap16
 static uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); }
+#endif
 
 static void swap_pcap_file_header(struct pcap_file_header *header) {
     header->version_major = swap16(header->version_major);
