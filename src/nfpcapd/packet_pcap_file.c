@@ -362,7 +362,7 @@ void pcap_file_reader_stop(readerParam_t *readerParam) {
 }  // End of pcap_file_reader_stop
 
 static void ReportStat(packetParam_t *param) {
-    LogInfo("Processed: %u, decode errors: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,
+    LogInfo("Processed: %" PRIu64 ", decode errors: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,
             param->proc_stat.decoding_errors - proc_stat.decoding_errors, param->proc_stat.short_snap - proc_stat.short_snap,
             param->proc_stat.unknown - proc_stat.unknown);
 

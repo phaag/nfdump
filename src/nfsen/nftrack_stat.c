@@ -263,7 +263,7 @@ int UpdateStat(data_row *row, time_t when) {
 
     last_rrd = RRD_LastUpdate(dbpath);
     if (stat_header.last && (last_rrd != stat_header.last)) {
-        LogError("RRD and stat record out of sync. %i != %i", last_rrd, stat_header.last);
+        LogError("RRD and stat record out of sync. %lld != %lld", (long long)last_rrd, (long long)stat_header.last);
         LogError("Stat: Num : %i", stat_header.av_num);
         LogError("Stat: last: %s", ctime(&stat_header.last));
         LogError("RRD : last: %s", ctime(&last_rrd));

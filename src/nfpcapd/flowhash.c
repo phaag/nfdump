@@ -694,8 +694,8 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
     }
 
     if (flowCnt) {
-        LogVerbose("Expired flow nodes: %u. Active flow nodes: %d", flowCnt, flowHashStat.flowNodes);
-        LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
+        LogVerbose("Expired flow nodes: %u. Active flow nodes: %zu", flowCnt, flowHashStat.flowNodes);
+        LogVerbose("Node cache size: %u, allocated %u, cache size: %zu, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
                    NodeList_length(NodeList));
     }
 

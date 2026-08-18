@@ -241,7 +241,7 @@ REDO_LINK:
                     protocol = 0x86DD;
                     break;
                 default:
-                    LogInfo("Packet: %u: unsupported DLT_NULL protocol: 0x%x, packet: %u", pkg_cnt, header);
+                    LogInfo("Packet: %u: unsupported DLT_NULL protocol: 0x%x", pkg_cnt, header);
                     return 0;
             }
         } break;
@@ -255,7 +255,7 @@ REDO_LINK:
             protocol = 0x800;
             break;
         default:
-            LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, linktype);
+            LogInfo("Packet: %u: unsupported link type: 0x%x", pkg_cnt, linktype);
             return 0;
     }
 
