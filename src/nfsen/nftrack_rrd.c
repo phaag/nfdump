@@ -195,24 +195,32 @@ int CreateRRDBs(char *path, time_t when) {
     }
 
     CreateRRDB(rrd_filename, when);
-    if ((i = stat(rrd_filename, &statbuf) < 0)) {
-        fprintf(stderr, "Can't create RRD file '%s': %s\n", rrd_filename, strerror(errno));
+
+    // Open the freshly created template once and fstat()/read() the same
+    // descriptor throughout, rather than stat()ing and re-opening the file
+    // by name - avoids a TOCTOU race where the path could be swapped
+    // between the check and the use.
+    fd = open(rrd_filename, O_RDONLY, 0);
+    if (fd < 0) {
+        fprintf(stderr, "Can't open RRD file '%s': %s\n", rrd_filename, strerror(errno));
+        return 0;
+    }
+    if (fstat(fd, &statbuf) < 0) {
+        fprintf(stderr, "Can't stat RRD file '%s': %s\n", rrd_filename, strerror(errno));
+        close(fd);
+        unlink(rrd_filename);
         return 0;
     }
     buff = malloc(statbuf.st_size);
     if (!buff) {
         perror("Buffer allocation failed");
-        unlink(rrd_filename);
-        return 0;
-    }
-    fd = open(rrd_filename, O_RDONLY, 0);
-    if (fd < 0) {
-        perror("Failed to open RRD file");
+        close(fd);
         unlink(rrd_filename);
         return 0;
     }
     if (read(fd, buff, statbuf.st_size) != statbuf.st_size) {
         perror("Failed to read data from RRD file");
+        free(buff);
         close(fd);
         unlink(rrd_filename);
         return 0;
