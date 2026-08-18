@@ -126,10 +126,22 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
              profile_param->channelname, filterfile);
     path[MAXPATHLEN - 1] = '\0';
 
-    struct stat stat_buf;
-    if (stat(path, &stat_buf) || !S_ISREG(stat_buf.st_mode)) {
+    // Open the file once up front and fstat()/read() that same descriptor for
+    // everything below - a stat() here followed by a later, separate open()
+    // of the same path would leave a window in which the path could be
+    // swapped out from under us (TOCTOU).
+    int ffd = open(path, O_RDONLY);
+    if (ffd < 0) {
         LogError("Skipping channel %s in profile '%s' group '%s'. No profile filter found.\n", profile_param->channelname, profile_param->profilename,
                  profile_param->profilegroup);
+        return;
+    }
+
+    struct stat fd_stat_buf;
+    if (fstat(ffd, &fd_stat_buf) < 0 || !S_ISREG(fd_stat_buf.st_mode)) {
+        LogError("Skipping channel %s in profile '%s' group '%s'. Invalid profile filter file.\n", profile_param->channelname,
+                 profile_param->profilename, profile_param->profilegroup);
+        close(ffd);
         return;
     }
 
@@ -167,35 +179,34 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
             p = strchr(q, '|');
             if (p) *p = '\0';
 
-            if (!AppendString(source_filter, "ident ", &len)) return;
+            if (!AppendString(source_filter, "ident ", &len)) {
+                close(ffd);
+                return;
+            }
 
-            if (!AppendString(source_filter, q, &len)) return;
+            if (!AppendString(source_filter, q, &len)) {
+                close(ffd);
+                return;
+            }
 
             if (p) {
                 // there is another source waiting behind *p
-                if (!AppendString(source_filter, " or ", &len)) return;
+                if (!AppendString(source_filter, " or ", &len)) {
+                    close(ffd);
+                    return;
+                }
                 q = p;
                 q++;
             }
         } while (p);
 
-        if (!AppendString(source_filter, ") and (", &len)) return;
+        if (!AppendString(source_filter, ") and (", &len)) {
+            close(ffd);
+            return;
+        }
     } else
         // no source filter - therefore pattern is '(' filter ')'
         source_filter = "(";
-
-    int ffd = open(path, O_RDONLY);
-    if (ffd < 0) {
-        LogError("Can't open file '%s' for reading: %s\n", path, strerror(errno));
-        return;
-    }
-
-    struct stat fd_stat_buf;
-    if (fstat(ffd, &fd_stat_buf) < 0 || !S_ISREG(fd_stat_buf.st_mode)) {
-        LogError("Can't stat file '%s': %s\n", path, strerror(errno));
-        close(ffd);
-        return;
-    }
 
     size_t filter_size = fd_stat_buf.st_size + strlen(source_filter) + 2;  // +2 : ')\0' at the end of the filter
 
@@ -338,14 +349,17 @@ void UpdateChannels(time_t tslot) {
     for (unsigned num = 0; num < num_channels; num++) {
         if (profile_channels[num].ofile) {
             struct stat fstat;
-            stat(profile_channels[num].ofile, &fstat);
+            // ofile is our own nfprofile.<pid> file - stat() it before the rename() below
+            // grabs its block count for accounting. If it has vanished in the meantime, skip
+            // the size accounting rather than use fstat's uninitialized contents.
+            int haveStat = stat(profile_channels[num].ofile, &fstat) == 0;
 
             if (rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0) {
                 LogError("Failed to rename file %s to %s: %s\n", profile_channels[num].ofile, profile_channels[num].wfile, strerror(errno));
             } else {
                 book_handle_t *book_handle = NULL;
                 if (book_attach(profile_channels[num].dirstat_path, &book_handle) == BOOK_OK) {
-                    uint64_t file_size = 512LL * fstat.st_blocks;
+                    uint64_t file_size = haveStat ? 512LL * fstat.st_blocks : 0;
                     // was book_update(NULL, ...) - a pre-existing NULL-handle bug found
                     // while adapting this call site to the new book_attach() signature.
                     book_update(book_handle, tslot, file_size);
