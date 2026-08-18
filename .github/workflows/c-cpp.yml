@@ -285,7 +285,8 @@ jobs:
                     bzip2-dev \
                     zlib-dev \
                     pcre2-dev \
-                    libsodium-dev
+                    libsodium-dev \
+                    libbsd-dev
 
             - name: Checkout repository
               uses: actions/checkout@v7
