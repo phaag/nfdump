@@ -272,6 +272,7 @@ jobs:
                   apk add --no-cache \
                     build-base \
                     git \
+                    tzdata \
                     autoconf \
                     automake \
                     libtool \
@@ -285,7 +286,11 @@ jobs:
                     bzip2-dev \
                     zlib-dev \
                     pcre2-dev \
-                    libsodium-dev
+                    libsodium-dev \
+                    libbsd-dev
+
+            - name: Configure Git safe directory
+              run: git config --global --add safe.directory '*'
 
             - name: Checkout repository
               uses: actions/checkout@v7
