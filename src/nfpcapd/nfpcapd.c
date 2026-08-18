@@ -791,7 +791,7 @@ int main(int argc, char *argv[]) {
 
     CloseMetric();
 
-    LogInfo("Total: Processed packets: %" PRIu64 ", bytes: %" PRIu64 ", decode errors: %u, short caplen: %u, unknown: %u, duplicates: %" PRIu64 "\n",
+    LogInfo("Total: Processed packets: %" PRIu64 ", bytes: %" PRIu64 ", decode errors: %u, short caplen: %u, unknown: %u, duplicates: %u\n",
             packetParam.proc_stat.packets, packetParam.proc_stat.bytes, packetParam.proc_stat.decoding_errors, packetParam.proc_stat.short_snap,
             packetParam.proc_stat.unknown, packetParam.proc_stat.duplicates);
 

@@ -61,51 +61,73 @@ static uint32_t recordCount = 0;
 
 #include "itoa.c"
 
-#define AddElementString(e, s)     \
-    do {                           \
-        *streamPtr++ = '"';        \
-        size_t len = strlen(e);    \
-        memcpy(streamPtr, e, len); \
-        streamPtr += len;          \
-        *streamPtr++ = '"';        \
-        *streamPtr++ = ':';        \
-        *streamPtr++ = '"';        \
-        len = strlen(s);           \
-        memcpy(streamPtr, s, len); \
-        streamPtr += len;          \
-        *streamPtr++ = '"';        \
-        *streamPtr++ = ',';        \
-    } while (0)
-
-#define AddElementU64(e, u64)                             \
-    do {                                                  \
-        *streamPtr++ = '"';                               \
-        size_t len = strlen(e);                           \
-        memcpy(streamPtr, e, len);                        \
-        streamPtr += len;                                 \
-        *streamPtr++ = '"';                               \
-        *streamPtr++ = ':';                               \
-        streamPtr = itoa_u64((uint64_t)(u64), streamPtr); \
-        *streamPtr++ = ',';                               \
-    } while (0)
-
-#define AddElementU32(e, u32)                             \
-    do {                                                  \
-        *streamPtr++ = '"';                               \
-        size_t len = strlen(e);                           \
-        memcpy(streamPtr, e, len);                        \
-        streamPtr += len;                                 \
-        *streamPtr++ = '"';                               \
-        *streamPtr++ = ':';                               \
-        streamPtr = itoa_u32((uint32_t)(u32), streamPtr); \
-        *streamPtr++ = ',';                               \
-    } while (0)
-
 #define STREAMBUFFSIZE 4096
 #define STREAMLEN(ptr)                                \
     ((ptrdiff_t)STREAMBUFFSIZE - (ptr - streamBuff)); \
     assert((ptr - streamBuff) < STREAMBUFFSIZE)
 static char *streamBuff = NULL;
+
+// Bound checked - e is always a compile-time string literal (the element
+// name), so strlen(e) constant-folds under optimization; s / the numeric
+// value are the only genuinely variable-length parts. If the record ever
+// doesn't fit, the element is silently dropped rather than overrunning
+// streamBuff; the trailing low-space check in the *_to_ndjson() writer
+// still catches a record that ran out of room overall.
+// 6 = 4 quotes + ':' + ','
+#define AddElementString(e, s)                                        \
+    do {                                                               \
+        const char *_ael_e = (e);                                     \
+        const char *_ael_s = (s);                                     \
+        size_t _ael_elen = strlen(_ael_e);                            \
+        size_t _ael_slen = strlen(_ael_s);                            \
+        ptrdiff_t _ael_avail = STREAMLEN(streamPtr);                  \
+        if (_ael_avail >= (ptrdiff_t)(_ael_elen + _ael_slen + 6)) {   \
+            *streamPtr++ = '"';                                       \
+            memcpy(streamPtr, _ael_e, _ael_elen);                     \
+            streamPtr += _ael_elen;                                   \
+            *streamPtr++ = '"';                                       \
+            *streamPtr++ = ':';                                       \
+            *streamPtr++ = '"';                                       \
+            memcpy(streamPtr, _ael_s, _ael_slen);                     \
+            streamPtr += _ael_slen;                                   \
+            *streamPtr++ = '"';                                       \
+            *streamPtr++ = ',';                                       \
+        }                                                              \
+    } while (0)
+
+// 24 = 2 quotes + ':' + up to 20 digits (UINT64_MAX) + ','
+#define AddElementU64(e, u64)                                 \
+    do {                                                      \
+        const char *_ael_e = (e);                             \
+        size_t _ael_elen = strlen(_ael_e);                    \
+        ptrdiff_t _ael_avail = STREAMLEN(streamPtr);           \
+        if (_ael_avail >= (ptrdiff_t)(_ael_elen + 24)) {       \
+            *streamPtr++ = '"';                                \
+            memcpy(streamPtr, _ael_e, _ael_elen);              \
+            streamPtr += _ael_elen;                            \
+            *streamPtr++ = '"';                                \
+            *streamPtr++ = ':';                                \
+            streamPtr = itoa_u64((uint64_t)(u64), streamPtr); \
+            *streamPtr++ = ',';                                \
+        }                                                      \
+    } while (0)
+
+// 14 = 2 quotes + ':' + up to 10 digits (UINT32_MAX) + ','
+#define AddElementU32(e, u32)                                 \
+    do {                                                      \
+        const char *_ael_e = (e);                             \
+        size_t _ael_elen = strlen(_ael_e);                    \
+        ptrdiff_t _ael_avail = STREAMLEN(streamPtr);           \
+        if (_ael_avail >= (ptrdiff_t)(_ael_elen + 14)) {       \
+            *streamPtr++ = '"';                                \
+            memcpy(streamPtr, _ael_e, _ael_elen);              \
+            streamPtr += _ael_elen;                            \
+            *streamPtr++ = '"';                                \
+            *streamPtr++ = ':';                                \
+            streamPtr = itoa_u32((uint32_t)(u32), streamPtr); \
+            *streamPtr++ = ',';                                \
+        }                                                      \
+    } while (0)
 
 static char *stringEXgenericFlow(char *streamPtr, uint8_t *extensionRecord) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
@@ -134,7 +156,7 @@ static char *stringEXgenericFlow(char *streamPtr, uint8_t *extensionRecord) {
                        dateBuff1, (unsigned)(genericFlow->msecFirst % UINT64_C(1000)), dateBuff2,
                        (unsigned)(genericFlow->msecLast % UINT64_C(1000)), dateBuff3,
                        (unsigned)(genericFlow->msecReceived % UINT64_C(1000)));
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     AddElementU64("in_packets", genericFlow->inPackets);
     AddElementU64("in_bytes", genericFlow->inBytes);
@@ -401,9 +423,9 @@ static char *stringEXmpls(char *streamPtr, uint8_t *extensionRecord) {
     EXmpls_t *mpls = (EXmpls_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        int len = snprintf(streamPtr, (size_t)lenStream, "  \"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, mpls->label[i] >> 4, (mpls->label[i] & 0xF) >> 1,
+        int len = snprintf(streamPtr, (size_t)lenStream, "\"mpls_%u\":\"%u-%u-%u\",", i + 1, mpls->label[i] >> 4, (mpls->label[i] & 0xF) >> 1,
                            mpls->label[i] & 1);
-        streamPtr += len;
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     }
 
     return streamPtr;
@@ -420,10 +442,10 @@ static char *stringEXinMacAddr(char *streamPtr, uint8_t *extensionRecord) {
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
     int len = snprintf(streamPtr, lenStream,
-                       "  \"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
-                       "  \"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n",
+                       "\"in_src_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
+                       "\"out_dst_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",",
                        mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of stringEXinMacAddr
@@ -439,10 +461,10 @@ static char *stringEXoutMacAddr(char *streamPtr, uint8_t *extensionRecord) {
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
     int len = snprintf(streamPtr, lenStream,
-                       "  \"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
-                       "  \"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n",
+                       "\"in_dst_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
+                       "\"out_src_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",",
                        mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of stringEXoutMacAddr
@@ -462,7 +484,7 @@ static char *stringEXlatency(char *streamPtr, uint8_t *extensionRecord) {
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
     int len = snprintf(streamPtr, lenStream, "\"cli_latency\":%" PRIu64 ",\"srv_latency\":%" PRIu64 ",\"app_latency\":%" PRIu64 ",",
                        latency->msecClientNwDelay, latency->msecServerNwDelay, latency->msecApplLatency);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of stringEXlatency
@@ -487,16 +509,16 @@ static char *string_payload(char *streamPtr, payloadHandle_t *payloadHandle, con
     if (ssl) {
         switch (ssl->tlsCharVersion[0]) {
             case 's':
-                len = snprintf(streamPtr, lenStream, "  \"%s_tls\" : SSL%c,\n", prefix, ssl->tlsCharVersion[1]);
+                len = snprintf(streamPtr, lenStream, "\"%s_tls\":\"SSL%c\",", prefix, ssl->tlsCharVersion[1]);
                 break;
             case '1':
-                len = snprintf(streamPtr, lenStream, "  \"%s_tls\" : TLS1.%c,\n", prefix, ssl->tlsCharVersion[1]);
+                len = snprintf(streamPtr, lenStream, "\"%s_tls\":\"TLS1.%c\",", prefix, ssl->tlsCharVersion[1]);
                 break;
             default:
-                len = snprintf(streamPtr, lenStream, "  \"%s_tls\" : 0x%4x,\n", prefix, ssl->tlsVersion);
+                len = snprintf(streamPtr, lenStream, "\"%s_tls\":\"0x%4x\",", prefix, ssl->tlsVersion);
                 break;
         }
-        streamPtr += len;
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
         if (ssl->sniName[0]) {
             char token[64];
@@ -672,9 +694,9 @@ static char *stringEXnselCommon(char *streamPtr, uint8_t *extensionRecord) {
         AddElementU32("nat_pool_id", nselCommon->natPoolID);
     }
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%" PRIu64 "\",\n", datestr,
+    int len = snprintf(streamPtr, lenStream, "\"t_event\":\"%s.%" PRIu64 "\",", datestr,
                        nselCommon->msecEvent % UINT64_C(1000));
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of stringEXnselCommon
@@ -732,7 +754,7 @@ static char *stringEXnselAcl(char *streamPtr, uint8_t *extensionRecord) {
                        "\"egress_acl\":\"0x%x/0x%x/0x%x\",",
                        nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0], nselAcl->egressAcl[1],
                        nselAcl->egressAcl[2]);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of stringEXnselAcl

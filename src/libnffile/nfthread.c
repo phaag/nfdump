@@ -314,7 +314,7 @@ threadConfig_t GetThreadConfig(uint32_t requested, uint16_t compression, threadP
     LogVerbose(
         "GetThreadConfig: role=%s coresUsed=%u fixed=%u alloc=%u codec=%u → "
         "writers=%u workers=%u readers(est)=%u ref=%u free=%u",
-        roleDescriptor[pipeline.role], coresUsed, pipeline.fixedThreads, alloc, compression, writers, workers, readers, ref, freeAlloc);
+        roleDescriptor[pipeline.role].roleString, coresUsed, pipeline.fixedThreads, alloc, compression, writers, workers, readers, ref, freeAlloc);
 
     return (threadConfig_t){
         .role = pipeline.role,

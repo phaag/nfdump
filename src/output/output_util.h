@@ -31,6 +31,7 @@
 #ifndef _OUTPUT_UTIL_H
 #define _OUTPUT_UTIL_H 1
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef enum { DIR_IN = 0, DIR_OUT } dirInOut_t;
@@ -40,5 +41,28 @@ char *FlagsString(uint16_t flags);
 char *biFlowString(uint8_t biFlow);
 
 char *FlowEndString(uint8_t biFlow);
+
+/*
+ * Advance a fixed-size format-buffer cursor by an snprintf() result, without
+ * ever moving past the space that was actually available.
+ *
+ * snprintf() returns the number of bytes it *would* have written given
+ * unlimited space, not the number it actually wrote. Once the remaining
+ * buffer space is smaller than the formatted text, the write is silently
+ * truncated but the return value keeps reporting the untruncated length. A
+ * bare `streamPtr += len` after such a call walks the cursor past the end of
+ * the buffer. On the *next* call, the "remaining space" computation then
+ * goes negative; cast to the size_t snprintf() expects, that reappears as a
+ * huge unsigned value, so the following snprintf() believes it has virtually
+ * unlimited room and can write straight past the buffer - a real overflow,
+ * driven by exporter-controlled flow data. Route every
+ * `streamPtr += snprintf(...)` in the streaming output formatters through
+ * this helper instead.
+ */
+static inline char *SafeAdvance(char *streamPtr, ptrdiff_t avail, int len) {
+    if (len < 0) return streamPtr;                                 // encoding error - nothing written
+    if (len >= avail) return streamPtr + (avail > 0 ? avail - 1 : 0);  // truncated - stop at the NUL terminator
+    return streamPtr + len;
+}
 
 #endif

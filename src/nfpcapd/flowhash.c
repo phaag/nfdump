@@ -694,20 +694,18 @@ bool ReserveFlowPayload(size_t payloadSize) {
             static time_t lastPayloadLimitLog = 0;
             time_t now = time(NULL);
             if (now != lastPayloadLimitLog) {
-                LogError(
-                    "Flow payload budget exhausted: %" PRIu64 " bytes in use (limit flowcache.max_payload_bytes=%" PRIu64
-                    ") - dropping payload capture for new flows. Increase with -x flowcache.max_payload_bytes=<n> or "
-                    "flowcache.max_payload_bytes in nfdump.conf",
-                    used, MaxFlowPayloadBytes);
+                LogError("Flow payload budget exhausted: %" PRIu64 " bytes in use (limit flowcache.max_payload_bytes=%" PRIu64
+                         ") - dropping payload capture for new flows. Increase with -x flowcache.max_payload_bytes=<n> or "
+                         "flowcache.max_payload_bytes in nfdump.conf",
+                         used, MaxFlowPayloadBytes);
                 lastPayloadLimitLog = now;
             }
             return false;
         }
         if (atomic_compare_exchange_weak_explicit(&PayloadBytes, &used, used + requested, memory_order_relaxed, memory_order_relaxed)) {
             uint64_t highWater = atomic_load_explicit(&PayloadHighWater, memory_order_relaxed);
-            while (used + requested > highWater &&
-                   !atomic_compare_exchange_weak_explicit(&PayloadHighWater, &highWater, used + requested, memory_order_relaxed,
-                                                          memory_order_relaxed)) {
+            while (used + requested > highWater && !atomic_compare_exchange_weak_explicit(&PayloadHighWater, &highWater, used + requested,
+                                                                                          memory_order_relaxed, memory_order_relaxed)) {
             }
             return true;
         }
@@ -833,8 +831,8 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t from, time_t when) 
     }
 
     if (flowCnt) {
-        LogVerbose("Expired flow nodes: %u. Active flow nodes: %d", flowCnt, flowHashStat.flowNodes);
-        LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
+        LogVerbose("Expired flow nodes: %u. Active flow nodes: %zd", flowCnt, flowHashStat.flowNodes);
+        LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zd", FlowCacheSize, Allocated, flowHashStat.activeNodes,
                    NodeList_length(NodeList));
     }
 
@@ -1069,8 +1067,8 @@ void DisposeNodeList(NodeList_t *NodeList) {
         LogError("Try to free non empty NodeList");
         return;
     }
-    LogInfo("Flow output queue: limit=%zu high-water=%zu dropped=%" PRIu64 " backpressure=%" PRIu64 " control-waits=%" PRIu64,
-            NodeList->maxLength, NodeList->highWater, NodeList->droppedFlowNodes, NodeList->backpressureEvents, NodeList->controlWaits);
+    LogInfo("Flow output queue: limit=%zu high-water=%zu dropped=%" PRIu64 " backpressure=%" PRIu64 " control-waits=%" PRIu64, NodeList->maxLength,
+            NodeList->highWater, NodeList->droppedFlowNodes, NodeList->backpressureEvents, NodeList->controlWaits);
     pthread_mutex_destroy(&NodeList->m_list);
     pthread_cond_destroy(&NodeList->c_list);
     free(NodeList);

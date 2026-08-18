@@ -923,8 +923,8 @@ static char *String_FirstSeen(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecFirst % UINT64_C(1000)));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecFirst % UINT64_C(1000)));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -945,8 +945,8 @@ static char *String_LastSeen(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecLast % UINT64_C(1000)));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecLast % UINT64_C(1000)));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -967,8 +967,8 @@ static char *String_Received(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, msecReceived % UINT64_C(1000));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, msecReceived % UINT64_C(1000));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -981,8 +981,8 @@ static char *String_ReceivedRaw(char *streamPtr, recordHandle_t *recordHandle) {
 
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecReceived / UINT64_C(1000), msecReceived % UINT64_C(1000));
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecReceived / UINT64_C(1000), msecReceived % UINT64_C(1000));
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_ReceivedRaw
@@ -992,8 +992,8 @@ static char *String_FirstSeenRaw(char *streamPtr, recordHandle_t *recordHandle) 
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecFirst / UINT64_C(1000), msecFirst % UINT64_C(1000));
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecFirst / UINT64_C(1000), msecFirst % UINT64_C(1000));
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_FirstSeenRaw
@@ -1003,8 +1003,8 @@ static char *String_LastSeenRaw(char *streamPtr, recordHandle_t *recordHandle) {
 
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecLast / UINT64_C(1000), msecLast % UINT64_C(1000));
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%" PRIu64 ".%03" PRIu64, msecLast / UINT64_C(1000), msecLast % UINT64_C(1000));
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_LastSeenRaw
@@ -1022,8 +1022,8 @@ static char *String_FirstSeenGMT(char *streamPtr, recordHandle_t *recordHandle) 
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecFirst % UINT64_C(1000)));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecFirst % UINT64_C(1000)));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -1044,8 +1044,8 @@ static char *String_LastSeenGMT(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecLast % UINT64_C(1000)));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03u", s, (unsigned)(msecLast % UINT64_C(1000)));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -1066,8 +1066,8 @@ static char *String_ReceivedGMT(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, msecReceived % UINT64_C(1000));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, msecReceived % UINT64_C(1000));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -1283,8 +1283,8 @@ static char *String_tlsVersion(char *streamPtr, recordHandle_t *recordHandle) {
             break;
         default: {
             ptrdiff_t lenStream = STREAMLEN(streamPtr);
-            size_t len = snprintf(streamPtr, lenStream, "0x%4x", ssl->tlsVersion);
-            streamPtr += len;
+            int len = snprintf(streamPtr, lenStream, "0x%4x", ssl->tlsVersion);
+            streamPtr = SafeAdvance(streamPtr, lenStream, len);
         } break;
     }
 
@@ -1332,8 +1332,8 @@ static char *String_observationDomainID(char *streamPtr, recordHandle_t *recordH
     EXobservation_t *observation = (EXobservation_t *)recordHandle->extensionList[EXobservationID];
     if (observation) {
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "0x%0llx", (long long unsigned)observation->domainID);
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "0x%0llx", (long long unsigned)observation->domainID);
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0x00");
     }
@@ -1345,8 +1345,8 @@ static char *String_observationPointID(char *streamPtr, recordHandle_t *recordHa
     EXobservation_t *observation = (EXobservation_t *)recordHandle->extensionList[EXobservationID];
     if (observation) {
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "0x%0llx", (long long unsigned)observation->pointID);
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "0x%0llx", (long long unsigned)observation->pointID);
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0x00");
     }
@@ -1365,8 +1365,8 @@ static char *String_EventTime(char *streamPtr, recordHandle_t *recordHandle) {
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        size_t len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, nselCommon->msecEvent % UINT64_C(1000));
-        streamPtr += len;
+        int len = snprintf(streamPtr, lenStream, "%s.%03" PRIu64, s, nselCommon->msecEvent % UINT64_C(1000));
+        streamPtr = SafeAdvance(streamPtr, lenStream, len);
     } else {
         AddString("0000-00-00 00:00:00.000");
     }
@@ -1377,8 +1377,8 @@ static char *String_EventTime(char *streamPtr, recordHandle_t *recordHandle) {
 static char *String_Duration(char *streamPtr, recordHandle_t *recordHandle) {
     (void)recordHandle;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%.3f", duration);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%.3f", duration);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_Duration
@@ -1386,8 +1386,8 @@ static char *String_Duration(char *streamPtr, recordHandle_t *recordHandle) {
 static char *String_Duration_Seconds(char *streamPtr, recordHandle_t *recordHandle) {
     (void)recordHandle;
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%.3f", duration);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%.3f", duration);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_Duration_Seconds
@@ -1890,8 +1890,8 @@ static char *printMacAddr(char *streamPtr, uint64_t macAddr) {
         mac[i] = (macAddr >> (i * 8)) & 0xFF;
     }
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of printMacAddr
@@ -1926,8 +1926,8 @@ static char *String_OutSrcMac(char *streamPtr, recordHandle_t *recordHandle) {
 
 static inline char *printLabel(char *streamPtr, uint32_t label) {
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of printLabel
@@ -2008,7 +2008,7 @@ static char *String_MPLSs(char *streamPtr, recordHandle_t *recordHandle) {
     if (mplsLabel) memcpy((void *)label, (void *)mplsLabel->label, sizeof(label));
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream,
+    int len = snprintf(streamPtr, lenStream,
                           "%8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u "
                           "%8u-%1u-%1u %8u-%1u-%1u ",
                           label[0] >> 4, (label[0] & 0xF) >> 1, label[0] & 1, label[1] >> 4, (label[1] & 0xF) >> 1, label[1] & 1, label[2] >> 4,
@@ -2016,7 +2016,7 @@ static char *String_MPLSs(char *streamPtr, recordHandle_t *recordHandle) {
                           (label[4] & 0xF) >> 1, label[4] & 1, label[5] >> 4, (label[5] & 0xF) >> 1, label[5] & 1, label[6] >> 4,
                           (label[6] & 0xF) >> 1, label[6] & 1, label[7] >> 4, (label[7] & 0xF) >> 1, label[7] & 1, label[8] >> 4,
                           (label[8] & 0xF) >> 1, label[8] & 1, label[9] >> 4, (label[9] & 0xF) >> 1, label[9] & 1);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_MPLSs
@@ -2040,8 +2040,8 @@ static char *String_ClientLatency(char *streamPtr, recordHandle_t *recordHandle)
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecClientNwDelay);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecClientNwDelay);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_ClientLatency
@@ -2050,8 +2050,8 @@ static char *String_ServerLatency(char *streamPtr, recordHandle_t *recordHandle)
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecServerNwDelay);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecServerNwDelay);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_ServerLatency
@@ -2060,8 +2060,8 @@ static char *String_AppLatency(char *streamPtr, recordHandle_t *recordHandle) {
     EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecApplLatency);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "%3" PRIu64, latency->msecApplLatency);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_AppLatency
@@ -2427,12 +2427,12 @@ static char *String_iacl(char *streamPtr, recordHandle_t *recordHandle) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)recordHandle->extensionList[EXnselAclID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = 0;
+    int len = 0;
     if (nselAcl)
         len = snprintf(streamPtr, lenStream, "0x%-8x 0x%-8x 0x%-8x", nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2]);
     else
         len = snprintf(streamPtr, lenStream, "0x%-8x 0x%-8x 0x%-8x", 0, 0, 0);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_iacl
@@ -2441,12 +2441,12 @@ static char *String_eacl(char *streamPtr, recordHandle_t *recordHandle) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)recordHandle->extensionList[EXnselAclID];
 
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = 0;
+    int len = 0;
     if (nselAcl)
         len = snprintf(streamPtr, lenStream, "%u %u %u", nselAcl->egressAcl[0], nselAcl->egressAcl[1], nselAcl->egressAcl[2]);
     else
         len = snprintf(streamPtr, lenStream, "%u %u %u", 0, 0, 0);
-    streamPtr += len;
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_eacl
@@ -2555,8 +2555,8 @@ static char *String_PortBlockSize(char *streamPtr, recordHandle_t *recordHandle)
 static char *String_flowId(char *streamPtr, recordHandle_t *recordHandle) {
     EXflowId_t *flowId = (EXflowId_t *)recordHandle->extensionList[EXflowIdID];
     ptrdiff_t lenStream = STREAMLEN(streamPtr);
-    size_t len = snprintf(streamPtr, lenStream, "0x%" PRIu64, flowId ? flowId->flowId : 0);
-    streamPtr += len;
+    int len = snprintf(streamPtr, lenStream, "0x%" PRIu64, flowId ? flowId->flowId : 0);
+    streamPtr = SafeAdvance(streamPtr, lenStream, len);
 
     return streamPtr;
 }  // End of String_flowId
