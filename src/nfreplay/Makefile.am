@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfreplay
 
-AM_CPPFLAGS = -I.. -I../include -I../libnfdump -I../libnffile -I../inline -I../collector -I../netflow $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/collector -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS)
 
 LDADD = $(DEPS_LIBS)
 

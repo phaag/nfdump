@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../libnffile -I../include -I../collector -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/include -I$(top_srcdir)/src/collector -I$(top_srcdir)/src/inline $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = libnetflow.a
 

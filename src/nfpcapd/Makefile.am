@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfpcapd
 
-nfpcapd_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../collector -I../netflow $(DEPS_CFLAGS)
+nfpcapd_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/collector -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS)
 
 flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h

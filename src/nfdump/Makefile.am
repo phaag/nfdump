@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfdump
 
-nfdump_CPPFLAGS = -I.. -Icompat_1_6_x -I../include -I../libnffile -I../libnfdump -I../output -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
+nfdump_CPPFLAGS = -I$(top_srcdir)/src -I$(srcdir)/compat_1_6_x -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/output -I$(top_srcdir)/src/tor -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector -I$(top_srcdir)/src/inline $(DEPS_CFLAGS)
 nfdump_CFLAGS = $(PTHREAD_CFLAGS)
 
 nflowcache = nflowcache.c nflowcache.h memhandle.h

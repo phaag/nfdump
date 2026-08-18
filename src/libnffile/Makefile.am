@@ -1,6 +1,6 @@
 BUILT_SOURCES = vcs_track.h
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -I../nfdump/compat_1_6_x  -Iconf -Icompress -DSYSCONFDIR='"$(sysconfdir)"'
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/nfdump/compat_1_6_x -I$(srcdir)/conf -I$(srcdir)/compress -DSYSCONFDIR='"$(sysconfdir)"'
 
 # libnffile sources
 util = util.c util.h
@@ -23,8 +23,8 @@ daemon = daemon.c daemon.h
 version = version.c version.h
 barrier = barrier.c barrier.h
 
-vcs_track.h: Makefile
-	./gen_version.sh @PACKAGE_VERSION@
+vcs_track.h: Makefile $(srcdir)/gen_version.sh
+	$(srcdir)/gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
 libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h

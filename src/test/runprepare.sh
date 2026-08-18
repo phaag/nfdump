@@ -33,6 +33,8 @@ set -e
 TZ=Europe/Zurich
 export TZ
 
+test_srcdir=$(dirname "$0")
+
 # Check for correct output
 rm -f test.*
 ./nfgen
@@ -46,5 +48,5 @@ $NFDUMP -v dummy_flows.nf
 # read test
 rm -f test1.out
 $NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
-diff -u test.1.out nftest.1.out
+diff -u test.1.out "$test_srcdir/nftest.1.out"
 rm -f test.1.out

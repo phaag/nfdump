@@ -1,9 +1,9 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
 
 noinst_LIBRARIES = libcollector.a
 
-libcollector_a_SOURCES = ip128.c ip128.h privsep.c privsep.h repeater.c repeater.h \
+libcollector_a_SOURCES = ip128.c privsep.c privsep.h repeater.c repeater.h \
 	launch.h launch.c bookkeeper.c bookkeeper.h flowsource.c flowsource.h \
 	collector.c collector.h nfnet.h nfnet.c nfstatfile.c nfstatfile.h \
 	yaf_reader.c yaf_reader.h expire.c expire.h metric.c metric.h
@@ -13,4 +13,3 @@ libcollector_a_SOURCES += pcap_reader.c pcap_reader.h
 endif
 
 CLEANFILES = *.gch
-

@@ -33,31 +33,33 @@ set -e
 TZ=Europe/Zurich
 export TZ
 
+test_srcdir=$(dirname "$0")
+
 # prevent any default goelookup for testing
 NFDUMP="../nfdump/nfdump -G none"
 NFCAPD="../nfcapd/nfcapd"
 NFREPLAY="../nfreplay/nfreplay"
 
 $NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
-diff -u test.1.out nftest.1.out
+diff -u test.1.out "$test_srcdir/nftest.1.out"
 
 # read/write compressed flow test
 $NFDUMP -r dummy_flows.nf -q -z=lzo -w test.2.flows.nf
 $NFDUMP -v test.2.flows.nf >/dev/null
 
 $NFDUMP -r test.2.flows.nf -q -o raw >test.2.out
-diff -u test.2.out nftest.1.out
+diff -u test.2.out "$test_srcdir/nftest.1.out"
 
 # test tstart sort order
 $NFDUMP -r test.2.flows.nf -q -O tstart -o raw >test.3.out
-diff -u test.3.out nftest.2.out
+diff -u test.3.out "$test_srcdir/nftest.2.out"
 
 # test write descending sorted flow table
 $NFDUMP -r dummy_flows.nf -O tstart -z=lzo -w test.4.flows.nf
 $NFDUMP -v test.4.flows.nf >/dev/null
 $NFDUMP -r test.4.flows.nf -i TestFlows
 $NFDUMP -q -r test.4.flows.nf -o raw >test.4.out
-diff -u test.4.out nftest.4.out
+diff -u test.4.out "$test_srcdir/nftest.4.out"
 
 # test write ascending sorted flow table
 $NFDUMP -r dummy_flows.nf -q -O bytes -o raw >test.5.out

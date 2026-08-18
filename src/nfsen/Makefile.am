@@ -1,6 +1,6 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../collector/
-AM_CPPFLAGS += -I../libnfdump -I../libnfdump/maxmind -I../libnfdump/tor -I../inline 
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/collector
+AM_CPPFLAGS += -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/libnfdump/maxmind -I$(top_srcdir)/src/libnfdump/tor -I$(top_srcdir)/src/inline
 AM_CPPFLAGS += $(RRD_CFLAGS)
 
 bin_PROGRAMS = nfprofile nftrack
