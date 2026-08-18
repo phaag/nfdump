@@ -34,6 +34,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <net/bpf.h>
 #include <net/if.h>
 #include <pthread.h>
