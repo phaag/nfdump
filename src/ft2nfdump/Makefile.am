@@ -9,5 +9,6 @@ ft2nfdump_LDADD = -lnffile
 ft2nfdump_LDFLAGS = -L../libnffile 
 
 ft2nfdump_LDADD += $(FT_LIBS) -lz
+ft2nfdump_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
 
 CLEANFILES = *.gch

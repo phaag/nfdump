@@ -9,10 +9,12 @@ nfstatfile = ../nfexpire/nfstatfile.c ../nfexpire/nfstatfile.h
 
 nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) 
 nfprofile_LDADD = -lnfdump -lnffile $(RRD_LIBS)
+nfprofile_LDADD += $(PCRE2_LIBS) $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
 nfprofile_LDFLAGS = -L../libnfdump -L../libnffile
 
-nftrack_SOURCES = nftrack.c nftrack_rrd.c nftrack_rrd.h nftrack_stat.c nftrack_stat.h 
+nftrack_SOURCES = nftrack.c nftrack_rrd.c nftrack_rrd.h nftrack_stat.c nftrack_stat.h
 nftrack_LDADD = -lnfdump -lnffile $(RRD_LIBS)
+nftrack_LDADD += $(PCRE2_LIBS) $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
 nftrack_LDFLAGS = -L../libnfdump -L../libnffile
 
 CLEANFILES = $(bin_PROGRAMS) *.gch

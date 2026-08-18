@@ -34,17 +34,20 @@ AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)
 
+NFFILE_TRANSITIVE_LIBS = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
+NFDUMP_TRANSITIVE_LIBS = $(PCRE2_LIBS) $(NFFILE_TRANSITIVE_LIBS)
+
 nfgen4_SOURCES = nfgen4.c
-nfgen4_LDADD = -lnffile
+nfgen4_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
 nfgen4_LDFLAGS = -L../libnffile
 
-nftest_SOURCES = nftest.c 
-nftest_LDADD = -lnfdump -lnffile 
+nftest_SOURCES = nftest.c
+nftest_LDADD = -lnfdump -lnffile $(NFDUMP_TRANSITIVE_LIBS)
 nftest_LDFLAGS = -L../libnfdump -L../libnffile
 nftest_DEPENDENCIES = nfgen4
 
 test_append_SOURCES = test_append.c
-test_append_LDADD = -lnffile
+test_append_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
 test_append_LDFLAGS = -L../libnffile
 
 EXTRA_DIST = testsetup.sh \

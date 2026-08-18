@@ -7,7 +7,8 @@ sfcapd_SOURCES = sfcapd.c
 sfcapd_SOURCES += sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_decode.c sflow_decode.h
 
 sfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lm
-sfcapd_LDFLAGS = -L../libnffile 
+sfcapd_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS)
+sfcapd_LDFLAGS = -L../libnffile
 
 sfcapd_CFLAGS = $(PTHREAD_CFLAGS)
 sfcapd_LDADD  += $(PTHREAD_LIBS)

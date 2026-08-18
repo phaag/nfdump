@@ -7,6 +7,7 @@ nfmeta_CPPFLAGS = -I.. -I../include -I../libnffile -I../libnffile/conf -I../inli
 nfmeta_CFLAGS = $(PTHREAD_CFLAGS)
 
 nfmeta_LDADD = -lnffile $(PTHREAD_LIBS)
+nfmeta_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
 nfmeta_LDFLAGS = -L../libnffile
 
 CLEANFILES = *.gch

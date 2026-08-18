@@ -5,6 +5,7 @@ nfcapd_SOURCES = nfcapd.c
 nfcapd_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../netflow -I../collector 
 
 nfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lm
+nfcapd_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS)
 nfcapd_LDFLAGS = -L../libnffile
 
 nfcapd_CFLAGS = $(PTHREAD_CFLAGS)

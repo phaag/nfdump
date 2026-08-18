@@ -1,6 +1,6 @@
 BUILT_SOURCES = vcs_track.h
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -I../nfdump/compat_1_6_x -I../nfdump/compat_1_7_x  -Iconf -Icompress -InffileV3 -DSYSCONFDIR='"$(sysconfdir)"'
+AM_CPPFLAGS = -I.. -I../include -I../inline  -I../nfdump/compat_1_7_x  -Iconf -Icompress -InffileV3 -DSYSCONFDIR='"$(sysconfdir)"'
 
 # libnffile sources
 logging = logging.c logging.h

@@ -14,6 +14,7 @@ nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_CPPFLAGS += $(PCAP_CFLAGS) $(ZLIB_CFLAGS)
 nfpcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lpcap -lm
 nfpcapd_LDADD += $(PCAP_LIBS) $(ZLIB_LIBS)
+nfpcapd_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS)
 nfpcapd_LDFLAGS = -L../libnffile
 
 if HAVE_LIBSODIUM
