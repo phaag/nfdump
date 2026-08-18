@@ -184,32 +184,40 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         // no source filter - therefore pattern is '(' filter ')'
         source_filter = "(";
 
-    size_t filter_size = stat_buf.st_size + strlen(source_filter) + 2;  // +2 : ')\0' at the end of the filter
-
-    char *filter = (char *)malloc(filter_size);
-    if (!filter) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(255);
-    }
     int ffd = open(path, O_RDONLY);
     if (ffd < 0) {
         LogError("Can't open file '%s' for reading: %s\n", path, strerror(errno));
         return;
     }
 
-    strncpy(filter, source_filter, filter_size - 1);
-    char *p = filter + strlen(source_filter);
-
-    int ret = read(ffd, (void *)p, stat_buf.st_size);
-    if (ret < 0) {
-        LogError("Can't read from file '%s': %s\n", path, strerror(errno));
+    struct stat fd_stat_buf;
+    if (fstat(ffd, &fd_stat_buf) < 0 || !S_ISREG(fd_stat_buf.st_mode)) {
+        LogError("Can't stat file '%s': %s\n", path, strerror(errno));
         close(ffd);
         return;
     }
-    close(ffd);
 
-    p[stat_buf.st_size] = ')';
-    p[stat_buf.st_size + 1] = '\0';
+    size_t filter_size = fd_stat_buf.st_size + strlen(source_filter) + 2;  // +2 : ')\0' at the end of the filter
+
+    char *filter = (char *)malloc(filter_size);
+    if (!filter) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(255);
+    }
+
+    strncpy(filter, source_filter, filter_size - 1);
+    char *p = filter + strlen(source_filter);
+
+    int ret = read(ffd, (void *)p, fd_stat_buf.st_size);
+    close(ffd);
+    if (ret < 0 || ret != fd_stat_buf.st_size) {
+        LogError("Can't read from file '%s': %s\n", path, ret < 0 ? strerror(errno) : "short read");
+        free(filter);
+        return;
+    }
+
+    p[fd_stat_buf.st_size] = ')';
+    p[fd_stat_buf.st_size + 1] = '\0';
 
     // compile profile filter
     if (verify_only)
