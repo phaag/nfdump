@@ -208,6 +208,7 @@ jobs:
 
                   prepare: |
                       /usr/sbin/pkg_add \
+                        clang \
                         autoconf \
                         automake \
                         libtool \
