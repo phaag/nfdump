@@ -122,10 +122,18 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
              profile_param->channelname, filterfile);
     path[MAXPATHLEN - 1] = '\0';
 
-    struct stat stat_buf;
-    if (stat(path, &stat_buf) || !S_ISREG(stat_buf.st_mode)) {
+    int ffd = open(path, O_RDONLY);
+    if (ffd < 0) {
         LogError("Skipping channel %s in profile '%s' group '%s'. No profile filter found.\n", profile_param->channelname, profile_param->profilename,
                  profile_param->profilegroup);
+        return;
+    }
+
+    struct stat fd_stat_buf;
+    if (fstat(ffd, &fd_stat_buf) < 0 || !S_ISREG(fd_stat_buf.st_mode)) {
+        LogError("Skipping channel %s in profile '%s' group '%s'. Invalid profile filter file.\n", profile_param->channelname,
+                 profile_param->profilename, profile_param->profilegroup);
+        close(ffd);
         return;
     }
 
@@ -163,35 +171,34 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
             p = strchr(q, '|');
             if (p) *p = '\0';
 
-            if (!AppendString(source_filter, "ident ", &len)) return;
+            if (!AppendString(source_filter, "ident ", &len)) {
+                close(ffd);
+                return;
+            }
 
-            if (!AppendString(source_filter, q, &len)) return;
+            if (!AppendString(source_filter, q, &len)) {
+                close(ffd);
+                return;
+            }
 
             if (p) {
                 // there is another source waiting behind *p
-                if (!AppendString(source_filter, " or ", &len)) return;
+                if (!AppendString(source_filter, " or ", &len)) {
+                    close(ffd);
+                    return;
+                }
                 q = p;
                 q++;
             }
         } while (p);
 
-        if (!AppendString(source_filter, ") and (", &len)) return;
+        if (!AppendString(source_filter, ") and (", &len)) {
+            close(ffd);
+            return;
+        }
     } else
         // no source filter - therefore pattern is '(' filter ')'
         source_filter = "(";
-
-    int ffd = open(path, O_RDONLY);
-    if (ffd < 0) {
-        LogError("Can't open file '%s' for reading: %s\n", path, strerror(errno));
-        return;
-    }
-
-    struct stat fd_stat_buf;
-    if (fstat(ffd, &fd_stat_buf) < 0 || !S_ISREG(fd_stat_buf.st_mode)) {
-        LogError("Can't stat file '%s': %s\n", path, strerror(errno));
-        close(ffd);
-        return;
-    }
 
     size_t filter_size = fd_stat_buf.st_size + strlen(source_filter) + 2;  // +2 : ')\0' at the end of the filter
 
@@ -336,13 +343,13 @@ void UpdateChannels(time_t tslot) {
         if (profile_channels[num].ofile) {
             struct stat fstat;
             dirstat_t *dirstat;
-            stat(profile_channels[num].ofile, &fstat);
+            int haveStat = stat(profile_channels[num].ofile, &fstat) == 0;
             ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);
 
             if (rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0) {
                 LogError("Failed to rename file %s to %s: %s\n", profile_channels[num].ofile, profile_channels[num].wfile, strerror(errno));
             } else if (dirstat && tslot > dirstat->last) {
-                dirstat->filesize += 512 * fstat.st_blocks;
+                if (haveStat) dirstat->filesize += 512 * fstat.st_blocks;
                 dirstat->numfiles++;
                 dirstat->last = tslot;
             }
