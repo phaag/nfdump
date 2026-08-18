@@ -6,20 +6,31 @@ on:
   pull_request:
     branches: [ "master" ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: prepare
-      run: sudo apt-get -y install libpcap-dev
-    - name: bootstrap
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Prepare dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install libpcap-dev
+
+    - name: Bootstrap
       run: sh bootstrap
-    - name: configure
+
+    - name: Configure
       run: ./configure --enable-sflow --enable-maxmind --enable-tor --enable-nfpcapd
-    - name: make
+
+    - name: Make
       run: make
-    - name: make check
+
+    - name: Run tests
       run: make check
+
