@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -46,12 +47,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "nfthread.h"
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
 #include "nfcrypto.h"
 #include "nfdump.h"
+#include "nfthread.h"
 #include "nfxV4.h"
 #include "queue.h"
 #include "util.h"
@@ -606,11 +607,23 @@ static char *buildMergedTempFile(nffileV3_t *src, nffileV3_t *dst, const char *n
  * Blocks are copied individually (not as a raw byte range) to avoid
  * orphan STATS/IDENT bytes that would cause nfdump -v check to fail.
  *
+ * The "does newName exist" question is answered by link()
+ *
  * Returns 0 on success, -1 on error.
  */
 int RenameAppendV3(const char *oldName, const char *newName) {
-    if (access(newName, F_OK) != 0) return rename(oldName, newName);
+    // Atomically create newName from oldName if newName does not exist yet.
+    // No prior existence check - link() itself fails with EEXIST if it does.
+    if (link(oldName, newName) == 0) {
+        if (unlink(oldName) != 0) LogError("RenameAppendV3: unlink('%s'): %s", oldName, strerror(errno));
+        return 0;
+    }
+    if (errno != EEXIST) {
+        LogError("RenameAppendV3: link('%s','%s'): %s", oldName, newName, strerror(errno));
+        return -1;
+    }
 
+    // newName already exists - merge oldName into it
     nffileV3_t *src = mmapFileV3(oldName);
     if (!src) {
         LogError("RenameAppendV3: cannot open source '%s'", oldName);
@@ -624,10 +637,20 @@ int RenameAppendV3(const char *oldName, const char *newName) {
         return -1;
     }
 
+    int lockFd = dup(dst->fd);
+    if (lockFd < 0 || flock(lockFd, LOCK_EX) != 0) {
+        LogError("RenameAppendV3: cannot lock '%s': %s", newName, strerror(errno));
+        if (lockFd >= 0) close(lockFd);
+        CloseFileV3(src);
+        CloseFileV3(dst);
+        return -1;
+    }
+
     if (dst->fileHeader->blockSize != src->fileHeader->blockSize) {
         LogError("RenameAppendV3: blockSize mismatch dst=%u src=%u", dst->fileHeader->blockSize, src->fileHeader->blockSize);
         CloseFileV3(src);
         CloseFileV3(dst);
+        close(lockFd);
         return -1;
     }
 
@@ -635,12 +658,16 @@ int RenameAppendV3(const char *oldName, const char *newName) {
         LogError("RenameAppendV3: cannot merge encrypted files '%s' and '%s'", oldName, newName);
         CloseFileV3(src);
         CloseFileV3(dst);
+        close(lockFd);
         return -1;
     }
 
     // buildMergedTempFile closes src and dst before returning
     char *tmpName = buildMergedTempFile(src, dst, newName);
-    if (!tmpName) return -1;
+    if (!tmpName) {
+        close(lockFd);
+        return -1;
+    }
 
     int rc = rename(tmpName, newName);
     if (rc != 0) {
@@ -650,6 +677,7 @@ int RenameAppendV3(const char *oldName, const char *newName) {
         unlink(oldName);
     }
     free(tmpName);
+    close(lockFd);  // releases the flock
     return rc;
 }  // End of RenameAppendV3
 

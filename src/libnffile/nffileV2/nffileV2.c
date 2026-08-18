@@ -206,20 +206,16 @@ int VerifyFileV2(const char *filename, int verbose) {
     type1 = type2 = type3 = type4 = 0;
     totalRecords = numBlocks = 0;
 
-    if (access(filename, R_OK) < 0) {
-        LogError("Can't read '%s': %s", filename, strerror(errno));
-        return 0;
-    }
-
     int fd = open(filename, O_RDONLY);
     if (fd < 0) {
-        LogError("Error open file: %s", strerror(errno));
+        LogError("Can't read '%s': %s", filename, strerror(errno));
         return 0;
     }
 
     struct stat stat_buf;
     if (fstat(fd, &stat_buf)) {
         LogError("stat() error on '%s': %s", filename, strerror(errno));
+        close(fd);
         return 0;
     }
 
