@@ -272,6 +272,7 @@ jobs:
                   apk add --no-cache \
                     build-base \
                     git \
+                    tzdata \
                     autoconf \
                     automake \
                     libtool \
