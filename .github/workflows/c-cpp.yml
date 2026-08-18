@@ -2,9 +2,13 @@ name: C/C++ CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: 
+      - "master"
+      - "devel_1.8.x"
   pull_request:
-    branches: [ "master" ]
+    branches: 
+      - "master"
+      - "devel_1.8.x"
 
 permissions:
   contents: read
@@ -25,8 +29,19 @@ jobs:
     - name: Bootstrap
       run: sh bootstrap
 
+    # This step runs DIFFERENT arguments based on the active branch
     - name: Configure
-      run: ./configure --enable-sflow --enable-maxmind --enable-tor --enable-nfpcapd
+      run: |
+        if [ "${{ github.ref_name }}" = "master" ]; then
+          echo "Configuring for master branch..."
+          ./configure --enable-sflow --enable-maxmind --enable-tor --enable-ja4 --enable-nfpcapd
+        elif [ "${{ github.ref_name }}" = "devel_1.8.x" ]; then
+          echo "Configuring for devel_1.8.x branch..."
+          ./configure --enable-nfpcapd --enable-ja4
+        else
+          echo "Fallback configuration for other branches/pull requests..."
+          ./configure --enable-sflow --enable-maxmind --enable-tor --enable-nfpcapd
+        fi
 
     - name: Make
       run: make
