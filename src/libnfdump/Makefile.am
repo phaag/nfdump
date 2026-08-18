@@ -2,7 +2,7 @@
 BUILT_SOURCES = filter/grammar.h
 AM_YFLAGS = -d
 
-libnfdump_la_CPPFLAGS = -I.. -I../include -I../inline -I../libnffile -Idecode $(PCRE2_CFLAGS)
+libnfdump_la_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/libnffile $(PCRE2_CFLAGS)
 
 # libnfdump sources
 filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/filter_int.h filter/block_filter.c ../include/rbtree.h filter/ipconv.c filter/ipconv.h

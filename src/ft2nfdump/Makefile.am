@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = ft2nfdump
 
-ft2nfdump_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS)
+ft2nfdump_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline $(DEPS_CFLAGS)
 ft2nfdump_CFLAGS = $(FT_CFLAGS)
 
 ft2nfdump_SOURCES = ft2nfdump.c 

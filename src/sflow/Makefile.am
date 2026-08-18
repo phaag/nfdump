@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = sfcapd
 
-sfcapd_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
+sfcapd_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector $(DEPS_CFLAGS)
 
 sfcapd_SOURCES = sfcapd.c 
 sfcapd_SOURCES += sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_decode.c sflow_decode.h

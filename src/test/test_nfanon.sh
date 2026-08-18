@@ -107,10 +107,9 @@ fi
 # these three tests would fail rather than exercise anything -K-specific.
 if "$NFANON_BIN" -V 2>&1 | grep -q 'CRYPTO' && "$NFDUMP_BIN" -V 2>&1 | grep -q 'CRYPTO'; then
 
-    # -K on read+write: nfanon can process a backend-encrypted input file and
-    # produce a backend-encrypted output, using the same convention as nfdump
-    # (-K covers both directions with one passphrase). -A (CryptoPAn key) and
-    # -K (encryption passphrase) are independent options.
+    # -K=<passphrase> on read+write: nfanon can process a backend-encrypted
+    # input file and produce a backend-encrypted output. -A (CryptoPAn key)
+    # and -K (encryption passphrase) are independent options.
     if "$NFDUMP_BIN" -q -r dummy_flows.nf -z=lz4 -K=anonpass -w "$WORKDIR/enc_src.nf" >/dev/null 2>&1 \
        && "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K=anonpass \
               -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_anon.nf" >/dev/null 2>&1 \
@@ -119,6 +118,20 @@ if "$NFANON_BIN" -V 2>&1 | grep -q 'CRYPTO' && "$NFDUMP_BIN" -V 2>&1 | grep -q '
         pass "nfanon_encrypted_round_trip"
     else
         fail "nfanon_encrypted_round_trip"
+    fi
+
+    # The key-file form is equally non-interactive and must work for both
+    # reading and writing encrypted files.
+    keyfile="$WORKDIR/nfanon.key"
+    if umask 077 && printf '%s\n' anonpass >"$keyfile" \
+       && "$NFDUMP_BIN" -q -r dummy_flows.nf -z=lz4 -K@"$keyfile" -w "$WORKDIR/enc_src_keyfile.nf" >/dev/null 2>&1 \
+       && "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K@"$keyfile" \
+              -r "$WORKDIR/enc_src_keyfile.nf" -w "$WORKDIR/enc_anon_keyfile.nf" >/dev/null 2>&1 \
+       && "$NFDUMP_BIN" -v check -r "$WORKDIR/enc_anon_keyfile.nf" -K@"$keyfile" >/dev/null 2>&1 \
+       && "$NFDUMP_BIN" -q -r "$WORKDIR/enc_anon_keyfile.nf" -K@"$keyfile" -o raw >/dev/null 2>&1; then
+        pass "nfanon_encrypted_keyfile_round_trip"
+    else
+        fail "nfanon_encrypted_keyfile_round_trip"
     fi
 
     # regression: a wrong -K passphrase must fail cleanly (non-zero exit), not
@@ -130,19 +143,20 @@ if "$NFANON_BIN" -V 2>&1 | grep -q 'CRYPTO' && "$NFDUMP_BIN" -V 2>&1 | grep -q '
         pass "nfanon_wrong_passphrase_rejected"
     fi
 
-    # regression: no -K at all on an encrypted input, in a non-interactive
-    # context (no controlling terminal to prompt on), must fail cleanly rather
-    # than silently reporting "Processed 0 files" with exit 0.
-    if "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 \
-              -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_none.nf" </dev/null >/dev/null 2>&1; then
-        fail "nfanon_missing_passphrase_rejected: unexpectedly exited 0"
+    # An encrypted file without -K intentionally prompts on the controlling
+    # terminal. Test a bad key-file path instead: it must fail without an
+    # interactive prompt, which keeps the test suite unattended.
+    if "$NFANON_BIN" -A abcdefghijklmnopqrstuvwxyz012345 -K@"$WORKDIR/no-such-key" \
+              -r "$WORKDIR/enc_src.nf" -w "$WORKDIR/enc_no_key.nf" </dev/null >/dev/null 2>&1; then
+        fail "nfanon_missing_keyfile_rejected: unexpectedly exited 0"
     else
-        pass "nfanon_missing_passphrase_rejected"
+        pass "nfanon_missing_keyfile_rejected"
     fi
 else
     skip "nfanon_encrypted_round_trip: libsodium not compiled in"
+    skip "nfanon_encrypted_keyfile_round_trip: libsodium not compiled in"
     skip "nfanon_wrong_passphrase_rejected: libsodium not compiled in"
-    skip "nfanon_missing_passphrase_rejected: libsodium not compiled in"
+    skip "nfanon_missing_keyfile_rejected: libsodium not compiled in"
 fi
 
 summary

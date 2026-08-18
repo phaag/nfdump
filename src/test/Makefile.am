@@ -23,12 +23,13 @@ TESTS += test_nfcapd.sh
 endif
 
 AM_TESTS_ENVIRONMENT = \
+BINDIR="$(abs_builddir)/.."; export BINDIR; \
 ## Set enabled compression
 TEST_BZIP2="$(TEST_BZIP2)"; export TEST_BZIP2 \
 TEST_ZSTD="$(TEST_ZSTD)"; export TEST_ZSTD \
 ;
 
-AM_CPPFLAGS = -I.. -I../include -I../libnfdump -I../libnffile -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
 AM_LDFLAGS  = -L../lib
 
@@ -55,4 +56,4 @@ EXTRA_DIST = testsetup.sh \
              test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh \
              test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh
 EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt
-CLEANFILES = $(check_PROGRAMS) test.flows.nf *.gch 
+CLEANFILES = $(check_PROGRAMS) test.flows.nf dummy_flows.nf *.gch

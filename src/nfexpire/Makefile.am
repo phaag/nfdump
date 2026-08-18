@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfexpire
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile $(DEPS_CFLAGS)
 
 LDADD = $(DEPS_LIBS)
 

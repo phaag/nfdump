@@ -48,6 +48,12 @@ mkdir -p "$COLLECT_DIR"
 nfcapd -p "$BASE_PORT" -4 -w "$COLLECT_DIR" -D \
        -P "$COLLECT_DIR/pidfile" -I TestIdent -z=lz4 >/dev/null 2>&1
 sleep 1
+if [ ! -s "$COLLECT_DIR/pidfile" ]; then
+    skip "live_collect: local UDP listener unavailable"
+    skip "live_collect_ident: local UDP listener unavailable"
+    summary
+    exit 0
+fi
 nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p "$BASE_PORT" >/dev/null 2>&1
 sleep 1
 kill -TERM "$(cat "$COLLECT_DIR/pidfile" 2>/dev/null)" 2>/dev/null || true

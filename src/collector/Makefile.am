@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../netflow $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
 
 if HAVE_LIBSODIUM
 AM_CPPFLAGS += $(LIBSODIUM_CFLAGS)
@@ -17,16 +17,17 @@ libcollector_a_SOURCES = \
 	backend/backend.h \
 	backend/nffile_backend.c backend/nffile_backend.h \
 	backend/remote_backend.c backend/remote_backend.h \
-	ip128.c ip128.h \
+	ip128.c \
 	launch.h launch.c \
 	flowsource.c flowsource.h \
 	collector.c collector.h \
 	metric.c metric.h \
 	packet_frame.c packet_frame.h
 
+EXTRA_DIST = collector_run_inline.c
+
 if ENABLE_READPCAP
 libcollector_a_SOURCES += reader/pcap_reader.c reader/pcap_reader.h
 endif
 
 CLEANFILES = *.gch
-

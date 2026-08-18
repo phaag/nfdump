@@ -54,7 +54,7 @@ TZ=Europe/Zurich
 export TZ
 
 # ── locate binaries and test data ─────────────────────────────────────────────
-BINDIR="$SCRIPT_DIR/.."
+: "${BINDIR:=$SCRIPT_DIR/..}"
 # test data for nfcapd tests lives two levels up under test/nfcapd/
 TESTDATA=$(cd "$SCRIPT_DIR/../../test/nfcapd" 2>/dev/null && pwd)
 # CSV fixtures for the maxmind geoDB tests live under test/maxmind/
