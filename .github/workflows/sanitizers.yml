@@ -1,0 +1,178 @@
+name: Sanitizers
+
+on:
+  push:
+    branches:
+      - master
+      - devel_1.8.x
+
+  pull_request:
+    branches:
+      - master
+      - devel_1.8.x
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  #
+  # ----------------------------------------------------------------------
+  # AddressSanitizer + UndefinedBehaviorSanitizer
+  # ----------------------------------------------------------------------
+  #
+  asan-ubsan:
+    name: ASan + UBSan / Clang
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      CC: clang
+
+      CFLAGS: >-
+        -O1
+        -g
+        -Wall
+        -Wextra
+        -fno-omit-frame-pointer
+        -fsanitize=address,undefined
+
+      LDFLAGS: >-
+        -fsanitize=address,undefined
+
+      ASAN_OPTIONS: >-
+        detect_leaks=1:
+        halt_on_error=1
+
+      UBSAN_OPTIONS: >-
+        halt_on_error=1:
+        print_stacktrace=1
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            clang \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            flex \
+            bison \
+            libpcap-dev \
+            liblz4-dev \
+            libzstd-dev \
+            libbz2-dev \
+            zlib1g-dev \
+            libpcre2-dev \
+            libsodium-dev
+
+      - name: Show compiler
+        run: clang --version
+
+      - name: Bootstrap
+        run: sh bootstrap
+
+      - name: Configure
+        run: |
+          ./configure \
+            --enable-nfpcapd \
+            --enable-ja4 \
+            --disable-shared \
+            --disable-lto
+
+      - name: Build
+        run: make -j2
+
+      - name: Run tests
+        run: make check VERBOSE=1
+
+
+  #
+  # ----------------------------------------------------------------------
+  # ThreadSanitizer
+  #
+  # Initially informational. Remove continue-on-error once TSan is clean.
+  # ----------------------------------------------------------------------
+  #
+  tsan:
+    name: ThreadSanitizer / GCC
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    continue-on-error: true
+
+    env:
+      CC: gcc
+
+      CFLAGS: >-
+        -O1
+        -g
+        -Wall
+        -Wextra
+        -fno-omit-frame-pointer
+        -fsanitize=thread
+
+      LDFLAGS: >-
+        -fsanitize=thread
+
+      TSAN_OPTIONS: >-
+        halt_on_error=1:
+        history_size=7
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            gcc \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            flex \
+            bison \
+            libpcap-dev \
+            liblz4-dev \
+            libzstd-dev \
+            libbz2-dev \
+            zlib1g-dev \
+            libpcre2-dev \
+            libsodium-dev
+
+      - name: Show compiler
+        run: gcc --version
+
+      - name: Bootstrap
+        run: sh bootstrap
+
+      - name: Configure
+        run: |
+          ./configure \
+            --enable-nfpcapd \
+            --enable-ja4 \
+            --disable-shared \
+            --disable-lto
+
+      - name: Build
+        run: make -j2
+
+      - name: Run tests
+        run: make check VERBOSE=1

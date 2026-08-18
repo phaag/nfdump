@@ -1,0 +1,157 @@
+name: BSD CI
+
+on:
+  push:
+    branches:
+      - master
+      - devel_1.8.x
+
+  pull_request:
+    branches:
+      - master
+      - devel_1.8.x
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  #
+  # ----------------------------------------------------------------------
+  # FreeBSD
+  # ----------------------------------------------------------------------
+  #
+  freebsd:
+    name: FreeBSD 14 / Clang
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Build and test
+        uses: vmactions/freebsd-vm@v1
+
+        with:
+          #
+          # "14" selects the newest available FreeBSD 14.x release.
+          #
+          release: "14"
+
+          cache-after-prepare: true
+          copyback: false
+
+          prepare: |
+            pkg install -y \
+              autoconf \
+              automake \
+              libtool \
+              pkgconf \
+              bison \
+              lz4 \
+              zstd \
+              pcre2 \
+              libsodium
+
+          run: |
+            set -eu
+
+            export CC=clang
+
+            echo "=== System ==="
+            uname -a
+
+            echo "=== Compiler ==="
+            clang --version
+
+            echo "=== Bootstrap ==="
+            sh bootstrap
+
+            echo "=== Configure ==="
+            ./configure \
+              --enable-nfpcapd \
+              --enable-ja4
+
+            echo "=== Build ==="
+            make -j2
+
+            echo "=== Tests ==="
+            make check VERBOSE=1
+
+
+  #
+  # ----------------------------------------------------------------------
+  # OpenBSD
+  # ----------------------------------------------------------------------
+  #
+  openbsd:
+    name: OpenBSD 7.9 / Clang
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Build and test
+        uses: vmactions/openbsd-vm@v1
+
+        with:
+          release: "7.9"
+
+          cache-after-prepare: true
+          copyback: false
+
+          prepare: |
+            pkg_add \
+              metaauto \
+              autoconf-2.72p0 \
+              automake-1.18.1 \
+              libtool \
+              pkgconf \
+              bison \
+              lz4 \
+              zstd \
+              pcre2 \
+              libsodium
+
+          run: |
+            set -eu
+
+            export CC=clang
+            export AUTOCONF_VERSION=2.72
+            export AUTOMAKE_VERSION=1.18
+            export PATH=/usr/local/bin:$PATH
+
+            echo "=== System ==="
+            uname -a
+
+            echo "=== Compiler ==="
+            clang --version
+
+            echo "=== Autotools ==="
+            autoconf --version | head -1
+            automake --version | head -1
+
+            echo "=== Bootstrap ==="
+            sh bootstrap
+
+            echo "=== Configure ==="
+            ./configure \
+              --enable-nfpcapd \
+              --enable-ja4
+
+            echo "=== Build ==="
+            make -j2
+
+            echo "=== Tests ==="
+            make check VERBOSE=1
