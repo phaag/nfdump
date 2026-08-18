@@ -1,178 +1,199 @@
 name: Sanitizers
 
 on:
-  push:
-    branches:
-      - master
-      - devel_1.8.x
+    push:
+        branches:
+            - master
+            - devel_1.8.x
 
-  pull_request:
-    branches:
-      - master
-      - devel_1.8.x
+    pull_request:
+        branches:
+            - master
+            - devel_1.8.x
 
-  workflow_dispatch:
+    workflow_dispatch:
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
+    #
+    # ----------------------------------------------------------------------
+    # AddressSanitizer + UndefinedBehaviorSanitizer
+    # ----------------------------------------------------------------------
+    #
+    asan-ubsan:
+        name: ASan + UBSan / Clang
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
 
-  #
-  # ----------------------------------------------------------------------
-  # AddressSanitizer + UndefinedBehaviorSanitizer
-  # ----------------------------------------------------------------------
-  #
-  asan-ubsan:
-    name: ASan + UBSan / Clang
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+        env:
+            CC: clang
 
-    env:
-      CC: clang
-
-      CFLAGS: >-
-        -O1
-        -g
-        -Wall
-        -Wextra
-        -fno-omit-frame-pointer
-        -fsanitize=address,undefined
-
-      LDFLAGS: >-
-        -fsanitize=address,undefined
-
-      ASAN_OPTIONS: >-
-        detect_leaks=1:
-        halt_on_error=1
-
-      UBSAN_OPTIONS: >-
-        halt_on_error=1:
-        print_stacktrace=1
-
-    steps:
-
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-
-          sudo apt-get install -y \
-            clang \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            flex \
-            bison \
-            libpcap-dev \
-            liblz4-dev \
-            libzstd-dev \
-            libbz2-dev \
-            zlib1g-dev \
-            libpcre2-dev \
-            libsodium-dev
-
-      - name: Show compiler
-        run: clang --version
-
-      - name: Bootstrap
-        run: sh bootstrap
-
-      - name: Configure
-        run: |
-          ./configure \
-            --enable-nfpcapd \
-            --enable-ja4 \
-            --disable-shared \
-            --disable-lto
-
-      - name: Build
-        run: make -j2
-
-      - name: Run tests
-        run: make check VERBOSE=1
+            CFLAGS: >-
+                -O1 -g -Wall -Wextra -fno-omit-frame-pointer -fsanitize=address,undefined
 
 
-  #
-  # ----------------------------------------------------------------------
-  # ThreadSanitizer
-  #
-  # Initially informational. Remove continue-on-error once TSan is clean.
-  # ----------------------------------------------------------------------
-  #
-  tsan:
-    name: ThreadSanitizer / GCC
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+            LDFLAGS: >-
+                -fsanitize=address,undefined
 
-    continue-on-error: true
 
-    env:
-      CC: gcc
+            # LeakSanitizer (detect_leaks) is Linux-only - explicitly requesting it
+            # is a hard, fatal error on the ASan runtimes that don't support it
+            # (macOS in particular), which aborts every sanitized binary before it
+            # runs a single line. It's already on by default wherever it *is*
+            # supported (this Linux job included), so it doesn't need to be named
+            # here - leaving it unset keeps this build portable to a contributor
+            # testing the same CFLAGS locally on macOS.
+            ASAN_OPTIONS: >-
+                halt_on_error=1
 
-      CFLAGS: >-
-        -O1
-        -g
-        -Wall
-        -Wextra
-        -fno-omit-frame-pointer
-        -fsanitize=thread
 
-      LDFLAGS: >-
-        -fsanitize=thread
+            UBSAN_OPTIONS: >-
+                halt_on_error=1: print_stacktrace=1
 
-      TSAN_OPTIONS: >-
-        halt_on_error=1:
-        history_size=7
 
-    steps:
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
 
-      - name: Checkout repository
-        uses: actions/checkout@v7
+            - name: Install dependencies
+              run: |
+                  sudo apt-get update
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
+                  sudo apt-get install -y \
+                    clang \
+                    autoconf \
+                    automake \
+                    libtool \
+                    pkg-config \
+                    flex \
+                    bison \
+                    libpcap-dev \
+                    liblz4-dev \
+                    libzstd-dev \
+                    libbz2-dev \
+                    zlib1g-dev \
+                    libpcre2-dev \
+                    libsodium-dev
 
-          sudo apt-get install -y \
-            gcc \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            flex \
-            bison \
-            libpcap-dev \
-            liblz4-dev \
-            libzstd-dev \
-            libbz2-dev \
-            zlib1g-dev \
-            libpcre2-dev \
-            libsodium-dev
+            - name: Show compiler
+              run: clang --version
 
-      - name: Show compiler
-        run: gcc --version
+            - name: Bootstrap
+              run: sh bootstrap
 
-      - name: Bootstrap
-        run: sh bootstrap
+            - name: Configure
+              run: |
+                  ./configure \
+                    --enable-nfpcapd \
+                    --enable-ja4 \
+                    --enable-readpcap \
+                    --disable-shared \
+                    --disable-lto
 
-      - name: Configure
-        run: |
-          ./configure \
-            --enable-nfpcapd \
-            --enable-ja4 \
-            --disable-shared \
-            --disable-lto
+            - name: Build
+              run: make -j"$(nproc)"
 
-      - name: Build
-        run: make -j2
+            - name: Run tests
+              run: make check VERBOSE=1
 
-      - name: Run tests
-        run: make check VERBOSE=1
+            - name: Upload test logs on failure
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: test-logs-asan-ubsan
+                  path: |
+                      src/test/*.log
+                      src/test/*.trs
+                      config.log
+                  retention-days: 7
+
+    #
+    # ----------------------------------------------------------------------
+    # ThreadSanitizer
+    #
+    # Initially informational. Remove continue-on-error once TSan is clean.
+    # ----------------------------------------------------------------------
+    #
+    tsan:
+        name: ThreadSanitizer / GCC
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+
+        continue-on-error: true
+
+        env:
+            CC: gcc
+
+            CFLAGS: >-
+                -O1 -g -Wall -Wextra -fno-omit-frame-pointer -fsanitize=thread
+
+
+            LDFLAGS: >-
+                -fsanitize=thread
+
+
+            TSAN_OPTIONS: >-
+                halt_on_error=1: history_size=7
+
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Install dependencies
+              run: |
+                  sudo apt-get update
+
+                  sudo apt-get install -y \
+                    gcc \
+                    autoconf \
+                    automake \
+                    libtool \
+                    pkg-config \
+                    flex \
+                    bison \
+                    libpcap-dev \
+                    liblz4-dev \
+                    libzstd-dev \
+                    libbz2-dev \
+                    zlib1g-dev \
+                    libpcre2-dev \
+                    libsodium-dev
+
+            - name: Show compiler
+              run: gcc --version
+
+            - name: Bootstrap
+              run: sh bootstrap
+
+            - name: Configure
+              run: |
+                  ./configure \
+                    --enable-nfpcapd \
+                    --enable-ja4 \
+                    --enable-readpcap \
+                    --disable-shared \
+                    --disable-lto
+
+            - name: Build
+              run: make -j"$(nproc)"
+
+            - name: Run tests
+              run: make check VERBOSE=1
+
+            - name: Upload test logs on failure
+              if: failure()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: test-logs-tsan
+                  path: |
+                      src/test/*.log
+                      src/test/*.trs
+                      config.log
+                  retention-days: 7
