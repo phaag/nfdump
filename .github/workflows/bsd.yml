@@ -64,7 +64,7 @@ jobs:
                         pkgconf \
                         flex \
                         bison \
-                        lz4 \
+                        liblz4 \
                         zstd \
                         pcre2 \
                         libsodium
