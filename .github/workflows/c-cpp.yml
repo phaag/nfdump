@@ -86,7 +86,7 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             #
             # Linux dependencies
@@ -118,6 +118,9 @@ jobs:
             - name: Install dependencies (macOS)
               if: runner.os == 'macOS'
               run: |
+                  brew tap aws/tap
+                  brew trust aws/tap
+
                   brew install \
                     autoconf \
                     automake \
@@ -214,7 +217,7 @@ jobs:
                     libsodium-dev
 
             - name: Checkout repository
-              uses: actions/checkout@v7
+              uses: actions/checkout@v5
 
             - name: Show build environment
               run: |
