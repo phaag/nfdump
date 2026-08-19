@@ -86,7 +86,7 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v7
+              uses: actions/checkout@v5
 
             #
             # Linux dependencies
@@ -118,6 +118,9 @@ jobs:
             - name: Install dependencies (macOS)
               if: runner.os == 'macOS'
               run: |
+                  brew tap aws/tap
+                  brew trust aws/tap
+
                   brew install \
                     autoconf \
                     automake \
@@ -160,7 +163,7 @@ jobs:
 
             - name: Upload test logs on failure
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: test-logs-${{ matrix.slug }}
                   path: |
@@ -214,7 +217,7 @@ jobs:
                     libsodium-dev
 
             - name: Checkout repository
-              uses: actions/checkout@v7
+              uses: actions/checkout@v5
 
             - name: Show build environment
               run: |
@@ -238,7 +241,7 @@ jobs:
 
             - name: Upload test logs on failure
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: test-logs-debian13-gcc
                   path: |
@@ -293,7 +296,7 @@ jobs:
               run: git config --global --add safe.directory '*'
 
             - name: Checkout repository
-              uses: actions/checkout@v7
+              uses: actions/checkout@v5
 
             - name: Show build environment
               run: |
@@ -316,7 +319,7 @@ jobs:
 
             - name: Upload test logs on failure
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: test-logs-alpine-musl-gcc
                   path: |
