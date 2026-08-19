@@ -1,0 +1,72 @@
+name: Static Analysis
+
+on:
+  push:
+    branches:
+      - master
+      - devel_1.8.x
+
+  pull_request:
+    branches:
+      - master
+      - devel_1.8.x
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  #
+  # ----------------------------------------------------------------------
+  # cppcheck
+  #
+  # Informational for now (continue-on-error): the codebase has not been
+  # triaged to a clean baseline against this exact ruleset yet. Drop
+  # continue-on-error once a suppression list / clean run is established.
+  # ----------------------------------------------------------------------
+  #
+  cppcheck:
+    name: cppcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    continue-on-error: true
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: Show version
+        run: cppcheck --version
+
+      - name: Run cppcheck
+        run: |
+          cppcheck \
+            --enable=warning,performance,portability \
+            --inline-suppr \
+            --suppress=missingIncludeSystem \
+            -I src/include \
+            -I src/libnffile \
+            -I src/libnfdump \
+            src/ 2> cppcheck-report.txt
+          cat cppcheck-report.txt
+
+      - name: Upload cppcheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.txt
+          retention-days: 7

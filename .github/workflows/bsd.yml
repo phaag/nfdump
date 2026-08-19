@@ -1,0 +1,255 @@
+name: BSD CI
+
+on:
+    push:
+        branches:
+            - master
+            - devel_1.8.x
+
+    pull_request:
+        branches:
+            - master
+            - devel_1.8.x
+
+    workflow_dispatch:
+
+    schedule:
+        # nightly, off-peak - keeps these exercised regularly even on weeks
+        # with no push, since they no longer run on every pull_request
+        - cron: "17 3 * * *"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    #
+    # ----------------------------------------------------------------------
+    # FreeBSD
+    # ----------------------------------------------------------------------
+    #
+    freebsd:
+        name: FreeBSD 14 / Clang
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+
+        # VM boot alone adds several minutes; keep pull_request feedback fast
+        # and rely on push/dispatch/nightly for BSD coverage instead.
+        if: github.event_name != 'pull_request'
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Build and test
+              uses: vmactions/freebsd-vm@v1
+
+              with:
+                  #
+                  # "14" selects the newest available FreeBSD 14.x release.
+                  #
+                  release: "14"
+
+                  cache-after-prepare: true
+                  copyback: false
+
+                  prepare: |
+                      pkg install -y \
+                        autoconf \
+                        automake \
+                        libtool \
+                        pkgconf \
+                        flex \
+                        bison \
+                        liblz4 \
+                        zstd \
+                        pcre2 \
+                        libsodium
+
+                  run: |
+                      set -eu
+
+                      export CC=clang
+
+                      echo "=== System ==="
+                      uname -a
+
+                      echo "=== Compiler ==="
+                      clang --version
+
+                      echo "=== Bootstrap ==="
+                      sh bootstrap
+
+                      echo "=== Configure ==="
+                      ./configure \
+                        --enable-nfpcapd \
+                        --enable-ja4 \
+                        --enable-readpcap
+
+                      echo "=== Build ==="
+                      make -j"$(sysctl -n hw.ncpu)"
+
+                      echo "=== Tests ==="
+                      make check VERBOSE=1 || {
+                        echo "=== Test failure logs (copyback is off - dumping inline) ==="
+                        find . \( -name '*.log' -o -name '*.trs' \) -exec sh -c 'echo "--- {} ---"; cat "{}"' \;
+                        exit 1
+                      }
+
+    #
+    # ----------------------------------------------------------------------
+    # OpenBSD
+    # ----------------------------------------------------------------------
+    #
+    openbsd:
+        name: OpenBSD 7.9 / Clang
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+
+        if: github.event_name != 'pull_request'
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Build and test
+              uses: vmactions/openbsd-vm@v1
+
+              with:
+                  release: "7.9"
+
+                  cache-after-prepare: true
+                  copyback: false
+
+                  prepare: |
+                      pkg_add \
+                        metaauto \
+                        autoconf-2.72p0 \
+                        automake-1.18.1 \
+                        libtool \
+                        pkgconf \
+                        flex \
+                        bison \
+                        lz4 \
+                        zstd \
+                        pcre2 \
+                        libsodium
+
+                  run: |
+                      set -eu
+
+                      export CC=clang
+                      export AUTOCONF_VERSION=2.72
+                      export AUTOMAKE_VERSION=1.18
+                      export PATH=/usr/local/bin:$PATH
+
+                      echo "=== System ==="
+                      uname -a
+
+                      echo "=== Compiler ==="
+                      clang --version
+
+                      echo "=== Autotools ==="
+                      autoconf --version | head -1
+                      automake --version | head -1
+
+                      echo "=== Bootstrap ==="
+                      sh bootstrap
+
+                      echo "=== Configure ==="
+                      ./configure \
+                        --enable-nfpcapd \
+                        --enable-ja4 \
+                        --enable-readpcap
+
+                      echo "=== Build ==="
+                      make -j"$(sysctl -n hw.ncpu)"
+
+                      echo "=== Tests ==="
+                      make check VERBOSE=1 || {
+                        echo "=== Test failure logs (copyback is off - dumping inline) ==="
+                        find . \( -name '*.log' -o -name '*.trs' \) -exec sh -c 'echo "--- {} ---"; cat "{}"' \;
+                        exit 1
+                      }
+
+    #
+    # ----------------------------------------------------------------------
+    # NetBSD
+    #
+    # pkgsrc's binary packages are versioned like OpenBSD's, but the
+    # vmactions image's default PKG_PATH has tracked a single current set in
+    # past use; if `pkg_add` reports ambiguous/missing candidates on first
+    # run here, pin autoconf/automake the same way the OpenBSD job does
+    # (versioned package names + AUTOCONF_VERSION/AUTOMAKE_VERSION).
+    # ----------------------------------------------------------------------
+    #
+    netbsd:
+        name: NetBSD 10.1 / Clang
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+
+        if: github.event_name != 'pull_request'
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Build and test
+              uses: vmactions/netbsd-vm@v1
+
+              with:
+                  release: "10.1"
+
+                  cache-after-prepare: true
+                  copyback: false
+
+                  prepare: |
+                      /usr/sbin/pkg_add \
+                        clang \
+                        autoconf \
+                        automake \
+                        libtool \
+                        pkg-config \
+                        flex \
+                        bison \
+                        lz4 \
+                        zstd \
+                        pcre2 \
+                        libsodium
+
+                  run: |
+                      set -eu
+
+                      export CC=clang
+
+                      echo "=== System ==="
+                      uname -a
+
+                      echo "=== Compiler ==="
+                      clang --version
+
+                      echo "=== Autotools ==="
+                      autoconf --version | head -1
+                      automake --version | head -1
+
+                      echo "=== Bootstrap ==="
+                      sh bootstrap
+
+                      echo "=== Configure ==="
+                      ./configure \
+                        --enable-nfpcapd \
+                        --enable-ja4 \
+                        --enable-readpcap
+
+                      echo "=== Build ==="
+                      make -j"$(sysctl -n hw.ncpu)"
+
+                      echo "=== Tests ==="
+                      make check VERBOSE=1 || {
+                        echo "=== Test failure logs (copyback is off - dumping inline) ==="
+                        find . \( -name '*.log' -o -name '*.trs' \) -exec sh -c 'echo "--- {} ---"; cat "{}"' \;
+                        exit 1
+                      }
