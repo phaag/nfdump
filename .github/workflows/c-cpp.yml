@@ -118,9 +118,6 @@ jobs:
             - name: Install dependencies (macOS)
               if: runner.os == 'macOS'
               run: |
-                  # Trust the aws/tap (required for newer Homebrew)
-                  brew tap aws/tap --force-auto-update
-
                   brew install \
                     autoconf \
                     automake \
