@@ -308,7 +308,8 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
 // Uses multiply-xor accumulation with a splitmix64 finalizer.
 // Falls back to metrohash for variable-length custom aggregation keys.
 static inline uint64_t hash_flow_v4(const void *key) {
-    const uint64_t *k = (const uint64_t *)key;
+    uint64_t k[2];
+    memcpy(k, key, sizeof(k));
     uint64_t h = k[0] * 0x9e3779b97f4a7c15ULL ^ k[1] * 0x6c62272e07bb0142ULL;
     h ^= h >> 30;
     h *= 0xbf58476d1ce4e5b9ULL;
@@ -319,7 +320,8 @@ static inline uint64_t hash_flow_v4(const void *key) {
 }
 
 static inline uint64_t hash_flow_v6(const void *key) {
-    const uint64_t *k = (const uint64_t *)key;
+    uint64_t k[5];
+    memcpy(k, key, sizeof(k));
     uint64_t h = k[0] * 0x9e3779b97f4a7c15ULL;
     h = (h ^ k[1]) * 0x6c62272e07bb0142ULL;
     h = (h ^ k[2]) * 0xbf58476d1ce4e5b9ULL;
@@ -360,7 +362,7 @@ typedef struct hashValue_s {
 // if size == 0 - directly compare the 16byte local value as two uint64_t
 // if size > 16 - compare calculated hash and memcmp the two valPtr
 #define valCompare(v1, v2)                                                          \
-    ((v1).ptrSize == 0 ? ((v1).val[0] == (v2).val[0] && (v1).val[1] == (v2).val[1]) \
+    ((v1).ptrSize == 0 ? (memcmp((v1).val, (v2).val, sizeof((v1).val)) == 0)       \
                        : ((v1).hash == (v2).hash && (v1).ptrSize == (v2).ptrSize && memcmp((v1).valPtr, (v2).valPtr, (v1).ptrSize) == 0))
 
 // hash definition
