@@ -242,7 +242,8 @@ jobs:
                       ./configure \
                         --enable-nfpcapd \
                         --enable-ja4 \
-                        --enable-readpcap
+                        --enable-readpcap \
+                        --disable-lto
 
                       echo "=== Build ==="
                       make -j"$(sysctl -n hw.ncpu)"
