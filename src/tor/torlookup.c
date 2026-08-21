@@ -273,7 +273,7 @@ static int valid_ipv4(char *s) {
     char *c = s;
     int i = 0;
     while (*c) {
-        if ((!isdigit(*c) && *c != '.') || i > 15) {
+        if ((!isdigit((unsigned char)*c) && *c != '.') || i > 15) {
             return 0;
         }
         c++;

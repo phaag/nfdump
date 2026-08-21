@@ -452,7 +452,7 @@ int IsMD5(char *string) {
     int i = 0;
     for (i = 0; i < 32; i++) {
         char c = string[i];
-        if (c == '\0' || !isxdigit(c)) return 0;
+        if (c == '\0' || !isxdigit((unsigned char)c)) return 0;
     }
     return string[i] == '\0';
 

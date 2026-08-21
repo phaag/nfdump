@@ -312,7 +312,7 @@ void RescanDir(char *dir, dirstat_t *dirstat) {
                     // skip all '.' entries as well as hidden directories
                     if (ftsent->fts_level > 0 && ftsent->fts_name[0] == '.') fts_set(fts, ftsent, FTS_SKIP);
                     // any valid directory need to start with a digit ( %Y -> year )
-                    if (ftsent->fts_level > 0 && !isdigit(ftsent->fts_name[0])) fts_set(fts, ftsent, FTS_SKIP);
+                    if (ftsent->fts_level > 0 && !isdigit((unsigned char)ftsent->fts_name[0])) fts_set(fts, ftsent, FTS_SKIP);
                     break;
                 case FTS_DP:
                     break;
@@ -462,7 +462,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                     // skip all '.' entries as well as hidden directories
                     if (ftsent->fts_level > 0 && ftsent->fts_name[0] == '.') fts_set(fts, ftsent, FTS_SKIP);
                     // any valid directory needs to start with a digit ( %Y -> year )
-                    if (ftsent->fts_level > 0 && !isdigit(ftsent->fts_name[0])) fts_set(fts, ftsent, FTS_SKIP);
+                    if (ftsent->fts_level > 0 && !isdigit((unsigned char)ftsent->fts_name[0])) fts_set(fts, ftsent, FTS_SKIP);
                     break;
                 case FTS_DP:
                     // do not delete base data directory ( level == 0 )
@@ -694,7 +694,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                             if (expire_channel->ftsent->fts_level > 0 && expire_channel->ftsent->fts_name[0] == '.')
                                 fts_set(expire_channel->fts, expire_channel->ftsent, FTS_SKIP);
                             // any valid directory needs to start with a digit ( %Y -> year )
-                            if (expire_channel->ftsent->fts_level > 0 && !isdigit(expire_channel->ftsent->fts_name[0]))
+                            if (expire_channel->ftsent->fts_level > 0 && !isdigit((unsigned char)expire_channel->ftsent->fts_name[0]))
                                 fts_set(expire_channel->fts, expire_channel->ftsent, FTS_SKIP);
                             break;
                         case FTS_DP:

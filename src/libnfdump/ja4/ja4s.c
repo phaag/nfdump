@@ -139,11 +139,11 @@ int ja4sCheck(char *ja4sString) {
     if (ja4sString[7] != '_' || ja4sString[12] != '_') return 0;
 
     for (int i = 1; i < 7; i++)
-        if (!isascii(ja4sString[i])) return 0;
+        if (!isascii((unsigned char)ja4sString[i])) return 0;
     for (int i = 8; i < 12; i++)
-        if (!isxdigit(ja4sString[i])) return 0;
+        if (!isxdigit((unsigned char)ja4sString[i])) return 0;
     for (int i = 13; i < SIZEja4sString; i++)
-        if (!isxdigit(ja4sString[i])) return 0;
+        if (!isxdigit((unsigned char)ja4sString[i])) return 0;
     return 1;
 }  // End of ja4Check
 

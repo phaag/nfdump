@@ -1086,7 +1086,7 @@ static char *ParseAggrOutputFormat(char *print_format, char *arg) {
     while (*s) {
         if (*s == '%') {
             char *token = s++;
-            while (*s && isalnum(*s)) s++;
+            while (*s && isalnum((unsigned char)*s)) s++;
             char sep = *s;
             *s = '\0';
             // check, if this token is active

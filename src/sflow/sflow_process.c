@@ -203,9 +203,9 @@ char *URLEncode(char *in, char *out, int outlen) {
     if (outlen < maxlen) return "URLEncode: not enough space";
 
     while ((c = *r++)) {
-        if (isalnum(c))
+        if (isalnum((unsigned char)c))
             *w++ = c;
-        else if (isspace(c))
+        else if (isspace((unsigned char)c))
             *w++ = '+';
         else {
             *w++ = '%';
@@ -236,7 +236,7 @@ static int printUUID(const uint8_t *a, char *buf, int bufLen) {
     b += printHex(a + 10, 6, buf + b, bufLen - b, 0, 100);
 
     /* should really be lowercase hex - fix that here */
-    for (i = 0; i < b; i++) buf[i] = tolower(buf[i]);
+    for (i = 0; i < b; i++) buf[i] = tolower((unsigned char)buf[i]);
 
     /* add NUL termination */
     buf[b] = '\0';

@@ -202,7 +202,7 @@ static char *RecursiveReplace(char *format) {
         s = strstr(format, printmap[i].printmode);
         if (s && printmap[i].Format && s != format) {
             int len = strlen(printmap[i].printmode);
-            if (!isalpha((int)s[len])) {
+            if (!isalpha((unsigned char)s[len])) {
                 s--;
                 if (s[0] == '%') {
                     int newlen = strlen(format) + strlen(printmap[i].Format);

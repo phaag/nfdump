@@ -790,7 +790,7 @@ int ParseFMTOutputFormat(char *format, int plain_numbers) {
                 int len = strlen(formatTable[i].token);
 
                 // a token is separated by either a space, another token, or end of string
-                if (remaining >= len && !isalnum((int)c[len])) {
+                if (remaining >= len && !isalnum((unsigned char)c[len])) {
                     // separator found a expected position
                     char p = c[len];  // save separator;
                     c[len] = '\0';

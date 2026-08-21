@@ -614,7 +614,7 @@ int ScanExtension(char *extensionList) {
     // scan next extension number
 
     // skip white space
-    while (*s && isspace(*s)) s++;
+    while (*s && isspace((unsigned char)*s)) s++;
 
     // next separator
     char *q = strchr(s, ',');
