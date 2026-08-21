@@ -408,11 +408,11 @@ static inline dns_rcode_t decode_edns0rr_nsid(ddns_context *data, edns0_opt_t *o
         char const *phexh;
         char const *phexl;
 
-        if (!isxdigit(data->parse.ptr[i])) return RCODE_FORMAT_ERROR;
-        if (!isxdigit(data->parse.ptr[i + 1])) return RCODE_FORMAT_ERROR;
+        if (!isxdigit((unsigned char)data->parse.ptr[i])) return RCODE_FORMAT_ERROR;
+        if (!isxdigit((unsigned char)data->parse.ptr[i + 1])) return RCODE_FORMAT_ERROR;
 
-        phexh = memchr(hexdigits, toupper(data->parse.ptr[i]), 16);
-        phexl = memchr(hexdigits, toupper(data->parse.ptr[i + 1]), 16);
+        phexh = memchr(hexdigits, toupper((unsigned char)data->parse.ptr[i]), 16);
+        phexl = memchr(hexdigits, toupper((unsigned char)data->parse.ptr[i + 1]), 16);
 
         /*------------------------------------------------------------------
         ; phexh and phexl should not be NULL, unless isxdigit() is buggy, and

@@ -111,12 +111,12 @@ int ParseCryptoPAnKey(char *s, char *key) {
         return 1;
     }
 
-    s[1] = tolower(s[1]);
+    s[1] = tolower((unsigned char)s[1]);
     numstr[2] = 0;
     if (strlen(s) == 66 && s[0] == '0' && s[1] == 'x') {
         j = 2;
         for (i = 0; i < 32; i++) {
-            if (!isxdigit((int)s[j]) || !isxdigit((int)s[j + 1])) return 0;
+            if (!isxdigit((unsigned char)s[j]) || !isxdigit((unsigned char)s[j + 1])) return 0;
             numstr[0] = s[j++];
             numstr[1] = s[j++];
             key[i] = strtol(numstr, NULL, 16);

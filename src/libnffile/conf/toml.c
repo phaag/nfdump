@@ -500,7 +500,7 @@ static char *normalize_key(context_t *ctx, token_t strtok, int *keylen) {
     *keylen = 0;
     for (const char *c = sp; c != sq; c++) {  /// Bare key: allow: [A-Za-z0-9_-]+
         *keylen = *keylen + 1;
-        if (isalnum(*c) || *c == '_' || *c == '-') continue;
+        if (isalnum((unsigned char)*c) || *c == '_' || *c == '-') continue;
         e_badkey(ctx, lineno);
         return 0;
     }
@@ -1269,7 +1269,7 @@ static void set_eof(context_t *ctx, int lineno) {
 /* Scan p for n digits compositing entirely of [0-9] */
 static int scan_digits(const char *p, int n) {
     int ret = 0;
-    for (; n > 0 && isdigit(*p); n--, p++) {
+    for (; n > 0 && isdigit((unsigned char)*p); n--, p++) {
         ret = 10 * ret + (*p - '0');
     }
     return n ? -1 : ret;
@@ -1590,13 +1590,13 @@ int toml_value_timestamp(toml_unparsed_t src_, toml_timestamp_t *ret) {
             } else if (*p == '+' || *p == '-') {
                 *z++ = *p++;
 
-                if (!(isdigit(p[0]) && isdigit(p[1]))) return -1;
+                if (!(isdigit((unsigned char)p[0]) && isdigit((unsigned char)p[1]))) return -1;
                 *z++ = *p++;
                 *z++ = *p++;
 
                 if (*p == ':') {
                     *z++ = *p++;
-                    if (!(isdigit(p[0]) && isdigit(p[1]))) return -1;
+                    if (!(isdigit((unsigned char)p[0]) && isdigit((unsigned char)p[1]))) return -1;
                     *z++ = *p++;
                     *z++ = *p++;
                 }
@@ -1719,7 +1719,7 @@ int toml_value_double(toml_unparsed_t src, double *ret_) {
     {  /// decimal point, if used, must be surrounded by at least one digit on each side
         char *dot = strchr(s, '.');
         if (dot) {
-            if (dot == s || !isdigit(dot[-1]) || !isdigit(dot[1])) return -1;
+            if (dot == s || !isdigit((unsigned char)dot[-1]) || !isdigit((unsigned char)dot[1])) return -1;
         }
     }
 

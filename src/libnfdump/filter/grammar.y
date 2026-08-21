@@ -734,7 +734,7 @@ static int AddIdent(char *ident) {
 	
 	c = &ident[0];
 	while ( *c ) {
-		if ( *c != '_' && *c != '-' && !isalnum(*c) ) {
+		if ( *c != '_' && *c != '-' && !isalnum((unsigned char)*c) ) {
 			yyprintf("Invalid char in ident string: %s: %c", ident, *c);
 			return 0;
 		}
@@ -1500,9 +1500,9 @@ static int AddGeo(direction_t direction, char *geo) {
 	data_t data = {.dataVal = direction};
 	int ret = -1;
 	#ifdef WORDS_BIGENDIAN
-	uint64_t geoVal = toupper(geo[1]) + (toupper(geo[0]) << 8);
+	uint64_t geoVal = toupper((unsigned char)geo[1]) + (toupper((unsigned char)geo[0]) << 8);
 	#else
-	uint64_t geoVal = toupper(geo[0]) + (toupper(geo[1]) << 8);
+	uint64_t geoVal = toupper((unsigned char)geo[0]) + (toupper((unsigned char)geo[1]) << 8);
 	#endif
 	switch (direction) {
 		case DIR_SRC:

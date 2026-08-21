@@ -86,7 +86,7 @@ int ParseVerbose(int verbose, const char *arg) {
     }
 
     char c = arg[0];
-    if (!isdigit(c)) {
+    if (!isdigit((unsigned char)c)) {
         printf("Invalid verbose level: %s\n", arg);
         return -2;
     }

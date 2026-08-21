@@ -70,11 +70,11 @@ int ja4Check(char *ja4String) {
     if (ja4String[3] != 'd' && ja4String[3] != 'i') return 0;
     if (ja4String[10] != '_' || ja4String[23] != '_') return 0;
     for (int i = 0; i < 10; i++)
-        if (!isascii(ja4String[i])) return 0;
+        if (!isascii((unsigned char)ja4String[i])) return 0;
     for (int i = 11; i < 23; i++)
-        if (!isxdigit(ja4String[i])) return 0;
+        if (!isxdigit((unsigned char)ja4String[i])) return 0;
     for (int i = 24; i < 36; i++)
-        if (!isxdigit(ja4String[i])) return 0;
+        if (!isxdigit((unsigned char)ja4String[i])) return 0;
     return 1;
 }  // End of ja4Check
 

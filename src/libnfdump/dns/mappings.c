@@ -385,7 +385,7 @@ static int stoidef(char const *tag, struct string_int_map const *pstab, size_t s
 
     memset(buffer, 0, sizeof(buffer));
 
-    for (size_t i = 0; i < max; i++) buffer[i] = toupper(tag[i]);
+    for (size_t i = 0; i < max; i++) buffer[i] = toupper((unsigned char)tag[i]);
 
     psim = bsearch(buffer, pstab, stabcnt, sizeof(struct string_int_map), strint_cmp);
     if (psim)

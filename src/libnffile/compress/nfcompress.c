@@ -342,7 +342,7 @@ int ParseCompression(char *arg, uint32_t *compressType, uint32_t *compressLevel)
     char *s = strchr(arg, ':');
     if (s) {
         *s++ = '\0';
-        while (*s && isdigit(*s)) {
+        while (*s && isdigit((unsigned char)*s)) {
             level = 10 * level + (*s++ - 0x30);
         }
         if (*s) {
@@ -357,7 +357,7 @@ int ParseCompression(char *arg, uint32_t *compressType, uint32_t *compressLevel)
     *compressLevel = level;
 
     for (int i = 0; arg[i]; i++) {
-        arg[i] = tolower(arg[i]);
+        arg[i] = tolower((unsigned char)arg[i]);
     }
 
     if (strcmp(arg, "0") == 0) {
