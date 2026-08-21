@@ -1279,7 +1279,7 @@ static void runTest(void) {
         CheckFilter("payload content 'GET /index'", recordHandle, 1);
         CheckFilter("payload content index", recordHandle, 1);
         CheckFilter("payload content 'POST'", recordHandle, 0);
-
+#ifdef HAVE_PCRE2
         CheckFilter("payload regex 'GET'", recordHandle, 1);
         CheckFilter("payload regex '(GET|POST)'", recordHandle, 1);
         CheckFilter("payload regex 'HT{1,3}P/[0-9].[0-9]'", recordHandle, 1);
@@ -1289,6 +1289,9 @@ static void runTest(void) {
         h->exporterID = 12345;
         CheckFilter("exporter sysid 12345", recordHandle, 1);
         CheckFilter("payload regex 'gET'i and exporter sysid 12345", recordHandle, 1);
+#else
+        printf("Skip regex tests as libpcre2 has not been compiled in\n");
+#endif
     }
 
     // ================================================================
