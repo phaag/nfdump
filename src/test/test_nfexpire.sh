@@ -93,7 +93,19 @@ get_stat_field() {
     printf '%s\n' "$1" | awk -F': ' -v pat="^$2" '$0 ~ pat {print $2}'
 }
 
-ONE_FILE_BYTES=$(file_disk_bytes dummy_flows.nf)
+# Sample per-file disk usage via the exact same path every fixture in this
+# suite is created by (make_files -> cp into a fresh, empty directory), not
+# by stat'ing dummy_flows.nf in place. On some filesystems (e.g. NetBSD FFS)
+# a freshly cp'd file does not occupy the same number of blocks as the
+# original written in-place by nfgen4, even though both are byte-identical
+# and the same size - block/fragment allocation can depend on how and where
+# a file was written, not just on its size. Sampling any other way would
+# silently disagree with every real fixture the tests below create.
+SAMPLE_DIR="$WORKDIR/sample"
+mkdir -p "$SAMPLE_DIR"
+make_files "$SAMPLE_DIR" 000000000000
+ONE_FILE_BYTES=$(file_disk_bytes "$SAMPLE_DIR/nfcapd.000000000000")
+rm -rf "$SAMPLE_DIR"
 
 # ---------------------------------------------------------------------------
 # 1. The first access to an unbooked directory rescans automatically. This
