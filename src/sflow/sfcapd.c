@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -89,9 +90,9 @@ static option_t sfcapdConfig[] = {
     {.name = "tun", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
 
 /* module limited globals */
-static int done = 0;
-static int periodic_trigger;
-static int gotSIGCHLD = 0;
+static volatile sig_atomic_t done = 0;
+static volatile sig_atomic_t periodic_trigger;
+static volatile sig_atomic_t gotSIGCHLD = 0;
 
 /* Local function Prototypes */
 static void usage(char *name);
@@ -436,6 +437,7 @@ int main(int argc, char **argv) {
     unsigned bufflen, metricInterval;
     time_t twin;
     int sock, family, do_daemonize, expire, verbose, spec_time_extension;
+    sigset_t shutdown_set, signal_waitmask;
     bool parse_tun;
     unsigned subdir_index, compress, srcSpoofing;
     int numWorkers;
@@ -858,6 +860,31 @@ int main(int argc, char **argv) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
+    /*
+     * Block shutdown signals before creating in-process workers. They inherit
+     * the mask, so SIGTERM/SIGINT/SIGHUP always interrupt the main recvfrom().
+     */
+    struct sigaction act;
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = IntHandler;
+    sigemptyset(&act.sa_mask);
+    sigaction(SIGTERM, &act, NULL);
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGALRM, &act, NULL);
+    sigaction(SIGCHLD, &act, NULL);
+    sigaction(SIGPIPE, &act, NULL);
+
+    sigemptyset(&shutdown_set);
+    sigaddset(&shutdown_set, SIGTERM);
+    sigaddset(&shutdown_set, SIGINT);
+    sigaddset(&shutdown_set, SIGHUP);
+    int err = pthread_sigmask(SIG_BLOCK, &shutdown_set, &signal_waitmask);
+    if (err != 0) {
+        LogError("pthread_sigmask() failed: %s", strerror(err));
+        exit(EXIT_FAILURE);
+    }
+
     if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
         close(sock);
         exit(EXIT_FAILURE);
@@ -866,7 +893,17 @@ int main(int argc, char **argv) {
     int launcher_pid = 0;
     int pfd = 0;
     if (launch_process || expire) {
+        err = pthread_sigmask(SIG_SETMASK, &signal_waitmask, NULL);
+        if (err != 0) {
+            LogError("pthread_sigmask() failed: %s", strerror(err));
+            exit(EXIT_FAILURE);
+        }
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
+        err = pthread_sigmask(SIG_BLOCK, &shutdown_set, NULL);
+        if (err != 0) {
+            LogError("pthread_sigmask() failed: %s", strerror(err));
+            exit(EXIT_FAILURE);
+        }
     }
 
     *post_args = (post_args_t){
@@ -907,18 +944,11 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    /* Signal handling */
-    struct sigaction act;
-    memset((void *)&act, 0, sizeof(struct sigaction));
-    act.sa_handler = IntHandler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    sigaction(SIGTERM, &act, NULL);
-    sigaction(SIGINT, &act, NULL);
-    sigaction(SIGHUP, &act, NULL);
-    sigaction(SIGALRM, &act, NULL);
-    sigaction(SIGCHLD, &act, NULL);
-    sigaction(SIGPIPE, &act, NULL);
+    err = pthread_sigmask(SIG_SETMASK, &signal_waitmask, NULL);
+    if (err != 0) {
+        LogError("pthread_sigmask() failed: %s", strerror(err));
+        exit(EXIT_FAILURE);
+    }
 
     LogInfo("Startup sfcapd.");
     run(&collector_ctx, receive_packet, sock, post_args, rfd, twin, t_start, compress, parse_tun);

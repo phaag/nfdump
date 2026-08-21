@@ -64,6 +64,8 @@ static uint32_t numMetrics = 0;
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t tid = 0;
+static pthread_mutex_t wake_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t wake_cond = PTHREAD_COND_INITIALIZER;
 
 static int OpenSocket(void) {
     struct sockaddr_un addr;
@@ -138,12 +140,13 @@ int CloseMetric(void) {
     // if no MetricThread is running
     if (atomic_load(&tstart) == 0) return 0;
 
-    // signal MetricThread too terminate
+    // Wake MetricThread immediately, even when it inherited a blocked SIGINT.
     atomic_init(&tstart, 0);
-    int status = pthread_kill(tid, SIGINT);
-    if (status < 0) LogError("pthread_kill() error in %s line %d: %s", __FILE__, __LINE__, strerror(status));
+    pthread_mutex_lock(&wake_mutex);
+    pthread_cond_signal(&wake_cond);
+    pthread_mutex_unlock(&wake_mutex);
 
-    status = pthread_join(tid, NULL);
+    int status = pthread_join(tid, NULL);
     if (status < 0) LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(status));
 
     pthread_mutex_lock(&mutex);
@@ -240,7 +243,25 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
     sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
 
     while (1) {
-        nanosleep(&sleepTime, NULL);
+        struct timeval waitStart;
+        gettimeofday(&waitStart, NULL);
+        struct timespec wakeTime = {
+            .tv_sec = waitStart.tv_sec + sleepTime.tv_sec,
+            .tv_nsec = 1000L * waitStart.tv_usec + sleepTime.tv_nsec,
+        };
+        if (wakeTime.tv_nsec >= 1000000000L) {
+            wakeTime.tv_sec++;
+            wakeTime.tv_nsec -= 1000000000L;
+        }
+
+        pthread_mutex_lock(&wake_mutex);
+        int waitStatus = 0;
+        if (atomic_load(&tstart) != 0) waitStatus = pthread_cond_timedwait(&wake_cond, &wake_mutex, &wakeTime);
+        pthread_mutex_unlock(&wake_mutex);
+
+        // Ignore spurious wakeups; CloseMetric() clears tstart before waking us.
+        if (waitStatus == 0 && atomic_load(&tstart) != 0) continue;
+
         gettimeofday(&te, NULL);
 
         // check for end condition
