@@ -244,7 +244,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
 
 // live network mode
 static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, repeater_ctx_t *repeater_ctx, int *socks, int nsocks,
-                        time_t t_win) {
+                        time_t t_win, const sigset_t *signal_waitmask) {
     // prepare socket msg struct
     PacketCtx_t *pkt_ctx = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
     if (!pkt_ctx) return;
@@ -266,19 +266,10 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     time_t t_start = now - (now % t_win);
     time_t next_rotate = t_start + t_win;
 
-    // Block shutdown signals once here; pselect() unblocks them atomically
-    // during each wait.  Restored after the loop.
-    sigset_t blockmask, origmask;
-    sigemptyset(&blockmask);
-    sigaddset(&blockmask, SIGTERM);
-    sigaddset(&blockmask, SIGINT);
-    sigaddset(&blockmask, SIGHUP);
-    sigprocmask(SIG_BLOCK, &blockmask, &origmask);
-
     uint32_t repeaterDropped = 0;
     while (!done) {
         // wait for packet or timeout
-        int ret = poll_for_packet(socks, nsocks, next_rotate, &origmask);
+        int ret = poll_for_packet(socks, nsocks, next_rotate, signal_waitmask);
 
         if (ret >= 0) {
             // packet ready on socks[ret]
@@ -369,7 +360,6 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
         }
     }
 
-    sigprocmask(SIG_SETMASK, &origmask, NULL);
     if (pkt_ctx) free(pkt_ctx);
 }  // End of run_network
 
@@ -465,6 +455,7 @@ int main(int argc, char **argv) {
     unsigned bufflen, metricInterval;
     time_t twin;
     int socks[2], nsocks, family, do_daemonize, expire, verbose, spec_time_extension;
+    sigset_t signal_waitmask;
     unsigned subdir_index;
     int limitCores;
     char *pcap_file = NULL;
@@ -872,6 +863,10 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    // Workers inherit this blocked mask. pselect() in run_network() is then
+    // the only place where a shutdown signal can wake the collector thread.
+    if (!SetupShutdownSignals(&signal_waitmask)) exit(EXIT_FAILURE);
+
     threadPipeline_t pipeline = {
         .role = TC_ROLE_WRITE_ONLY,
         .hasReaders = false,
@@ -1102,16 +1097,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    /* Signal handling */
-    struct sigaction act;
-    memset((void *)&act, 0, sizeof(struct sigaction));
-    act.sa_handler = IntHandler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    sigaction(SIGTERM, &act, NULL);
-    sigaction(SIGINT, &act, NULL);
-    sigaction(SIGHUP, &act, NULL);
-
     if (nsocks <= 0 && receive_packet == NULL) {
         LogError("No packet source defined");
         CloseMetric();
@@ -1121,9 +1106,14 @@ int main(int argc, char **argv) {
 
     LogInfo("Startup sfcapd.");
     if (nsocks > 0) {
-        run_network(&collector_ctx, use_nffile_ctx, repeater_ctx, socks, nsocks, twin);
+        run_network(&collector_ctx, use_nffile_ctx, repeater_ctx, socks, nsocks, twin, &signal_waitmask);
         close_sockets(socks, nsocks);
     } else {
+        int err = pthread_sigmask(SIG_SETMASK, &signal_waitmask, NULL);
+        if (err != 0) {
+            LogError("pthread_sigmask() failed: %s", strerror(err));
+            done = 1;
+        }
         run_file_mode(&collector_ctx, use_nffile_ctx, receive_packet, twin);
     }
 
@@ -1139,6 +1129,9 @@ int main(int argc, char **argv) {
     if (launcher_tid) LauncherShutdown(launcher_ctx);
 
     CleanupCollector(&collector_ctx);
+
+    int err = pthread_sigmask(SIG_SETMASK, &signal_waitmask, NULL);
+    if (err != 0) LogError("pthread_sigmask() failed: %s", strerror(err));
 
     LogInfo("Terminating sfcapd.");
     remove_pid(pidfile);

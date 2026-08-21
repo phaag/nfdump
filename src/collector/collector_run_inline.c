@@ -40,7 +40,8 @@
  *   - static int done;            (module shutdown flag)
  *   - #include "nfnet.h"          (PacketCtx_t, init_packet_ctx)
  *   - #include "logging.h"        (LogError)
- *   - standard POSIX headers      (sys/select.h, time.h, errno.h, sys/time.h)
+ *   - standard POSIX headers      (pthread.h, signal.h, sys/select.h, time.h,
+ *                                  errno.h, sys/time.h)
  */
 
 /* Signal handler — identical in nfcapd and sfcapd */
@@ -55,6 +56,37 @@ static void IntHandler(int signal) {
             break;
     }
 }  // End of IntHandler
+
+/*
+ * Install the shutdown handler and block its signals before any worker is
+ * created.  New threads inherit this mask, leaving the collector thread as
+ * the sole receiver while pselect() temporarily restores waitmask.
+ */
+static int SetupShutdownSignals(sigset_t *waitmask) {
+    sigset_t blockmask;
+    sigemptyset(&blockmask);
+    sigaddset(&blockmask, SIGTERM);
+    sigaddset(&blockmask, SIGINT);
+    sigaddset(&blockmask, SIGHUP);
+
+    int err = pthread_sigmask(SIG_BLOCK, &blockmask, waitmask);
+    if (err != 0) {
+        LogError("pthread_sigmask() failed: %s", strerror(err));
+        return 0;
+    }
+
+    struct sigaction act;
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = IntHandler;
+    sigemptyset(&act.sa_mask);
+    if (sigaction(SIGTERM, &act, NULL) < 0 || sigaction(SIGINT, &act, NULL) < 0 || sigaction(SIGHUP, &act, NULL) < 0) {
+        LogError("sigaction() failed: %s", strerror(errno));
+        pthread_sigmask(SIG_SETMASK, waitmask, NULL);
+        return 0;
+    }
+
+    return 1;
+}  // End of SetupShutdownSignals
 
 /*
  * Read next UDP datagram into pkt_ctx.
@@ -100,9 +132,8 @@ static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct t
  *
  * Caller contract:
  *   - SIGTERM/SIGINT/SIGHUP must already be blocked in the calling thread
- *     before entering the collection loop (see run_network()).
- *   - origmask is the signal mask to restore atomically inside pselect().
- *   - The caller restores the original mask after the loop exits.
+ *     before entering the collection loop (see SetupShutdownSignals()).
+ *   - waitmask is the signal mask to restore atomically inside pselect().
  *
  * socks[0..nsocks-1] are the receive file descriptors to watch (1 or 2).
  *
@@ -112,7 +143,7 @@ static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct t
  *   -2    interrupted by signal while done == 1 (initiate shutdown)
  *   -1    fatal pselect() error (already logged)
  */
-static inline int poll_for_packet(const int *socks, int nsocks, time_t next_rotate, const sigset_t *origmask) {
+static inline int poll_for_packet(const int *socks, int nsocks, time_t next_rotate, const sigset_t *waitmask) {
     // compute nfds = max(socks[i]) + 1
     int nfds = 0;
     for (int i = 0; i < nsocks; i++)
@@ -132,9 +163,9 @@ static inline int poll_for_packet(const int *socks, int nsocks, time_t next_rota
         FD_ZERO(&rfd);
         for (int i = 0; i < nsocks; i++) FD_SET(socks[i], &rfd);
 
-        // pselect() atomically swaps in origmask (unblocking the signals)
+        // pselect() atomically swaps in waitmask (unblocking the signals)
         // for the duration of the call, then restores the blocked mask on return
-        int ret = pselect(nfds, &rfd, NULL, NULL, &ts, origmask);
+        int ret = pselect(nfds, &rfd, NULL, NULL, &ts, waitmask);
         if (ret > 0) {
             for (int i = 0; i < nsocks; i++)
                 if (FD_ISSET(socks[i], &rfd)) return i;
