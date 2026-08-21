@@ -1152,7 +1152,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         case IS_ASORG: {
             const char *org = LookupASorg(hashKey->v1);
             if (hashKey->v1 > 0)
-                snprintf(valstr, 64, "%45.45s AS%-6" PRIi64, org != NULL ? org : "unknown", hashKey->v1);
+                // AS numbers are populated from a uint32_t field (see the case 4: hashkey.v1 = *((uint32_t *)inPtr)
+                // dispatch above) - print as such so the compiler can see the real (10-digit) bound and not just
+                // int64_t's nominal 19-digit range, which is what triggered -Wformat-truncation here.
+                snprintf(valstr, 64, "%45.45s AS%-6" PRIu32, org != NULL ? org : "unknown", (uint32_t)hashKey->v1);
             else
                 snprintf(valstr, 64, "%45.45s         ", org != NULL ? org : "unknown");
         } break;

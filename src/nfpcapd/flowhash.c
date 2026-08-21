@@ -803,14 +803,12 @@ int Link_RevNode(struct FlowNode *node) {
     dbg_printf("Link node: ");
     dbg_assert(node->coldNode.rev_node == NULL);
 
-    const struct flowKey_s revKey = {.proto = node->hotNode.flowKey.proto,
-                                     .version = node->hotNode.flowKey.version,
-                                     // reverse lookup key to find reverse node
-                                     .src_addr = node->hotNode.flowKey.dst_addr,
-                                     .dst_addr = node->hotNode.flowKey.src_addr,
-                                     .src_port = node->hotNode.flowKey.dst_port,
-                                     .dst_port = node->hotNode.flowKey.src_port,
-                                     ._ALIGN = 0};
+    struct flowKey_s revKey = node->hotNode.flowKey;
+    // reverse lookup key to find reverse node
+    revKey.src_addr = node->hotNode.flowKey.dst_addr;
+    revKey.dst_addr = node->hotNode.flowKey.src_addr;
+    revKey.src_port = node->hotNode.flowKey.dst_port;
+    revKey.dst_port = node->hotNode.flowKey.src_port;
     struct FlowNode *rev_node = Lookup_Key(&revKey);
     if (rev_node) {
         dbg_printf("Found revnode ");
