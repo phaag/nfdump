@@ -30,7 +30,7 @@
 .Os
 .Sh NAME
 .Nm nfpcapd
-.Nd pcap capture to netflow daemon
+.Nd packet-capture to NetFlow daemon
 .Sh SYNOPSIS
 .Nm
 .Fl i Ar interface
@@ -71,7 +71,7 @@ records. Nfdump records are written either locally to a directory in
 the same format as nfcapd, or can be forwarded to a nfcapd collector
 somewhere else in the network.
 .Nm
-is nfcapd's pcap brother and shares many options and generates the same type of files.
+is nfcapd's packet-capture counterpart, shares many options, and generates the same type of files.
 .Nm
 likewise creates, rotates and stores files. See also
 .Xr nfcapd 1
@@ -84,8 +84,8 @@ unnecessary conversion step.
 .Pp
 .Nm
 optionally also stores pcap traffic data in separate files and
-uses the same rotation interval as for the netflow data. Storing pcap
-traffic data file is only possible locally.
+uses the same rotation interval as the NetFlow data. Storing PCAP traffic data
+files is only possible locally.
 .Pp
 .Nm
 is multithreaded and uses separate threads for packet, netflow
@@ -93,9 +93,9 @@ and pcap processing.
 .Sh OPTIONS
 .Bl -tag -width Ds
 .It Fl i Ar interface
-Listen on this interface in promisc mode for packet processing.
+Listen on this interface in promiscuous mode for packet processing.
 .It Fl r Ar file
-Read and process packets from this file. This file is a pcap compatible file.
+Read and process packets from this file. This file must be PCAP-compatible.
 .It Fl s Ar snaplen
 Limit the snaplen on collected packets. The default is 1522 bytes. The
 snaplen needs to be large enough to process all required protocols. The
@@ -114,7 +114,7 @@ Inactive timeout: A flow gets flushed to disk after being inactive for this numb
 .El
 On busy networks these values can be set to more aggressive timeouts.
 .It Fl I Ar ident
-Specifies an ident string, which describes the source e.g. the name of the interface or host. This string is put into the stat record to identify the source. Default is 'none'. Same as nfcapd(1).
+Specifies an ident string describing the source, for example the name of the interface or host. This string is put into the stat record to identify the source. Default is 'none'. Same as nfcapd(1).
 .It Fl C Ar config
 Read runtime configuration from
 .Ar config .
@@ -129,7 +129,7 @@ If a sub hierarchy is specified with
 the final directory is concatenated to
 .Ar base_directory/sub_hierarchy .
 .It Fl p Ar pcapdir
-Optionally stores network packets in pcap compatible files in this directory and rotate files the same as the flow files. Sub hierarchy directories are applied likewise.
+Optionally stores network packets in PCAP-compatible files in this directory and rotates files at the same time as the flow files. Subhierarchy directories are applied likewise.
 .It Fl H Ar host[/port]
 Send nfdump records to a remote
 .Xr nfcapd 1
@@ -147,7 +147,7 @@ The base directory (
 .Fl w )
 is concatenated with the specified sub hierarchy format to form the final data directory. For a full list of hierarchies see nfcapd(1).
 .It Fl t Ar interval
-Specifies the time interval in seconds to rotate files. The default value is 300s ( 5min ). The smallest interval can be set to 2s. The intervals are in sync with wall clock.
+Specifies the time interval in seconds to rotate files. The default value is 300 seconds (five minutes). The smallest interval is 2 seconds. The intervals are synchronized with the wall clock.
 .It Fl P Ar pidfile
 Specify name of pidfile. Default is no pidfile.
 .It Fl D
@@ -155,14 +155,14 @@ Daemon mode: fork to background and detach from terminal.
 .Nm
 terminates on signal TERM, INT and HUP.
 .It Fl d
-De-duplicate packets with a window size of 8. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they are de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
+De-duplicate packets with a window size of 8. This option is useful if packets in a PCAP file are duplicated. If packets on multiple span ports are sent to the collector, they are de-duplicated within the window size. Note: de-duplication operates from the IP layer to the end of the packet, so layer-1 and VLAN/MPLS headers are stripped.
 If used together with
 .Fl p ,
 the resulting pcaps are de-duplicated as well.
 .It Fl v
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
-printf netflow records in raw format while collecting. Please note, that not all elements
-are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
+print NetFlow records in raw format while collecting. Please note that not all elements
+are printed. This option is for debugging purposes only, to verify that incoming NetFlow data is processed correctly.
 .It Fl u Ar userid
 Change to the user
 .Ar userid
@@ -175,7 +175,7 @@ as soon as possible. Only root is allowed to use this option. Uid/Gid is switche
 Adds options to nfpcapd. Two options are available:
 .Bl -item -compact
 .It
-fat     Add Mac addresses, optional Vlan and MPLS labels.
+fat     Add MAC addresses, optional VLAN and MPLS labels.
 .It
 payload   Add the payload bytes of the first packet of a connection.
 .El

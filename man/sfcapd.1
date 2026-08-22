@@ -30,7 +30,7 @@
 .Os
 .Sh NAME
 .Nm sfcapd
-.Nd sflow collector for sflow version v2/v4 and v5
+.Nd sFlow collector for sFlow v2/v4 and v5
 .Sh SYNOPSIS
 .Nm 
 .Fl w Ar flowdir
@@ -79,18 +79,18 @@ The 1.8.x collector uses the rewritten sFlow decoder and the shared threaded
 V3 backend. Its receive, rotation, forwarding, and encrypted-backend behavior
 matches the corresponding nfcapd facilities where the protocols apply.
 .Pp
-If you want to collect netflow data, please have a look at
+If you want to collect NetFlow data, please have a look at
 .Ar nfcapd
 which is also part of the nfdump tools. 
 .Pp
-Sflow is an industry standard developed by InMon Corporation.  For more information see http://sflow.org.
+sFlow is an industry standard developed by InMon Corporation. For more information see http://sflow.org.
 .Pp
 .Nm 
-is the twin of
-.Ar nfcapd
-and supports the same feature set. See also 
-.Ar nfcapd(1)
-for more details.
+shares the common collector features of
+.Xr nfcapd 1 .
+See also
+.Xr nfcapd 1
+for details.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -115,9 +115,8 @@ is specified, then no config file is read, even if found in the search path.
 .It Fl p Ar portnum
 Set the port number to listen. Default port is 9995
 .It Fl d Ar interface
-Reads sflow data from an erspan encoded datalink. All traffic sent to this 
-.Ar interface
-is interpreted as sflow data stream.
+Reads sFlow packets from a capture interface. Requires a build configured
+with \fB--enable-readpcap\fR.
 .It Fl b Ar bindhost
 Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be an IP address or a hostname, 
 resolving to a local IP address.
@@ -164,7 +163,7 @@ are not supported when
 .Fl H
 is active.
 .It Fl A
-Sets source address spoofing mode for the repeater. The source address of the repeated packages
+Sets source address spoofing mode for the repeater. The source address of the repeated packets
 is set to the original IP address. This needs
 .Nm
 to be started with root privileges. Please note, that source spoofing may be blocked by firewalls or
@@ -174,8 +173,10 @@ Sets
 .Ar ident
 as identification string for the current source. This string is written into the output file to identify
 the source. Default is 'none'. If you have multiple sources, see option
+.Fl n
+below.
 .It Fl n Ar 'ident,IPList,flowdir'
-Configures a NetFlow/IPFIX source identified by the string
+Configures an sFlow source identified by the string
 .Ar ident,IPList,flowdir .
 The
 .Ar IPList
@@ -198,8 +199,8 @@ with multiple
 .Fl n
 options.
 .It Fl M Ar flowdir
-Set the flow directory for dynamic allocated exporters. New exporters are dynamically added when sending data.
-All exporters send netflow data to the same port and IP. For each dynamically added source, a new sub directory
+Set the flow directory for dynamically allocated exporters. New exporters are dynamically added when sending data.
+All exporters send sFlow data to the same port and IP. For each dynamically added source, a new subdirectory
 is created under 
 .Ar flowdir
 with the name of the IP address of the exporter. All '.' and ':" in IP addresses are replaced by '-'.
@@ -226,11 +227,11 @@ needs to be started as user root.
 .It Fl B Ar bufflen
 Sets the network socket input buffer to
 .Ar bufflen
-bytes. For high volume traffic it is recommended to raise this value to typically > 100k,
+bytes. For high-volume traffic it is recommended to raise this value to typically more than 100 kB,
 otherwise you risk to lose packets. The default is OS (and kernel) dependent.
 .It Fl S Ar num
-Adds an additional directory sub hierarchy to store the data files. The default is 0, no 
-sub hierarchy, which means all files go directly into
+Adds an additional directory subhierarchy to store the data files. The default is 0, no
+subhierarchy, which means all files go directly into
 .Ar flowdir .
 The 
 .Ar flowdir
@@ -257,13 +258,13 @@ The following hierarchies are defined:
 8 %Y-%m-%d/%H year-month-day/hour
 .El
 .It Fl t Ar interval
-Sets the time interval in seconds to rotate files. The default value is 300s ( 5min ).
+Sets the time interval in seconds to rotate files. The default value is 300 seconds (five minutes).
 The smallest available interval is 2s.
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
-to use bz2 in a real time capturing.
+to use bz2 for real-time capture.
 .It Fl z=lz4[:level]
 Compress flow files with LZ4 compression. Fast and efficient. Optional level should be between 1..10
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
@@ -465,7 +466,7 @@ Enables the flow metric exporter. Flow metric information is sent to the UNIX so
 .Ar metricpath
 at the rate specified by
 .Fl i
-This option may by used to export flow metric information to other systems such as InfluxDB or Prometheus.
+This option may be used to export flow metric information to other systems such as InfluxDB or Prometheus.
 Please note: The flow metric does not include the full record. Only the flow statistics is sent.
 .It Fl i Ar metricrate
 Sets the interval for the flow metric exporter. This interval may be different from the file rotation
@@ -474,8 +475,8 @@ interval
 and is therefore independent from file rotation.
 .It Fl v Ar level
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
-printf netflow records in raw format while collecting. Please note, that not all elements
-are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
+print sFlow records in raw format while collecting. Please note that not all elements
+are printed. This option is for debugging purposes only, to verify that incoming sFlow data is processed correctly.
 .It Fl Z
 Append the local timezone offset to rotated file names.
 .It Fl V
@@ -485,6 +486,14 @@ version and exit.
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
+.Sh SECURITY
+.Nm
+parses network data supplied by exporters and should be exposed only to trusted
+sources. Bind it to the intended collector address and enforce a source-address
+allowlist in the host or network firewall. The
+.Fl n
+source filter provides an additional application-level restriction, but does not
+replace firewall filtering.
 .Sh EXIT STATUS
 .Nm
 returns 0 on success and 255 if initialization failed.

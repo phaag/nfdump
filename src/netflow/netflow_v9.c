@@ -808,7 +808,8 @@ static template_t *newTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
 
 }  // End of newTemplate
 
-static int removeTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
+/* Kept for future template-withdrawal support. */
+static int __attribute__((unused)) removeTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
     if (exporter_v9->templateCapacity == 0) return 0;
 
     uint32_t mask = exporter_v9->templateCapacity - 1;

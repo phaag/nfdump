@@ -951,11 +951,6 @@ int Link_RevNode(struct FlowNode *node) {
 
     dbg_printf("Link node: ");
     dbg_assert(node->coldNode.rev_node == NULL);
-    // Start from a whole-object copy of the already fully-defined forward key (proto/version/_ALIGN
-    // and any compiler-inserted tail padding all carry over as-is, so they stay consistent with every
-    // other flowKey_s in the table), then swap the direction-dependent fields for the reverse lookup.
-    // Building this via a from-scratch designated initializer instead reads as "uninitialized" to gcc's
-    // -Wuninitialized once metrohash64_1() is inlined down to a raw byte read of the struct's padding.
     lookup_node.hotNode.flowKey = node->hotNode.flowKey;
     lookup_node.hotNode.flowKey.src_addr = node->hotNode.flowKey.dst_addr;
     lookup_node.hotNode.flowKey.dst_addr = node->hotNode.flowKey.src_addr;

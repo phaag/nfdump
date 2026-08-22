@@ -91,7 +91,7 @@ to tcpdump, but adapted and extended for flow filtering. A flow filter may also 
 arrays of many thousand IP addresses etc. to search for specific records.
 .Pp
 .Nm
-can aggreagte flows according to a user defined number of elements. This masks certain
+can aggregate flows according to a user-defined number of elements. This masks certain
 elements and allows to sum up flow records matching the same values.
 .Pp
 The combination of flow filtering and aggregation as input for any flow statistics
@@ -112,7 +112,7 @@ database, created by the
 program from the nfdump tools.
 .Ar geolookup
 uses the
-.Ar Maxmind
+.Ar MaxMind
 database
 .Ar GeoDB
 or
@@ -120,7 +120,7 @@ or
 to create a binary lookup database for
 .Nm
 Please check the
-.Ar geolooup(1)
+.Xr geolookup 1
 man page for more details.
 .Pp
 The options are as follows:
@@ -248,7 +248,7 @@ statistics output, which is a different, non-flow record type.
 .It Fl c Ar num
 Limit the number of records to be processed to the first
 .Ar num
-records, which passwd the
+records that pass the
 .Ar filter.
 .It Fl a
 Aggregate flow records. The default aggregation is done at connection level by taking the 5-tuple
@@ -922,7 +922,7 @@ to order flows by start time.
 .It Fl X
 Compiles the
 .Ar filter
-syntax and dumps the filter engine table to stdout. This is for debugging purpose only.
+syntax and dumps the filter engine table to stdout. This is for debugging purposes only.
 .It Fl Z
 Check
 .Ar filter
