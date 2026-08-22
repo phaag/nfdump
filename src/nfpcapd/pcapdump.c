@@ -121,14 +121,14 @@ static int AppendDumpFile(const char *fileName, int snaplen, int linkType) {
 
     // Sanity check
     if (hdr.version_major != PCAP_VERSION_MAJOR || hdr.version_minor != PCAP_VERSION_MINOR) {
-        LogError("%s() major/minor (%u/%u) version missmatch for file: %s", __func__, hdr.version_major, hdr.version_minor, fileName);
+        LogError("%s() major/minor (%u/%u) version mismatch for file: %s", __func__, hdr.version_major, hdr.version_minor, fileName);
         close(fd);
         return -1;
     }
 
     // Verify compatibility
     if ((int)hdr.snaplen != snaplen || (int)hdr.linktype != linkType) {
-        LogError("%s() snaplen/linktype (%u/%u) version missmatch for file: %s", __func__, hdr.version_major, hdr.version_minor, fileName);
+        LogError("%s() snaplen/linktype (%u/%u) version mismatch for file: %s", __func__, hdr.version_major, hdr.version_minor, fileName);
         close(fd);
         return -1;
     }

@@ -391,7 +391,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
 
             // setup new dynamic source
             if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
-                LogError("Failed to initialise bookkeeper for new source");
+                LogError("Failed to initialize bookkeeper for new source");
                 // fatal error
                 return;
             }

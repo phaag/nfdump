@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
             if (strlen(arg) > 2 && (valid_ipv4(arg))) {
                 LookupIP(arg);
             } else {
-                LogError("Not a valid IPv4 or IPv6: ", arg);
+                LogError("Not a valid IPv4 or IPv6: %s", arg);
                 exit(EXIT_FAILURE);
             }
         }
@@ -373,8 +373,9 @@ int main(int argc, char **argv) {
                 LogError("Line length error");
                 exit(EXIT_FAILURE);
             }
+            // last line on stdin may not be newline terminated
             char *eol = strchr(line, '\n');
-            *eol = '\0';
+            if (eol) *eol = '\0';
 
             // split ' ' separated words and check, if it's an IPv4/v6
             char *sep = " (";

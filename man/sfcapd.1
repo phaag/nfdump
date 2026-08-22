@@ -52,7 +52,7 @@
 .Op Fl d Ar device
 .Op Fl I Ar ident
 .Op Fl b Ar bindhost
-.Op Fl f Ar flowfile
+.Op Fl f Ar pcapfile
 .Op Fl 4
 .Op Fl 6
 .Op Fl J Ar mcastgroup
@@ -116,8 +116,10 @@ Reads sflow data from an erspan encoded datalink. All traffic sent to this
 .Ar interface
 is interpreted as sflow data stream.
 .It Fl b Ar bindhost
-Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be an IP address or a hostname, 
+Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be an IP address or a hostname,
 resolving to a local IP address.
+.It Fl f Ar pcapfile
+Offline mode: Read sflow data from pcap file, instead of the network. Need --enable-readpcap for configure
 .It Fl 4
 Forces
 .Nm

@@ -287,7 +287,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
         }
 
 #else
-        LogError("Reading pcapd file: MAGIC missmatch - not a pcap file");
+        LogError("Reading pcapd file: MAGIC mismatch - not a pcap file");
         queue_free(readerParam->batchQueue);
         return -1;
 #endif

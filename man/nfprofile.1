@@ -33,8 +33,19 @@
 .Nd netflow profiler
 .Sh SYNOPSIS
 .Nm
-.Op Fl hV
-.Op Fl DIpPifjrLMStVyzZ Ar params
+.Op Fl hVIZ
+.Op Fl p Ar profiledir
+.Op Fl P Ar statdir
+.Op Fl r Ar file
+.Op Fl M Ar dirlist
+.Op Fl f Ar filterfile
+.Op Fl S Ar num
+.Op Fl t Ar time
+.Op Fl L Ar facility
+.Op Fl z=<compress>
+.Op Fl j
+.Op Fl y
+.Op Fl i Ar url
 .Sh DESCRIPTION
 .Nm
 is the netflow profiler program for NfSen.
@@ -57,10 +68,43 @@ Print help text to stdout and exit.
 Print
 .Nm
 version and exit.
-.It Fl p Ar profile data directory
-Specify the profile data directory
+.It Fl I
+Read profile parameters from stdin, instead of being invoked with a single profile's parameters.
+.It Fl Z
+Check filter syntax and exit.
+.It Fl p Ar profiledir
+Specify the profile data directory.
 .It Fl P Ar statdir
-Specify the profile stat directory
+Specify the profile stat directory.
+.It Fl S Ar num
+Sub directory format. See
+.Xr nfcapd 1
+for format.
+.It Fl r Ar file
+Read input from this single file.
+.It Fl M Ar dirlist
+Read input from multiple directories, ':' separated.
+.It Fl f Ar filterfile
+Read the netflow filter to apply from this file.
+.It Fl t Ar time
+Time slot, passed through to the RRD update for this run.
+.It Fl L Ar facility
+Set the syslog facility to log to.
+.It Fl z=lzo
+LZO compress flows in output file.
+.It Fl z=bz2
+BZIP2 compress flows in output file.
+.It Fl z=lz4[:level]
+LZ4 compress flows in output file.
+.It Fl z=zstd[:level]
+ZSTD compress flows in output file.
+.It Fl j
+Legacy shorthand for -z=bz2.
+.It Fl y
+Legacy shorthand for -z=lz4.
+.It Fl i Ar url
+InfluxDB URL to write stats to, e.g. http://localhost:8086/write?db=mydb&u=user&p=pass .
+Only available if built with InfluxDB support.
 .El
 .Sh EXIT STATUS
 .Nm

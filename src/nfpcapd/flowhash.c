@@ -146,7 +146,7 @@ static uint32_t checkRun = 0;
  * Empty slabs are freed, if they are no longer needed.
  * The current implementation works under the current design:
  * 1 packet thread, 1 flow thread
- * All slab maintainance such as Extend_NodeCache Shrink_NodeCache, drain GlobalFree and
+ * All slab maintenance such as Extend_NodeCache Shrink_NodeCache, drain GlobalFree and
  * New_Node are touched exclusively by the packet thread and the flow thread exclusively
  * calls Free_node() and atomically add the freed node to GlobalFree. If this changes
  * the design needs to be adapted accordingly.

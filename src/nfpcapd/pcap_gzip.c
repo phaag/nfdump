@@ -64,7 +64,7 @@ int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader,
     }
 
     if (fileHeader->magic != 0xd4c3b2a1 && fileHeader->magic != 0xa1b2c3d4) {
-        LogError("Reading compressed pcapd file: MAGIC missmatch - not a pcap file");
+        LogError("Reading compressed pcapd file: MAGIC mismatch - not a pcap file");
         gzclose(gz);
         return 0;
     }
