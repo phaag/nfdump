@@ -19,7 +19,8 @@ TESTS += test_compress_zstd.sh
 endif
 
 if ENABLE_READPCAP
-TESTS += test_nfcapd.sh
+check_PROGRAMS += sflowgen
+TESTS += test_nfcapd.sh test_sfcapd.sh
 endif
 
 AM_TESTS_ENVIRONMENT = \
@@ -51,9 +52,13 @@ test_append_SOURCES = test_append.c
 test_append_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
 test_append_LDFLAGS = -L../libnffile
 
+sflowgen_SOURCES = sflowgen.c
+sflowgen_LDFLAGS =
+
 EXTRA_DIST = testsetup.sh \
              test_prepare.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh \
              test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh \
-             test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh
+             test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh test_sfcapd.sh \
+             sflowgen.c
 EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt
 CLEANFILES = $(check_PROGRAMS) test.flows.nf dummy_flows.nf *.gch

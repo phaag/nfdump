@@ -38,7 +38,8 @@
 #
 #   BINDIR, TESTDATA                — directory paths
 #   MAXMIND_TESTDATA                — test/maxmind/ fixture directory
-#   NFCAPD_BIN, NFDUMP_BIN,         — binary paths
+#   NFCAPD_BIN, SFCAPD_BIN,         — collector binary paths
+#   NFDUMP_BIN, SFLOWGEN_BIN,       — tool and fixture-generator binary paths
 #   NFREPLAY_BIN, NFEXPIRE_BIN, NFMETA_BIN,
 #   NFANON_BIN, GEOLOOKUP_BIN
 #   nfcapd(), nfdump(), nfreplay(), — wrapper functions (-G none pre-applied
@@ -61,7 +62,9 @@ TESTDATA=$(cd "$SCRIPT_DIR/../../test/nfcapd" 2>/dev/null && pwd)
 MAXMIND_TESTDATA=$(cd "$SCRIPT_DIR/../../test/maxmind" 2>/dev/null && pwd)
 
 NFCAPD_BIN="$BINDIR/nfcapd/nfcapd"
+SFCAPD_BIN="$BINDIR/sflow/sfcapd"
 NFDUMP_BIN="$BINDIR/nfdump/nfdump"
+SFLOWGEN_BIN="$BINDIR/test/sflowgen"
 NFREPLAY_BIN="$BINDIR/nfreplay/nfreplay"
 NFEXPIRE_BIN="$BINDIR/nfexpire/nfexpire"
 NFANON_BIN="$BINDIR/nfanon/nfanon"
