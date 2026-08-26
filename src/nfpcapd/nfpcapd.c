@@ -59,6 +59,7 @@
 #include <unistd.h>
 
 #include "backend/nffile_backend.h"
+#include "backend/remote_backend.h"
 #include "bookkeeper.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
@@ -71,7 +72,6 @@
 #include "flist.h"
 #include "flowdump.h"
 #include "flowhash.h"
-#include "flowsend.h"
 #include "ip_frag.h"
 #include "logging.h"
 #include "metric.h"
@@ -95,6 +95,11 @@
 #define PROMISC 1
 #define TIMEOUT 500
 #define FILTER "ip"
+#define NFPCAPD_UDP_BLOCK_FLUSH 1200u
+/* Margin above NFPCAPD_UDP_BLOCK_FLUSH for one more max-size record before the
+ * threshold check fires (payload capture up to MAX_FLOW_PAYLOAD=4096 bytes,
+ * plus record header/extension-directory overhead). */
+#define NFPCAPD_UDP_BLOCK_HEADROOM 8192u
 
 // global static var: used by interrupt routine
 static _Atomic uint32_t done = 0;
@@ -501,9 +506,6 @@ int main(int argc, char *argv[]) {
 
     flushParam_t flushParam = {.extensionFormat = time_extension};
     flowParam_t flowParam = {
-        .extensionFormat = time_extension,
-        .compressType = compressType,
-        .compressLevel = compressLevel,
     };
     packetParam_t packetParam = {0};
     readerParam_t readerParam = {0};
@@ -557,8 +559,6 @@ int main(int argc, char *argv[]) {
         sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &(sendHost->addr), &(sendHost->addrlen));
         if (sendHost->sockfd <= 0) exit(EXIT_FAILURE);
         dbg_printf("Replay flows to host: %s port: %s\n", sendHost->hostname, sendHost->port);
-        flowParam.sendHost = sendHost;
-
         /* Derive UDP transport key if a passphrase was provided via -k.
          * When -H is active, -k means UDP transport encryption. */
         if (transfer_ctx) {
@@ -569,7 +569,6 @@ int main(int argc, char *argv[]) {
                 LogError("Failed to derive UDP session key — aborting");
                 exit(EXIT_FAILURE);
             }
-            flowParam.udpSessionKey = udpSessionKey;
             // Read rekey interval from nfdump.conf [common] section.
             // crypt.rekeyIntervalSecs = 0 or missing -> rekeying disabled (single session key).
             uint32_t rekeyIntervalSecs = REKEY_INTERVALSECS_DEFAULT;
@@ -661,6 +660,16 @@ int main(int argc, char *argv[]) {
             LogError("initialize nffile backend failed.");
             exit(EXIT_FAILURE);
         }
+    } else {
+        fs = newSendFlowSource(Ident);
+        if (!fs) {
+            LogError("Failed to create UDP flow source");
+            exit(EXIT_FAILURE);
+        }
+        if (Init_udpsend_backend(fs, sendHost, udpSessionKey) != 0) {
+            LogError("Failed to initialise UDP send backend");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout, expireInterval, maxNodes, maxPayloadBytes)) {
@@ -720,7 +729,8 @@ int main(int argc, char *argv[]) {
     flowParam.done = &done;
     flowParam.fs = fs;
     flowParam.t_win = t_win;
-    flowParam.subdir_index = subdir_index;
+    flowParam.blockFlushThreshold = sendHost ? NFPCAPD_UDP_BLOCK_FLUSH : 0;
+    flowParam.blockAllocSize = sendHost ? (NFPCAPD_UDP_BLOCK_FLUSH + NFPCAPD_UDP_BLOCK_HEADROOM) : BLOCK_SIZE_V3;
     flowParam.parent = pthread_self();
     flowParam.NodeList = NewNodeList(maxOutputNodes);
     if (!flowParam.NodeList) {
@@ -730,10 +740,16 @@ int main(int argc, char *argv[]) {
     flowParam.printRecord = (do_daemonize == 0) && (verbose > 2);
     int err = 0;
     if (sendHost) {
-        err = pthread_create(&flowParam.tid, NULL, sendflow_thread, (void *)&flowParam);
-    } else {
-        err = pthread_create(&flowParam.tid, NULL, flow_thread, (void *)&flowParam);
+        if (!Launch_udpsend_backend(fs)) {
+            LogError("Failed to start UDP send backend");
+            exit(EXIT_FAILURE);
+        }
+    } else if (!Launch_nffile_backend(fs)) {
+        LogError("Failed to start nffile backend");
+        exit(EXIT_FAILURE);
     }
+
+    err = pthread_create(&flowParam.tid, NULL, flow_thread, (void *)&flowParam);
     if (err) {
         LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         exit(EXIT_FAILURE);
@@ -785,7 +801,9 @@ int main(int argc, char *argv[]) {
 
     Dispose_FlowTree();
 
-    if (datadir) {
+    if (sendHost) {
+        Close_udpsend_backend(fs);
+    } else {
         close_nffile_backend(fs, expire);
     }
 

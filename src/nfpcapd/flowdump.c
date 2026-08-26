@@ -46,8 +46,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "backend/nffile_backend.h"
-#include "bookkeeper.h"
 #include "collector.h"
 #include "config.h"
 #include "exporter.h"
@@ -69,14 +67,22 @@ static int printRecord = 0;
 #define MAX_FLOW_PAYLOAD 4096u
 #include "nffile_inline.c"
 
-static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node);
+static int AppendPcapFlowRecord(flowParam_t *flowParam, struct FlowNode *Node);
+static int QueueFlowBlock(flowParam_t *flowParam);
+static int AllocateFlowBlock(flowParam_t *flowParam);
+static int EmitCycleMessage(flowParam_t *flowParam, time_t when, int done);
 
-static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
+/*
+ * The flow thread is deliberately backend-agnostic: it turns FlowNodes into
+ * complete V4 records in V3 flow blocks and hands those blocks to the selected
+ * collector backend through fs->blockQueue.  Both the nffile and UDP backends
+ * therefore consume exactly the same stream.
+ */
+static int AppendPcapFlowRecord(flowParam_t *flowParam, struct FlowNode *Node) {
     FlowSource_t *fs = flowParam->fs;
-    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
 
     if (!fs->dataBlock) {
-        LogError("StorePcapFlow(): no output block; dropping flow");
+        LogError("AppendPcapFlowRecord(): no output block; dropping flow");
         return 0;
     }
 
@@ -161,18 +167,12 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     uint32_t recordSize = baseOffset + extensionSize;
 
     // ── Buffer check — single check, no retry loop ──
-    if (!IsAvailable(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize, recordSize)) {
-        PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
-        fs->dataBlock = NULL;
-        InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
-        if (!fs->dataBlock) {
-            LogError("StorePcapFlow(): out of memory allocating output block");
-            return 0;
-        }
+    if (!IsAvailable(fs->dataBlock, flowParam->blockAllocSize, recordSize)) {
+        if (!QueueFlowBlock(flowParam) || !AllocateFlowBlock(flowParam)) return 0;
     }
-    uint32_t available = nffile_ctx->nffile->fileHeader->blockSize - fs->dataBlock->rawSize;
+    uint32_t available = flowParam->blockAllocSize - fs->dataBlock->rawSize;
     if (available < recordSize) {
-        LogError("StorePcapFlow(): output buffer size error. Skip record");
+        LogError("AppendPcapFlowRecord(): output buffer size error. Skip record");
         return 0;
     }
 
@@ -357,6 +357,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     // update first_seen, last_seen
     UpdateFirstLast(fs->dataBlock, genericFlow->msecFirst, genericFlow->msecLast);
+    fs->dataBlock->extensionBitmap |= bitMap;
 
     // Update stats
     stat_record_t *stat_record = &fs->stat_record;
@@ -386,7 +387,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     stat_record->numbytes += genericFlow->inBytes;
 
     uint32_t exporterIdent = MetricExpporterID(recordHeader);
-    UpdateMetric(nffile_ctx->nffile->ident, exporterIdent, genericFlow);
+    UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
     if (printRecord) {
         flow_record_short(stdout, recordHeader);
@@ -396,140 +397,142 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     fs->dataBlock->numRecords += 1;
     fs->dataBlock->rawSize += recordSize;
 
+    /* UDP delivery must not wait for a complete storage-sized (BLOCK_SIZE_V3) block. */
+    if (flowParam->blockFlushThreshold && fs->dataBlock->rawSize >= flowParam->blockFlushThreshold) {
+        if (!QueueFlowBlock(flowParam) || !AllocateFlowBlock(flowParam)) return 0;
+    }
+
     return 1;
 
-} /* End of StorePcapFlow */
+} /* End of AppendPcapFlowRecord */
 
-static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
-    struct tm tmBuff = {0};
-    struct tm *now = localtime_r(&timestamp, &tmBuff);
-
-    char fmt[32];
-    strftime(fmt, sizeof(fmt), flowParam->extensionFormat, now);
-
+static int AllocateFlowBlock(flowParam_t *flowParam) {
     FlowSource_t *fs = flowParam->fs;
-    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
-    char fileName[MAXPATHLEN];
-    int pos = SetupPath(now, nffile_ctx->datadir, nffile_ctx->subdir, fileName);
-    char *p = fileName + (ptrdiff_t)pos;
-    snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
-
-    // update stat record
-    // if no flows were collected, fs->last_seen is still 0
-    // set first_seen to start of this time slot, with twin window size.
-    if (fs->stat_record.msecLastSeen == 0) {
-        fs->stat_record.msecFirstSeen = 1000LL * (uint64_t)timestamp;
-        fs->stat_record.msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
+    fs->dataBlock = NewFlowBlock(flowParam->blockAllocSize);
+    if (!fs->dataBlock) {
+        LogError("flow_thread: unable to allocate output block");
+        return 0;
     }
-    memcpy(nffile_ctx->nffile->stat_record, &fs->stat_record, sizeof(stat_record_t));
-    FlushExporter(fs);
-    FlushFileV3(nffile_ctx->nffile);
+    return 1;
+}
 
-    // if rename fails, we are in big trouble, as we need to get rid of the old .current file
-    // otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppendV3(nffile_ctx->nffile->fileName, fileName) < 0) {
-        LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
+static int QueueFlowBlock(flowParam_t *flowParam) {
+    FlowSource_t *fs = flowParam->fs;
+    if (!fs->dataBlock) return 1;
+
+    if (fs->dataBlock->numRecords != 0) {
+        if (queue_push(fs->blockQueue, fs->dataBlock) == QUEUE_CLOSED) {
+            LogError("flow_thread: backend queue closed while queuing flow block");
+            FreeDataBlock(fs->dataBlock);
+            fs->dataBlock = NULL;
+            return 0;
+        }
     } else {
-        struct stat fstat;
-        // Update books
-        stat(fileName, &fstat);
-        book_update(nffile_ctx->book_handle, timestamp, STAT_BLOCK_SIZE * fstat.st_blocks);
+        FreeDataBlock(fs->dataBlock);
     }
+    fs->dataBlock = NULL;
+    return 1;
+}
+
+static int EmitCycleMessage(flowParam_t *flowParam, time_t when, int done) {
+    FlowSource_t *fs = flowParam->fs;
+
+    // snapshot the block's own min/max before QueueFlowBlock() releases it
+    if (fs->dataBlock && fs->dataBlock->numRecords) {
+        if (fs->dataBlock->msecFirst < fs->stat_record.msecFirstSeen || fs->stat_record.msecFirstSeen == 0)
+            fs->stat_record.msecFirstSeen = fs->dataBlock->msecFirst;
+        if (fs->dataBlock->msecLast > fs->stat_record.msecLastSeen) fs->stat_record.msecLastSeen = fs->dataBlock->msecLast;
+    }
+
+    if (!QueueFlowBlock(flowParam)) return 0;
+
+    msgBlockV3_t *msgBlock = NULL;
+    InitDataBlock(msgBlock, BLOCK_SIZE_V3);
+    if (!msgBlock) {
+        LogError("flow_thread: unable to allocate cycle message block");
+        return 0;
+    }
+
+    cycle_message_t message = {.type = MESSAGE_CYCLE, .length = sizeof(cycle_message_t), .when = when, .done = done};
+    memcpy(&message.stat_record, &fs->stat_record, sizeof(message.stat_record));
+    memcpy(GetCursor(msgBlock), &message, sizeof(message));
+    msgBlock->rawSize += sizeof(message);
+    msgBlock->numMessages = 1;
+
+    if (queue_push(fs->blockQueue, msgBlock) == QUEUE_CLOSED) {
+        LogError("flow_thread: backend queue closed while queuing cycle message");
+        FreeDataBlock(msgBlock);
+        return 0;
+    }
+
     LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->stat_record.numflows,
             (unsigned long long)fs->stat_record.numpackets, (unsigned long long)fs->stat_record.numbytes);
-
-    CloseFileV3(nffile_ctx->nffile);
-    nffile_ctx->nffile = NULL;
-
-    // reset stats
     fs->bad_packets = 0;
+    memset(&fs->stat_record, 0, sizeof(fs->stat_record));
 
-    // Dump all exporters to the buffer
-
-    return 0;
-}  // end of CloseFlowFile
+    if (done) {
+        queue_close(fs->blockQueue);
+        return 1;
+    }
+    return AllocateFlowBlock(flowParam);
+}
 
 __attribute__((noreturn)) void *flow_thread(void *thread_data) {
-    // argument dispatching
     flowParam_t *flowParam = (flowParam_t *)thread_data;
     FlowSource_t *fs = flowParam->fs;
-    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
 
     printRecord = flowParam->printRecord;
-    // prepare file
-    nffile_ctx->nffile =
-        OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType, nffile_ctx->compressLevel, nffile_ctx->crypto_ctx);
-    if (!nffile_ctx->nffile) {
+    if (!AllocateFlowBlock(flowParam)) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
     }
-    InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
-    if (!fs->dataBlock) {
-        LogError("Fatal: unable to allocate initial output block");
-        pthread_kill(flowParam->parent, SIGUSR1);
-        pthread_exit((void *)flowParam);
-    }
-    nffile_ctx->nffile->ident = strdup(fs->Ident);
 
-    // init flow source
     fs->bad_packets = 0;
     int done = 0;
     while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
         if (!Node) {
-            FlushBlockV3(nffile_ctx->nffile, fs->dataBlock);
-            CloseFlowFile(flowParam, flowParam->NodeList->closeTimestamp);
+            if (!EmitCycleMessage(flowParam, flowParam->NodeList->closeTimestamp, 1)) pthread_kill(flowParam->parent, SIGUSR1);
             break;
         }
+
         dbg_assert(Node->memflag == NODE_IN_USE);
         switch (Node->nodeType) {
             case FLOW_NODE:
-                StorePcapFlow(flowParam, Node);
+                // A non-fatal "record dropped" (no block yet / record too large to
+                // ever fit) never touches fs->dataBlock; only a broken pipeline
+                // (OOM in AllocateFlowBlock, or the backend queue having closed
+                // inside QueueFlowBlock) leaves it NULL. Escalate only that case.
+                AppendPcapFlowRecord(flowParam, Node);
+                if (!fs->dataBlock) {
+                    pthread_kill(flowParam->parent, SIGUSR1);
+                    done = 1;
+                }
                 break;
             case SIGNAL_NODE_SYNC:
                 dbg_printf("Received signal_node_sync\n");
-                // flush current block and close file
-                PushBlockV3(nffile_ctx->nffile->processQueue, fs->dataBlock);
-                fs->dataBlock = NULL;
-                InitDataBlock(fs->dataBlock, nffile_ctx->nffile->fileHeader->blockSize);
-                if (!fs->dataBlock) {
-                    LogError("Fatal: unable to allocate output block");
-                    pthread_kill(flowParam->parent, SIGUSR1);
+                if (!EmitCycleMessage(flowParam, Node->timestamp, 0)) {
                     Free_Node(Node);
-                    pthread_exit((void *)flowParam);
-                }
-                CloseFlowFile(flowParam, Node->timestamp);
-                nffile_ctx->nffile = OpenNewFileTmpV3(nffile_ctx->tmpFileName, nffile_ctx->creator, nffile_ctx->compressType,
-                                                      nffile_ctx->compressLevel, nffile_ctx->crypto_ctx);
-                if (!nffile_ctx->nffile) {
-                    LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                     pthread_kill(flowParam->parent, SIGUSR1);
-                    break;
+                    done = 1;
+                    continue;
                 }
-                nffile_ctx->nffile->ident = strdup(fs->Ident);
-
-                // Dump all exporters to the buffer for new file
                 break;
             case SIGNAL_NODE_DONE:
                 dbg_printf("Received signal_node_done\n");
-                // Flush Exporter Stat to file
-                // flush current block and close file
-                FlushBlockV3(nffile_ctx->nffile, fs->dataBlock);
-                CloseFlowFile(flowParam, Node->timestamp);
+                if (!EmitCycleMessage(flowParam, Node->timestamp, 1)) pthread_kill(flowParam->parent, SIGUSR1);
                 done = 1;
                 break;
             default:
-                dbg_assert(0);
-                LogError("Unknown node type: %u\n", Node->nodeType);
+                LogError("Unknown node type: %u", Node->nodeType);
+                break;
         }
-
         Free_Node(Node);
     }
 
-    LogInfo("Terminating flow processng");
+    FreeDataBlock(fs->dataBlock);
+    fs->dataBlock = NULL;
+    LogInfo("Terminating flow processing");
     dbg_printf("End flow thread[%lu]\n", (long unsigned)flowParam->tid);
-
     pthread_exit((void *)flowParam);
-    /* NOTREACHED */
-
-}  // End of p_flow_thread
+}

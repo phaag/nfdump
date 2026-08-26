@@ -53,14 +53,8 @@ typedef struct flowParam_s {
 
     // flow file
     FlowSource_t *fs;
-    char *extensionFormat;
-    unsigned subdir_index;
-    uint32_t compressType;
-    uint32_t compressLevel;
-
-    // send flows
-    repeater_t *sendHost;
-    uint8_t *udpSessionKey;  // NULL = plaintext, non-NULL = XChaCha20-Poly1305
+    uint32_t blockFlushThreshold;  // 0 = fill the block before queueing
+    uint32_t blockAllocSize;       // bytes to allocate per output block (BLOCK_SIZE_V3 or a small UDP-sized cap)
 
     // options
     bool printRecord;

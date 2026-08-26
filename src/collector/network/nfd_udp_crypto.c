@@ -315,7 +315,8 @@ ssize_t UdpEncrypt(void *wireBuf, size_t wireBufMax, const void *inner, size_t i
         return -1;
     }
 
-    // Scratch buffer for LZ4 output.  Static: sendflow_thread is single-threaded.
+    // Scratch buffer for LZ4 output.  Static: only one udpsend_backend_thread
+    // ever runs per process (-H is restricted to a single FlowSource).
     static uint8_t compScratch[65536 + 64];
 
     const uint8_t *plaintext = (const uint8_t *)inner;
