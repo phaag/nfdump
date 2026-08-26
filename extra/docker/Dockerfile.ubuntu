@@ -1,17 +1,23 @@
 #
 # Example Ubuntu Dockerfile
 #
+# Builds nfdump from a git ref (branch or tag) rather than a numbered
+# release archive, so this keeps working during the 1.8.x beta period
+# before a "v1.8.0" release tag exists. Once 1.8.0 is tagged, you can
+# point NFDUMP_REF at that tag instead - a git ref works for either case.
+#
 
 # Pull base image.
 FROM ubuntu:latest
 
-ARG NFDUMP_VERSION=1.7.3
+ARG NFDUMP_REF=devel_1.8.x
 
-#Expose netflow port
+# Expose netflow port
 EXPOSE 9995/udp
 
 # Install.
 RUN apt-get update && apt-get install -y \
+  git \
   wget \
   unzip \
   man \
@@ -26,17 +32,23 @@ RUN apt-get update && apt-get install -y \
   flex \
   make \
   libpcap-dev \
-  libbz2-dev &&
-  rm -rf /var/lib/apt/lists/*
+  libbz2-dev \
+  liblz4-dev \
+  libzstd-dev \
+  libpcre2-dev \
+  libsodium-dev \
+  && rm -rf /var/lib/apt/lists/*
 
-RUN cd /usr/src &&
-  wget https://github.com/phaag/nfdump/archive/refs/tags/v$NFDUMP_VERSION.tar.gz &&
-  tar xfz v$NFDUMP_VERSION.tar.gz &&
-  cd nfdump-$NFDUMP_VERSION &&
-  ./autogen.sh &&
-  ./configure --enable-nfpcapd --enable-maxmind --enable-sflow &&
-  make &&
-  make install
+# maxmind/sflow/tor support build unconditionally in 1.8.x (no longer
+# gated by --enable-maxmind/--enable-sflow, which no longer exist as
+# configure options); nfpcapd is still opt-in.
+RUN cd /usr/src \
+  && git clone --branch "$NFDUMP_REF" --depth 1 https://github.com/phaag/nfdump.git \
+  && cd nfdump \
+  && ./autogen.sh \
+  && ./configure --enable-nfpcapd \
+  && make \
+  && make install
 
 RUN ldconfig
 

@@ -1,5 +1,5 @@
 Name:		nfdump
-Version:	1.7.3
+Version:	1.8.0
 Release:	%mkrel 0
 Summary:	NetFlow collecting and processing tools
 License:	BSD
@@ -25,7 +25,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %build
 ./autogen.sh
-%define configure_args --enable-nfprofile --enable-nftrack --disable-rpath --disable-static
+# --enable-nftrack was removed - --enable-nfprofile alone now builds both
+# nfprofile and nftrack (src/nfsen/Makefile.am).
+%define configure_args --enable-nfprofile --disable-rpath --disable-static
 %configure %{configure_args}
 %make_build
 
@@ -45,7 +47,19 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/*
 %{_sysconfdir}/*
 %{_mandir}/man1/*
+%{_mandir}/man5/*
 
 %changelog
+* Mon Aug 24 2026 nfdump
+- Version 1.8.0: bump for the 1.8.x nffile V3 / TOML-config release.
+  --enable-nftrack no longer exists as its own flag (folded into
+  --enable-nfprofile); added the man5 section (nfdump.conf.5, new in
+  1.8.x) to the packaged file list.
+  librrd remains the only extra BuildRequires nfprofile needs; the other
+  new optional 1.8.x features (PCRE2 payload regex, libsodium encryption,
+  LZ4/ZSTD/BZ2 compression) are auto-detected by configure and degrade
+  gracefully when their -devel packages are absent, so nothing to add here
+  unless you want those features guaranteed on for a given build.
+
 * Sun Nov 26 2023 Richard REY <Rexy>
 - Version 1.7.3 for ALCASAR 3.6.1

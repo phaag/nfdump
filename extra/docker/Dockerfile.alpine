@@ -1,31 +1,40 @@
 #
 # Example Alpine Dockerfile
 #
+# Builds nfdump from a git ref (branch or tag) rather than a numbered
+# release archive, so this keeps working during the 1.8.x beta period
+# before a "v1.8.0" release tag exists. Once 1.8.0 is tagged, you can
+# point NFDUMP_REF at that tag instead - a git ref works for either case.
+#
 
 FROM alpine:3
 
-ARG NFDUMP_VERSION=1.7.3
+ARG NFDUMP_REF=devel_1.8.x
 
 WORKDIR /tmp
 
-ADD https://github.com/phaag/nfdump/archive/refs/tags/v$NFDUMP_VERSION.tar.gz /tmp
 RUN \
-  apk add --no-cache build-base gcc abuild binutils make &&
-  apk add --no-cache libtool bzip2-dev libpcap-dev flex bison &&
+  apk add --no-cache build-base gcc abuild binutils make git &&\
+  apk add --no-cache libtool bzip2-dev libpcap-dev flex bison &&\
+  apk add --no-cache lz4-dev zstd-dev pcre2-dev libsodium-dev &&\
   apk add --no-cache autoconf automake m4 pkgconfig
 
+# maxmind/sflow/tor support build unconditionally in 1.8.x (no longer
+# gated by --enable-maxmind/--enable-sflow, which no longer exist as
+# configure options); nfpcapd is still opt-in.
 RUN \
-  tar zxf v$NFDUMP_VERSION.tar.gz &&
-  cd /tmp/nfdump-$NFDUMP_VERSION &&
-  ./autogen.sh &&
-  ./configure --enable-maxmind --enable-nfpcapd --enable-sflow=yes &&
-  make &&
-  cd /tmp/nfdump-$NFDUMP_VERSION && make install &&
-  cd .. &&
-  rm -rf nfdump-v$NFDUMP_VERSION &&
-  rm /tmp/v$NFDUMP_VERSION.tar.gz &&
-  apk del build-base gcc flex bison autoconf automake m4 pkgconfig
+  git clone --branch "$NFDUMP_REF" --depth 1 https://github.com/phaag/nfdump.git &&\
+  cd /tmp/nfdump &&\
+  ./autogen.sh &&\
+  ./configure --enable-nfpcapd &&\
+  make &&\
+  make install &&\
+  cd / &&\
+  rm -rf /tmp/nfdump &&\
+  apk del build-base gcc flex bison autoconf automake m4 pkgconfig git
 
 VOLUME /data
 
-CMD ["nfcapd", "-w", "/data", "-S", "1", "-y", "-p", "9999"]
+## -y (LZ4 shorthand) was removed from nfcapd in 1.8.x (still works in
+## nfdump only) - use -z=lz4 here instead.
+CMD ["nfcapd", "-w", "/data", "-S", "1", "-z=lz4", "-p", "9999"]
