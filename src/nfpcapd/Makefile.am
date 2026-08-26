@@ -1,20 +1,22 @@
 
 bin_PROGRAMS = nfpcapd
 
-nfpcapd_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/collector -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS)
+nfpcapd_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/collector -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS)
 
 flowdump = flowdump.c flowdump.h
-pcapdump = pcapdump.c pcapdump.h 
+pcapdump = pcapdump.c pcapdump.h
 pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowhash.c flowhash.h ip_frag.c ip_frag.h
 
-nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap_file.c packet_pcap.h 
+nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap_file.c packet_pcap.h
 nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump)
 nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_CPPFLAGS += $(PCAP_CFLAGS) $(ZLIB_CFLAGS)
-nfpcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lpcap -lm
+# -lnffilter: the minimal plain-element filter engine (-F), not the full
+# -lnfdump - see src/libnfdump/Makefile.am.
+nfpcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffilter -lnffile  -lpcap -lm
 nfpcapd_LDADD += $(PCAP_LIBS) $(ZLIB_LIBS)
 nfpcapd_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS)
-nfpcapd_LDFLAGS = -L../libnffile
+nfpcapd_LDFLAGS = -L../libnfdump -L../libnffile
 
 if HAVE_LIBSODIUM
 nfpcapd_CPPFLAGS += $(LIBSODIUM_CFLAGS)

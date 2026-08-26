@@ -1,12 +1,15 @@
 
 bin_PROGRAMS = nfcapd 
 
-nfcapd_SOURCES = nfcapd.c 
-nfcapd_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector
+nfcapd_SOURCES = nfcapd.c
+nfcapd_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector
 
-nfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lm
+# -lnffilter: the minimal plain-element filter engine (-F), not the full
+# -lnfdump - see src/libnfdump/Makefile.am. Pulls in no MaxMind/Tor/DNS/SSL/
+# JA3/JA4 code.
+nfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffilter -lnffile  -lm
 nfcapd_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS)
-nfcapd_LDFLAGS = -L../libnffile
+nfcapd_LDFLAGS = -L../libnfdump -L../libnffile
 
 nfcapd_CFLAGS = $(PTHREAD_CFLAGS)
 nfcapd_LDADD  += $(PTHREAD_LIBS)

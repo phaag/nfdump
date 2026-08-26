@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
 AM_CPPFLAGS += $(LZ4_CFLAGS)
 
 if HAVE_LIBSODIUM
@@ -18,6 +18,7 @@ libcollector_a_SOURCES = \
 	backend/backend.h \
 	backend/nffile_backend.c backend/nffile_backend.h \
 	backend/remote_backend.c backend/remote_backend.h \
+	backend/filter_stage.c backend/filter_stage.h \
 	ip128.c \
 	launch.h launch.c \
 	flowsource.c flowsource.h \

@@ -67,8 +67,10 @@
 #include "collector.h"
 #include "compress/nfcompress.h"
 #include "conf/nfconf.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "flowsource.h"
+#include "id.h"
 #include "ip128.h"
 #include "launch.h"
 #include "logging.h"
@@ -124,6 +126,9 @@ static void usage(char *name) {
         "-f pcapfile\tRead network data from pcap file.\n"
         "-d device\tRead network data from device (interface).\n"
 #endif
+        "-F filter\tApply a post-decode record filter before storing/forwarding flows.\n"
+        "\t\tPlain field/IP/port/time filters only - geo, tor, tz, payload,\n"
+        "\t\tDNS, SSL, JA3/JA4 and regex are rejected at compile time.\n"
         "-w flowdir \tset the output directory to store the flows.\n"
         "-C <file>\tRead optional config file.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
@@ -224,6 +229,11 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
         }
         if (!Launch_nffile_backend(fs)) {
             LogError("Launch_nffile_backend() failed");
+            done = 1;
+            return;
+        }
+        if (!Init_FilterStage(fs, ctx->filterEngine, true)) {
+            LogError("Init_FilterStage() failed for new source");
             done = 1;
             return;
         }
@@ -501,9 +511,10 @@ int main(int argc, char **argv) {
     limitCores = 0;
     options = NULL;
     parse_tun = 0;
+    char *filterString = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:g:hH:I:i:J:K::k::l:m:M:n:N:o:p:P:Q:R:S:t:u:v:VW:w:x:X:z:Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:F:g:hH:I:i:J:K::k::l:m:M:n:N:o:p:P:Q:R:S:t:u:v:VW:w:x:X:z:Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -565,6 +576,10 @@ int main(int argc, char **argv) {
                 LogError("Reading data from pcap file/device not compiled! Option ignored!");
                 break;
 #endif
+            case 'F':
+                CheckArgLen(optarg, 4096);
+                filterString = strdup(optarg);
+                break;
             case 'v':
                 verbose = ParseVerbose(verbose, optarg);
                 if (verbose < 0) {
@@ -1030,6 +1045,15 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if (filterString) {
+        collector_ctx.filterEngine = CompileFilter(filterString);
+        if (!collector_ctx.filterEngine) {
+            LogError("Failed to compile -F filter: '%s'", filterString);
+            exit(EXIT_FAILURE);
+        }
+        free(filterString);
+    }
+
     const nffile_backend_ctx_t nffile_backend_ctx = {.creator = CREATOR_SFCAPD,
                                                      .compressType = compressType,
                                                      .compressLevel = compressLevel,
@@ -1062,6 +1086,13 @@ int main(int argc, char **argv) {
             remove_pid(pidfile);
             exit(EXIT_FAILURE);
         }
+        if (!Init_FilterStage(collector_ctx.any_source, collector_ctx.filterEngine, false)) {
+            LogError("Failed to initialise filter stage");
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
     } else {
         /* nffile backend: write collected flows to disk */
         if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
@@ -1072,6 +1103,13 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         if (!LaunchBackend(&collector_ctx)) {
+            close_sockets(socks, nsocks);
+            CloseMetric();
+            remove_pid(pidfile);
+            exit(EXIT_FAILURE);
+        }
+        if (!InitFilterStages(&collector_ctx)) {
+            LogError("Failed to initialise filter stage");
             close_sockets(socks, nsocks);
             CloseMetric();
             remove_pid(pidfile);
@@ -1119,8 +1157,10 @@ int main(int argc, char **argv) {
 
     // shutdown
     if (sendHost) {
+        Close_FilterStage(collector_ctx.any_source);
         Close_udpsend_backend(collector_ctx.any_source);
     } else {
+        CloseFilterStages(&collector_ctx);
         CloseBackend(&collector_ctx, expire);
     }
     CloseMetric();
@@ -1129,6 +1169,7 @@ int main(int argc, char **argv) {
     if (launcher_tid) LauncherShutdown(launcher_ctx);
 
     CleanupCollector(&collector_ctx);
+    if (collector_ctx.filterEngine) DisposeFilter(collector_ctx.filterEngine);
 
     int err = pthread_sigmask(SIG_SETMASK, &signal_waitmask, NULL);
     if (err != 0) LogError("pthread_sigmask() failed: %s", strerror(err));

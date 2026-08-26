@@ -58,6 +58,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "backend/filter_stage.h"
 #include "backend/nffile_backend.h"
 #include "backend/remote_backend.h"
 #include "bookkeeper.h"
@@ -69,9 +70,11 @@
 #include <sodium.h>
 #endif
 #include "config.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "flowdump.h"
 #include "flowhash.h"
+#include "id.h"
 #include "ip_frag.h"
 #include "logging.h"
 #include "metric.h"
@@ -140,6 +143,9 @@ static void usage(char *name) {
         "-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
         "-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
         "-w flowdir \tset the flow output directory. (no default) \n"
+        "-F filter\tApply a post-decode record filter before storing/forwarding flows.\n"
+        "\t\tPlain field/IP/port/time filters only - geo, tor, tz, payload,\n"
+        "\t\tDNS, SSL, JA3/JA4 and regex are rejected at compile time.\n"
         "-C <file>\tRead optional config file.\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
         "-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
@@ -216,6 +222,7 @@ int main(int argc, char *argv[]) {
     char *device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *configFile, *options;
     char *Ident, *userid, *groupid, *metricsocket;
     char *time_extension;
+    char *nfFilterString = NULL;  // -F: post-decode record filter (distinct from -r's pcap filter)
 
     uint32_t compressType = UNDEF_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
@@ -250,7 +257,7 @@ int main(int argc, char *argv[]) {
     limitCores = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:K::k::m:o:p:P:r:s:S:t:u:v:Vw:W:x:z::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:F:g:hH:I:i:K::k::m:o:p:P:r:s:S:t:u:v:Vw:W:x:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -332,6 +339,10 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 datadir = optarg;
+                break;
+            case 'F':
+                CheckArgLen(optarg, 4096);
+                nfFilterString = strdup(optarg);
                 break;
             case 'o':
                 CheckArgLen(optarg, 64);
@@ -622,6 +633,16 @@ int main(int argc, char *argv[]) {
 
     SetPriv(userid, groupid);
 
+    void *filterEngine = NULL;
+    if (nfFilterString) {
+        filterEngine = CompileFilter(nfFilterString);
+        if (!filterEngine) {
+            LogError("Failed to compile -F filter: '%s'", nfFilterString);
+            exit(EXIT_FAILURE);
+        }
+        free(nfFilterString);
+    }
+
     FlowSource_t *fs = NULL;
     if (datadir) {
         if (!Init_nffile(tc, NULL)) exit(EXIT_FAILURE);
@@ -670,6 +691,11 @@ int main(int argc, char *argv[]) {
             LogError("Failed to initialise UDP send backend");
             exit(EXIT_FAILURE);
         }
+    }
+
+    if (!Init_FilterStage(fs, filterEngine, sendHost == NULL)) {
+        LogError("Failed to initialise filter stage");
+        exit(EXIT_FAILURE);
     }
 
     if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout, expireInterval, maxNodes, maxPayloadBytes)) {
@@ -801,11 +827,13 @@ int main(int argc, char *argv[]) {
 
     Dispose_FlowTree();
 
+    Close_FilterStage(fs);
     if (sendHost) {
         Close_udpsend_backend(fs);
     } else {
         close_nffile_backend(fs, expire);
     }
+    if (filterEngine) DisposeFilter(filterEngine);
 
     CloseMetric();
 

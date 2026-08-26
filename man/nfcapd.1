@@ -63,6 +63,7 @@
 .Op Fl l Ar command
 .Op Fl x Ar key=value
 .Op Fl X Ar extensionList
+.Op Fl F Ar filter
 .Op Fl W Ar num
 .Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
@@ -496,6 +497,39 @@ dynamically to store all data sent by the exporter. If
 .Ar extensionList 
 is given, only those elements matching the extension are processed and stored. Usually this
 option is not needed, unless for specific requirements.
+.It Fl F Ar filter
+Apply a post-decode record filter before flows are stored
+.Pq Fl w , Fl n , Fl M
+or forwarded
+.Pq Fl H .
+Non-matching records are discarded and never reach the backend.
+.Ar filter
+uses the same filter syntax as
+.Xr nfdump 1 ,
+restricted to plain element filters on fields already present in the flow record:
+IP address/network/list, port, protocol, byte/packet counters, TCP flags, VLAN,
+MPLS, AS number, engine/exporter fields, time ranges, and similar direct
+comparisons or boolean combinations thereof. Filter primitives that need a
+resource outside the record itself
+.Po
+geo country lookup, Tor exit-node lookup, and timezone lookup, all backed by the
+MaxMind/Tor databases, plus payload content matching:
+.Cm payload dns ,
+.Cm payload ssl , ja3 , ja4 ,
+and
+.Cm payload regex
+.Pc
+are rejected with an error at filter-compile time; startup then fails immediately
+rather than silently collecting unfiltered or ignoring the filter.
+The query-context primitives
+.Cm ident
+and
+.Cm count
+are also rejected: they are not fields of an individual V4 record.
+The filter is compiled once at startup and evaluated by a single thread per flow
+source, so a
+.Fl F
+filter has no measurable effect on collectors run without it.
 .It Fl m Ar metricpath
 Enables the flow metric exporter. Flow metric information is sent to the UNIX socket
 .Ar metricpath

@@ -41,7 +41,13 @@
 #include <stdint.h>
 
 #include "filter.h" /* comparator_t, filterFunction_t, data_t, blockConstraint_t, … */
+#ifdef NFFILTER_FULL
 #include "nfregex.h"
+#else
+/* The minimal collector build neither compiles nor executes regex code.
+ * Keep this opaque type because the common engine layout has the field. */
+typedef struct RegexMatchContext_s RegexMatchContext_t;
+#endif
 
 #define MAXBLOCKS 1024
 

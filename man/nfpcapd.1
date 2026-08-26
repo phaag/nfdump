@@ -41,6 +41,7 @@
 .Op Fl I Ar ident
 .Op Fl C Ar config
 .Op Fl w Ar flowdir
+.Op Fl F Ar filter
 .Op Fl p Ar pcapdir
 .Op Fl H Ar host[/port]
 .Op Fl m Ar socket
@@ -138,6 +139,40 @@ The wire format used is nfdump protocol v250 (plain) or v251 (XChaCha20-Poly1305
 Use
 .Fl k
 to enable encrypted transport.
+.It Fl F Ar filter
+Apply a post-decode record filter before flows are stored
+.Pq Fl w
+or forwarded
+.Pq Fl H .
+Non-matching records are discarded and never reach the backend.
+.Ar filter
+uses the same filter syntax as
+.Xr nfdump 1 ,
+restricted to plain element filters on fields already present in the flow record:
+IP address/network/list, port, protocol, byte/packet counters, TCP flags, VLAN,
+MPLS, AS number, engine/exporter fields, time ranges, and similar direct
+comparisons or boolean combinations thereof. Filter primitives that need a
+resource outside the record itself
+.Po
+geo country lookup, Tor exit-node lookup, and timezone lookup, all backed by the
+MaxMind/Tor databases, plus payload content matching:
+.Cm payload dns ,
+.Cm payload ssl , ja3 , ja4 ,
+and
+.Cm payload regex
+.Pc
+are rejected with an error at filter-compile time; startup then fails immediately
+rather than silently collecting unfiltered or ignoring the filter.
+The query-context primitives
+.Cm ident
+and
+.Cm count
+are also rejected: they are not fields of an individual V4 record.
+The filter is compiled once at startup and evaluated by a single thread, so
+.Nm
+run without
+.Fl F
+is unaffected.
 .It Fl m Ar socket
 Send collector flow-summary metrics to the specified UNIX socket.
 .It Fl S Ar num

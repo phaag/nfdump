@@ -32,16 +32,19 @@
  * Common header for any collector backends.
  *
  * Including this header provides access to both the nffile (disk) backend
- * and the remote (UDP send) backend.  Callers that use only one backend
- * may include the specific sub-header directly:
+ * and the remote (UDP send) backend, plus the optional post-filter stage
+ * that can sit in front of either.  Callers that use only one backend may
+ * include the specific sub-header directly:
  *
  *   #include "backend/nffile_backend.h"   — nffile backend only
  *   #include "backend/remote_backend.h"   — UDP send backend only
+ *   #include "backend/filter_stage.h"     — optional -F post-filter stage
  */
 
 #ifndef _BACKEND_H
 #define _BACKEND_H 1
 
+#include "backend/filter_stage.h"
 #include "backend/nffile_backend.h"
 #include "backend/remote_backend.h"
 

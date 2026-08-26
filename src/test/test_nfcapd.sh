@@ -31,7 +31,8 @@
 # nfcapd regression test suite.
 # Tests: pcap file mode (v5/v9/IPFIX/NSEL/CGNAT/timeflows),
 #        YAF file mode, compression variants, extension filtering,
-#        live network round-trip (v9 and v5), AppendRename, memory guards.
+#        live network round-trip (v9 and v5), AppendRename, memory guards,
+#        post-decode record filter (-F).
 #
 # Portability: POSIX sh; tested on Linux, *BSD, macOS.
 #   'local' is used in helpers — supported by all modern /bin/sh implementations
@@ -54,12 +55,62 @@ count_flows() {
         | awk '/^Flows:/{s += $2} END{print s+0}'
 }
 
+# count_exporter_flows FILE
+# Sum the cumulative per-exporter flow counts from the exporter metadata block.
+count_exporter_flows() {
+    "$NFDUMP_BIN" -E "$1" 2>/dev/null \
+        | awk -F'flows: ' '/^SysID:/{split($2,a," "); s += a[1]} END{print s+0}'
+}
+
 # wait_stop PIDFILE [SECONDS]
 wait_stop() {
     local pf="$1" max="${2:-5}" i=0
     while [ -f "$pf" ] && [ "$i" -lt "$max" ]; do
         sleep 1; i=$((i+1))
     done
+}
+
+# count_records FILE [FILTER...]
+# Reads the actual stored records (via a real record read), not the
+# pre-aggregated stats block that count_flows()/-I reads. This matters for
+# -F post-filter tests specifically: the filter stage compacts records out of
+# each block. The filter stage also rewrites cycle_message_t::stat_record, but
+# this direct record count remains the reference for filter-parity checks.
+# With no FILTER, returns the number of records physically present in FILE.
+# With a FILTER, applies it at nfdump read-time and returns how many match —
+# used to derive filter-parity ground truth from an unfiltered baseline file.
+count_records() {
+    local file="$1"; shift
+    "$NFDUMP_BIN" -G none -r "$file" -o null "$@" 2>/dev/null \
+        | awk -F'passed: ' '/^Total records processed:/{split($2,a,","); print a[1]+0}'
+}
+
+# run_pcap_filter NAME PCAPFILE IDENT FILTER EXPECTED
+# Collects PCAPFILE through nfcapd with -F FILTER and checks the actual
+# stored record count (count_records, not count_flows) against EXPECTED.
+run_pcap_filter() {
+    local name="$1" pcap="$2" ident="$3" filter="$4" expected="$5"
+    local d="$WORKDIR/$name"
+    mkdir -p "$d"
+    nfcapd -f "$pcap" -w "$d" -I "$ident" -F "$filter" -v 0 >/dev/null 2>&1
+    local rc=$?
+    if [ "$rc" -ne 0 ]; then
+        fail "$name: nfcapd exited with status $rc"
+        return
+    fi
+    local f
+    f=$(ls "$d"/nfcapd.* 2>/dev/null | head -1)
+    if [ -z "$f" ]; then
+        fail "$name: no output file created"
+        return
+    fi
+    local got
+    got=$(count_records "$f")
+    if [ "${got:-0}" -eq "$expected" ]; then
+        pass "$name: $got records"
+    else
+        fail "$name: expected $expected records, got ${got:-0}"
+    fi
 }
 
 # ── pcap file-mode test ───────────────────────────────────────────────────────
@@ -536,6 +587,133 @@ else
 
     unset MALLOC_OPTIONS MallocGuardEdges MallocScribble MallocErrorAbort \
           MallocCorruptionAbort
+fi
+
+# =============================================================================
+# 8. Post-decode record filter (-F)
+# =============================================================================
+echo ""
+echo "── post-decode record filter (-F) ───────────────────────────────────────"
+
+FILTER_TESTS="filter_keep_all filter_drop_all filter_partial filter_reject filter_reject_ident filter_reject_count filter_as_plain filter_stat_block"
+
+if [ "$HAS_PCAP" -eq 0 ]; then
+    for _t in $FILTER_TESTS; do
+        skip "$_t: --enable-readpcap not compiled in"
+    done
+else
+    FILTER_PCAP="$TESTDATA/flows_v9_unsamp.pcap"
+
+    # Unfiltered baseline: actual record count with no -F at all.
+    FBASE_DIR="$WORKDIR/filter_baseline"
+    mkdir -p "$FBASE_DIR"
+    nfcapd -f "$FILTER_PCAP" -w "$FBASE_DIR" -I fbase -v 0 >/dev/null 2>&1
+    FBASE_FILE=$(ls "$FBASE_DIR"/nfcapd.* 2>/dev/null | head -1)
+
+    if [ -z "$FBASE_FILE" ]; then
+        for _t in $FILTER_TESTS; do
+            skip "$_t: could not create unfiltered baseline"
+        done
+    else
+        BASE_COUNT=$(count_records "$FBASE_FILE")
+
+        # 8a. A filter matching every record must retain the full baseline count.
+        run_pcap_filter filter_keep_all "$FILTER_PCAP" fkeep \
+            "not bytes > 999999999" "${BASE_COUNT:-0}"
+
+        # 8b. A filter matching no record must leave 0 records stored.
+        run_pcap_filter filter_drop_all "$FILTER_PCAP" fdrop \
+            "bytes > 999999999" 0
+
+        # 8c. Parity check: a partial filter's collection-time result must
+        # exactly match the same expression applied at nfdump read-time
+        # against the unfiltered baseline — the collector's post-filter and
+        # nfdump's own filter both compile through the same engine
+        # (libnffilter vs. libnfdump share filter.c/grammar.y), so they must
+        # agree record-for-record.
+        PARTIAL_EXPR="proto tcp"
+        GROUND_TRUTH=$(count_records "$FBASE_FILE" "$PARTIAL_EXPR")
+        if [ -z "$GROUND_TRUTH" ]; then
+            skip "filter_partial: could not compute ground truth"
+        else
+            run_pcap_filter filter_partial "$FILTER_PCAP" fpartial \
+                "$PARTIAL_EXPR" "$GROUND_TRUTH"
+        fi
+
+        # 8d. A filter needing a resource outside the plain V4 record
+        # (MaxMind geo lookup here) must be rejected at compile time: nfcapd
+        # exits non-zero immediately and never creates an output file.
+        FREJECT_DIR="$WORKDIR/filter_reject"
+        mkdir -p "$FREJECT_DIR"
+        nfcapd -f "$FILTER_PCAP" -w "$FREJECT_DIR" -I freject \
+               -F "src geo US" -v 0 >/dev/null 2>&1
+        frc=$?
+        frej_file=$(ls "$FREJECT_DIR"/nfcapd.* 2>/dev/null | head -1)
+        if [ "$frc" -ne 0 ] && [ -z "$frej_file" ]; then
+            pass "filter_reject: 'src geo US' correctly rejected at compile time"
+        else
+            fail "filter_reject: expected non-zero exit and no output file (exit=$frc, file=${frej_file:-none})"
+        fi
+
+        # 8e. ident is a source-level nfdump query parameter, not a V4
+        # record field. The collector profile must reject it rather than
+        # silently comparing every record with the engine's default ident.
+        FIDENT_DIR="$WORKDIR/filter_reject_ident"
+        mkdir -p "$FIDENT_DIR"
+        nfcapd -f "$FILTER_PCAP" -w "$FIDENT_DIR" -I frejectident \
+               -F "ident frejectident" -v 0 >/dev/null 2>&1
+        firc=$?
+        fident_file=$(ls "$FIDENT_DIR"/nfcapd.* 2>/dev/null | head -1)
+        if [ "$firc" -ne 0 ] && [ -z "$fident_file" ]; then
+            pass "filter_reject_ident: source-level ident correctly rejected"
+        else
+            fail "filter_reject_ident: expected non-zero exit and no output file (exit=$firc, file=${fident_file:-none})"
+        fi
+
+        # 8f. count is the query engine's ordinal record counter, not a
+        # record field. In a block pipeline it would reset at every block, so
+        # the collector profile must reject it.
+        FCOUNT_DIR="$WORKDIR/filter_reject_count"
+        mkdir -p "$FCOUNT_DIR"
+        nfcapd -f "$FILTER_PCAP" -w "$FCOUNT_DIR" -I frejectcount \
+               -F "count > 0" -v 0 >/dev/null 2>&1
+        fcrc=$?
+        fcount_file=$(ls "$FCOUNT_DIR"/nfcapd.* 2>/dev/null | head -1)
+        if [ "$fcrc" -ne 0 ] && [ -z "$fcount_file" ]; then
+            pass "filter_reject_count: query ordinal correctly rejected"
+        else
+            fail "filter_reject_count: expected non-zero exit and no output file (exit=$fcrc, file=${fcount_file:-none})"
+        fi
+
+        # 8g. "as <num>" must NOT be rejected: mmASLookup_function() never
+        # enriches when the exporter's own AS field is 0 (see filter.c), so
+        # this stays a plain field compare and must compile and run. These
+        # fixtures carry no AS info, so 0 matching records is the expected,
+        # correct outcome — what this guards against is nfcapd rejecting the
+        # filter outright (run_pcap_filter reports that as a distinct
+        # "exited with status" failure, not a count mismatch).
+        run_pcap_filter filter_as_plain "$FILTER_PCAP" fas "as 12345" 0
+
+        # 8h. Metadata regression: the filter stage derives both cycle stats
+        # and cumulative exporter flow counts from retained records. -I, -E,
+        # and an actual record read must therefore agree on a filtered file.
+        FSTAT_DIR="$WORKDIR/filter_stat"
+        mkdir -p "$FSTAT_DIR"
+        nfcapd -f "$FILTER_PCAP" -w "$FSTAT_DIR" -I fstat -F "proto tcp" -v 0 >/dev/null 2>&1
+        fstat_file=$(ls "$FSTAT_DIR"/nfcapd.* 2>/dev/null | head -1)
+        if [ -z "$fstat_file" ]; then
+            fail "filter_stat_block: no output file created"
+        else
+            fstat_i=$(count_flows "$fstat_file")
+            fstat_r=$(count_records "$fstat_file")
+            fstat_e=$(count_exporter_flows "$fstat_file")
+            if [ "${fstat_i:-0}" -eq "${fstat_r:-0}" ] && [ "${fstat_e:-0}" -eq "${fstat_r:-0}" ] && [ "${fstat_r:-0}" -eq "${GROUND_TRUTH:-0}" ]; then
+                pass "filter_stat_block: -I/-E ($fstat_i/$fstat_e) match actual records ($fstat_r)"
+            else
+                fail "filter_stat_block: -I/-E report $fstat_i/$fstat_e, actual records $fstat_r (expected all = ${GROUND_TRUTH:-0})"
+            fi
+        fi
+    fi
 fi
 
 summary

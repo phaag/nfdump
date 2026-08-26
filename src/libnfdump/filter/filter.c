@@ -45,16 +45,18 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#ifdef NFFILTER_FULL
 #include "dns/dns.h"
-#include "filter.h"
-#include "filter_int.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
-#include "logging.h"
 #include "maxmind/maxmind.h"
 #include "nfregex.h"
-#include "nfxV4.h"
 #include "tor/tor.h"
+#endif
+#include "filter.h"
+#include "filter_int.h"
+#include "logging.h"
+#include "nfxV4.h"
 #include "util.h"
 
 static uint32_t NumBlocks = 1; /* index 0 reserved */
@@ -337,11 +339,12 @@ static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, rec
 }  // End of pblock_function
 
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
-    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
-    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     uint32_t as = *((uint32_t *)dataPtr);
     if (as) return as;
 
+#ifdef NFFILTER_FULL
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     uint32_t direction = data.dataVal;
     if (ipv4Flow) {
         as = direction == OFFsrcAS ? LookupV4AS(ipv4Flow->srcAddr) : LookupV4AS(ipv4Flow->dstAddr);
@@ -349,16 +352,27 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
         as = direction == OFFsrcAS ? LookupV6AS(ipv6Flow->srcAddr) : LookupV6AS(ipv6Flow->dstAddr);
     }
     *((uint32_t *)dataPtr) = as;
+#else
+    // MaxMind ASN lookup not available in this build: "as N" stays a plain
+    // exporter-field compare (already checked above) with no enrichment
+    // fallback - it is NOT rejected at compile time (grammar.y), since it
+    // never needs a resource outside the record: as == 0 (exporter didn't
+    // supply one) just correctly fails to match.
+    (void)length;
+    (void)data;
+    (void)recordHandle;
+#endif
 
     return as;
 }  // End of mmASLookup_function
 
 static uint64_t tzLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
-    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
-    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     uint16_t tz = *((uint16_t *)dataPtr);
     if (tz) return tz;
 
+#ifdef NFFILTER_FULL
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     uint32_t direction = data.dataVal;
     if (ipv4Flow) {
         tz = direction == DIR_SRC ? LookupV4TZindex(ipv4Flow->srcAddr) : LookupV4TZindex(ipv4Flow->dstAddr);
@@ -366,11 +380,19 @@ static uint64_t tzLookup_function(void *dataPtr, uint32_t length, data_t data, r
         tz = direction == DIR_SRC ? LookupV6TZindex(ipv6Flow->srcAddr) : LookupV6TZindex(ipv6Flow->dstAddr);
     }
     *((uint16_t *)dataPtr) = tz;
+#else
+    // MaxMind timezone lookup not available in this build; never reached,
+    // since the "tz" filter keyword is rejected at compile time.
+    (void)length;
+    (void)data;
+    (void)recordHandle;
+#endif
 
     return tz;
 }  // End of tzLookup_function
 
 static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+#ifdef NFFILTER_FULL
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return 0;
 
@@ -384,6 +406,15 @@ static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, 
     }
 
     return isTor;
+#else
+    // Tor lookup not available in this build; never reached, since the
+    // "tor" filter keyword is rejected at compile time.
+    (void)dataPtr;
+    (void)length;
+    (void)data;
+    (void)recordHandle;
+    return 0;
+#endif
 }  // End of torLookup_function
 
 static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
@@ -393,6 +424,7 @@ static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, r
     return ipInfo->minTTL == ipInfo->maxTTL;
 }  // End of ttlEqual_function
 
+#ifdef NFFILTER_FULL
 static void *dns_preproc(const EXPayload_t *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
     uint32_t payloadLength = payload->size;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
@@ -535,6 +567,28 @@ static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *re
 
     return ptr;
 }  // End of outPayload_preproc
+#else
+// DNS/SSL/JA3/JA4 payload decoding not available in this build; the
+// "payload dns/ssl/ja3/ja4/ja4s" filter keywords are rejected at compile
+// time, so EXin/outPayloadHandle are never populated and these are never
+// called — they only need to satisfy preprocess_map[]'s designated
+// initializers below.
+static void *inPayload_preproc(uint32_t length, data_t data, recordHandle_t *recordHandle, filterOption_t option) {
+    (void)length;
+    (void)data;
+    (void)recordHandle;
+    (void)option;
+    return NULL;
+}  // End of inPayload_preproc
+
+static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *recordHandle, filterOption_t option) {
+    (void)length;
+    (void)data;
+    (void)recordHandle;
+    (void)option;
+    return NULL;
+}  // End of outPayload_preproc
+#endif /* NFFILTER_FULL */
 
 static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option) {
     // no AS field, map slack
@@ -544,6 +598,13 @@ static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle, fi
 
 static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHandle) {
     geoChar[0] = geoChar[1] = '.';
+#ifndef NFFILTER_FULL
+    // MaxMind geo lookup not available in this build; never reached, since
+    // the "geo" filter keyword is rejected at compile time.
+    (void)direction;
+    (void)recordHandle;
+    return *((uint16_t *)(geoChar));
+#else
     switch (direction) {
         case DIR_SRC: {
             EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
@@ -601,7 +662,7 @@ static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHa
         } break;
     }
     return *((uint16_t *)(geoChar));
-
+#endif /* NFFILTER_FULL */
 }  // End of geoLookup
 
 /*
@@ -1740,10 +1801,16 @@ L_PAYLOAD: {
 }
 
 L_REGEX: {
+#ifdef NFFILTER_FULL
     const void *prog2 = (const void *)(uintptr_t)inst->aux;
     const EXPayload_t *payload = (const EXPayload_t *)(handle->extensionList[inst->extID]);
     if (__builtin_expect(!payload || !prog2, 0)) NEXT(0);
     NEXT(MatchRegex(prog2, (const char *)payload->payload, payload->size, engine->regexContext));
+#else
+    // regex matching not available in this build; never reached, since
+    // "payload regex"/"=~" is rejected at compile time.
+    NEXT(0);
+#endif
 }
 
     /* ── geo lookup ──────────────────────────────────────────────────── */
@@ -1761,17 +1828,27 @@ L_GEO: {
 
     /* ── DNS ─────────────────────────────────────────────────────────── */
 L_DNSNAME: {
+#ifdef NFFILTER_FULL
     const uint8_t *ext = handle->extensionList[inst->extID];
     if (__builtin_expect(!ext, 0)) NEXT(0);
     const char *str = (const char *)(uintptr_t)inst->aux;
     NEXT(str != NULL && dnsSearchName((void *)(ext + inst->offset), (char *)str) != 0);
+#else
+    // DNS decoding not available in this build; never reached, since
+    // "payload dns ..." is rejected at compile time.
+    NEXT(0);
+#endif
 }
 
 L_DNSIP: {
+#ifdef NFFILTER_FULL
     const uint8_t *ext = handle->extensionList[inst->extID];
     if (__builtin_expect(!ext, 0)) NEXT(0);
     const char *str = (const char *)(uintptr_t)inst->aux;
     NEXT(str != NULL && dnsSearchIP((void *)(ext + inst->offset), (char *)str) != 0);
+#else
+    NEXT(0);
+#endif
 }
 
 /* ── function-derived value ──────────────────────────────────────── */
@@ -1918,15 +1995,23 @@ L_PREP_GEO: {
 L_PREP_DNSNAME: {
     uint8_t *inPtr;
     PREP_ENTER(inPtr);
+#ifdef NFFILTER_FULL
     const char *str = (const char *)(uintptr_t)inst->aux;
     NEXT(str != NULL && dnsSearchName((void *)inPtr, (char *)str) != 0);
+#else
+    NEXT(0);
+#endif
 }
 
 L_PREP_DNSIP: {
     uint8_t *inPtr;
     PREP_ENTER(inPtr);
+#ifdef NFFILTER_FULL
     const char *str = (const char *)(uintptr_t)inst->aux;
     NEXT(str != NULL && dnsSearchIP((void *)inPtr, (char *)str) != 0);
+#else
+    NEXT(0);
+#endif
 }
 
 L_PREP_PAYLOAD: {
@@ -1958,6 +2043,7 @@ L_PREP_PAYLOAD: {
 }
 
 L_PREP_REGEX: {
+#ifdef NFFILTER_FULL
     uint8_t *_ext = handle->extensionList[inst->extID];
     if (__builtin_expect(!_ext, 0)) {
         inst = &prog[inst->onFalse];
@@ -1971,6 +2057,9 @@ L_PREP_REGEX: {
     const EXPayload_t *payload = (const EXPayload_t *)_ext;
     if (!prog2 || !payload) NEXT(0);
     NEXT(MatchRegex(prog2, (const char *)payload->payload, payload->size, engine->regexContext));
+#else
+    NEXT(0);
+#endif
 }
 
 #undef NEXT
@@ -1998,7 +2087,9 @@ void *FilterCloneEngine(void *engine) {
         return NULL;
     }
     memcpy((void *)filterEngine, engine, sizeof(FilterEngine_t));
+#ifdef NFFILTER_FULL
     filterEngine->regexContext = CreateRegexMatchContext();
+#endif
     filterEngine->ownsProgram = false;
     return (void *)filterEngine;
 }  // End of FilterCloneEngine
@@ -2095,7 +2186,9 @@ void *CompileFilter(char *FilterSyntax) {
         .hasGeoDB = 0,
         .ident = "none",
         .blockConstraint = blockConstraint,
+#ifdef NFFILTER_FULL
         .regexContext = CreateRegexMatchContext(),
+#endif
         .ownsProgram = true,
     };
 
@@ -2111,7 +2204,9 @@ void DisposeFilter(void *engine) {
      * filter engine is released. */
     if (!engine) return;
     FilterEngine_t *fe = (FilterEngine_t *)engine;
+#ifdef NFFILTER_FULL
     FreeRegexMatchContext(fe->regexContext);
+#endif
     if (fe->ownsProgram && fe->prog) {
         /* Walk instructions and free auxiliary data owned by the prog.
          * IPSet_t* and U64Set_t* may be shared between instructions (when
@@ -2162,6 +2257,7 @@ void DisposeFilter(void *engine) {
                     break;
                 case FOP_REGEX:
                 case FOP_PREP_REGEX:
+#ifdef NFFILTER_FULL
                     if (inst->aux) {
                         FreeRegex((void *)(uintptr_t)inst->aux);
                         uintptr_t p = inst->aux;
@@ -2169,6 +2265,10 @@ void DisposeFilter(void *engine) {
                         for (uint32_t j = i + 1; j < fe->progLen; j++)
                             if (fe->prog[j].aux == p) fe->prog[j].aux = 0;
                     }
+#endif
+                    // unreachable in the minimal build: "payload regex"/"=~"
+                    // is rejected at compile time, so no instruction ever has
+                    // this op and inst->aux is never populated.
                     break;
                 default:
                     break;

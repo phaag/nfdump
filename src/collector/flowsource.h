@@ -51,7 +51,12 @@ typedef struct FlowSource_s {
     // backend context - nffile for now
     pthread_t tid;        // thread ID of packend
     void *backend_ctx;    // backend context
-    queue_t *blockQueue;  // queue to backend
+    queue_t *blockQueue;  // queue to backend (or to the filter stage, if active)
+
+    // optional post-filter stage — see backend/filter_stage.h. NULL/0 when
+    // no -F filter is configured: blockQueue then feeds the backend directly.
+    pthread_t filterTid;
+    void *filterCtx;
 
     ip128_t ipAddr;        // IPv4/IPv6 address of this flow source
     int sa_family;         // AF_INET of AF_INET6 cacheonly flag
@@ -117,6 +122,10 @@ typedef struct collector_ctx_s {
     uint32_t dynNumSources;        // number of sources created by -M
     uint32_t numFlowSources;       // number of entries in source_array
     source_array_t *source_array;  // linear array of all flow sources with IP filter
+
+    // option -F: compiled post-filter engine (libnffilter), shared read-only
+    // by every FlowSource's filter stage. NULL if -F was not given.
+    void *filterEngine;
 } collector_ctx_t;
 
 // prototypes

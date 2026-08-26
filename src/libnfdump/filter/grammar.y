@@ -50,11 +50,13 @@
 #include "userio.h"
 #include "nfxV4.h"
 #include "ipconv.h"
+#ifdef NFFILTER_FULL
 #include "nfregex.h"
 #include "ja3/ja3.h"
 #include "dns/dns.h"
 #include "ja4/ja4.h"
 #include "maxmind/maxmind.h"
+#endif
 #include "nfdump.h"
 #include "util.h"
 
@@ -78,6 +80,8 @@ static ipStack_t ipStack[MAXHOSTS];
 static uint32_t ChainHosts(ipStack_t *ipStack, int numIP, int direction);
 
 static int AddIdent(char *ident);
+
+static int AddCount(uint16_t comp, uint64_t count);
 
 static int AddEngineNum(char *type, uint16_t comp, uint64_t num);
 
@@ -234,7 +238,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	| COUNT comp NUMBER {
-		$$.self = NewElement(EXlocal, OFFflowCount, SIZEflowCount, $3, $2.comp, FUNC_NONE, NULLPtr); 
+		$$.self = AddCount($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| ENGINETYPE comp NUMBER {
@@ -723,6 +727,12 @@ static uint32_t ChainHosts(ipStack_t *ipStack, int numIP, int direction) {
 } // End of ChainHosts
 
 static int AddIdent(char *ident) {
+
+#ifndef NFFILTER_FULL
+	(void)ident;
+	yyprintf("ident matching not available: collector filters match V4 record fields only");
+	return -1;
+#else
 	char *c;
 
 	// ident[a-zA-Z0-9_\-]+ { 
@@ -743,8 +753,20 @@ static int AddIdent(char *ident) {
 	
 	data_t data = {.dataPtr = strdup(ident)};
 	return NewElement(EXheader, 0, 0, 0, CMP_IDENT, FUNC_NONE, data); 
+#endif
 
 } // End of AddIdent
+
+static int AddCount(uint16_t comp, uint64_t count) {
+#ifndef NFFILTER_FULL
+	(void)comp;
+	(void)count;
+	yyprintf("count matching not available: collector filters match V4 record fields only");
+	return -1;
+#else
+	return NewElement(EXlocal, OFFflowCount, SIZEflowCount, count, comp, FUNC_NONE, NULLPtr);
+#endif
+} // End of AddCount
 
 static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 
@@ -1302,6 +1324,7 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 
 } // End of AddNatPortBlocks
 
+#ifdef NFFILTER_FULL
 static int AddPayloadDNS(direction_t direction, char *arg, char *opt) {
 	uint32_t extension = 0;
 	switch (direction) {
@@ -1590,6 +1613,32 @@ static int AddTZ(direction_t direction, char *tz) {
 
 	return ret;
 } // End of AddTZ
+#else
+/*
+ * Minimal collector filter build (NFFILTER_FULL undefined): DNS/SSL/JA3/JA4
+ * payload decoding, MaxMind geo, and MaxMind timezone lookups all need
+ * resources outside the plain V4 record (a payload content parser, or an
+ * external GeoIP/ASN/TZ database) and are rejected here at compile time
+ * instead of silently parsing but never matching.
+ */
+static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
+	(void)direction; (void)arg; (void)opt;
+	yyprintf("payload matching ('%s') not available: filter engine built without payload/DNS/SSL/JA3/JA4 support", type);
+	return -1;
+} // End of AddPayload
+
+static int AddGeo(direction_t direction, char *geo) {
+	(void)direction; (void)geo;
+	yyprintf("geo matching not available: filter engine built without MaxMind support");
+	return -1;
+} // End of AddGeo
+
+static int AddTZ(direction_t direction, char *tz) {
+	(void)direction; (void)tz;
+	yyprintf("timezone matching not available: filter engine built without MaxMind support");
+	return -1;
+} // End of AddTZ
+#endif /* NFFILTER_FULL */
 
 static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t number) {
 
@@ -1697,6 +1746,10 @@ static int AddIP(direction_t direction, char *IPstr) {
 
 	// if it's a tor node check
 	if (strcasecmp(IPstr, "tor") == 0 ) {
+#ifndef NFFILTER_FULL
+		yyprintf("Tor lookup not available: filter engine built without Tor support");
+		return -1;
+#else
 		switch ( direction ) {
 		case DIR_SRC:
 			ret = Connect_OR(
@@ -1725,7 +1778,8 @@ static int AddIP(direction_t direction, char *IPstr) {
 			yyprintf("Invalid direction for tor lookup");
 		}
 		return ret;
-	} 
+#endif /* NFFILTER_FULL */
+	}
 
 	// else normal IP compare
 	int lookupMode = STRICT_IP;
@@ -2255,6 +2309,14 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 	return ret;
 } // End of AddVlanNumber
 
+/*
+ * "as [src|dst] <num>" tags elements with FUNC_MMAS_LOOKUP. In the minimal
+ * (non-NFFILTER_FULL) build, mmASLookup_function() in filter.c never
+ * enriches - it returns the exporter-supplied EXasInfoID/EXasAdjacentID
+ * field verbatim (0 if the exporter didn't send one), never a MaxMind
+ * lookup. So this filter form is a plain field compare either way and must
+ * stay available in the minimal build; it is not rejected at compile time.
+ */
 static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 	if (as > UINT32_MAX ) {
 		yyprintf("AS number of range");
