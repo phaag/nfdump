@@ -64,7 +64,10 @@ ja4_t *_ja4sProcess(ssl_t *ssl, uint8_t proto) {
     buff[2] = ssl->tlsCharVersion[1];
 
     uint32_t num = LenArray(ssl->extensions);
-    if (num > 99) return 0;
+    if (num > 99) {
+        free(ja4);
+        return NULL;
+    }
     uint32_t ones = num % 10;
     uint32_t tens = num / 10;
     buff[3] = tens + '0';
@@ -97,9 +100,12 @@ ja4_t *_ja4sProcess(ssl_t *ssl, uint8_t proto) {
     // generate string to sha256
     // create a string big enough for ciphersuites and extensions
     // uint16_t = max 5 digits + ',' = 6 digits per cipher + '\0'
-    size_t maxStrLen = LenArray(ssl->extensions) * 6 + 1;
+    size_t maxStrLen = LenArray(ssl->extensions) * 6 + 2;
     char *hashString = (char *)malloc(maxStrLen);
-    hashString[0] = '0';
+    if (hashString == NULL) {
+        free(ja4);
+        return NULL;
+    }
 
     uint32_t index = 0;
     for (int i = 0; i < LenArray(ssl->extensions); i++) {
@@ -110,8 +116,13 @@ ja4_t *_ja4sProcess(ssl_t *ssl, uint8_t proto) {
         hashString[index++] = hexChars[val & 0xF];
         hashString[index++] = ',';
     }
-    // overwrite last ',' with end of string
-    hashString[index - 1] = '\0';
+    // overwrite last ',' with end of string; no extensions hashes as "0".
+    if (index == 0) {
+        hashString[0] = '0';
+        hashString[1] = '\0';
+    } else {
+        hashString[index - 1] = '\0';
+    }
 
     uint8_t sha256Digest[32];
     char sha256String[65];

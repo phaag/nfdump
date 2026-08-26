@@ -257,7 +257,7 @@ static bool expand_template_table(exporter_ipfix_t *exporter_ipfix);
 
 static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomain);
 
-static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flowset_header, uint32_t size_left, FlowSource_t *f);
+static void Process_ipfix_templates(exporter_entry_t *exporter_entry, uint8_t *flowset_header, uint32_t size_left, FlowSource_t *f);
 
 static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const uint8_t *DataPtr, uint32_t size_left, FlowSource_t *f);
 
@@ -404,6 +404,7 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
 
     // index search
     if (type < LINEAR_MARKER) {
+        if (type >= maxMapEntries) return -1;
         if (ipfixTranslationMap[type].name != NULL) {
             int extID = ipfixTranslationMap[type].extensionID;
             if (ExtensionsEnabled[extID]) {
@@ -418,8 +419,8 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
     }
 
     // linear search
-    int i = LINEAR_MARKER;
-    while (ipfixTranslationMap[i].name != NULL && i < maxMapEntries) {
+    // cppcheck-suppress arrayIndexOutOfBounds
+    for (int i = LINEAR_MARKER; i < maxMapEntries && ipfixTranslationMap[i].name != NULL; i++) {
         if (ipfixTranslationMap[i].id == type) {
             int extID = ipfixTranslationMap[i].extensionID;
             if (ExtensionsEnabled[extID]) {
@@ -429,7 +430,6 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
                 return -1;
             }
         }
-        i++;
     }
 
     return -1;
@@ -926,13 +926,13 @@ static void removeAllTemplates(exporter_entry_t *exporter_entry) {
 
 }  // End of removeAllTemplates
 
-static void Process_ipfix_templates(exporter_entry_t *exporter_entry, void *flowset_header, uint32_t size_left, FlowSource_t *fs) {
+static void Process_ipfix_templates(exporter_entry_t *exporter_entry, uint8_t *flowset_header, uint32_t size_left, FlowSource_t *fs) {
     size_left -= 4;  // subtract message header
     if (size_left < 4) {
         LogError("Process_ipfix: [%u] template flowset too short", exporter_entry->info->id);
         return;
     }
-    void *DataPtr = flowset_header + 4;
+    uint8_t *DataPtr = flowset_header + 4;
 
     // fieldCount is the second uint16_t, at offset 2.
     uint32_t count = Get_val16((const uint8_t *)DataPtr + 2);
@@ -1572,7 +1572,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         }
 
         recordHeaderV4_t *recordHeaderV4 = NULL;
-        void *outBuff;
+        uint8_t *outBuff;
         int redone = 0;
         ssize_t processed = 0;
         do {
@@ -2233,7 +2233,7 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     exporter_ipfix_t *exporter_ipfix = &(exporter_entry->ipfix);
 
     // exporter->PacketSequence = Sequence;
-    void *flowset_header = (void *)ipfix_header + IPFIX_HEADER_LENGTH;
+    uint8_t *flowset_header = (uint8_t *)ipfix_header + IPFIX_HEADER_LENGTH;
     size_left -= IPFIX_HEADER_LENGTH;
 
     dbg_printf("\n[%u] process packet: %u, export time: %s, TemplateRecords: %u, DataRecords: %" PRIu64 ", buffer: %zd \n", ObservationDomain,

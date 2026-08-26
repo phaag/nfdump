@@ -277,7 +277,7 @@ static int CreateDirListFilter(stringlist_t *source_dirs, char *first_path, char
     char *p, *q, *first_mark, *last_mark;
 
     dbg_printf("CreateDirListFilter() First Dir: '%s', first_path: '%s', last_path '%s', first_file '%s', last_file '%s', list_level: %i\n",
-               source_dirs->list[0], first_path, last_path, first_file, last_file, file_list_level);
+               source_dirs->list[0], first_path, last_path, first_file ? first_file : "", last_file ? last_file : "", file_list_level);
 
     if (file_list_level == 0) return 1;
 
@@ -1013,6 +1013,10 @@ int CheckSubDir(unsigned num) {
 static char *VerifyFileRange(char *path, char *last_file) {
     dbg_printf("VerifyFileRange() for file: %s in path: %s\n", last_file, path);
     char *r = strdup(path);
+    if (!r) {
+        LogError("strdup() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
     char *p = strrchr(r, '/');
     while (p) {
         *p = '\0';

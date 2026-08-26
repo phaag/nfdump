@@ -107,7 +107,7 @@ int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
         return 0;
     }
 
-    ip128_t ipAddr;
+    ip128_t ipAddr = {0};
     memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
 
     // check for exhausted hash

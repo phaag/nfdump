@@ -348,6 +348,7 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
 
     // index search
     if (type < LINEAR_MARKER) {
+        if (type >= maxMapEntries) return -1;
         if (v9TranslationMap[type].name != NULL) {
             int extID = v9TranslationMap[type].extensionID;
             if (ExtensionsEnabled[extID]) {
@@ -362,8 +363,8 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
     }
 
     // linear search
-    int i = LINEAR_MARKER;
-    while (v9TranslationMap[i].name != NULL && i < maxMapEntries) {
+    // cppcheck-suppress arrayIndexOutOfBounds
+    for (int i = LINEAR_MARKER; i < maxMapEntries && v9TranslationMap[i].name != NULL; i++) {
         if (v9TranslationMap[i].id == type) {
             int extID = v9TranslationMap[i].extensionID;
             if (ExtensionsEnabled[extID]) {
@@ -373,7 +374,6 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
                 return -1;
             }
         }
-        i++;
     }
 
     return -1;
@@ -1351,7 +1351,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
         }
 
         recordHeaderV4_t *recordHeaderV4 = NULL;
-        void *outBuff;
+        uint8_t *outBuff;
         int redone = 0;
         ssize_t processed = 0;
         do {

@@ -126,7 +126,7 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_
 
     // setup syslog
     if (!facility || strlen(facility) > 32) {
-        fprintf(stdout, "Invalid syslog facility name '%s'!\n", facility);
+        fprintf(stdout, "Invalid syslog facility name '%s'!\n", facility ? facility : "(null)");
         return 0;
     }
 

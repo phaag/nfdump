@@ -373,7 +373,12 @@ static ElementHash_t *elementHash_init(uint32_t bitSize) {
 
     elementHash->records = calloc(elementHash->capacity, sizeof(StatRecord_t));
     elementHash->keys = calloc(elementHash->capacity, sizeof(ElementHashKey_t));
-    if (elementHash->records == NULL) return NULL;
+    if (elementHash->records == NULL || elementHash->keys == NULL) {
+        free(elementHash->records);
+        free(elementHash->keys);
+        free(elementHash);
+        return NULL;
+    }
 
     return elementHash;
 }  // End of elementHash_init
@@ -1007,7 +1012,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
                     continue;
                 }
             }
-            inPtr += offset;
+            inPtr = (uint8_t *)inPtr + offset;
 
             uint32_t length = StatParameters[index].element.length;
             switch (length) {

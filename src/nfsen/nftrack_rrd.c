@@ -276,7 +276,10 @@ int RRD_StoreDataRow(char *path, char *iso_time, data_row *row) {
     }
 
     when = ISO2UNIX(iso_time);
-    if (!when) return 0;
+    if (!when) {
+        free(buff);
+        return 0;
+    }
 
     // make sure, we are at a 5min boundary
     frag = when % 300;

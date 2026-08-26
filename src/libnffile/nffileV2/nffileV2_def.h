@@ -68,8 +68,8 @@ BUFFSIZE and have potentially more time to flush to disk
 
 #define DATA_BLOCK_MESSAGE 0x0100
 
-#define GetCursorV2(block) ((void *)(block) + sizeof(dataBlockV2_t))
-#define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlockV2_t))
+#define GetCursorV2(block) ((uint8_t *)(block) + sizeof(dataBlockV2_t))
+#define GetCurrentCursor(block) ((uint8_t *)(block) + (block)->size + sizeof(dataBlockV2_t))
 
 // V2 compression types - do not match V3 types
 #define NOT_COMPRESSED_V2 0

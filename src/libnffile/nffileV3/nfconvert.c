@@ -240,7 +240,7 @@ static int AddV2ExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
-    ip128_t ipAddr;
+    ip128_t ipAddr = {0};
     memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
 
     if (exporter_record->fill != 0) {

@@ -41,30 +41,56 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v7
 
-            - name: Install cppcheck
+            - name: Install analysis and build dependencies
               run: |
                   sudo apt-get update
-                  sudo apt-get install -y cppcheck
+                  sudo apt-get install -y \
+                    autoconf \
+                    automake \
+                    bear \
+                    bison \
+                    cppcheck \
+                    flex \
+                    libbz2-dev \
+                    liblz4-dev \
+                    libpcre2-dev \
+                    libpcap-dev \
+                    libsodium-dev \
+                    libtool \
+                    libzstd-dev \
+                    pkg-config \
+                    zlib1g-dev
+
+            - name: Configure project
+              run: |
+                  sh bootstrap
+                  ./configure --enable-nfpcapd --enable-ja4 --enable-readpcap
+
+            - name: Build compilation database
+              run: bear --output compile_commands.json -- make -j"$(nproc)"
 
             - name: Show version
               run: cppcheck --version
 
             - name: Run cppcheck
               run: |
+                  set +e
                   cppcheck \
+                    --project=compile_commands.json \
                     --enable=warning,performance,portability \
                     --inline-suppr \
                     --suppress=missingIncludeSystem \
-                    -I src/include \
-                    -I src/libnffile \
-                    -I src/libnfdump \
-                    src/ 2> cppcheck-report.txt
+                    --error-exitcode=1 \
+                    --output-file=cppcheck-report.txt
+                  status=$?
                   cat cppcheck-report.txt
+                  exit "$status"
 
             - name: Upload cppcheck report
               if: always()
-              uses: actions/upload-artifact@v5
+              uses: actions/upload-artifact@v7
               with:
                   name: cppcheck-report
                   path: cppcheck-report.txt
+                  if-no-files-found: error
                   retention-days: 7

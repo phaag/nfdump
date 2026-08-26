@@ -383,7 +383,7 @@ typedef struct nffileV3_s {
         expBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(expBlockV3_t)),     \
         const expBlockV3_t *: (void *)((uint8_t *)(ptr) + sizeof(expBlockV3_t)))
 
-#define GetCursor(block) ((void *)block + ((dataBlockV3_t *)block)->rawSize)
+#define GetCursor(block) ((uint8_t *)(block) + ((dataBlockV3_t *)(block))->rawSize)
 
 #define IsAvailable(block, blockSize, requested) (((block)->rawSize + (requested)) <= (blockSize))
 

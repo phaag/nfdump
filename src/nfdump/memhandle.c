@@ -113,7 +113,7 @@ static inline void *nfmalloc(size_t size) {
     GetLock(MemHandler);
     if ((MemHandler->Allocated + aligned_size) <= MemHandler->BlockSize) {
         // enough space available in current memblock
-        void *p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocated;
+        void *p = (uint8_t *)MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocated;
         MemHandler->Allocated += aligned_size;
         dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lx\n", size, aligned_size, (long unsigned)p);
         ReleaseLock(MemHandler);
