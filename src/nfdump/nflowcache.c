@@ -48,7 +48,6 @@
 
 #include "blocksort.h"
 #include "config.h"
-#include "exporter.h"
 #include "filter/filter.h"
 #include "maxmind/maxmind.h"
 #include "memhandle.h"
@@ -1774,13 +1773,17 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3
     }
 }  // End of RebuildRecord
 
-// export SortList - apply possible aggregation mask to zero out aggregated fields
-static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
+// Export SortList after applying the post-filter to the final aggregate record.
+static inline uint64_t ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffile_t *nffile, outputParams_t *outputParams,
+                                      int GuessFlowDirection, int ascending) {
     dbg_printf("Enter %s\n", __func__);
 
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    dataBlock = ExportExporterList(nffile, dataBlock);
+    if (outputParams->postFilter) {
+        FilterSetParam(outputParams->postFilter, "out", outputParams->hasGeoDB);
+    }
 
+    uint64_t exported = 0;
     for (uint64_t i = 0; i < maxindex; i++) {
         uint64_t j = ascending ? i : maxindex - 1 - i;
 
@@ -1817,9 +1820,6 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
             PushExtension(recordHeaderV3, EXcntFlow, extPtr);
             cntFlow = extPtr;
         }
-        dataBlock->size += recordHeaderV3->size;
-        dataBlock->NumRecords++;
-
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         if (genericFlow) {
             genericFlow->inPackets = flowRecord->inPackets;
@@ -1842,11 +1842,21 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }
 
-        // Update statistics
+        if (outputParams->postFilter && !FilterRecord(outputParams->postFilter, &recordHandle)) {
+            continue;
+        }
+
+        dataBlock->size += recordHeaderV3->size;
+        dataBlock->NumRecords++;
+
+        // Account only records that were actually exported.
         UpdateRawStat(nffile->stat_record, genericFlow, cntFlow);
+        exported++;
     }
 
     FlushBlock(nffile, dataBlock);
+
+    return exported;
 
 }  // End of ExportSortList
 
@@ -1932,7 +1942,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 
 }  // End of PrintFlowTable
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
+int ExportFlowTable(nffile_t *nffile, outputParams_t *outputParams, int aggregate, int bidir, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
 
@@ -1949,9 +1959,9 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
 
         blocksort(SortList, maxindex);
     }
-    ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
+    uint64_t exported = ExportSortList(SortList, maxindex, nffile, outputParams, GuessDir, PrintDirection);
     free(SortList);
 
-    return 1;
+    return exported > 0;
 
 }  // End of ExportFlowTable

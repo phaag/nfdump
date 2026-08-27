@@ -1362,7 +1362,7 @@ int main(int argc, char **argv) {
             nffile_t *nffile = OpenNewFile(wfile, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
             SetIdent(nffile, outputParams->ident);
-            if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
+            if (ExportFlowTable(nffile, outputParams, aggregate, bidir, GuessDir)) {
                 FlushFile(nffile);
                 DisposeFile(nffile);
             } else {

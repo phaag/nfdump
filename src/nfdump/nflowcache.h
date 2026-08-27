@@ -143,6 +143,6 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 
 void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams);
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir);
+int ExportFlowTable(nffile_t *nffile, outputParams_t *outputParams, int aggregate, int bidir, int GuessDir);
 
 #endif  //_NFLOWCACHE_H
