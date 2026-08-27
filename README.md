@@ -160,7 +160,7 @@ option mapping.
 ### File formats
 
 1.8.x reads nffile V2 files written by 1.7.x transparently but always writes the new V3 format.
-Reading files in 1.6.x format is no longer supported; convert them first with nfdump 1.7.8.
+Reading nffile V1 files written by 1.6.x  is no longer supported; convert them first with nfdump 1.7.8.
 
 Do not mix a beta deployment into an archive without first validating your
 readers, exporters, rotation scripts, and backup procedure. Keep the original
@@ -182,7 +182,7 @@ rows first.
 | Option | 1.7.x meaning | 1.8.x meaning |
 | --- | --- | --- |
 | `-W <num>` | Number of compression worker threads. | Total CPU-core budget for the whole process; `0` uses all online cores. Thread roles (reader/writer/worker) are now derived automatically from this budget, or tuned individually in `nfdump.conf`. |
-| `-x` | Not a shared option; program-specific or unused. | New everywhere: `-x <key>=<value>` overrides one `nfdump.conf` setting for this run (repeatable). |
+| `-x` | Not a shared option; program-specific or unused. | New everywhere: `-x <key>=<value>` overrides one `nfdump.conf` setting for this run (repeatable). For example: `-x threads.writers=4` replaces old `-W 4` behaviour. |
 | `-j`, `-y` | Legacy shorthands for `-z=bz2` and `-z=lz4`. | Still work in `nfdump`. Removed from `nfcapd`, `sfcapd`, and `nfpcapd`; use `-z=bz2` / `-z=lz4[:level]` there. |
 
 **`nfdump`:**
@@ -190,7 +190,7 @@ rows first.
 | Option | 1.7.x | 1.8.x |
 | --- | --- | --- |
 | `-v <file>` | Verified a file, given directly as the argument. | `-v check\|check-verbose\|repair`, applied to the file given separately with `-r`. |
-| `-x <file>` | Verified the extension records in a file. | Repurposed; see the shared `-x` row above. nffile v2 1.6.x extension based flow records are no longer supported. |
+| `-x <file>` | Verified the extension records in a file. | Repurposed; see the shared `-x` row above. nffile v1 1.6.x extension based flow records are no longer supported. |
 | `-J <0-4>` | Selected a compression codec by number. | `-J=<codec>` takes the same codec name as `-z` (`lzo`, `lz4`, `bz2`, `zstd`). |
 | `-t <time>` | Selected a time window. | Removed. Use `'first seen' >= ... and 'last seen' <= ...'` filter expressions instead. |
 | new | — | `-l <num>` sets the log level (1-4); `-K[=passphrase\|@keyfile]` reads and writes backend-encrypted files. |
