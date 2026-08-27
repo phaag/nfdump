@@ -61,8 +61,9 @@
  *   Replay protection: 256-bit sliding window on the inner nfd_header_t
  *   lastSequence field, checked after MAC verification succeeds.
  *
- *   Compression: LZ4 (HAVE_LZ4), attempted only when inner payload > 512 bytes,
- *   used only when compressed form is at least 10% smaller.
+ *   Compression: LZ4 (system library or bundled fallback), attempted only when
+ *   inner payload > 512 bytes and used only when compressed form is at least
+ *   10% smaller.
  *   Order: compress-then-encrypt (only safe order for AEAD).
  *
  * crypto/comp algorithm bytes use distinct uint8_t fields (not bit-flags):
@@ -237,8 +238,8 @@ void SetUdpRekeyInterval(uint32_t intervalSecs);
  * bytes of space (extra room for LZ4 expansion is handled internally).
  *
  * Optionally LZ4-compresses the inner payload before encryption when
- * HAVE_LZ4 is defined, innerLen > NFD_COMP_THRESHOLD, and at least 10%
- * compression is achieved.
+ * innerLen > NFD_COMP_THRESHOLD and at least 10% compression is achieved.
+ * The system LZ4 library or the bundled fallback supplies the codec.
  *
  * Returns total wire byte count on success, -1 on error.
  */

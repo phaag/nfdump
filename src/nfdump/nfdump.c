@@ -167,7 +167,7 @@ static void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
-        "-P <expr>\tPost-filter: apply <expr> to aggregated/statistics output before printing.\n"
+        "-P <expr>\tPost-filter: apply <expr> to aggregated/sorted flow output before printing or writing.\n"
         "-I \t\tPrint netflow summary statistics info from file or range of files (-r, -R).\n"
         "-g \t\tPrint gnuplot stat line for each nfcapd file (-r, -R).\n"
         "-M <expr>\tRead input from multiple directories.\n"

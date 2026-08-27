@@ -137,7 +137,7 @@ static void usage(char *name) {
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
-        "-o options \tAdd sfcpad options, separated with ','. Available: 'tun'\n"
+        "-o options \tAdd sfcapd options, separated with ','. Available: 'tun'\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port.\n"
         "-H host[/port]\tForward collected flows to host or IP address[/port]. Default port 9995.\n"
@@ -612,7 +612,7 @@ int main(int argc, char **argv) {
                 break;
             case 'M':
                 if (!CheckPath(optarg, S_IFDIR)) {
-                    LogError("Invalid directory: %s for -M", dynFlowDir);
+                    LogError("Invalid directory: %s for -M", optarg);
                     exit(EXIT_FAILURE);
                 }
                 dynFlowDir = strdup(optarg);

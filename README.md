@@ -61,7 +61,7 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
 - In addition to storing flows locally, `nfcapd` can forward decoded flows to another collector over UDP with the new `-H` switch. Plain forwarding uses the nfdump native protocol version 250; version 251 adds XChaCha20-Poly1305 transport protection when built with libsodium.
 - `-K[=passphrase|@keyfile]` instructs `nfcapd` to encrypt locally stored V3 files with XChaCha20-Poly1305.
 - `-k[=passphrase|@keyfile]` authenticates and decrypts/encrypts version-251 forwarding traffic. Rekeying and anti-replay controls are also available. See `nfcapd(1)` for the exact key-management semantics.
-- The post filter -F <filter> allows to filter collected flow records before they get stored on disc or forwarded to a remote collector. 
+- The post filter `-F <filter>` filters collected flow records before they are stored on disk or forwarded to a remote collector.
 - NetFlow v9 and IPFIX template decoding now uses a compile-once decoding VM rather than interpreting a per-field loop for every record.
 - IPFIX information element 315, `dataLinkFrameSection`, can reconstruct and decode embedded L2--L4 frames, including VLAN/QinQ, MPLS, PPPoE, GRE/ERSPAN, and IP-in-IP encapsulations where present.
 - The receive path has less frontend contention under load.
@@ -71,7 +71,7 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
 #### sfcapd
 
 - The sFlow decoder has been newly written for the new runtime and no longer depends on sflowtool code.
-  It's code is now an integral part of nfdump.
+  Its code is now an integral part of nfdump.
 - It has the same backend, forwarding, encryption, threading, and relevant
   command-line interface changes as `nfcapd`.
 
@@ -84,7 +84,7 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
 - Offline pcap input is batched and mmap-based; compressed gzip input uses a
   batch-copy path. This is expected to improve large offline ingests, though
   the gain depends on the capture and host.
-- Native and independant of libpcap pcap reading and writing avoids unnecessary 
+- Native and independent libpcap pcap reading and writing avoids unnecessary
   format conversion in the pcap-output path.
 - Configurable limits bound the active-flow cache, queued output, and retained
   payload state, so capture capacity can be matched to the host.
@@ -130,6 +130,9 @@ nfcapd -w /var/nfdump/flows -p 9995 -k@/etc/nfdump/forward.key
 `-k` selects native protocol v251, which uses XChaCha20-Poly1305; without it,
 `-H` uses plaintext v250. Encryption complements rather than replaces network
 policy: firewall the receiving UDP port to the known sensor addresses.
+The `-z` file-compression options do not apply to UDP forwarding; the receiver
+chooses its own file compression. Encrypted v251 transport may use internal,
+opportunistic LZ4 packet compression, independently of `-z`.
 
 ### nfanon with separated anonymization and encryption
 

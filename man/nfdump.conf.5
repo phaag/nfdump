@@ -272,14 +272,6 @@ String.
 Define or redefine a named CSV output format, used with
 .Fl o Ar csv: Ns Ar name .
 .El
-.Ss [nfcapd] keys
-.Bl -tag -width "exporter.ident"
-.It Sy exporter. Ns Ar ident
-Array of two strings: the exporter IP address and the flow directory.
-Multiple exporters may be defined by using different
-.Ar ident
-values.
-.El
 .Ss [sfcapd] keys
 .Bl -tag -width "opt.tun"
 .It Sy opt.tun
@@ -427,15 +419,6 @@ fmt.line = "%ts %td %pr %sap -> %dap %pkt %byt %fl"
 
 # add a custom format
 fmt.compact = "%ts %pr %sap -> %dap %byt"
-.Ed
-.Ss nfcapd with named exporters
-.Bd -literal -offset indent
-[nfcapd]
-exporter.upstream = ["192.168.1.1",  "/var/nflow/upstream"]
-exporter.peer     = ["192.168.1.10", "/var/nflow/peer"]
-
-[nfcapd.threads]
-writers = 6
 .Ed
 .Ss nfpcapd with payload capture enabled
 .Bd -literal -offset indent

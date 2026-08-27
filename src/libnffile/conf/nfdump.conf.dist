@@ -105,14 +105,6 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # tordb.path = "/var/db/tordb.nf"
 
 [nfcapd]
-# define multiple netflow exporters
-# the identification string follow the token 'exporter'
-#
-# exporter.<ident> = ["ip", "flowdir"]
-#
-# exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
-# exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
-
 # TC_ROLE_WRITE_ONLY: budget left after fixed collector threads goes to
 # writers, capped at codec ceiling.  Use threads.writers to override the cap;
 # readers is unused for collectors.

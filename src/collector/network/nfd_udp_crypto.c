@@ -46,9 +46,9 @@
  *   probability is negligible at any realistic packet rate.
  *
  * Compression:
- *   LZ4 default compression applied before encryption when HAVE_LZ4 is
- *   defined, inner payload > NFD_COMP_THRESHOLD (512) bytes, and the
- *   compressed form is at least 10% smaller than the original.
+ *   LZ4 default compression (system library or bundled fallback) is applied
+ *   before encryption when the inner payload exceeds NFD_COMP_THRESHOLD
+ *   (512) bytes and the compressed form is at least 10% smaller.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -491,10 +491,6 @@ ssize_t UdpDecrypt(void *outBuf, size_t outBufSize, const void *wireBuf, size_t 
 
     // Decompress if needed
     if (hdr->comp == NFD_COMP_LZ4) {
-#ifndef HAVE_LZ4
-        LogError("UdpDecrypt: received LZ4-compressed packet but LZ4 not compiled in");
-        return -1;
-#else
         uint32_t orig = ntohl(hdr->origLen);
         if (orig == 0 || orig > 65535) {
             LogError("UdpDecrypt: invalid origLen %u in LZ4 packet", orig);
@@ -510,7 +506,6 @@ ssize_t UdpDecrypt(void *outBuf, size_t outBufSize, const void *wireBuf, size_t 
             return -1;
         }
         return (ssize_t)orig;
-#endif
     }
 
     return (ssize_t)plainLen;

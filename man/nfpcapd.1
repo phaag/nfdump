@@ -139,6 +139,10 @@ The wire format used is nfdump protocol v250 (plain) or v251 (XChaCha20-Poly1305
 Use
 .Fl k
 to enable encrypted transport.
+The file-compression options
+.Fl z
+apply only to local nffile output and are ignored with
+.Fl H .
 .It Fl F Ar filter
 Apply a post-decode record filter before flows are stored
 .Pq Fl w
@@ -260,7 +264,7 @@ using the same
 .Fl K
 option.
 .It Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
-Encrypt the UDP flow transport when forwarding to a remote collector
+Enable authenticated encryption for UDP flow transport when forwarding to a remote collector
 .Pq Fl H
 using XChaCha20-Poly1305 AEAD authenticated encryption (nfd wire format v251).
 Requires

@@ -118,6 +118,9 @@ Set the port number to listen. Default port is 9995
 .It Fl d Ar interface
 Reads sFlow packets from a capture interface. Requires a build configured
 with \fB--enable-readpcap\fR.
+.It Fl f Ar pcapfile
+Reads sFlow datagrams from an offline pcap file. Requires a build configured
+with \fB--enable-readpcap\fR.
 .It Fl b Ar bindhost
 Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be an IP address or a hostname, 
 resolving to a local IP address.
@@ -153,6 +156,10 @@ The separator between host and port is '/' to avoid ambiguity with IPv6 addresse
 Flows are sent using nfdump wire format protocol v250 (plain) or v251 (encrypted, see
 .Fl k
 below).
+The file-compression options
+.Fl z
+apply only to local nffile output and are ignored with
+.Fl H .
 This option is mutually exclusive with
 .Fl w ,
 .Fl n ,
@@ -310,7 +317,7 @@ using the same
 .Fl K
 option.
 .It Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
-Encrypt the UDP flow transport when forwarding to a remote collector
+Enable authenticated encryption for UDP flow transport when forwarding to a remote collector
 .Pq Fl H
 using XChaCha20-Poly1305 AEAD authenticated encryption (nfd wire format v251).
 Requires

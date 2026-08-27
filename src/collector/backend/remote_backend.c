@@ -216,6 +216,7 @@ void Close_udpsend_backend(FlowSource_t *fs) {
     fs->tid = 0;
 
     queue_free(ctx->blockQueue);
+    fs->blockQueue = NULL;
     free(ctx);
     fs->backend_ctx = NULL;
 

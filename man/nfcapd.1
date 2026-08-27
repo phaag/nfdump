@@ -191,6 +191,10 @@ The separator between host and port is '/' to avoid ambiguity with IPv6 addresse
 Flows are sent using nfdump wire format protocol v250 (plain) or v251 (encrypted, see
 .Fl k
 below).
+The file-compression options
+.Fl z
+apply only to local nffile output and are ignored with
+.Fl H .
 This option is mutually exclusive with
 .Fl w ,
 .Fl n ,
@@ -357,18 +361,27 @@ using the same
 .Fl K
 option.
 .It Fl k Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
-Decrypt incoming UDP transport flows (nfd wire format v251) from
+Enable authenticated encryption and decryption for nfd wire-format v251 UDP
+transport using XChaCha20-Poly1305 AEAD. With
+.Fl H ,
+.Nm
+encrypts forwarded flows; when receiving v251 flows from
 .Xr nfpcapd 1 ,
 .Xr sfcapd 1 ,
+another
+.Nm ,
 or
-.Xr nfreplay 1
-using XChaCha20-Poly1305 AEAD authenticated decryption.
+.Xr nfreplay 1 ,
+it authenticates and decrypts them.
 Requires
 .Nm
 to be compiled with libsodium support.
 .Pp
 The passphrase is used to derive a 32-byte session key via Argon2id.
-All incoming v251 packets are authenticated and decrypted before processing.
+All incoming v251 packets are authenticated and decrypted before processing;
+all v251 packets forwarded with
+.Fl H
+are encrypted.
 Packets that fail authentication are silently dropped.
 .Pp
 The passphrase may be supplied in one of three ways:
@@ -402,7 +415,7 @@ may be combined independently: use
 .Fl K
 to encrypt stored files and
 .Fl k
-to decrypt incoming transport flows.
+to protect UDP transport flows.
 .It Fl N Ar secs
 Set the encrypted UDP transport rekey interval in seconds. A value of 0
 disables rekeying; the accepted range is 0 through 604800 (seven days).
