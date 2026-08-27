@@ -1400,7 +1400,7 @@ int main(int argc, char **argv) {
             nffileV3_t *nffile = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, crypto_ctx);
             if (!nffile) exit(EXIT_FAILURE);
             SetIdent(nffile, outputParams->ident);
-            if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
+            if (ExportFlowTable(nffile, outputParams, aggregate, bidir, GuessDir)) {
                 FlushFileV3(nffile);
             } else {
                 FlushFileV3(nffile);

@@ -240,6 +240,41 @@ p_n=$(nfdump -r dummy_flows.nf -q -a -P 'bytes > 100000' -o line 2>/dev/null | w
 o_n=$(nfdump -r dummy_flows.nf -q -O tstart -P 'bytes > 100000' -o line 2>/dev/null | wc -l | tr -d ' ')
 [ "$o_n" = "9" ] && pass "postfilter_sorted" || fail "postfilter_sorted: got $o_n, expected 9"
 
+# -P must also apply to aggregated -w output.  The exported data and its
+# stats block must describe exactly the accepted post-filter records, and a
+# derived aggregate file must not carry source exporter metadata.
+postfilter_file="$WORKDIR/postfilter_aggregated.nf"
+if nfdump -r dummy_flows.nf -q -a -P 'bytes > 100000' -w "$postfilter_file" >/dev/null 2>&1 \
+   && nfdump -v check -r "$postfilter_file" >/dev/null 2>&1; then
+    # The aggregation debug banner is emitted on stdout, so count only data
+    # rows from a deliberately narrow output format.
+    postfilter_print_n=$(nfdump -r dummy_flows.nf -q -a -P 'bytes > 100000' -o 'fmt:%pr' 2>/dev/null | grep -c '^TCP')
+    postfilter_export_n=$(nfdump -r "$postfilter_file" -q -o 'fmt:%pr' 2>/dev/null | grep -c '^TCP')
+    postfilter_file_stats=$(nfdump -r "$postfilter_file" -I 2>/dev/null | \
+        awk '/^(Flows|Packets|Bytes|First|Last):/ { values = values (values ? " " : "") $2 } END { print values }')
+    # Fixed values for the eight aggregate records that pass the post-filter.
+    # Packets/bytes include both directions, as does UpdateRawStat().
+    if [ "$postfilter_export_n" = "$postfilter_print_n" ] \
+       && [ "$postfilter_file_stats" = "17 2563 49504821 1562833808 1562833840" ] \
+       && nfdump -E "$postfilter_file" 2>/dev/null | grep -q "No Exporter records found"; then
+        pass "postfilter_aggregated_export"
+    else
+        fail "postfilter_aggregated_export: printed=$postfilter_print_n exported=$postfilter_export_n file_stats='$postfilter_file_stats'"
+    fi
+else
+    fail "postfilter_aggregated_export: failed to write or verify output"
+fi
+
+# When -P rejects every aggregate, ExportFlowTable reports no accepted record
+# and the caller removes the otherwise empty output file.
+postfilter_empty="$WORKDIR/postfilter_empty.nf"
+if nfdump -r dummy_flows.nf -q -a -P 'proto 255' -w "$postfilter_empty" >/dev/null 2>&1 \
+   && [ ! -e "$postfilter_empty" ]; then
+    pass "postfilter_aggregated_export_empty"
+else
+    fail "postfilter_aggregated_export_empty"
+fi
+
 # By design, -P has no effect without -a/-A/-b/-B/-O: a plain read prints
 # each matching record as it streams in and never builds the flow-record
 # result set -P filters, so -P is silently a no-op there (the man page
