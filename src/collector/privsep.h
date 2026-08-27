@@ -33,11 +33,12 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 typedef struct message_s {
     uint16_t type;
-    uint16_t length;
+    uint32_t length;
 } message_t;
 
 typedef struct messageList {
@@ -75,6 +76,8 @@ void pushMessage(messageQueue_t *messageQueue, message_t *message);
 void pushMessageFunc(message_t *message, void *extraArg);
 
 message_t *getMessage(messageQueue_t *messageQueue);
+
+int WriteMessage(int fd, const struct iovec *iov, int iovcnt);
 
 int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
 

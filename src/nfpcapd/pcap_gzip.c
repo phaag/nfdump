@@ -69,7 +69,15 @@ int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader,
         return 0;
     }
 
-    if (fileHeader->magic == 0xd4c3b2a1) readerParam->swapped = 1;
+    if (fileHeader->magic == 0xd4c3b2a1) {
+        readerParam->swapped = 1;
+        fileHeader->version_major = swap16(fileHeader->version_major);
+        fileHeader->version_minor = swap16(fileHeader->version_minor);
+        fileHeader->thiszone = (int32_t)swap32((uint32_t)fileHeader->thiszone);
+        fileHeader->sigfigs = swap32(fileHeader->sigfigs);
+        fileHeader->snaplen = swap32(fileHeader->snaplen);
+        fileHeader->linktype = swap32(fileHeader->linktype);
+    }
 
     readerParam->gz = 1;
     readerParam->gzfp = gz;

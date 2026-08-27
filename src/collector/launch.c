@@ -446,8 +446,12 @@ int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *d
         launcher_message.lenAlign = 0;
     }
 
-    message.length = len;
-    ssize_t ret = writev(pfd, vector, i);
+    if (len > UINT32_MAX) {
+        errno = EMSGSIZE;
+        return -1;
+    }
+    message.length = (uint32_t)len;
+    int ret = WriteMessage(pfd, vector, i);
     if (ret < 0) {
         LogError("Failed to send launcher message: %s", strerror(errno));
     }

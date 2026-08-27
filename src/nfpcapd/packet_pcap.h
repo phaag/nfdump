@@ -119,8 +119,8 @@ typedef struct readerParam_s {
     queue_t *batchQueue;
     _Atomic uint32_t *done;
     size_t batch_size;
-    int snaplen;
-    int linkType;
+    uint32_t snaplen;
+    uint32_t linkType;
 
     int swapped;
 
@@ -167,6 +167,8 @@ typedef struct PktBatch_s {
 #ifndef swap32
 static inline uint32_t swap32(uint32_t v) { return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24); }
 #endif
+
+static inline uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); }
 
 PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen);
 

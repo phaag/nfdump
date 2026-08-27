@@ -134,6 +134,7 @@ static void usage(char *name) {
         "-x process\tlaunch process after a new file becomes available\n"
         "-W workers\toptionally set the number of workers to compress flows\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z\t\tLegacy shorthand for -z=lzo.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
@@ -229,7 +230,6 @@ static void ChildDied(void) {
 static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
     message_t message;
     message.type = PRIVMSG_REPEAT;
-    message.length = cnt + sizeof(message_t);
 
     repeater_message_t repeater_message;
     repeater_message.packet_size = cnt;
@@ -250,9 +250,12 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     vector[2].iov_len = cnt;
     len += cnt;
 
-    message.length = len;
-    ssize_t ret = writev(fd, vector, 3);
-    if (ret < 0) {
+    if (len > UINT32_MAX) {
+        LogError("Repeater message too large: %zu", len);
+        return EMSGSIZE;
+    }
+    message.length = (uint32_t)len;
+    if (WriteMessage(fd, vector, 3) < 0) {
         LogError("Failed to send repeater message: %s", strerror(errno));
         return errno;
     } else {
@@ -508,7 +511,10 @@ int main(int argc, char **argv) {
             case 'f': {
                 struct stat fstat;
                 pcap_file = optarg;
-                stat(pcap_file, &fstat);
+                if (stat(pcap_file, &fstat) < 0) {
+                    LogError("Unable to stat pcap file %s: %s", pcap_file, strerror(errno));
+                    exit(254);
+                }
                 if (!S_ISREG(fstat.st_mode)) {
                     LogError("Not a regular file: %s", pcap_file);
                     exit(254);

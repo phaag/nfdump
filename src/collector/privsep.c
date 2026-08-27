@@ -44,9 +44,46 @@
 
 #include "util.h"
 
-#define MAXMSGSIZE 65535
+#define MAXMSGSIZE (128 * 1024)
 
 static int done = 0;
+
+int WriteMessage(int fd, const struct iovec *iov, int iovcnt) {
+    if (iovcnt <= 0 || iovcnt > 8) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    struct iovec pending[8];
+    memcpy(pending, iov, (size_t)iovcnt * sizeof(*iov));
+
+    int first = 0;
+    while (first < iovcnt) {
+        ssize_t written;
+        do {
+            written = writev(fd, pending + first, iovcnt - first);
+        } while (written < 0 && errno == EINTR);
+
+        if (written <= 0) {
+            if (written == 0) errno = EIO;
+            return -1;
+        }
+
+        size_t remaining = (size_t)written;
+        while (remaining && first < iovcnt) {
+            if (remaining >= pending[first].iov_len) {
+                remaining -= pending[first].iov_len;
+                first++;
+            } else {
+                pending[first].iov_base = (char *)pending[first].iov_base + remaining;
+                pending[first].iov_len -= remaining;
+                remaining = 0;
+            }
+        }
+    }
+
+    return 0;
+}
 
 static void IntHandler(int signal) {
     switch (signal) {
@@ -87,6 +124,7 @@ void pushMessage(messageQueue_t *messageQueue, message_t *message) {
     listElement->message = (message_t *)malloc(message->length);
     if (!listElement->message) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(listElement);
         return;
     }
     memcpy(listElement->message, message, message->length);
@@ -180,8 +218,8 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
 
                 // check for valid message length
                 message_t *message = (message_t *)p;
-                if (message->length == 0) {
-                    LogError("Zero size pipe message: flush all data: %zu", nbytes);
+                if (message->length < sizeof(message_t) || message->length > MAXMSGSIZE) {
+                    LogError("Invalid pipe message length %u: flush all data: %zu", message->length, nbytes);
                     p = eod;
                     continue;
                 }

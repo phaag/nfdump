@@ -31,7 +31,7 @@
 ## Features
 
 - Collects NetFlow (v1, v5/v7, v9, IPFIX) and sFlow data.
-- Converts live or file pcap traffic to flow data. 
+- Converts live or PCAP-file traffic to flow data.
 - Multi-threaded for high-performance processing and sorting.
 - Advanced flow filtering and aggregation (filter syntax similar to tcpdump, but optimized for flow data).
 - Supports user-defined flow aggregation.
@@ -115,7 +115,7 @@ By default, `./configure` builds:
 
 - the collectors `nfcapd`, `sfcapd`
 - `nfdump` for processing flows
-- additional tools `geolookup` and `torlookup`
+- additional tools `nfanon`, `nfexpire`, `nfreplay`, `geolookup`, and `torlookup`
 
 For a full list, run `./configure --help`. Options include:
 
@@ -154,7 +154,7 @@ Notes:
 - Make sure your system provides autoconf 2.71.
 - Older Linux distributions may require libbsd and libbsd-dev installed. 
 
-- `nfprofile` is a legacy binary, used by NfSen and may be moved into a separate archive in future.
+- `nfprofile` and `nftrack` are legacy binaries used by NfSen and may move into a separate archive in a future release.
 
 ---
 

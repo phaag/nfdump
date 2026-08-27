@@ -80,6 +80,15 @@
 
 static proc_stat_t proc_stat = {0};
 
+static void swap_pcap_file_header(struct pcap_file_header *fileHeader) {
+    fileHeader->version_major = swap16(fileHeader->version_major);
+    fileHeader->version_minor = swap16(fileHeader->version_minor);
+    fileHeader->thiszone = (int32_t)swap32((uint32_t)fileHeader->thiszone);
+    fileHeader->sigfigs = swap32(fileHeader->sigfigs);
+    fileHeader->snaplen = swap32(fileHeader->snaplen);
+    fileHeader->linktype = swap32(fileHeader->linktype);
+}
+
 /* Compile BPF filter into readerParam->prog using a dead pcap handle. */
 static int compile_pcap_filter(readerParam_t *readerParam, packetParam_t *packetParam, const char *filter) {
     pcap_t *dead = pcap_open_dead((int)packetParam->linktype, (int)packetParam->snaplen);
@@ -137,9 +146,12 @@ static int reader_mmap_run(readerParam_t *readerParam) {
             pr.hdr.caplen = rh.incl_len;
             pr.hdr.len = rh.orig_len;
         }
-        int incl = pr.hdr.caplen;
+        uint32_t incl = pr.hdr.caplen;
 
-        if (incl > remaining) break;  // truncated - incomplete packet
+        if (incl > readerParam->snaplen || (size_t)incl > remaining) {
+            LogError("Invalid packet length in pcap input file");
+            break;
+        }
 
         pr.data = p;
 
@@ -264,9 +276,12 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
     }
 
     /* quick magic check */
-    uint32_t magic = *(uint32_t *)base;
+    uint32_t magic;
+    memcpy(&magic, base, sizeof(magic));
     if (magic == 0xa1b2c3d4 || magic == 0xd4c3b2a1) {
         memcpy(&fileHeader, base, sizeof(struct pcap_file_header));
+        swapped = magic == 0xd4c3b2a1;
+        if (swapped) swap_pcap_file_header(&fileHeader);
 
         readerParam->use_mmap = 1;
         readerParam->mmap_base = base;
@@ -274,6 +289,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
         readerParam->fd = fd;
         readerParam->snaplen = fileHeader.snaplen;
         readerParam->linkType = fileHeader.linktype;
+        readerParam->swapped = swapped;
 
     } else {
         // MAGIC mismatch - try gzopen()
@@ -293,12 +309,23 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
 #endif
     }
 
+    if (fileHeader.snaplen == 0 || fileHeader.snaplen > BUFFSIZE - sizeof(struct pcap_sf_pkthdr)) {
+        LogError("Invalid pcap snapshot length: %u", fileHeader.snaplen);
+        if (readerParam->use_mmap) {
+            munmap(readerParam->mmap_base, readerParam->mmap_size);
+            close(readerParam->fd);
+        }
+#ifdef HAVE_ZLIB
+        if (readerParam->gz) gzclose(readerParam->gzfp);
+#endif
+        queue_free(readerParam->batchQueue);
+        return -1;
+    }
+
     packetParam->linktype = fileHeader.linktype;
     packetParam->snaplen = fileHeader.snaplen;
     packetParam->batchQueue = readerParam->batchQueue;
     packetParam->live = 0;
-
-    readerParam->swapped = swapped;
 
     /* compile BPF filter if provided */
     readerParam->have_filter = 0;
@@ -376,7 +403,12 @@ static void ReportStat(packetParam_t *param) {
 static inline void PcapDump(packetBuffer_t *packetBuffer, struct pcap_pkthdr *hdr, const u_char *sp) {
     if (packetBuffer == NULL) return;
 
-    // caller checks for enough space in buffer
+    if (hdr->caplen > BUFFSIZE - sizeof(struct pcap_sf_pkthdr) ||
+        packetBuffer->bufferSize > BUFFSIZE - sizeof(struct pcap_sf_pkthdr) - hdr->caplen) {
+        LogError("Packet too large for pcap output buffer - packet dropped");
+        return;
+    }
+
     struct pcap_sf_pkthdr sf_hdr;
     sf_hdr.ts.tv_sec = hdr->ts.tv_sec;
     sf_hdr.ts.tv_usec = hdr->ts.tv_usec;
@@ -459,6 +491,10 @@ void *__attribute__((noreturn)) pcap_file_packet_thread(void *args) {
 
             size_t size = sizeof(struct pcap_sf_pkthdr) + hdr->caplen;
             if (DoPacketDump && ok) {
+                if (hdr->caplen > BUFFSIZE - sizeof(struct pcap_sf_pkthdr)) {
+                    LogError("Packet too large for pcap output buffer - packet dropped");
+                    continue;
+                }
                 if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);

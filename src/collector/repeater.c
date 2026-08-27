@@ -218,7 +218,7 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
     p += sizeof(message_t);
 
     dbg_printf("repeater received message: %u %u\n", message->type, message->length);
-    if (message->type == PRIVMSG_REPEAT && message->length > (sizeof(message_t) + sizeof(repeater_message_t))) {
+    if (message->type == PRIVMSG_REPEAT && message->length >= (sizeof(message_t) + sizeof(repeater_message_t))) {
         dbg_printf("repeater process message: type: %d, length: %d\n", message->type, message->length);
 
         repeater_message_t *repeater_message = (repeater_message_t *)p;
@@ -226,8 +226,10 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
 
         void *in_buff = p;
         size_t cnt = repeater_message->packet_size;
-        if (message->length < (sizeof(message_t) + sizeof(repeater_message_t) + cnt)) {
+        size_t header_size = sizeof(message_t) + sizeof(repeater_message_t);
+        if (cnt > message->length - header_size) {
             LogError("Repeater message size check error: %u", message->length);
+            return;
         }
         int i = 0;
         while (repeater[i].hostname && (i < MAX_REPEATERS)) {

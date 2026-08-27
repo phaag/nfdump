@@ -82,12 +82,18 @@ which is also part of the nfdump tools.
 .Pp
 Sflow is an industry standard developed by InMon Corporation.  For more information see http://sflow.org.
 .Pp
-.Nm 
+.Nm
 is the twin of
 .Ar nfcapd
 and supports the same feature set. See also 
 .Ar nfcapd(1)
 for more details.
+.Pp
+sFlow sampling information is supplied by the exporter in each sample, so
+.Nm
+does not provide nfcapd's
+.Fl s
+default-sampling option.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -240,6 +246,9 @@ Sets the time interval in seconds to rotate files. The default value is 300s ( 5
 The smallest available interval is 2s.
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
+.It Fl z
+Legacy shorthand for
+.Fl z=lzo .
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
 to use bz2 in a real time capturing.
@@ -339,7 +348,7 @@ Sets the interval for the flow metric exporter. This interval may be different f
 interval
 .Ar t 
 and is therefore independent from file rotation.
-.It Fl v
+.It Fl v Ar level
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
 printf netflow records in raw format while collecting. Please note, that not all elements
 are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.

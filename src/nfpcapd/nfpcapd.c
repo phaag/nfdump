@@ -131,6 +131,7 @@ static void usage(char *name) {
         "-W workers\toptionally set the number of workers to compress flows\n"
         "-v level\tSet verbose level.\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z\t\tLegacy shorthand for -z=lzo.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
@@ -383,7 +384,6 @@ int main(int argc, char *argv[]) {
                 compress = LZ4_COMPRESSED;
                 break;
             case 'z':
-                CheckArgLen(optarg, 32);
                 if (compress) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
@@ -391,6 +391,7 @@ int main(int argc, char *argv[]) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
+                    CheckArgLen(optarg, 32);
                     int ret = ParseCompression(optarg);
                     if (ret == -1) {
                         LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");

@@ -33,7 +33,7 @@
 .Nd pcap capture to netflow daemon
 .Sh SYNOPSIS
 .Nm
-.Fl i Ar interface
+.Op Fl i Ar interface
 .Op Fl r Ar file
 .Op Fl s Ar snaplen
 .Op Fl B Ar cachesize
@@ -92,7 +92,9 @@ and pcap processing.
 .It Fl i Ar interface
 Listen on this interface in promisc mode for packet processing.
 .It Fl r Ar file
-Read and process packets from this file. This file is a pcap compatible file.
+Read and process packets from a classic PCAP file with microsecond timestamps.
+PCAPNG and nanosecond-resolution PCAP files are not supported. A gzip-compressed
+classic PCAP file is accepted when nfpcapd was built with zlib support.
 .It Fl s Ar snaplen
 Limit the snaplen on collected packets. The default is 1522 bytes. The
 snaplen needs to be large enough to process all required protocols. The
@@ -163,6 +165,9 @@ payload   Add the payload bytes of the first packet of a connection.
 .El
 .It Fl z=lzo
 Compress flows. Use fast LZO1X-1 compression in output file.
+.It Fl z
+Legacy shorthand for
+.Fl z=lzo .
 .It Fl z=bz2
 Compress flows. Use bz2 compression in output file. Note: not recommended while collecting.
 .It Fl z=lz4[:level]

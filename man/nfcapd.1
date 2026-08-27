@@ -271,16 +271,19 @@ The following hierarchies are defined:
 Sets the time interval in seconds to rotate files. The default value is 300s ( 5min ).
 The smallest available interval is 2s.
 .It Fl s Ar rate
-Apply sampling rate
+Set the default sampling rate for flow records from exporters that do not announce
+a sampling rate. The default is 1 (unsampled). A positive
 .Ar rate
-to all netflow records, unless the sampling rate is announced by the exporting device.
-In that case the announced sampling rate is applied. If 
-.Ar rate
-is negative, this will hard overwrite any device specific announced sampling rates.
-The sampling rate is used to multiply the number of packets and bytes in a record. Please
-note, this may vary from other volume counters such as SNMP etc.
+from 1 through 10000000 is used only when the exporter does not provide sampling
+information. A negative value in the same range forces its absolute value for all
+records and overrides exporter-provided sampling information. Sampling multiplies
+the packet and byte counters in a record; it may therefore differ from counters
+reported by SNMP or other sources.
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
+.It Fl z
+Legacy shorthand for
+.Fl z=lzo .
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
 to use bz2 in a real time capturing.
@@ -368,7 +371,7 @@ Sets the interval for the flow metric exporter. This interval may be different f
 interval
 .Ar t 
 and is therefore independent from file rotation.
-.It Fl v
+.It Fl v Ar level
 Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
 printf netflow records in raw format while collecting. Please note, that not all elements
 are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
