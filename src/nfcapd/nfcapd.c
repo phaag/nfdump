@@ -520,6 +520,7 @@ int main(int argc, char **argv) {
     int64_t udpReplayWindowOverride = -1;
     uint32_t compressType = NOT_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
+    int compressionOption = 0;
     receive_packet = NULL;
     verbose = -1;
     do_daemonize = 0;
@@ -763,6 +764,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'z':
+                compressionOption = 1;
                 if (compressType != NOT_COMPRESSED) {
                     LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
@@ -892,6 +894,9 @@ int main(int argc, char **argv) {
         if (ConfigureSendFlowSource(&collector_ctx, Ident) == 0) {
             LogError("Failed to configure send flow source");
             exit(EXIT_FAILURE);
+        }
+        if (compressionOption) {
+            LogInfo("-z compression applies only to nffile output and is ignored with -H UDP forwarding");
         }
     } else {
         if ((ConfigureDefaultFlowSource(&collector_ctx, Ident, dataDir, subdir_index) == 0) &&

@@ -226,6 +226,7 @@ int main(int argc, char *argv[]) {
 
     uint32_t compressType = UNDEF_COMPRESSED;
     uint32_t compressLevel = LEVEL_0;
+    int compressionOption = 0;
     crypto_ctx_t *crypto_ctx = NULL;    // -K: backend (file) encryption
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
     uint8_t *udpSessionKey = NULL;
@@ -407,6 +408,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'z':
+                compressionOption = 1;
                 CheckArgLen(optarg, 32);
                 if (compressType != UNDEF_COMPRESSED) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
@@ -570,6 +572,9 @@ int main(int argc, char *argv[]) {
         sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &(sendHost->addr), &(sendHost->addrlen));
         if (sendHost->sockfd <= 0) exit(EXIT_FAILURE);
         dbg_printf("Replay flows to host: %s port: %s\n", sendHost->hostname, sendHost->port);
+        if (compressionOption) {
+            LogInfo("-z compression applies only to nffile output and is ignored with -H UDP forwarding");
+        }
         /* Derive UDP transport key if a passphrase was provided via -k.
          * When -H is active, -k means UDP transport encryption. */
         if (transfer_ctx) {
