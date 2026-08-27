@@ -10,10 +10,7 @@ RUN apk add --no-cache build-base gcc abuild binutils make \
 WORKDIR /app
 
 RUN ./autogen.sh \
-  && ./configure --enable-native --enable-lto \
-    --enable-maxmind --enable-nfpcapd \
-    --enable-sflow=yes --with-lz4path=/usr \
-    --with-zstdpath=/usr --with-bz2path=/usr \
+  && ./configure --enable-native --enable-lto --enable-nfpcapd \
   && make CPPFLAGS="-include bsd/stdlib.h" && make install
 
 FROM alpine:${ALPINE_VERSION} AS base

@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 RUN ./autogen.sh \
-  && ./configure --enable-nfpcapd --enable-maxmind --enable-sflow \
+  && ./configure --enable-nfpcapd \
   && make && make install \
   && ldconfig
 

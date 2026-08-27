@@ -1,5 +1,5 @@
 Name:		nfdump
-Version:	1.7.3
+Version:	1.7.9
 Release:	%mkrel 0
 Summary:	NetFlow collecting and processing tools
 License:	BSD
@@ -25,7 +25,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %build
 ./autogen.sh
-%define configure_args --enable-nfprofile --enable-nftrack --disable-rpath --disable-static
+%define configure_args --enable-nfprofile --disable-static
 %configure %{configure_args}
 %make_build
 
@@ -47,5 +47,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/*
 
 %changelog
+* Thu Aug 27 2026 Peter Haag <peter@people.ops-trust.net>
+- Version 1.7.9
+- Drop --enable-nftrack and --disable-rpath: no longer valid configure options
+
 * Sun Nov 26 2023 Richard REY <Rexy>
 - Version 1.7.3 for ALCASAR 3.6.1
