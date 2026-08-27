@@ -232,7 +232,7 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
             done = 1;
             return;
         }
-        if (!Init_FilterStage(fs, ctx->filterEngine, true)) {
+        if (!Init_FilterStage(fs, ctx->filterEngine, fs->isNffileBackend)) {
             LogError("Init_FilterStage() failed for new source");
             done = 1;
             return;
@@ -1086,7 +1086,7 @@ int main(int argc, char **argv) {
             remove_pid(pidfile);
             exit(EXIT_FAILURE);
         }
-        if (!Init_FilterStage(collector_ctx.any_source, collector_ctx.filterEngine, false)) {
+        if (!Init_FilterStage(collector_ctx.any_source, collector_ctx.filterEngine, collector_ctx.any_source->isNffileBackend)) {
             LogError("Failed to initialise filter stage");
             close_sockets(socks, nsocks);
             CloseMetric();

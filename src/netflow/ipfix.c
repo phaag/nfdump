@@ -59,6 +59,7 @@
 #include "nfxV4.h"
 #include "output_short.h"
 #include "packet_frame.h"
+#include "stat_record.h"
 #include "util.h"
 
 #define LINEAR_MARKER 512
@@ -1709,45 +1710,15 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 genericFlow->inBytes = genericFlow->inBytes * intervalTotal / (uint64_t)packetInterval;
             }
 
-            switch (genericFlow->proto) {
-                case IPPROTO_ICMPV6:
-                case IPPROTO_ICMP:
-                    fs->stat_record.numflows_icmp++;
-                    fs->stat_record.numpackets_icmp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_icmp += genericFlow->inBytes;
-                    if (runtime.rtRegister[0] != 0 || runtime.rtRegister[1] != 0) {
-                        if (runtime.rtRegister[1] > 256) {
-                            // icmp #032 #139
-                            genericFlow->dstPort = runtime.rtRegister[1];
-                        } else {
-                            // icmp type and code elements #176 #177 #178 #179
-                            genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
-                        }
+            if (genericFlow->proto == IPPROTO_ICMPV6 || genericFlow->proto == IPPROTO_ICMP) {
+                if (runtime.rtRegister[0] != 0 || runtime.rtRegister[1] != 0) {
+                    if (runtime.rtRegister[1] > 256) {
+                        genericFlow->dstPort = runtime.rtRegister[1];
+                    } else {
+                        genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
                     }
-                    break;
-                case IPPROTO_TCP:
-                    fs->stat_record.numflows_tcp++;
-                    fs->stat_record.numpackets_tcp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_tcp += genericFlow->inBytes;
-                    break;
-                case IPPROTO_UDP:
-                    fs->stat_record.numflows_udp++;
-                    fs->stat_record.numpackets_udp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_udp += genericFlow->inBytes;
-                    break;
-                default:
-                    fs->stat_record.numflows_other++;
-                    fs->stat_record.numpackets_other += genericFlow->inPackets;
-                    fs->stat_record.numbytes_other += genericFlow->inBytes;
+                }
             }
-
-            exporter_entry->flows++;
-            fs->stat_record.numflows++;
-            fs->stat_record.numpackets += genericFlow->inPackets;
-            fs->stat_record.numbytes += genericFlow->inBytes;
-
-            uint32_t exporterIdent = MetricExpporterID(recordHeaderV4);
-            UpdateMetric(fs->Ident, exporterIdent, genericFlow);
         }
 
         EXcntFlow_t *cntFlow = runtime.cntRecord;
@@ -1758,8 +1729,12 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 cntFlow->outBytes = cntFlow->outBytes * intervalTotal / (uint64_t)packetInterval;
             }
             if (cntFlow->flows == 0) cntFlow->flows++;
-            fs->stat_record.numpackets += cntFlow->outPackets;
-            fs->stat_record.numbytes += cntFlow->outBytes;
+        }
+
+        if (genericFlow && fs->isNffileBackend) {
+            UpdateRecordStat(&fs->stat_record, genericFlow, cntFlow);
+            exporter_entry->flows++;
+            UpdateMetric(fs->Ident, MetricExpporterID(recordHeaderV4), genericFlow);
         }
 
         // Decode IPFIX IE #315 dataLinkFrameSection when present.
@@ -2229,7 +2204,7 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         LogError("Process_ipfix: Exporter NULL: Abort ipfix record processing");
         return;
     }
-    exporter_entry->packets++;
+    if (fs->isNffileBackend) exporter_entry->packets++;
     exporter_ipfix_t *exporter_ipfix = &(exporter_entry->ipfix);
 
     // exporter->PacketSequence = Sequence;
@@ -2245,8 +2220,10 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     if (Sequence != exporter_ipfix->PacketSequence) {
         if (exporter_ipfix->DataRecords != 0) {
             // sync sequence on first data record without error report
-            fs->stat_record.sequence_failure++;
-            exporter_entry->sequence_failure++;
+            if (fs->isNffileBackend) {
+                fs->stat_record.sequence_failure++;
+                exporter_entry->sequence_failure++;
+            }
             dbg_printf("[%u] Sequence check failed: last seq: %u, seq %u\n", exporter_entry->info->id, Sequence, exporter_ipfix->PacketSequence);
         } else {
             dbg_printf("[%u] Sync Sequence: %u\n", exporter_entry->info->id, Sequence);

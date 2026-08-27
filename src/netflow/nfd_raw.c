@@ -52,6 +52,7 @@
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_short.h"
+#include "stat_record.h"
 #include "util.h"
 
 /* module limited globals */
@@ -311,7 +312,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         LogError("Process_nfd: NULL Exporter: Skip pcapd record processing");
         return;
     }
-    exporter->packets++;
+    if (fs->isNffileBackend) exporter->packets++;
 
     // EXipReceived extension parameters
     uint32_t receivedSize;
@@ -398,44 +399,24 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             copiedV4 = InsertEXipReceived(buffPtr, recordHeaderV4, outputSize, receivedExtID, receivedSize, fs);
         }
 
+        /* Native UDP carries no exporter metadata. The receiver owns the
+         * single exporter for this sender, so do not leave stale source-side
+         * sysIDs in records that will be written with that one exporter. */
+        copiedV4->exporterID = exporter->sysID;
+
         dbg_printf("Record: %u elements, size: %u\n\n", copiedV4->numExtensions, copiedV4->size);
 
         EXgenericFlow_t *genericFlow = GetExtension(copiedV4, EXgenericFlow);
         if (genericFlow) {
             genericFlow->msecReceived = msecReceived;
-
-            // Update stats
-            switch (genericFlow->proto) {
-                case IPPROTO_ICMP:
-                    fs->stat_record.numflows_icmp++;
-                    fs->stat_record.numpackets_icmp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_icmp += genericFlow->inBytes;
-                    break;
-                case IPPROTO_TCP:
-                    fs->stat_record.numflows_tcp++;
-                    fs->stat_record.numpackets_tcp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_tcp += genericFlow->inBytes;
-                    break;
-                case IPPROTO_UDP:
-                    fs->stat_record.numflows_udp++;
-                    fs->stat_record.numpackets_udp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_udp += genericFlow->inBytes;
-                    break;
-                default:
-                    fs->stat_record.numflows_other++;
-                    fs->stat_record.numpackets_other += genericFlow->inPackets;
-                    fs->stat_record.numbytes_other += genericFlow->inBytes;
+            if (fs->isNffileBackend) {
+                UpdateRecordStat(&fs->stat_record, genericFlow, GetExtension(copiedV4, EXcntFlow));
+                UpdateMetric(fs->Ident, MetricExpporterID(copiedV4), genericFlow);
             }
-            fs->stat_record.numflows++;
-            fs->stat_record.numpackets += genericFlow->inPackets;
-            fs->stat_record.numbytes += genericFlow->inBytes;
-
-            uint32_t exporterIdent = MetricExpporterID(copiedV4);
-            UpdateMetric(fs->Ident, exporterIdent, genericFlow);
         }
 
         numRecords++;
-        exporter->flows++;
+        if (fs->isNffileBackend) exporter->flows++;
 
         if (printRecord) {
             flow_record_short(stdout, copiedV4);

@@ -63,6 +63,7 @@
 // sFlow v2/4
 #include "id.h"
 #include "sflow_v2v4.h"
+#include "stat_record.h"
 #include "util.h"
 
 #define MAX_SFLOW_EXTENSIONS 8
@@ -280,7 +281,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         LogError("SFLOW: Exporter NULL: Abort sflow record processing");
         return;
     }
-    exporter->packets++;
+    if (fs->isNffileBackend) exporter->packets++;
 
     if (sample->ip_fragmentOffset & 0x1FFFu) {
         // non-first fragment: no valid L4 header, zero out ports
@@ -583,45 +584,15 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 
     recordHeader->size = nextOffset;
 
-    // update first_seen, last_seen
     if (!genericFlow) {
         LogError("SFLOW: genericFlow extension missing - skip stats update");
         return;
     }
-    if (genericFlow->msecFirst < fs->stat_record.msecFirstSeen)  // the very first time stamp need to be set
-        fs->stat_record.msecFirstSeen = genericFlow->msecFirst;
-    fs->stat_record.msecLastSeen = genericFlow->msecFirst;
-
-    // Update stats
-    stat_record_t *stat_record = &fs->stat_record;
-    switch (genericFlow->proto) {
-        case IPPROTO_ICMP:
-            stat_record->numflows_icmp++;
-            stat_record->numpackets_icmp += genericFlow->inPackets;
-            stat_record->numbytes_icmp += genericFlow->inBytes;
-            break;
-        case IPPROTO_TCP:
-            stat_record->numflows_tcp++;
-            stat_record->numpackets_tcp += genericFlow->inPackets;
-            stat_record->numbytes_tcp += genericFlow->inBytes;
-            break;
-        case IPPROTO_UDP:
-            stat_record->numflows_udp++;
-            stat_record->numpackets_udp += genericFlow->inPackets;
-            stat_record->numbytes_udp += genericFlow->inBytes;
-            break;
-        default:
-            stat_record->numflows_other++;
-            stat_record->numpackets_other += genericFlow->inPackets;
-            stat_record->numbytes_other += genericFlow->inBytes;
+    if (fs->isNffileBackend) {
+        UpdateRecordStat(&fs->stat_record, genericFlow, NULL);
+        exporter->flows++;
+        UpdateMetric(fs->Ident, MetricExpporterID(recordHeader), genericFlow);
     }
-    exporter->flows++;
-    stat_record->numflows++;
-    stat_record->numpackets += genericFlow->inPackets;
-    stat_record->numbytes += genericFlow->inBytes;
-
-    uint32_t exporterIdent = MetricExpporterID(recordHeader);
-    UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
     if (PrintRecord) {
         flow_record_short(stdout, recordHeader);

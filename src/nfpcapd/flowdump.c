@@ -61,6 +61,7 @@
 #include "output_short.h"
 #include "pflog.h"
 #include "queue.h"
+#include "stat_record.h"
 #include "util.h"
 
 static int printRecord = 0;
@@ -359,35 +360,10 @@ static int AppendPcapFlowRecord(flowParam_t *flowParam, struct FlowNode *Node) {
     UpdateFirstLast(fs->dataBlock, genericFlow->msecFirst, genericFlow->msecLast);
     fs->dataBlock->extensionBitmap |= bitMap;
 
-    // Update stats
-    stat_record_t *stat_record = &fs->stat_record;
-    switch (genericFlow->proto) {
-        case IPPROTO_ICMP:
-            stat_record->numflows_icmp++;
-            stat_record->numpackets_icmp += genericFlow->inPackets;
-            stat_record->numbytes_icmp += genericFlow->inBytes;
-            break;
-        case IPPROTO_TCP:
-            stat_record->numflows_tcp++;
-            stat_record->numpackets_tcp += genericFlow->inPackets;
-            stat_record->numbytes_tcp += genericFlow->inBytes;
-            break;
-        case IPPROTO_UDP:
-            stat_record->numflows_udp++;
-            stat_record->numpackets_udp += genericFlow->inPackets;
-            stat_record->numbytes_udp += genericFlow->inBytes;
-            break;
-        default:
-            stat_record->numflows_other++;
-            stat_record->numpackets_other += genericFlow->inPackets;
-            stat_record->numbytes_other += genericFlow->inBytes;
+    if (fs->isNffileBackend) {
+        UpdateRecordStat(&fs->stat_record, genericFlow, NULL);
+        UpdateMetric(fs->Ident, MetricExpporterID(recordHeader), genericFlow);
     }
-    stat_record->numflows++;
-    stat_record->numpackets += genericFlow->inPackets;
-    stat_record->numbytes += genericFlow->inBytes;
-
-    uint32_t exporterIdent = MetricExpporterID(recordHeader);
-    UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
     if (printRecord) {
         flow_record_short(stdout, recordHeader);
@@ -437,8 +413,9 @@ static int QueueFlowBlock(flowParam_t *flowParam) {
 static int EmitCycleMessage(flowParam_t *flowParam, time_t when, int done) {
     FlowSource_t *fs = flowParam->fs;
 
-    // snapshot the block's own min/max before QueueFlowBlock() releases it
-    if (fs->dataBlock && fs->dataBlock->numRecords) {
+    // Snapshot timestamps only for a file cycle. The UDP backend uses the
+    // message solely as a flush/done marker; the receiver owns its stats.
+    if (fs->isNffileBackend && fs->dataBlock && fs->dataBlock->numRecords) {
         if (fs->dataBlock->msecFirst < fs->stat_record.msecFirstSeen || fs->stat_record.msecFirstSeen == 0)
             fs->stat_record.msecFirstSeen = fs->dataBlock->msecFirst;
         if (fs->dataBlock->msecLast > fs->stat_record.msecLastSeen) fs->stat_record.msecLastSeen = fs->dataBlock->msecLast;
@@ -454,7 +431,7 @@ static int EmitCycleMessage(flowParam_t *flowParam, time_t when, int done) {
     }
 
     cycle_message_t message = {.type = MESSAGE_CYCLE, .length = sizeof(cycle_message_t), .when = when, .done = done};
-    memcpy(&message.stat_record, &fs->stat_record, sizeof(message.stat_record));
+    if (fs->isNffileBackend) memcpy(&message.stat_record, &fs->stat_record, sizeof(message.stat_record));
     memcpy(GetCursor(msgBlock), &message, sizeof(message));
     msgBlock->rawSize += sizeof(message);
     msgBlock->numMessages = 1;
@@ -465,10 +442,11 @@ static int EmitCycleMessage(flowParam_t *flowParam, time_t when, int done) {
         return 0;
     }
 
-    LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->stat_record.numflows,
-            (unsigned long long)fs->stat_record.numpackets, (unsigned long long)fs->stat_record.numbytes);
+    if (fs->isNffileBackend)
+        LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->stat_record.numflows,
+                (unsigned long long)fs->stat_record.numpackets, (unsigned long long)fs->stat_record.numbytes);
     fs->bad_packets = 0;
-    memset(&fs->stat_record, 0, sizeof(fs->stat_record));
+    if (fs->isNffileBackend) memset(&fs->stat_record, 0, sizeof(fs->stat_record));
 
     if (done) {
         queue_close(fs->blockQueue);

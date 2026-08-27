@@ -32,6 +32,7 @@
 #define _FLOWSOURCE_H 1
 
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <sys/socket.h>
 
@@ -52,6 +53,16 @@ typedef struct FlowSource_s {
     pthread_t tid;        // thread ID of packend
     void *backend_ctx;    // backend context
     queue_t *blockQueue;  // queue to backend (or to the filter stage, if active)
+
+    // true for a FlowSource created by newFlowSource() (nffile backend),
+    // false for one created by newSendFlowSource() (UDP send backend, -H).
+    // Set once at creation and never changed; the single source of truth for
+    // every "is this an nffile-backed source" decision (Init_FilterStage()'s
+    // exporter/stat bookkeeping, PeriodicCycle()'s FlushExporter() call) so
+    // that decision cannot drift between call sites. -H is mutually
+    // exclusive with -w/-n/-M (see ConfigureSendFlowSource()), so this is
+    // fixed for the lifetime of the process, not just the FlowSource.
+    bool isNffileBackend;
 
     // optional post-filter stage — see backend/filter_stage.h. NULL/0 when
     // no -F filter is configured: blockQueue then feeds the backend directly.

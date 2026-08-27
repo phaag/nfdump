@@ -59,6 +59,7 @@
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_short.h"
+#include "stat_record.h"
 #include "util.h"
 
 #define LINEAR_MARKER 512
@@ -1492,54 +1493,23 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                 genericFlow->inBytes = genericFlow->inBytes * intervalTotal / (uint64_t)packetInterval;
             }
 
-            switch (genericFlow->proto) {
-                case IPPROTO_ICMPV6:
-                case IPPROTO_ICMP:
-                    fs->stat_record.numflows_icmp++;
-                    fs->stat_record.numpackets_icmp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_icmp += genericFlow->inBytes;
-                    // fix odd CISCO behaviour for ICMP port/type in src port
-                    if (genericFlow->srcPort != 0) {
-                        uint8_t *s1 = (uint8_t *)&(genericFlow->srcPort);
-                        uint8_t *s2 = (uint8_t *)&(genericFlow->dstPort);
-                        s2[0] = s1[1];
-                        s2[1] = s1[0];
+            // Fix odd CISCO behaviour for ICMP port/type in src port.
+            if (genericFlow->proto == IPPROTO_ICMPV6 || genericFlow->proto == IPPROTO_ICMP) {
+                if (genericFlow->srcPort != 0) {
+                    uint8_t *s1 = (uint8_t *)&genericFlow->srcPort;
+                    uint8_t *s2 = (uint8_t *)&genericFlow->dstPort;
+                    s2[0] = s1[1];
+                    s2[1] = s1[0];
+                }
+                genericFlow->srcPort = 0;
+                if (runtime.rtRegister[0] != 0 || runtime.rtRegister[1] != 0) {
+                    if (runtime.rtRegister[1] > 256) {
+                        genericFlow->dstPort = runtime.rtRegister[1];
+                    } else {
+                        genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
                     }
-                    // srcPort is always 0
-                    genericFlow->srcPort = 0;
-                    if (runtime.rtRegister[0] != 0 || runtime.rtRegister[1] != 0) {
-                        if (runtime.rtRegister[1] > 256) {
-                            // icmp #032 #139
-                            genericFlow->dstPort = runtime.rtRegister[1];
-                        } else {
-                            // icmp type and code elements #176 #177 #178 #179
-                            genericFlow->dstPort = (runtime.rtRegister[0] << 8) + runtime.rtRegister[1];
-                        }
-                    }
-                    break;
-                case IPPROTO_TCP:
-                    fs->stat_record.numflows_tcp++;
-                    fs->stat_record.numpackets_tcp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_tcp += genericFlow->inBytes;
-                    break;
-                case IPPROTO_UDP:
-                    fs->stat_record.numflows_udp++;
-                    fs->stat_record.numpackets_udp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_udp += genericFlow->inBytes;
-                    break;
-                default:
-                    fs->stat_record.numflows_other++;
-                    fs->stat_record.numpackets_other += genericFlow->inPackets;
-                    fs->stat_record.numbytes_other += genericFlow->inBytes;
+                }
             }
-
-            exporter_entry->flows++;
-            fs->stat_record.numflows++;
-            fs->stat_record.numpackets += genericFlow->inPackets;
-            fs->stat_record.numbytes += genericFlow->inBytes;
-
-            uint32_t exporterIdent = MetricExpporterID(recordHeaderV4);
-            UpdateMetric(fs->Ident, exporterIdent, genericFlow);
         }
 
         EXcntFlow_t *cntFlow = runtime.cntRecord;
@@ -1549,8 +1519,12 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, const uint8
                 cntFlow->outBytes = cntFlow->outBytes * intervalTotal / (uint64_t)packetInterval;
             }
             if (cntFlow->flows == 0) cntFlow->flows++;
-            fs->stat_record.numpackets += cntFlow->outPackets;
-            fs->stat_record.numbytes += cntFlow->outBytes;
+        }
+
+        if (genericFlow && fs->isNffileBackend) {
+            UpdateRecordStat(&fs->stat_record, genericFlow, cntFlow);
+            exporter_entry->flows++;
+            UpdateMetric(fs->Ident, MetricExpporterID(recordHeaderV4), genericFlow);
         }
 
         // handle event time for NSEL/ASA and NAT
@@ -2014,7 +1988,7 @@ void Process_v9(uint8_t *in_buff, size_t in_buff_cnt, FlowSource_t *fs) {
         LogVerbose("Process_v9: No exporter template: Skip v9 record processing");
         return;
     }
-    exporter_entry->packets++;
+    if (fs->isNffileBackend) exporter_entry->packets++;
     exporter_v9_t *exporter_v9 = &exporter_entry->v9;
 
     exporter_v9->sysUptime = ntohl(v9_header->SysUptime);
@@ -2038,7 +2012,7 @@ void Process_v9(uint8_t *in_buff, size_t in_buff_cnt, FlowSource_t *fs) {
     if (exporter_entry->sequence != UINT32_MAX) {
         uint32_t distance = seq - exporter_entry->sequence; /* wrap-safe */
 
-        if (distance != 1) {
+        if (distance != 1 && fs->isNffileBackend) {
             exporter_entry->sequence_failure++;
             fs->stat_record.sequence_failure++;
 

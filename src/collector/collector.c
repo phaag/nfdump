@@ -390,14 +390,16 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
             return 0;
         }
 
-        if (fs->dataBlock->msecFirst < fs->stat_record.msecFirstSeen || fs->stat_record.msecFirstSeen == 0)
-            fs->stat_record.msecFirstSeen = fs->dataBlock->msecFirst;
-        if (fs->dataBlock->msecLast > fs->stat_record.msecLastSeen) fs->stat_record.msecLastSeen = fs->dataBlock->msecLast;
+        if (fs->isNffileBackend) {
+            if (fs->dataBlock->msecFirst < fs->stat_record.msecFirstSeen || fs->stat_record.msecFirstSeen == 0)
+                fs->stat_record.msecFirstSeen = fs->dataBlock->msecFirst;
+            if (fs->dataBlock->msecLast > fs->stat_record.msecLastSeen) fs->stat_record.msecLastSeen = fs->dataBlock->msecLast;
 
-        // log stats
-        LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
-                fs->Ident, fs->stat_record.numflows, fs->stat_record.numpackets, fs->stat_record.numbytes, fs->stat_record.sequence_failure,
-                fs->bad_packets, ReportBlocks());
+            LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64
+                    ", Bad Packets: %u, Blocks: %u",
+                    fs->Ident, fs->stat_record.numflows, fs->stat_record.numpackets, fs->stat_record.numbytes, fs->stat_record.sequence_failure,
+                    fs->bad_packets, ReportBlocks());
+        }
 
         // reset stats
         fs->bad_packets = 0;
@@ -414,8 +416,11 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
             return 0;
         }
 
-        // Flush Exporter to file
-        FlushExporter(fs);
+        // Flush Exporter to file. A UDP send backend has no use for this
+        // block — it discards BLOCK_TYPE_EXP outright (see remote_backend.c)
+        // and the receiving nfcapd rebuilds its own exporter statistics from
+        // the flow records it actually decodes — so skip building it at all.
+        if (fs->isNffileBackend) FlushExporter(fs);
 
         // Signaling rotate for backend
         msgBlockV3_t *msgBlock = NULL;
@@ -426,7 +431,7 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         }
         uint8_t *p = GetCursor(msgBlock);
         cycle_message_t cycle_message = {.type = MESSAGE_CYCLE, .length = sizeof(cycle_message_t), .when = t_start, .done = done};
-        memcpy(&cycle_message.stat_record, (void *)&fs->stat_record, sizeof(stat_record_t));
+        if (fs->isNffileBackend) memcpy(&cycle_message.stat_record, &fs->stat_record, sizeof(stat_record_t));
         memcpy(p, &cycle_message, sizeof(cycle_message_t));
 
         msgBlock->rawSize += sizeof(cycle_message_t);
@@ -443,8 +448,7 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
         // or close queue if done
         if (done) {
             queue_close(fs->blockQueue);
-        } else {
-            // clear previous stat
+        } else if (fs->isNffileBackend) {
             memset((void *)&fs->stat_record, 0, sizeof(stat_record_t));
         }
     }

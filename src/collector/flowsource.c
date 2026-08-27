@@ -94,6 +94,7 @@ FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned sub
 
     // name of flowsource
     strncpy(fs->Ident, ident, IDENTLEN - 1);
+    fs->isNffileBackend = true;
 
     // init backend info
     if (initFileInfo(fs, ident, dataDir, subDir) == 0) {
@@ -132,6 +133,7 @@ FlowSource_t *newSendFlowSource(const char *ident) {
 
     strncpy(fs->Ident, ident, IDENTLEN - 1);
     /* backend_ctx is intentionally NULL here; Init_udpsend_backend() fills it */
+    /* isNffileBackend is already false from calloc() */
     return fs;
 
 }  // End of newSendFlowSource

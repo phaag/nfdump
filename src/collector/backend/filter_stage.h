@@ -58,10 +58,17 @@
  * pattern, but is a cheap struct copy — see filter.c).
  *
  * Non-flow blocks are forwarded in order. For an nffile backend, exporter
- * metadata flow counts are adjusted to the retained V4 records; message and
- * array blocks remain unchanged except for the filtered cycle statistics.
- * A flow block left with zero surviving records is dropped rather than
- * forwarded.
+ * metadata flow counts are adjusted to the retained V4 records, and the
+ * cycle message's stat_record is replaced with the filtered totals. A UDP
+ * send backend does neither: it discards BLOCK_TYPE_EXP blocks outright and
+ * only reads the `done` flag out of the cycle message (see
+ * remote_backend.c), so exporter/stat bookkeeping for it would just be
+ * computed and thrown away. That accounting isn't missed on the wire either
+ * — the receiving nfcapd's Process_nfd() builds its own single synthetic
+ * exporter (keyed by source IP) and its own stat_record directly from the
+ * records it decodes, since the nfd UDP protocol carries no exporter or stat
+ * metadata to begin with. A flow block left with zero surviving records is
+ * dropped rather than forwarded, for either backend.
  */
 
 #ifndef _FILTER_STAGE_H
@@ -84,15 +91,19 @@
  *             expected to skip calling this at all when -F was not given,
  *             but a NULL check is included defensively.
  *
- * rewriteExporterMetadata  true for nffile: rewrite cumulative exporter flow
- *                          counts to retained V4-record counts. false for
- *                          UDP, which discards exporter blocks.
+ * isNffileBackend  true when fs is backed by an nffile backend: rewrite
+ *                  cumulative exporter flow counts to retained V4-record
+ *                  counts, and replace the cycle message's stat_record with
+ *                  the filtered totals. false for a UDP send backend, which
+ *                  discards both exporter blocks and the cycle stat_record
+ *                  regardless (see filter_stage.c's file header comment for
+ *                  why that bookkeeping is unneeded on the UDP path).
  *
  * Returns 1 on success, 0 on error (fs->blockQueue is left untouched on
  * error, so the backend keeps working unfiltered rather than being left in a
  * half-wired state).
  */
-int Init_FilterStage(FlowSource_t *fs, void *baseEngine, bool rewriteExporterMetadata);
+int Init_FilterStage(FlowSource_t *fs, void *baseEngine, bool isNffileBackend);
 
 /*
  * Close_FilterStage — close the ingress queue, join the filter thread, and

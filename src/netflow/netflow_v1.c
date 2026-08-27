@@ -52,6 +52,7 @@
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_short.h"
+#include "stat_record.h"
 #include "util.h"
 
 #define NETFLOW_V1_MAX_RECORDS 24
@@ -203,7 +204,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         LogError("Process_v1: NULL Exporter: Abort v1 record processing");
         return;
     }
-    exporter->packets++;
+    if (fs->isNffileBackend) exporter->packets++;
 
     // this many data to process
     ssize_t size_left = in_buff_cnt;
@@ -362,43 +363,20 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             recordHeader->numExtensions = __builtin_popcountll(recordHeader->extBitmap);
             recordHeader->size = nextOffset;
 
-            // Update stats
-            switch (genericFlow->proto) {
-                case IPPROTO_ICMP:
-                    fs->stat_record.numflows_icmp++;
-                    fs->stat_record.numpackets_icmp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_icmp += genericFlow->inBytes;
-                    // fix odd CISCO behaviour for ICMP port/type in src port
-                    if (genericFlow->srcPort != 0) {
-                        uint8_t *s1 = (uint8_t *)&(genericFlow->srcPort);
-                        uint8_t *s2 = (uint8_t *)&(genericFlow->dstPort);
-                        s2[0] = s1[1];
-                        s2[1] = s1[0];
-                        genericFlow->srcPort = 0;
-                    }
-                    break;
-                case IPPROTO_TCP:
-                    fs->stat_record.numflows_tcp++;
-                    fs->stat_record.numpackets_tcp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_tcp += genericFlow->inBytes;
-                    break;
-                case IPPROTO_UDP:
-                    fs->stat_record.numflows_udp++;
-                    fs->stat_record.numpackets_udp += genericFlow->inPackets;
-                    fs->stat_record.numbytes_udp += genericFlow->inBytes;
-                    break;
-                default:
-                    fs->stat_record.numflows_other++;
-                    fs->stat_record.numpackets_other += genericFlow->inPackets;
-                    fs->stat_record.numbytes_other += genericFlow->inBytes;
+            // Fix odd CISCO behaviour for ICMP port/type in src port.
+            if (genericFlow->proto == IPPROTO_ICMP && genericFlow->srcPort != 0) {
+                uint8_t *s1 = (uint8_t *)&genericFlow->srcPort;
+                uint8_t *s2 = (uint8_t *)&genericFlow->dstPort;
+                s2[0] = s1[1];
+                s2[1] = s1[0];
+                genericFlow->srcPort = 0;
             }
-            exporter->flows++;
-            fs->stat_record.numflows++;
-            fs->stat_record.numpackets += genericFlow->inPackets;
-            fs->stat_record.numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = MetricExpporterID(recordHeader);
-            UpdateMetric(fs->Ident, exporterIdent, genericFlow);
+            if (fs->isNffileBackend) {
+                UpdateRecordStat(&fs->stat_record, genericFlow, NULL);
+                exporter->flows++;
+                UpdateMetric(fs->Ident, MetricExpporterID(recordHeader), genericFlow);
+            }
 
             dbg(VerifyV4Record(recordHeader, recordHeader->size, V4RECORD_CHECK_EXTENSIONS));
             if (printRecord) {

@@ -693,7 +693,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!Init_FilterStage(fs, filterEngine, sendHost == NULL)) {
+    if (!Init_FilterStage(fs, filterEngine, fs->isNffileBackend)) {
         LogError("Failed to initialise filter stage");
         exit(EXIT_FAILURE);
     }

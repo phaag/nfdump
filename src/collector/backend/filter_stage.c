@@ -31,20 +31,21 @@
 #include "backend/filter_stage.h"
 
 #include <errno.h>
-#include <stdbool.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
 #include <string.h>
 
-#include "filter/filter.h"
 #include "exporter.h"
+#include "filter/filter.h"
 #include "id.h"
 #include "logging.h"
 #include "nfxV4.h"
 #include "queue.h"
+#include "stat_record.h"
 
 // MapV4RecordHandle() only - no dependency beyond nfxV4.h/logging.h, safe to
 // use with the minimal libnffilter engine. Do NOT pull in nfdump_inline.c's
@@ -65,17 +66,35 @@ typedef struct filtered_exporter_s {
 } filtered_exporter_t;
 
 typedef struct filter_stage_ctx_s {
-    void *engine;      // this thread's own FilterCloneEngine() copy
-    queue_t *inQueue;  // == fs->blockQueue while the stage is active
-    queue_t *outQueue; // the backend's own queue (what fs->blockQueue was before)
+    void *engine;       // this thread's own FilterCloneEngine() copy
+    queue_t *inQueue;   // == fs->blockQueue upstream queue
+    queue_t *outQueue;  // the backend's downstream queue
 
     /* nffile only: cumulative retained V4 record counts by exporter sysID.
      * UDP never receives exporter blocks, so its filter stage does not create
-     * this table and adds no exporter-accounting work to its hot path. */
+     * this table and adds no exporter-accounting work to its hot path.
+     */
     filtered_exporter_t *exporters;
     size_t exporterCapacity;
     size_t numExporters;
     bool rewriteExporterMetadata;
+
+    /* nffile only: fold retained records into a filtered cycle stat_record
+     * (see UpdateFilteredStatRecord/ApplyFilteredStatRecord below). Set once
+     * at init from the same isNffileBackend the caller passed for
+     * rewriteExporterMetadata, but tracked separately since the two must not
+     * be conflated: rewriteExporterMetadata can be disabled later at runtime
+     * (tally allocation failure), which has nothing to do with whether stat
+     * bookkeeping is worth doing. UDP send backend discards both
+     * BLOCK_TYPE_EXP blocks and the stat_record inside BLOCK_TYPE_MSG cycle
+     * messages (see remote_backend.c) — a UDP-forwarded flow is re-accounted
+     * from scratch by the receiving nfcapd's Process_nfd(), which builds its
+     * own single synthetic exporter (keyed by source IP; the nfd wire
+     * protocol carries no exporter or stat metadata at all) and its own
+     * stat_record straight from the records it actually decodes. Computing
+     * either piece of bookkeeping here for a UDP-backed FlowSource would just
+     * be discarded work on the hot path. */
+    bool trackStatRecord;
 } filter_stage_ctx_t;
 
 static noreturn void *filter_stage_thread(void *arg);
@@ -174,61 +193,6 @@ static void RewriteExporterMetadata(filter_stage_ctx_t *ctx, expBlockV3_t *block
 }  // End of RewriteExporterMetadata
 
 /*
- * UpdateFilteredStatRecord — fold one retained record into the cycle's
- * post-filter statistics. Keeping the retained total is safer than
- * subtracting rejected records: it also gives the exact first/last timestamps
- * of the file that is actually written.
- *
- * Deliberately mirrors src/inline/nfdump_inline.c's UpdateStatRecord()
- * field-for-field rather than reusing it: that file unconditionally
- * #includes ssl/ssl.h (needed only by the neighboring FreeRecordHandle(),
- * for sslFree()), which does not exist in the minimal libnffilter build this
- * file links against. Keep this in sync with UpdateStatRecord() if its
- * classification logic ever changes.
- */
-static void UpdateFilteredStatRecord(stat_record_t *stat, const recordHandle_t *handle) {
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
-    EXcntFlow_t *cntFlow = (EXcntFlow_t *)handle->extensionList[EXcntFlowID];
-    if (!genericFlow) return;
-
-    uint64_t inPackets = genericFlow->inPackets;
-    uint64_t inBytes = genericFlow->inBytes;
-    uint64_t outPackets = cntFlow ? cntFlow->outPackets : 0;
-    uint64_t outBytes = cntFlow ? cntFlow->outBytes : 0;
-    uint64_t flows = (cntFlow && cntFlow->flows) ? cntFlow->flows : 1;
-
-    switch (genericFlow->proto) {
-        case IPPROTO_ICMP:
-        case IPPROTO_ICMPV6:
-            stat->numflows_icmp += flows;
-            stat->numpackets_icmp += inPackets + outPackets;
-            stat->numbytes_icmp += inBytes + outBytes;
-            break;
-        case IPPROTO_TCP:
-            stat->numflows_tcp += flows;
-            stat->numpackets_tcp += inPackets + outPackets;
-            stat->numbytes_tcp += inBytes + outBytes;
-            break;
-        case IPPROTO_UDP:
-            stat->numflows_udp += flows;
-            stat->numpackets_udp += inPackets + outPackets;
-            stat->numbytes_udp += inBytes + outBytes;
-            break;
-        default:
-            stat->numflows_other += flows;
-            stat->numpackets_other += inPackets + outPackets;
-            stat->numbytes_other += inBytes + outBytes;
-    }
-    stat->numflows += flows;
-    stat->numpackets += inPackets + outPackets;
-    stat->numbytes += inBytes + outBytes;
-
-    if (stat->msecFirstSeen == 0 || genericFlow->msecFirst < stat->msecFirstSeen) stat->msecFirstSeen = genericFlow->msecFirst;
-    if (genericFlow->msecLast > stat->msecLastSeen) stat->msecLastSeen = genericFlow->msecLast;
-
-}  // End of UpdateFilteredStatRecord
-
-/*
  * ApplyFilteredStatRecord — the frontend's cycle statistics describe all
  * decoded records. Replace their record-derived part with the retained total;
  * sequence failures remain exporter/transport bookkeeping and must survive
@@ -275,7 +239,9 @@ static void FilterFlowBlock(filter_stage_ctx_t *ctx, flowBlockV3_t *block, stat_
             if (MapV4RecordHandle(&handle, v4, recordCounter)) {
                 keep = FilterRecord(ctx->engine, &handle);
                 if (keep) {
-                    UpdateFilteredStatRecord(filteredStat, &handle);
+                    if (ctx->trackStatRecord)
+                        UpdateRecordStat(filteredStat, (EXgenericFlow_t *)handle.extensionList[EXgenericFlowID],
+                                         (EXcntFlow_t *)handle.extensionList[EXcntFlowID]);
                     CountFilteredExporter(ctx, v4->exporterID);
                     extensionBitmap |= v4->extBitmap;
                     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle.extensionList[EXgenericFlowID];
@@ -312,7 +278,7 @@ static void FilterFlowBlock(filter_stage_ctx_t *ctx, flowBlockV3_t *block, stat_
 
 }  // End of FilterFlowBlock
 
-int Init_FilterStage(FlowSource_t *fs, void *baseEngine, bool rewriteExporterMetadata) {
+int Init_FilterStage(FlowSource_t *fs, void *baseEngine, bool isNffileBackend) {
     if (!baseEngine) return 1;  // no -F configured: nothing to do
 
     filter_stage_ctx_t *ctx = calloc(1, sizeof(filter_stage_ctx_t));
@@ -328,7 +294,8 @@ int Init_FilterStage(FlowSource_t *fs, void *baseEngine, bool rewriteExporterMet
         return 0;
     }
 
-    ctx->rewriteExporterMetadata = rewriteExporterMetadata;
+    ctx->rewriteExporterMetadata = isNffileBackend;
+    ctx->trackStatRecord = isNffileBackend;
     if (ctx->rewriteExporterMetadata && !InitFilteredExporters(ctx, fs->exporters.capacity)) {
         LogError("Init_FilterStage: exporter metadata tally allocation failed");
         DisposeFilter(ctx->engine);
@@ -392,7 +359,7 @@ int InitFilterStages(collector_ctx_t *ctx) {
     if (!ctx->filterEngine) return 1;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (!Init_FilterStage(fs, ctx->filterEngine, true)) return 0;
+        if (!Init_FilterStage(fs, ctx->filterEngine, fs->isNffileBackend)) return 0;
     }
     return 1;
 
@@ -416,13 +383,19 @@ void CloseFilterStages(const collector_ctx_t *ctx) {
  * backend queue in turn so the backend thread also winds down.
  *
  * filteredStat accumulates the stat_record contribution of every retained
- * record since the last cycle message. cycle_message_t::stat_record is built
- * by the frontend (fs->stat_record) before any filtering happens, so it is a
+ * record since the last cycle message, but only when ctx->trackStatRecord is
+ * set (nffile backend). cycle_message_t::stat_record is built by the
+ * frontend (fs->stat_record) before any filtering happens, so it is a
  * pre-filter total; when a BLOCK_TYPE_MSG cycle message reaches this thread,
  * its record-derived fields are replaced with filteredStat and then reset.
  * Ordering is safe because a cycle's flow blocks are always pushed before
  * its message block (PeriodicCycle/EmitCycleMessage), and this thread drains
- * its single ingress queue strictly in order.
+ * its single ingress queue strictly in order. For a UDP send backend
+ * (trackStatRecord false) filteredStat is left untouched at all zeroes and
+ * the cycle message's stat_record is passed through unmodified — the UDP
+ * backend only reads its `done` flag and discards the rest (see
+ * remote_backend.c), so folding retained records into it would be wasted
+ * work on this thread's hot path.
  */
 static noreturn void *filter_stage_thread(void *arg) {
     FlowSource_t *fs = (FlowSource_t *)arg;
@@ -447,7 +420,7 @@ static noreturn void *filter_stage_thread(void *arg) {
             case BLOCK_TYPE_MSG: {
                 cycle_message_t *msg = (cycle_message_t *)ResetCursor((msgBlockV3_t *)block);
                 if (msg->type == MESSAGE_CYCLE) {
-                    ApplyFilteredStatRecord(&msg->stat_record, &filteredStat);
+                    if (ctx->trackStatRecord) ApplyFilteredStatRecord(&msg->stat_record, &filteredStat);
                     memset(&filteredStat, 0, sizeof(filteredStat));
                 }
             } break;
