@@ -36,6 +36,10 @@
 #include <stdatomic.h>
 #include <time.h>
 
+#ifdef __OpenBSD__
+#include <sys/endian.h>
+#endif
+
 #include "config.h"
 
 #ifdef HAVE_ZLIB
@@ -168,7 +172,9 @@ typedef struct PktBatch_s {
 static inline uint32_t swap32(uint32_t v) { return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24); }
 #endif
 
+#ifndef swap16
 static inline uint16_t swap16(uint16_t v) { return (uint16_t)((v << 8) | (v >> 8)); }
+#endif
 
 PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen);
 
