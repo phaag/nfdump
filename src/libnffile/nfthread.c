@@ -66,15 +66,22 @@ static const struct roleDescriptor_s {
  * readerCost  fixed-point compress/decompress time ratio C, scaled by
  *             COST_SCALE (so e.g. LZO's C=2.5 is stored as 5).  0 means
  *             uncompressed / I/O bound, handled specially by callers.
- * maxWriters  practical writer ceiling: LZ4/LZO/BZ2 saturate the L3 cache
- *             beyond ~8 threads; ZSTD is compute-bound and scales further;
- *             NOT_COMPRESSED is I/O bound so extra writers just contend.
+ * maxWriters  practical writer ceiling: LZ4/LZO saturate the L3 cache beyond
+ *             ~8 threads; NOT_COMPRESSED is I/O bound so extra writers just
+ *             contend; ZSTD is compute-bound and scales further (12, not
+ *             re-measured this pass). BZ2 is the most compute-bound
+ *             codec of all (~5s of CPU per 1M records vs. well under 1s for
+ *             every other codec therefore lets it scale with whatever the
+ *             caller already budgeted.
  * maxReaders  practical reader ceiling: decompression is the only reason to
  *             run more than a couple of readers, so the cap tracks how
  *             compute-bound the codec is. No machine benefits from dozens
- *             of reader threads regardless of core count.
+ *             of reader threads regardless of core count. Not revisited this
+ *             pass — only writer-side (nfcapd/nfdump -w) scaling was
+ *             measured.
  */
 #define COST_SCALE 2
+#define WRITERS_UNCAPPED UINT32_MAX  // no codec-specific ceiling: bounded only by the caller's own core budget
 
 typedef struct {
     uint16_t readerCost;
@@ -83,12 +90,12 @@ typedef struct {
 } codecInfo_t;
 
 static const codecInfo_t codecTable[] = {
-    [0] = {4, 8, 8},     // UNDEF: assume LZ4
-    [1] = {0, 2, 1},     // NOT_COMPRESSED: I/O bound
-    [2] = {5, 8, 8},     // LZO
-    [3] = {6, 8, 8},     // BZ2
-    [4] = {4, 8, 8},     // LZ4
-    [5] = {10, 12, 16},  // ZSTD: compute-bound, scales more
+    [0] = {4, 8, 8},                 // UNDEF: assume LZ4
+    [1] = {0, 2, 1},                 // NOT_COMPRESSED: I/O bound
+    [2] = {5, 8, 8},                 // LZO
+    [3] = {6, WRITERS_UNCAPPED, 8},  // BZ2: compute-bound, scales with available cores — see comment above
+    [4] = {4, 8, 8},                 // LZ4
+    [5] = {10, 12, 16},              // ZSTD: compute-bound, scales more (12 not re-measured this pass — only BZ2 was)
 };
 #define CODEC_TABLE_LEN (sizeof(codecTable) / sizeof(codecTable[0]))
 
