@@ -291,7 +291,7 @@ static void *nfreader(void *arg) {
     dbg(unsigned blockCount = 0);
     const long pageSize = sysconf(_SC_PAGESIZE);
 
-    for (uint32_t i = tnum; i < dir->numEntries; i += numWorkers) {
+    for (uint32_t i = tnum; i < dir->numEntries && !atomic_load_explicit(&nffile->abortRequested, memory_order_acquire); i += numWorkers) {
         const directoryEntryV3_t *entry = &dir->entries[i];
 
         // skip metadata blocks — already extracted in OpenFileV3
@@ -303,6 +303,13 @@ static void *nfreader(void *arg) {
         dataBlockV3_t *dataBlock = DecodeBlockV3(nffile->map, nffile->mapSize, nffile->fileHeader->blockSize, entry, nffile->crypto);
         if (!dataBlock) {
             LogError("nfreader: failed to read block %u at offset %" PRIu64, i, entry->offset);
+            break;
+        }
+
+        // A cancellation may arrive while DecodeBlockV3() works on this
+        // block. Do not enqueue another block after it was requested.
+        if (atomic_load_explicit(&nffile->abortRequested, memory_order_acquire)) {
+            FreeDataBlock(dataBlock);
             break;
         }
 

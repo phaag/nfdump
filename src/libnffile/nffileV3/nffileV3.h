@@ -32,6 +32,7 @@
 #define _NFFILEV3_H 1
 
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -352,6 +353,7 @@ typedef struct nffileV3_s {
     uint32_t compression;       // default type of compression
     uint32_t compressionLevel;  // default compression level, if available.
     uint32_t xxHash;            // non-zero: calculate per-block and directory xxHash checksum
+    atomic_bool abortRequested; // cancellation requested: finish current block, then stop workers
     nffile_crypto_t *crypto;    // per-file crypto state; NULL = not encrypted
     _Atomic off_t blockOffset;  // atomic block I/O offset (read: mmap scan pos, write: pwrite pos)
     queue_t *processQueue;      // blocks ready to be processed. Connects consumer/producer threads
@@ -391,6 +393,10 @@ int Init_nffile(threadConfig_t tc, queue_t *fileList);
 
 nffileV3_t *GetNextFile(void);
 
+// Open the next input file and load only its mapped metadata. No V3 reader
+// threads are started; intended for statistics-only operations.
+nffileV3_t *GetNextFileMetadata(void);
+
 // Returns 1 if the most recent GetNextFile() call returned NULL because
 // OpenFileV3() failed on a real file (bad passphrase, corrupt file,
 // permission error, ...), 0 if it returned NULL because the queue was
@@ -414,6 +420,11 @@ int AddBlock(blockListV3_t *blockList, uint32_t type, uint64_t offset, uint32_t 
 int PreallocateDirectory(blockListV3_t *blockList, uint32_t expectedBlocks);
 
 void joinWorkers(nffileV3_t *nffile);
+
+// Request cancellation of the workers for this handle. Any worker blocked on
+// the queue is woken; readers finish at most their current decode block before
+// releasing it. The caller remains responsible for CloseFileV3().
+void AbortWorkers(nffileV3_t *nffile);
 
 void TerminateWorkers(nffileV3_t *nffile);
 

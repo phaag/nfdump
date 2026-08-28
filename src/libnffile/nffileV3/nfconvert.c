@@ -1063,10 +1063,15 @@ static void *nfreaderV2(void *arg) {
     if (outBlockSize < BLOCK_SIZE_V3) outBlockSize = BLOCK_SIZE_V3;
 
     dbg(unsigned blockCount = 0);
-    for (uint32_t i = 0; i < ctx->numBlocks; i++) {
+    for (uint32_t i = 0; i < ctx->numBlocks && !atomic_load_explicit(&nffile->abortRequested, memory_order_acquire); i++) {
         dataBlockV2_t *v2block = ReadBlockV2(ctx->fd, ctx->compression, ctx->blockSize);
         if (!v2block) {
             LogError("nfreaderV2: failed to read block %u", i);
+            break;
+        }
+
+        if (atomic_load_explicit(&nffile->abortRequested, memory_order_acquire)) {
+            free(v2block);
             break;
         }
 
@@ -1081,6 +1086,11 @@ static void *nfreaderV2(void *arg) {
 
         if (!v3block) {
             LogError("nfreaderV2: conversion failed for block %u", i);
+            break;
+        }
+
+        if (atomic_load_explicit(&nffile->abortRequested, memory_order_acquire)) {
+            FreeDataBlock(v3block);
             break;
         }
 
@@ -1101,7 +1111,7 @@ static void *nfreaderV2(void *arg) {
     close(ctx->fd);
     free(ctx);
 
-    if (exporter_table.count > 0) {
+    if (!atomic_load_explicit(&nffile->abortRequested, memory_order_acquire) && exporter_table.count > 0) {
         // send exporter block
         AppendExporterBlock(nffile);
         freeTables();

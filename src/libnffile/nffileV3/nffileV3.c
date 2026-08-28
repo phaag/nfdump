@@ -97,7 +97,7 @@ int Init_nffile(threadConfig_t tc, queue_t *fileList) {
 
 }  // End of Init_nffile
 
-nffileV3_t *GetNextFile(void) {
+static nffileV3_t *GetNextFileInternal(bool startReaders) {
     lastOpenFailed = false;
 
     if (!fileQueue) {
@@ -113,7 +113,7 @@ nffileV3_t *GetNextFile(void) {
         }
 
         dbg_printf("Process: '%s'\n", nextFile);
-        nffileV3_t *nffile = OpenFileV3(nextFile);  // Open the file
+        nffileV3_t *nffile = startReaders ? OpenFileV3(nextFile) : mmapFileV3(nextFile);
         if (!nffile) {
             // OpenFileV3() already logged the specific reason (bad
             // passphrase, corrupt file, ...); record that this NULL is a
@@ -126,7 +126,11 @@ nffileV3_t *GetNextFile(void) {
 
     /* NOTREACHED */
 
-}  // End of GetNextFile
+}  // End of GetNextFileInternal
+
+nffileV3_t *GetNextFile(void) { return GetNextFileInternal(true); }
+
+nffileV3_t *GetNextFileMetadata(void) { return GetNextFileInternal(false); }
 
 int ReportBlocks(void) {
     int inUse = atomic_load(&blocksInUse);
@@ -217,6 +221,7 @@ nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize) {
     }
     for (int i = 0; i < (int)num_workers; i++) nffile->worker[i] = 0;
 
+    atomic_init(&nffile->abortRequested, false);
     pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
 
@@ -272,6 +277,13 @@ void joinWorkers(nffileV3_t *nffile) {
     }
 
 }  // End of joinWorkers
+
+void AbortWorkers(nffileV3_t *nffile) {
+    if (!nffile) return;
+
+    atomic_store_explicit(&nffile->abortRequested, true, memory_order_release);
+    queue_abort(nffile->processQueue);
+}  // End of AbortWorkers
 
 void TerminateWorkers(nffileV3_t *nffile) {
     // closing the queue signals the workers to terminate

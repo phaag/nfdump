@@ -1290,7 +1290,7 @@ int main(int argc, char **argv) {
 
         memset((void *)&sum_stat, 0, sizeof(stat_record_t));
         sum_stat.msecFirstSeen = 0x7fffffffffffffff;
-        nffileV3_t *nffile = GetNextFile();
+        nffileV3_t *nffile = GetNextFileMetadata();
         if (!nffile) {
             LogError("Error - open file failed");
             exit(EXIT_FAILURE);
@@ -1302,7 +1302,7 @@ int main(int argc, char **argv) {
         while (nffile != NULL) {
             SumStatRecords(&sum_stat, nffile->stat_record);
             CloseFileV3(nffile);
-            nffile = GetNextFile();
+            nffile = GetNextFileMetadata();
         }
         if (GetNextFileFailed()) {
             LogError("Aborting: a subsequent input file failed to open");
@@ -1340,7 +1340,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
 
-        nffileV3_t *nffile = GetNextFile();
+        nffileV3_t *nffile = GetNextFileMetadata();
         if (!nffile) {
             LogError("Error - open file failed");
             exit(EXIT_FAILURE);
@@ -1349,7 +1349,7 @@ int main(int argc, char **argv) {
         while (nffile != NULL) {
             PrintGNUplotSumStat(nffile);
             CloseFileV3(nffile);
-            nffile = GetNextFile();
+            nffile = GetNextFileMetadata();
         }
         if (GetNextFileFailed()) {
             LogError("Aborting: a subsequent input file failed to open");
