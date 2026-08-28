@@ -30,6 +30,16 @@
 # 16 byte salt string
 #crypt.salt = "nfpcapd-udp-salt"
 
+# udp.sendThreshold: inner-payload bytes buffered by a -H sender (nfcapd,
+# nfpcapd, sfcapd) before flushing a UDP packet with the native nfd protocol.
+# Range [512, 60000]; out-of-range values are rejected with a logged error
+# and the default is used instead. Default: 1200, sized to stay under a
+# 1500-byte Ethernet MTU even after encryption overhead. Raise this toward
+# the real path MTU (jumbo frames, tunnels, loopback) to send fewer, larger
+# packets for the same flow volume — only when that MTU is known to hold
+# end to end, otherwise the larger packets fragment at the IP layer instead.
+#udp.sendThreshold = 1200
+
 [common.threads]
 # Per-role thread counts for the nffile I/O pipeline.
 # All values default to 0 (auto-derived from the budget and codec).

@@ -52,6 +52,10 @@
 // minimum socket buffer length
 #define Min_SOCKBUFF_LEN 65536
 
+/* Keep automatic probing bounded. A larger kernel allowance is not automatically better:
+ * it consumes kernel memory and merely turns persistent overload into latency. */
+#define AUTO_SOCKBUFF_MAX (100U * 1024U * 1024U)
+
 // local function prototypes
 static int isMulticast(struct sockaddr_storage *addr);
 
@@ -115,42 +119,81 @@ static int search_socket(const char *bindhost, const char *port, int *family) {
     return sockfd;
 }  // End of searchSocket
 
-static int set_socket_buffer(int sockfd, unsigned requested) {
-    int cur;
-    socklen_t optlen = sizeof(cur);
+static int get_socket_buffer(int sockfd, int *effective) {
+    socklen_t optlen = sizeof(*effective);
+    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, effective, &optlen) == 0) return 0;
 
-    // Read current buffer
-    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen) == 0) {
-        LogInfo("Current SO_RCVBUF = %d bytes", cur);
-        if (cur >= (int)requested) {
-            LogInfo("Keeping existing buffer (>= requested %u)", requested);
+    LogError("getsockopt(SO_RCVBUF) failed: %s", strerror(errno));
+    return -1;
+}
+
+static int set_socket_buffer_auto(int sockfd, int effective) {
+    unsigned request = (unsigned)effective;
+    if (request < Min_SOCKBUFF_LEN) request = Min_SOCKBUFF_LEN;
+
+    if (request >= AUTO_SOCKBUFF_MAX) {
+        LogInfo("SO_RCVBUF: requested=auto, effective=%d bytes (existing value is at or above the %u-byte auto probe limit)", effective,
+                AUTO_SOCKBUFF_MAX);
+        return 0;
+    }
+    request = request > AUTO_SOCKBUFF_MAX / 2U ? AUTO_SOCKBUFF_MAX : request * 2U;
+
+    for (;;) {
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &request, sizeof(request)) != 0) {
+            LogInfo("SO_RCVBUF: requested=auto, effective=%d bytes (probe request %u rejected: %s)", effective, request, strerror(errno));
             return 0;
         }
+
+        int nextEffective;
+        if (get_socket_buffer(sockfd, &nextEffective) < 0) return -1;
+
+        if (nextEffective <= effective) {
+            LogInfo("SO_RCVBUF: requested=auto, effective=%d bytes (kernel ceiling reached)", effective);
+            return 0;
+        }
+        effective = nextEffective;
+
+        if (request >= AUTO_SOCKBUFF_MAX) {
+            LogInfo("SO_RCVBUF: requested=auto, effective=%d bytes (reached %u-byte auto probe limit)", effective, AUTO_SOCKBUFF_MAX);
+            return 0;
+        }
+        if (request > AUTO_SOCKBUFF_MAX / 2U) {
+            request = AUTO_SOCKBUFF_MAX;
+        } else {
+            request *= 2U;
+        }
+    }
+}
+
+static int set_socket_buffer(int sockfd, unsigned requested) {
+    int effective;
+    if (get_socket_buffer(sockfd, &effective) < 0) return -1;
+
+    if (requested == 0) {
+        LogInfo("SO_RCVBUF: requested=OS default, effective=%d bytes", effective);
+        return 0;
+    }
+    if (requested == SOCKBUF_AUTO) return set_socket_buffer_auto(sockfd, effective);
+
+    if (effective >= (int)requested) {
+        LogInfo("SO_RCVBUF: requested=%u bytes, effective=%d bytes (kept existing)", requested, effective);
+        return 0;
     }
 
-    // Try to set new buffer
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &requested, sizeof(requested)) != 0) {
         LogError("setsockopt(SO_RCVBUF,%u) failed: %s", requested, strerror(errno));
         return -1;
     }
+    if (get_socket_buffer(sockfd, &effective) < 0) return -1;
 
-    // Read back actual value
-    cur = 0;
-    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen) == 0) {
-        if (cur < (int)requested) {
-            LogInfo("Kernel capped SO_RCVBUF to %d (requested %u)", cur, requested);
-        } else {
-            LogInfo("SO_RCVBUF successfully set to %d bytes", cur);
-        }
-    }
-
+    LogInfo("SO_RCVBUF: requested=%u bytes, effective=%d bytes", requested, effective);
     return 0;
 }
 
 // Apply SO_RCVBUF and SO_TIMESTAMP to a socket.
 // Closes sockfd and returns -1 on error; returns 0 on success.
 static int apply_socket_opts(int sockfd, unsigned sockbuflen) {
-    if (sockbuflen > 0 && set_socket_buffer(sockfd, sockbuflen) < 0) {
+    if (set_socket_buffer(sockfd, sockbuflen) < 0) {
         close(sockfd);
         return -1;
     }
@@ -339,7 +382,6 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
 
 int Multicast_receive_socket(const char *hostname, const char *listenport, int family, unsigned sockbuflen) {
     struct addrinfo hints, *res, *ressave;
-    socklen_t optlen;
     int error, sockfd;
 
     if (!listenport) {
@@ -410,28 +452,7 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
 
     freeaddrinfo(ressave);
 
-    if (sockbuflen) {
-        if (sockbuflen < Min_SOCKBUFF_LEN) {
-            sockbuflen = Min_SOCKBUFF_LEN;
-            LogInfo("I want at least %i bytes as socket buffer", sockbuflen);
-        }
-        int cur = 0;
-        optlen = sizeof(cur);
-        getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen);
-        LogInfo("Standard setsockopt, SO_RCVBUF is %i Requested length is %i bytes", cur, sockbuflen);
-        if (cur > sockbuflen) {
-            LogInfo("Keeping existing buffer (>= requested %u)", sockbuflen);
-        } else {
-            if ((setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbuflen, sizeof(sockbuflen)) != 0)) {
-                LogError("setsockopt(SO_RCVBUF,%d): %s", sockbuflen, strerror(errno));
-                close(sockfd);
-                return -1;
-            } else {
-                getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen);
-                LogInfo("System set setsockopt, SO_RCVBUF to %d bytes", cur);
-            }
-        }
-    }
+    if (apply_socket_opts(sockfd, sockbuflen) < 0) return -1;
 
     return sockfd;
 

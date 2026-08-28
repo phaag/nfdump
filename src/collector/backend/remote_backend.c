@@ -46,6 +46,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -58,6 +59,7 @@
 #include <unistd.h>
 
 #include "collector.h"
+#include "conf/nfconf.h"
 #include "flowsource.h"
 #include "logging.h"
 #include "network/nfd_udp_crypto.h"
@@ -68,12 +70,20 @@
 #include "util.h"
 
 /*
- * Maximum inner-payload bytes before flushing to a UDP packet.
+ * Default maximum inner-payload bytes before flushing to a UDP packet.
  * Chosen so that even after encryption overhead (NFD_ENC_HDR_SIZE + 16-byte
  * Poly1305 tag = 52 bytes) the wire packet stays below a 1500-byte Ethernet
  * MTU.  Matches the threshold used in nfpcapd/flowsend.c.
+ *
+ * Overridable per nfdump.conf(5)'s udp.sendThreshold — raising it towards a
+ * path's real MTU (jumbo frames, a private/tunnelled network with a higher
+ * MTU, loopback) roughly halves the packet count for the same data volume,
+ * at the cost of IP fragmentation if the chosen value exceeds the actual
+ * path MTU. See Init_udpsend_backend() for the applied bounds.
  */
 #define UDP_SEND_THRESHOLD 1200u
+#define UDP_SEND_THRESHOLD_MIN 512u
+#define UDP_SEND_THRESHOLD_MAX 60000u
 
 static noreturn void *udpsend_backend_thread(void *arg);
 
@@ -154,7 +164,7 @@ static void PackFlowBlock(udpsend_backend_ctx_t *ctx, flowBlockV3_t *flowBlock, 
         }
 
         /* Flush before the inner payload would overflow the wire header length. */
-        if ((uint32_t)hdr->length + recSize > 65535u || (uint32_t)hdr->length > UDP_SEND_THRESHOLD) {
+        if ((uint32_t)hdr->length + recSize > 65535u || (uint32_t)hdr->length > ctx->sendThreshold) {
             SendUDPPacket(ctx, hdr, sendBuffer, encBuffer);
         }
 
@@ -187,6 +197,22 @@ int Init_udpsend_backend(FlowSource_t *fs, const repeater_t *sendHost, const uin
     ctx->sendHost = *sendHost;
     ctx->udpSessionKey = udpSessionKey;
     ctx->sequence = 0;
+
+    // udp.sendThreshold (nfdump.conf(5)): 0/absent keeps the built-in default,
+    // matching the ConfGetValue() idiom used for threads.* elsewhere. An
+    // out-of-range value is logged and ignored rather than clamped silently,
+    // since silently clamping a badly-typo'd config value could otherwise
+    // hide a much larger IP-fragmentation footgun from the operator.
+    ctx->sendThreshold = UDP_SEND_THRESHOLD;
+    int64_t confThreshold = ConfGetValue("udp.sendThreshold");
+    if (confThreshold != 0) {
+        if (confThreshold < UDP_SEND_THRESHOLD_MIN || confThreshold > UDP_SEND_THRESHOLD_MAX) {
+            LogError("Init_udpsend_backend: udp.sendThreshold %" PRId64 " out of range [%u, %u] — using default %u", confThreshold,
+                      UDP_SEND_THRESHOLD_MIN, UDP_SEND_THRESHOLD_MAX, UDP_SEND_THRESHOLD);
+        } else {
+            ctx->sendThreshold = (uint32_t)confThreshold;
+        }
+    }
 
     ctx->blockQueue = queue_init(64);
     if (!ctx->blockQueue) {

@@ -175,6 +175,27 @@ Integer.
 Interval in seconds at which the session key is rotated.
 Set to 0 to disable epoch rekeying.
 Default: 0.
+.It Sy udp.sendThreshold
+Integer, in the range [512,\~60000].
+Maximum inner-payload bytes buffered before a
+.Fl H
+sender
+.Pq Xr nfcapd 1 , Xr nfpcapd 1 , Xr sfcapd 1
+flushes and sends a UDP packet carrying the native nfd protocol.
+Default: 1200, chosen so the wire packet stays under a 1500-byte Ethernet MTU
+even after encryption overhead.
+Raising this value toward a path's real MTU (jumbo frames, a private or
+tunnelled network segment, loopback) roughly halves the packet count for the
+same data volume, reducing per-packet receive-side overhead on the collector.
+Values outside the valid range are rejected with a logged error and the
+default is used instead;
+.Fl H
+is not affected on the receiving side, which decodes whatever packet size it
+gets.
+Raising this beyond the actual path MTU causes IP fragmentation, which
+trades fewer UDP packets for the reassembly cost and partial-loss exposure
+of fragmented IP \(em only raise it when the real end-to-end MTU is known to
+support the chosen value.
 .El
 .Ss [threads] sub-table keys (valid in [common.threads] or [program.threads])
 The
@@ -433,6 +454,15 @@ buffSize    = 2097152
 crypt.salt                 = "0123456789abcdef"
 crypt.antiReplayWindowBits = 512
 crypt.rekeyIntervalSecs   = 300
+.Ed
+.Ss Jumbo-frame UDP forwarding
+Raise the
+.Fl H
+send threshold on a segment known to carry a 9000-byte MTU end to end,
+roughly halving the packet count for the same data volume:
+.Bd -literal -offset indent
+[common]
+udp.sendThreshold = 8900
 .Ed
 .Ss Thread tuning
 Cap nfdump filter workers at 8 and fix writer count to 4 regardless of cores:

@@ -151,7 +151,7 @@ static void usage(char *name) {
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
-        "-B bufflen\tSet socket buffer to bufflen bytes\n"
+        "-B bufflen|auto\tSet UDP receive socket buffer or probe its safe maximum\n"
         "-e\t\tExpire data at each cycle.\n"
         "-D\t\tFork to background\n"
         "-v level\tSet verbose level.\n"
@@ -659,9 +659,13 @@ int main(int argc, char **argv) {
                 break;
             case 'B': {
                 CheckArgLen(optarg, 16);
-                int b;
-                if (!ParseInt(optarg, "-B", 1, 1024 * 1024 * 100, &b)) exit(EXIT_FAILURE);
-                bufflen = (unsigned)b;
+                if (strcmp(optarg, "auto") == 0) {
+                    bufflen = SOCKBUF_AUTO;
+                } else {
+                    int b;
+                    if (!ParseInt(optarg, "-B", 1, 1024 * 1024 * 100, &b)) exit(EXIT_FAILURE);
+                    bufflen = (unsigned)b;
+                }
             } break;
             case 'b':
                 bindhost = optarg;
@@ -951,6 +955,10 @@ int main(int argc, char **argv) {
             }
             receive_packet = NextPacket;
         } else if (pcap_device) {
+            if (bufflen == SOCKBUF_AUTO) {
+                LogError("-B auto is available only for UDP receive sockets, not pcap capture");
+                exit(EXIT_FAILURE);
+            }
             printf("Setup pcap device reader\n");
             if (!setup_pcap_live(pcap_device, NULL, bufflen)) {
                 LogError("Setup pcap device failed.");
@@ -1108,7 +1116,8 @@ int main(int argc, char **argv) {
     if (sendHost) {
         /* UDP send backend (-H): open socket and start send thread.
          * udpSessionKey is already derived from transfer_ctx above if -k was given. */
-        sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &sendHost->addr, &sendHost->addrlen);
+        unsigned sendBufflen = (bufflen == SOCKBUF_AUTO) ? 0 : bufflen;
+        sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, sendBufflen, &sendHost->addr, &sendHost->addrlen);
         if (sendHost->sockfd <= 0) {
             LogError("Failed to open UDP send socket to %s/%s", sendHost->hostname, sendHost->port);
             close_sockets(socks, nsocks);

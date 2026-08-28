@@ -143,6 +143,13 @@ The file-compression options
 .Fl z
 apply only to local nffile output and are ignored with
 .Fl H .
+The UDP send threshold (the inner-payload size that triggers a packet flush)
+can be raised past its 1200-byte default via
+.Sy udp.sendThreshold
+in
+.Xr nfdump.conf 5 ,
+useful on paths with a larger MTU (jumbo frames, tunnels, loopback) to send
+fewer, larger packets for the same flow volume.
 .It Fl F Ar filter
 Apply a post-decode record filter before flows are stored
 .Pq Fl w

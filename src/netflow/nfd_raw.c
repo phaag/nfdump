@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -189,67 +190,13 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
 
 }  // End of getExporter
 
-static inline recordHeaderV4_t *InsertEXipReceived(void *buffPtr, const recordHeaderV4_t *recordHeaderV4, uint32_t outputSize, uint16_t receivedExtID,
-                                                   uint32_t receivedSize, FlowSource_t *fs) {
-    uint8_t oldNumExt = recordHeaderV4->numExtensions;
-    uint8_t newNumExt = oldNumExt + 1;
-    uint32_t oldOTSize = ALIGN8(oldNumExt * sizeof(uint16_t));
-    uint32_t newOTSize = ALIGN8(newNumExt * sizeof(uint16_t));
-    uint32_t offsetGrowth = newOTSize - oldOTSize;
-
-    // Insert position: count set bits in bitmap below receivedExtID
-    uint32_t insertPos = __builtin_popcountll(recordHeaderV4->extBitmap & ((1ULL << receivedExtID) - 1));
-
-    // Copy and update header
-    recordHeaderV4_t *copiedV4 = (recordHeaderV4_t *)buffPtr;
-    memcpy(copiedV4, recordHeaderV4, sizeof(recordHeaderV4_t));
-    copiedV4->numExtensions = newNumExt;
-    copiedV4->extBitmap |= (1ULL << receivedExtID);
-    copiedV4->size = outputSize;
-
-    // Build new offset table with adjusted offsets
-    uint16_t *oldOffsets = V4OffsetTable(recordHeaderV4);
-    uint16_t *newOffsets = V4OffsetTable(copiedV4);
-    for (uint32_t j = 0; j < insertPos; j++) {
-        newOffsets[j] = oldOffsets[j] + offsetGrowth;
-    }
-    // New extension data goes at end of existing data (shifted by offset table growth)
-    newOffsets[insertPos] = recordHeaderV4->size + offsetGrowth;
-    for (uint32_t j = insertPos; j < oldNumExt; j++) {
-        newOffsets[j + 1] = oldOffsets[j] + offsetGrowth;
-    }
-    // Zero-pad offset table alignment area
-    uint32_t usedBytes = newNumExt * sizeof(uint16_t);
-    if (usedBytes < newOTSize) {
-        memset((uint8_t *)newOffsets + usedBytes, 0, newOTSize - usedBytes);
-    }
-
-    // Copy extension data from input
-    void *oldData = (uint8_t *)recordHeaderV4 + sizeof(recordHeaderV4_t) + oldOTSize;
-    void *newData = (uint8_t *)copiedV4 + sizeof(recordHeaderV4_t) + newOTSize;
-    uint32_t dataSize = recordHeaderV4->size - sizeof(recordHeaderV4_t) - oldOTSize;
-    memcpy(newData, oldData, dataSize);
-
-    // Append EXipReceived extension data
-    void *extPtr = (uint8_t *)copiedV4 + copiedV4->size - receivedSize;
-    if (fs->sa_family == PF_INET6) {
-        EXipReceivedV6_t *ipRcvd = (EXipReceivedV6_t *)extPtr;
-        uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
-        ipRcvd->ip[0] = ntohll(ipv6[0]);
-        ipRcvd->ip[1] = ntohll(ipv6[1]);
-        dbg_printf("Add IPv6 router IP extension\n");
-    } else {
-        EXipReceivedV4_t *ipRcvd = (EXipReceivedV4_t *)extPtr;
-        uint32_t ipv4;
-        memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
-        ipRcvd->ip = ntohl(ipv4);
-        dbg_printf("Add IPv4 router IP extension\n");
-    }
-
-    return copiedV4;
-}  // End of InsertEXipReceived
-
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
+    // Set once the v251 AEAD tag has verified this payload — used below to
+    // pick a cheaper per-record check level (see the verify call in the
+    // record loop). Plain v250 has no transport-level integrity guarantee
+    // at all, so it stays on the full structural check.
+    bool authenticated = false;
+
     // Decrypt version-251 packets before processing
     uint16_t wireVersion = 0;
     if (in_buff_cnt >= (ssize_t)sizeof(wireVersion)) memcpy(&wireVersion, in_buff, sizeof(wireVersion));
@@ -293,6 +240,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // Continue processing the decrypted inner v250 payload
         in_buff = g_decryptBuf;
         in_buff_cnt = innerLen;
+        authenticated = true;
     }
 
     // map pcapd data structure to input buffer
@@ -313,17 +261,6 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         return;
     }
     if (fs->isNffileBackend) exporter->packets++;
-
-    // EXipReceived extension parameters
-    uint32_t receivedSize;
-    uint16_t receivedExtID;
-    if (fs->sa_family == PF_INET6) {
-        receivedSize = EXipReceivedV6Size;
-        receivedExtID = EXipReceivedV6ID;
-    } else {
-        receivedSize = EXipReceivedV4Size;
-        receivedExtID = EXipReceivedV4ID;
-    }
 
     // this many data to process
     ssize_t size_left = in_buff_cnt;
@@ -358,24 +295,36 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // Verify only after the declared record size is known to fit in this datagram.
-        if (VerifyV4Record(recordHeaderV4, (size_t)size_left, V4RECORD_CHECK_EXTENSIONS) == 0) {
+        //
+        // Check level depends on transport trust, not on record content:
+        // v251 (authenticated) already carries a verified AEAD tag over the
+        // whole payload, so a structurally malformed record at this point
+        // can only come from a bug in a trusted peer, not a forger — BASIC
+        // (header/size/type only) is enough, skipping the extension-table
+        // walk entirely. Plain v250 has no transport-level integrity
+        // guarantee at all, so it keeps the full structural check, including
+        // the pairwise extension-overlap validation.
+        //
+        // (A one-pass, rank-order high-water-mark replacement for that
+        // pairwise check was tried here and reverted: an extension's
+        // offset-table *slot* is assigned by rank [popcount of extID bits
+        // below it, see GetExtension()/AddV4Extension() in nfxV4.h], but the
+        // *byte offset* stored in that slot is assigned by the encoder in
+        // whatever order it happens to call AddV4Extension() — pipeline/
+        // template field order, not ascending extID. So a legitimate
+        // record's extensions are routinely non-monotonic when walked in
+        // rank order, and a high-water-mark check rejects them. At the
+        // extension counts a real record actually carries [single digits to
+        // ~15], neither a sort-then-scan nor any other correct alternative
+        // meaningfully beats VerifyV4Record()'s existing O(n^2) pairwise
+        // check, so this path just uses it directly.)
+        int recordOK = VerifyV4Record(recordHeaderV4, (size_t)size_left, authenticated ? V4RECORD_CHECK_BASIC : V4RECORD_CHECK_EXTENSIONS);
+        if (!recordOK) {
             LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
             return;
         }
 
-        // Check if record already has EXipReceived
-        int hasReceived = (recordHeaderV4->extBitmap & ((1ULL << EXipReceivedV4ID) | (1ULL << EXipReceivedV6ID))) != 0;
-
-        // Calculate output record size accounting for potential EXipReceived insertion
-        uint32_t outputSize;
-        if (hasReceived) {
-            outputSize = recordHeaderV4->size;
-        } else {
-            uint32_t oldOTSize = ALIGN8(recordHeaderV4->numExtensions * sizeof(uint16_t));
-            uint32_t newOTSize = ALIGN8((recordHeaderV4->numExtensions + 1) * sizeof(uint16_t));
-            outputSize = recordHeaderV4->size + (newOTSize - oldOTSize) + receivedSize;
-        }
-
+        uint32_t outputSize = recordHeaderV4->size;
         if (!IsAvailable(fs->dataBlock, BLOCK_SIZE_V3, outputSize)) {
             // flush block - get an empty one
             PushBlockV3(fs->blockQueue, fs->dataBlock);
@@ -387,17 +336,21 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             }
         }
 
+        // Plain copy, verbatim — including whatever EXipReceived extension
+        // (or lack of one) the record already carries. Every decoder that
+        // can originate a V4 record (netflow_v1/v5_v7/v9, ipfix) already
+        // stamps EXipReceived with the address it received the flow from at
+        // the point of original ingest, unless that extension was disabled
+        // via -X; forwarding preserves that original provenance unchanged.
+        // Previously, a record that reached here without EXipReceived (e.g.
+        // that -X case) had one inserted here, stamped with fs->ipAddr —
+        // the immediate relay's own address, not the original exporter's.
+        // In a relay chain that's actively misleading (it looks like the
+        // flow was received directly from the relay), so it's not
+        // reconstructed here; a record without it is left without it.
         void *buffPtr = GetCursor(fs->dataBlock);
-        recordHeaderV4_t *copiedV4;
-
-        if (hasReceived) {
-            // Record already has EXipReceived - plain copy
-            memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
-            copiedV4 = (recordHeaderV4_t *)buffPtr;
-            dbg_printf("Found existing IP received extension\n");
-        } else {
-            copiedV4 = InsertEXipReceived(buffPtr, recordHeaderV4, outputSize, receivedExtID, receivedSize, fs);
-        }
+        memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
+        recordHeaderV4_t *copiedV4 = (recordHeaderV4_t *)buffPtr;
 
         /* Native UDP carries no exporter metadata. The receiver owns the
          * single exporter for this sender, so do not leave stale source-side

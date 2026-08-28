@@ -38,6 +38,7 @@
 
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <limits.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -54,6 +55,9 @@ typedef struct PacketCtx_s {
 } PacketCtx_t;
 
 #define UDP_PACKET_SIZE 1472
+
+/* -B auto: probe the per-socket SO_RCVBUF ceiling up to the collector policy limit. */
+#define SOCKBUF_AUTO UINT_MAX
 
 /* input buffer size, to read data from the network */
 #define NETWORK_INPUT_BUFF_SIZE 65536  // Maximum UDP message size

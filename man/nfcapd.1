@@ -53,7 +53,7 @@
 .Op Fl R Ar repeater
 .Op Fl H Ar host[/port]
 .Op Fl A
-.Op Fl B Ar buffsize
+.Op Fl B Ar buffsize|auto
 .Op Fl n Ar sourceparam
 .Op Fl M Ar multiflowdir
 .Op Fl s Ar rate
@@ -205,6 +205,13 @@ Dynamic flow sources
 are not supported when
 .Fl H
 is active.
+The UDP send threshold (the inner-payload size that triggers a packet flush)
+can be raised past its 1200-byte default via
+.Sy udp.sendThreshold
+in
+.Xr nfdump.conf 5 ,
+useful on paths with a larger MTU (jumbo frames, tunnels, loopback) to send
+fewer, larger packets for the same flow volume.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packets
 is set to the original IP address. This needs
@@ -267,11 +274,16 @@ Drop privileges of running process to group
 .Ar groupid .
 .Nm
 needs to be started as user root.
-.It Fl B Ar bufflen
+.It Fl B Ar bufflen|auto
 Sets the network socket input buffer to
 .Ar bufflen
 bytes. For high-volume traffic it is recommended to raise this value to typically more than 100 kB,
 otherwise you risk to lose packets. The default is OS (and kernel) dependent.
+The special value
+.Cm auto
+probes progressively larger values, up to a 100 MiB request limit, and keeps the largest effective
+.Dv SO_RCVBUF
+the kernel grants. The effective value is logged at startup.
 .It Fl S Ar num
 Adds an additional directory subhierarchy to store the data files. The default is 0, no
 subhierarchy, which means all files go directly into

@@ -52,6 +52,8 @@ typedef struct udpsend_backend_ctx_s {
     repeater_t sendHost;          /* UDP target: addr, addrlen, sockfd  */
     const uint8_t *udpSessionKey; /* NULL = plain v250, else v251 AEAD  */
     uint32_t sequence;            /* incrementing packet sequence number */
+    uint32_t sendThreshold;       /* inner-payload flush threshold, bytes; see
+                                    * udp.sendThreshold in nfdump.conf(5)  */
     queue_t *blockQueue;          /* queue from the collector frontend   */
     pthread_t self;               /* thread ID                           */
 } udpsend_backend_ctx_t;
