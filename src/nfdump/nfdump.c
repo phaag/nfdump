@@ -449,7 +449,7 @@ static void *prepareThread(void *arg) {
     totalRecords = recordCnt;
     dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
     if (abortProcessing) {
-        if (nffile) queue_abort(nffile->processQueue);
+        if (nffile) AbortWorkers(nffile);
         queue_abort(outQueue);
     } else {
         queue_close(outQueue);
