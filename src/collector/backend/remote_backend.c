@@ -32,9 +32,20 @@
  * UDP send backend for nfcapd.
  *
  * Receives full flow data blocks via blockQueue from the collector frontend
- * and forwards them as nfd v250 (or v251 encrypted) UDP packets to a remote
- * nfcapd instance.  Each UDP packet is capped at UDP_SEND_THRESHOLD bytes of
- * inner payload to avoid IP fragmentation.
+ * and forwards them as nfd wire-version-251 UDP packets (nfd_wire_header_t
+ * envelope — see nfd_udp_crypto.h) to a remote nfcapd instance.
+ *
+ * Records are accumulated up to rawPackThreshold (2x the configured
+ * udp.sendThreshold) before every flush, then handed to NfdWireEncode(),
+ * which opportunistically compresses (zstd or LZ4, whichever is available
+ * and helps) and optionally encrypts. The doubled raw budget is deliberate:
+ * compression on real flow-record batches at this grain routinely runs
+ * 2.4-4.8x (measured), so accumulating twice the wire-safe target and then
+ * compressing typically still lands the wire packet at or under
+ * udp.sendThreshold — sending the same records in half as many UDP packets
+ * without exceeding the safe, non-fragmenting size. If a batch doesn't
+ * compress well enough, the wire packet ends up somewhat larger than
+ * udp.sendThreshold rather than being split — see PackFlowBlock().
  *
  * Block handling:
  *   BLOCK_TYPE_FLOW  — iterate recordHeaderV4_t records; pack into UDP packets.
@@ -70,28 +81,24 @@
 #include "util.h"
 
 /*
- * Default maximum inner-payload bytes before flushing to a UDP packet.
- * Chosen so that even after encryption overhead (NFD_ENC_HDR_SIZE + 16-byte
- * Poly1305 tag = 52 bytes) the wire packet stays below a 1500-byte Ethernet
- * MTU.  Matches the threshold used in nfpcapd/flowsend.c.
+ * Default/min/max for udp.sendThreshold — NFD_SEND_THRESHOLD_DEFAULT/_MIN/_MAX
+ * in nfd_udp_crypto.h, shared with nfreplay.c so both -H senders use the same
+ * default and valid range.
  *
- * Overridable per nfdump.conf(5)'s udp.sendThreshold — raising it towards a
- * path's real MTU (jumbo frames, a private/tunnelled network with a higher
- * MTU, loopback) roughly halves the packet count for the same data volume,
- * at the cost of IP fragmentation if the chosen value exceeds the actual
- * path MTU. See Init_udpsend_backend() for the applied bounds.
+ * PackFlowBlock() accumulates raw records up to 2x this value before
+ * flushing (see rawPackThreshold) — compression at typical -H payload sizes
+ * measured 2.4-4.8x, so the compressed wire packet usually still lands at or
+ * under this target even though twice as many raw records went into it.
  */
-#define UDP_SEND_THRESHOLD 1200u
-#define UDP_SEND_THRESHOLD_MIN 512u
-#define UDP_SEND_THRESHOLD_MAX 60000u
 
 static noreturn void *udpsend_backend_thread(void *arg);
 
 /*
  * SendUDPPacket — serialise the buffered nfd_header payload and transmit it.
  *
- * Plain path  (udpSessionKey == NULL): send sendBuffer as a v250 packet.
- * Crypto path (udpSessionKey != NULL): encrypt into encBuffer and send as v251.
+ * Always routes through NfdWireEncode(): crypto=NONE when ctx->udpSessionKey
+ * is NULL, crypto=XCHACHA20_POLY1305 otherwise. Either way, NfdWireEncode()
+ * opportunistically compresses first — see nfd_udp_crypto.h.
  *
  * The header fields are fixed up in network byte order before sending and
  * reset to empty (length = sizeof header, numRecord = 0) on return.
@@ -107,24 +114,23 @@ static int SendUDPPacket(udpsend_backend_ctx_t *ctx, nfd_header_t *hdr, void *se
     hdr->lastSequence = htonl(ctx->sequence++);
     hdr->numRecord = htonl(hdr->numRecord);
 
-    const void *sendPtr;
-    ssize_t sendLen;
-
-    if (ctx->udpSessionKey) {
-        sendLen = UdpEncrypt(encBuffer, NFD_ENC_HDR_SIZE + 65535 + NFD_AEAD_TAG_SIZE, sendBuffer, length, ctx->udpSessionKey);
-        if (sendLen < 0) {
-            LogError("SendUDPPacket: UdpEncrypt failed — packet not sent");
-            hdr->length = sizeof(nfd_header_t);
-            hdr->numRecord = 0;
-            return -1;
-        }
-        sendPtr = encBuffer;
-    } else {
-        sendLen = (ssize_t)length;
-        sendPtr = sendBuffer;
+    ssize_t sendLen = NfdWireEncode(encBuffer, NFD_WIRE_HDR_SIZE + 65535 + NFD_AEAD_TAG_SIZE, sendBuffer, length, ctx->udpSessionKey);
+    if (sendLen < 0) {
+        LogError("SendUDPPacket: NfdWireEncode failed — packet not sent");
+        hdr->length = sizeof(nfd_header_t);
+        hdr->numRecord = 0;
+        return -1;
     }
 
-    ssize_t ret = sendto(ctx->sendHost.sockfd, sendPtr, (size_t)sendLen, 0, (struct sockaddr *)&ctx->sendHost.addr, ctx->sendHost.addrlen);
+    // Observability: a batch that didn't compress enough to fit back under
+    // the configured wire-safe target is sent anyway (not split) — this is
+    // rare at real flow-record entropy but worth surfacing if it happens.
+    if ((uint32_t)sendLen > ctx->sendThreshold) {
+        dbg_printf("SendUDPPacket: wire packet %zd bytes exceeds udp.sendThreshold %u (raw %u bytes did not compress enough)\n", sendLen,
+                   ctx->sendThreshold, length);
+    }
+
+    ssize_t ret = sendto(ctx->sendHost.sockfd, encBuffer, (size_t)sendLen, 0, (struct sockaddr *)&ctx->sendHost.addr, ctx->sendHost.addrlen);
     if (ret < 0) {
         LogError("SendUDPPacket: sendto() failed: %s", strerror(errno));
     }
@@ -137,7 +143,13 @@ static int SendUDPPacket(udpsend_backend_ctx_t *ctx, nfd_header_t *hdr, void *se
 
 /*
  * PackFlowBlock — iterate V4 records inside a flowBlockV3_t and pack them
- * into the UDP send buffer, flushing whenever the threshold is crossed.
+ * into the UDP send buffer, flushing whenever rawPackThreshold is crossed.
+ *
+ * rawPackThreshold (2x udp.sendThreshold) intentionally lets more raw
+ * records accumulate than would fit in one wire-safe packet uncompressed —
+ * NfdWireEncode() then compresses the whole batch down, typically landing
+ * back at or under udp.sendThreshold on the wire (see the file header
+ * comment for the measured ratios this relies on).
  *
  * The records are already in recordHeaderV4_t wire format; they are copied
  * verbatim into the nfd_header payload, so no re-serialisation is needed.
@@ -163,8 +175,9 @@ static void PackFlowBlock(udpsend_backend_ctx_t *ctx, flowBlockV3_t *flowBlock, 
             continue;
         }
 
-        /* Flush before the inner payload would overflow the wire header length. */
-        if ((uint32_t)hdr->length + recSize > 65535u || (uint32_t)hdr->length > ctx->sendThreshold) {
+        /* Keep ordinary packets within the raw packing budget. A record larger
+         * than that budget is sent by itself; it cannot be split. */
+        if (hdr->numRecord && ((uint32_t)hdr->length + recSize > 65535u || (uint32_t)hdr->length + recSize > ctx->rawPackThreshold)) {
             SendUDPPacket(ctx, hdr, sendBuffer, encBuffer);
         }
 
@@ -182,7 +195,7 @@ static void PackFlowBlock(udpsend_backend_ctx_t *ctx, flowBlockV3_t *flowBlock, 
  * Init_udpsend_backend — initialise the UDP send backend for a FlowSource.
  *
  * sendHost      pre-connected repeater_t (sockfd already open).
- * udpSessionKey 32-byte XChaCha20-Poly1305 key; NULL for plain v250.
+ * udpSessionKey 32-byte XChaCha20-Poly1305 key; NULL for crypto=NONE.
  *
  * Sets fs->backend_ctx and fs->blockQueue.
  * Returns 0 on success, 1 on error.
@@ -203,16 +216,19 @@ int Init_udpsend_backend(FlowSource_t *fs, const repeater_t *sendHost, const uin
     // out-of-range value is logged and ignored rather than clamped silently,
     // since silently clamping a badly-typo'd config value could otherwise
     // hide a much larger IP-fragmentation footgun from the operator.
-    ctx->sendThreshold = UDP_SEND_THRESHOLD;
+    ctx->sendThreshold = NFD_SEND_THRESHOLD_DEFAULT;
     int64_t confThreshold = ConfGetValue("udp.sendThreshold");
     if (confThreshold != 0) {
-        if (confThreshold < UDP_SEND_THRESHOLD_MIN || confThreshold > UDP_SEND_THRESHOLD_MAX) {
+        if (confThreshold < NFD_SEND_THRESHOLD_MIN || confThreshold > NFD_SEND_THRESHOLD_MAX) {
             LogError("Init_udpsend_backend: udp.sendThreshold %" PRId64 " out of range [%u, %u] — using default %u", confThreshold,
-                      UDP_SEND_THRESHOLD_MIN, UDP_SEND_THRESHOLD_MAX, UDP_SEND_THRESHOLD);
+                      NFD_SEND_THRESHOLD_MIN, NFD_SEND_THRESHOLD_MAX, NFD_SEND_THRESHOLD_DEFAULT);
         } else {
             ctx->sendThreshold = (uint32_t)confThreshold;
         }
     }
+    // Raw pre-compression accumulation budget — see the file header comment
+    // and PackFlowBlock(). No separate conf key: always 2x sendThreshold.
+    ctx->rawPackThreshold = ctx->sendThreshold * 2;
 
     ctx->blockQueue = queue_init(64);
     if (!ctx->blockQueue) {
@@ -275,7 +291,7 @@ static noreturn void *udpsend_backend_thread(void *arg) {
     dbg_printf("%s() thread startup\n", __func__);
 
     void *sendBuffer = malloc(65535);
-    void *encBuffer = malloc(NFD_ENC_HDR_SIZE + 65535 + NFD_AEAD_TAG_SIZE);
+    void *encBuffer = malloc(NFD_WIRE_HDR_SIZE + 65535 + NFD_AEAD_TAG_SIZE);
     if (!sendBuffer || !encBuffer) {
         LogError("udpsend_backend_thread: malloc failed");
         free(sendBuffer);

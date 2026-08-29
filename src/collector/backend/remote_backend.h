@@ -31,9 +31,10 @@
 /*
  * remote backend — forwards collected flows to a remote nfcapd instance via UDP.
  *
- * Sends nfd v250 (plain) or v251 (XChaCha20-Poly1305 encrypted) packets to the
- * configured destination.  A single FlowSource is supported; -M and -n are
- * incompatible with this backend.
+ * Sends nfd wire-version-251 packets (nfd_wire_header_t envelope; crypto=NONE
+ * or crypto=XCHACHA20_POLY1305, comp=NONE/LZ4/ZSTD independently — see
+ * nfd_udp_crypto.h) to the configured destination.  A single FlowSource is
+ * supported; -M and -n are incompatible with this backend.
  *
  * The backend is selected when nfcapd is invoked with -H host[/port].
  */
@@ -50,10 +51,12 @@
 
 typedef struct udpsend_backend_ctx_s {
     repeater_t sendHost;          /* UDP target: addr, addrlen, sockfd  */
-    const uint8_t *udpSessionKey; /* NULL = plain v250, else v251 AEAD  */
+    const uint8_t *udpSessionKey; /* NULL = crypto=NONE, else crypto=XCHACHA */
     uint32_t sequence;            /* incrementing packet sequence number */
-    uint32_t sendThreshold;       /* inner-payload flush threshold, bytes; see
+    uint32_t sendThreshold;       /* target wire-safe packet size, bytes; see
                                     * udp.sendThreshold in nfdump.conf(5)  */
+    uint32_t rawPackThreshold;    /* raw (pre-compression) accumulation limit,
+                                    * 2x sendThreshold — see PackFlowBlock()  */
     queue_t *blockQueue;          /* queue from the collector frontend   */
     pthread_t self;               /* thread ID                           */
 } udpsend_backend_ctx_t;
@@ -63,7 +66,7 @@ typedef struct udpsend_backend_ctx_s {
  *
  * sendHost      A pre-populated repeater_t with sockfd already opened via
  *               Unicast_send_socket().
- * udpSessionKey 32-byte derived key for v251 AEAD encryption; NULL for plain v250.
+ * udpSessionKey 32-byte derived key for crypto=XCHACHA20_POLY1305; NULL for crypto=NONE.
  *
  * Sets fs->backend_ctx and fs->blockQueue.
  * Returns 0 on success, 1 on error.

@@ -29,42 +29,69 @@
  */
 
 /*
- * nfd_udp_crypto.h — wire format and crypto helpers for encrypted nfpcapd→nfcapd
- * UDP transport (version 251).
+ * nfd_udp_crypto.h — universal wire header, and optional compression/
+ * encryption, for nfpcapd/nfcapd/sfcapd/nfreplay UDP forwarding (-H).
  *
- * Design summary (see doc/crypto-design-proposals.md for full rationale):
+ * Every -H/nfreplay UDP packet — encrypted or not, compressed or not — uses
+ * the same 36-byte nfd_wire_header_t envelope, wire version VERSION_NFD_WIRE
+ * (251). crypto and comp are independent fields, giving four combinations:
  *
- *   Algorithm: XChaCha20-Poly1305 IETF  (crypto_aead_xchacha20poly1305_ietf)
- *     • 256-bit key, 192-bit random nonce per packet, 128-bit Poly1305 MAC.
- *     • 192-bit nonce safely allows randombytes_buf() per packet with no
- *       counter state — birthday bound at 2^96, never reached in practice.
+ *   crypto=NONE,    comp=NONE        plain nfd_header_t + records, verbatim
+ *   crypto=NONE,    comp=LZ4|ZSTD    plain, compressed
+ *   crypto=XCHACHA, comp=NONE        AEAD-encrypted, uncompressed inner
+ *   crypto=XCHACHA, comp=LZ4|ZSTD    compress-then-encrypt (only safe order)
  *
- *   Key derivation: Argon2id at OPSLIMIT_INTERACTIVE / 16 MB, once at startup.
- *     • Fixed 16-byte domain-separation salt distinguishes the UDP transport
- *       key from the per-file backend key even when the same -K passphrase
- *       is used for both purposes.
- *     • Runs in ~1-5 ms; completely off the per-packet hot path.
+ * There is no separate unwrapped legacy format on the wire any more — a
+ * pre-this-design sender or receiver will not interoperate (an old raw
+ * payload's leading bytes won't match VERSION_NFD_WIRE and are cleanly
+ * rejected, never misparsed).
  *
- *   Wire packet layout (total overhead: 32 B header + 16 B MAC = 48 bytes):
+ *   Wire packet layout, crypto=NONE (total overhead: 36 bytes, no tag):
  *
  *     Offset  Size  Field
- *       0      2    version  = htons(VERSION_NFD_ENCRYPTED = 251)
- *       2      1    crypto   = nfd_crypto_algo_t  (algorithm selector)
- *       3      1    comp     = nfd_comp_algo_t    (compressor selector)
+ *       0      2    version  = htons(VERSION_NFD_WIRE = 251)
+ *       2      1    crypto   = NFD_CRYPTO_NONE
+ *       3      1    comp     = nfd_comp_algo_t (NONE, LZ4, or ZSTD)
  *       4      4    origLen  = htonl(uncompressed inner len); 0 if comp==NONE
- *       8     24    nonce[24] = per-packet random XChaCha20 nonce
- *      32    var    ciphertext = AEAD-encrypt(inner) + 16-byte Poly1305 tag
+ *       8      4    epoch    = 0, unused
+ *      12     24    nonce[24] = zeroed, unused
+ *      36    var    payload  = inner, optionally compressed — no AEAD tag
  *
- *   AAD: wire[0..7] (version + crypto + comp + origLen) — authenticated,
- *   not encrypted.  Binds algorithm IDs to the ciphertext.
+ *   Wire packet layout, crypto=XCHACHA20_POLY1305 (unchanged from the
+ *   original v251 design; total overhead: 36 B header + 16 B MAC = 52 bytes):
+ *
+ *     Offset  Size  Field
+ *       0      2    version  = htons(VERSION_NFD_WIRE = 251)
+ *       2      1    crypto   = NFD_CRYPTO_XCHACHA20_POLY1305
+ *       3      1    comp     = nfd_comp_algo_t
+ *       4      4    origLen  = htonl(uncompressed inner len); 0 if comp==NONE
+ *       8      4    epoch    = htonl(rekey epoch counter); 0 when rekeying off
+ *      12     24    nonce[24] = per-packet random XChaCha20 nonce
+ *      36    var    ciphertext = AEAD-encrypt(inner) + 16-byte Poly1305 tag
+ *
+ *   AAD (crypto=XCHACHA only): wire[0..11] (version + crypto + comp + origLen
+ *   + epoch) — authenticated, not encrypted. Binds algorithm IDs to the
+ *   ciphertext. Not applicable when crypto=NONE: there is no MAC, so header
+ *   tampering is not detected at this layer (unauthenticated transport has no
+ *   integrity guarantee regardless — this is unchanged from the old plain
+ *   v250 format's properties, just carried in a structured header now).
  *
  *   Replay protection: 256-bit sliding window on the inner nfd_header_t
- *   lastSequence field, checked after MAC verification succeeds.
+ *   lastSequence field, checked only when crypto=XCHACHA and MAC verification
+ *   succeeded — replay protection without authentication is not meaningful
+ *   (an unauthenticated sequence number is exactly as forgeable as the
+ *   payload it would be "protecting"), so crypto=NONE packets never go
+ *   through anti-replay, matching the old plain v250 path's properties.
  *
- *   Compression: LZ4 (system library or bundled fallback), attempted only when
- *   inner payload > 512 bytes and used only when compressed form is at least
- *   10% smaller.
- *   Order: compress-then-encrypt (only safe order for AEAD).
+ *   Compression: tried opportunistically whenever the inner payload exceeds
+ *   NFD_COMP_THRESHOLD (512) bytes, independent of crypto — zstd is
+ *   preferred when this build has libzstd (better ratio at these payload
+ *   sizes), falling back to LZ4 (always available: system library or
+ *   bundled fallback) when zstd isn't compiled in or doesn't clear the
+ *   savings bar. Compression is kept only when the result is at least 10%
+ *   smaller than the input; otherwise the payload is sent uncompressed
+ *   (comp=NONE). Order is always compress-then-encrypt (the only safe order
+ *   for AEAD).
  *
  * crypto/comp algorithm bytes use distinct uint8_t fields (not bit-flags):
  *   • Value 0 always means "none" for that dimension.
@@ -73,8 +100,16 @@
  *   • Adding a second cipher or compressor in the future requires only a new
  *     enum constant — no wire format change.
  *
- * All code is compiled only when HAVE_LIBSODIUM is defined.  Without libsodium,
- * DeriveUdpSessionKey() returns NULL and UdpEncrypt()/UdpDecrypt() return -1.
+ * crypto=NONE packets need no libsodium and work in any build. crypto=XCHACHA
+ * requires HAVE_LIBSODIUM (NfdWireEncode()/NfdWireDecode() return -1 for that
+ * branch otherwise). comp=ZSTD requires HAVE_ZSTD; a decoder built without it
+ * rejects a zstd-compressed packet cleanly rather than misdecoding it.
+ *
+ * -k on the receiving side means "authentication required": once a session
+ * key is configured, a crypto=NONE packet is rejected (logged, dropped) —
+ * see Process_nfd() in nfd_raw.c. A receiver without a session key accepts
+ * crypto=NONE packets but rejects crypto=XCHACHA packets because it has no
+ * key with which to authenticate and decrypt them.
  */
 
 #ifndef _NFD_UDP_CRYPTO_H
@@ -98,7 +133,7 @@
 
 /* Byte 2 of the wire header: encryption algorithm */
 typedef enum {
-    NFD_CRYPTO_NONE = 0,               // plaintext — invalid inside a v251 header
+    NFD_CRYPTO_NONE = 0,               // no encryption — plain, possibly compressed
     NFD_CRYPTO_XCHACHA20_POLY1305 = 1, // crypto_aead_xchacha20poly1305_ietf (libsodium)
     // NFD_CRYPTO_AES256_GCM = 2,      reserved for future use
 } nfd_crypto_algo_t;
@@ -107,17 +142,34 @@ typedef enum {
 typedef enum {
     NFD_COMP_NONE = 0, // uncompressed
     NFD_COMP_LZ4 = 1,  // LZ4 default compression (liblz4 or bundled lz4.h)
-    // NFD_COMP_ZSTD = 2, reserved for future use
+    NFD_COMP_ZSTD = 2, // zstd default compression (requires HAVE_ZSTD)
 } nfd_comp_algo_t;
 
 /* -----------------------------------------------------------------------
- * Wire header for version-251 encrypted nfpcapd UDP packets.
- * sizeof(nfd_enc_header_t) must equal NFD_ENC_HDR_SIZE (32).
+ * Universal wire header for every -H/nfreplay UDP packet (version 251).
+ * Fixed size regardless of crypto/comp mode — unused fields (nonce, epoch
+ * under crypto=NONE) are simply zeroed, keeping parsing branch-free on the
+ * header itself; 36 bytes is negligible next to real payload sizes.
+ * sizeof(nfd_wire_header_t) must equal NFD_WIRE_HDR_SIZE (36).
  * ----------------------------------------------------------------------- */
-#define NFD_ENC_HDR_SIZE 36u    // sizeof nfd_enc_header_t
-#define NFD_AEAD_TAG_SIZE 16u   // Poly1305 MAC tag appended by AEAD
-#define NFD_AAD_SIZE 12u        // authenticated prefix: version..epoch (bytes 0–11)
-#define NFD_COMP_THRESHOLD 512u // only attempt LZ4 when inner payload > this
+#define NFD_WIRE_VERSION 251u   // outer nfd UDP transport version
+#define NFD_WIRE_HDR_SIZE 36u   // sizeof nfd_wire_header_t
+#define NFD_AEAD_TAG_SIZE 16u   // Poly1305 MAC tag appended by AEAD (crypto=XCHACHA only)
+#define NFD_AAD_SIZE 12u        // authenticated prefix: version..epoch (bytes 0-11), crypto=XCHACHA only
+#define NFD_COMP_THRESHOLD 512u // only attempt compression when inner payload > this
+
+/*
+ * Target wire packet size for every nfd sender (remote_backend.c's -H
+ * backend, and nfreplay.c) — see udp.sendThreshold in nfdump.conf(5).
+ * Shared here so every sender uses the same default and valid range;
+ * out-of-range configured values are rejected (logged) rather than
+ * clamped, falling back to the default. Each sender independently buffers
+ * raw records up to 2x this value before compressing and flushing — see
+ * the sender's own file for that accumulation logic.
+ */
+#define NFD_SEND_THRESHOLD_DEFAULT 1200u
+#define NFD_SEND_THRESHOLD_MIN 512u
+#define NFD_SEND_THRESHOLD_MAX 60000u
 
 /*
  * Epoch skew tolerance on the receiver.  The receiver accepts sender epoch
@@ -125,21 +177,21 @@ typedef enum {
  * default 60-minute rekey interval this allows ±2 hours of clock drift —
  * sufficient for any reasonably deployed host, including embedded senders
  * that lack reliable NTP.  The sender writes its epoch in the wire header;
- * the receiver never needs to guess it.
+ * the receiver never needs to guess it.  Not used when crypto=NONE.
  */
 #define NFD_MAX_EPOCH_SKEW 2u
 
-typedef struct nfd_enc_header_s {
-    uint16_t version;  // htons(VERSION_NFD_ENCRYPTED = 251)
+typedef struct nfd_wire_header_s {
+    uint16_t version;  // htons(VERSION_NFD_WIRE = 251)
     uint8_t crypto;    // nfd_crypto_algo_t — algorithm selector
     uint8_t comp;      // nfd_comp_algo_t   — compressor selector
     uint32_t origLen;  // htonl(uncompressed inner len); 0 when comp==NONE
-    uint32_t epoch;    // htonl(rekey epoch counter); 0 when rekeying off
-    uint8_t nonce[24]; // random XChaCha20-Poly1305 nonce
-} __attribute__((packed)) nfd_enc_header_t;
+    uint32_t epoch;    // htonl(rekey epoch counter); 0 when rekeying off or crypto==NONE
+    uint8_t nonce[24]; // random XChaCha20-Poly1305 nonce; zeroed when crypto==NONE
+} __attribute__((packed)) nfd_wire_header_t;
 
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-_Static_assert(sizeof(nfd_enc_header_t) == NFD_ENC_HDR_SIZE, "nfd_enc_header_t must be 36 bytes");
+_Static_assert(sizeof(nfd_wire_header_t) == NFD_WIRE_HDR_SIZE, "nfd_wire_header_t must be 36 bytes");
 #endif
 
 /* -----------------------------------------------------------------------
@@ -213,49 +265,70 @@ void SetUdpSalt(const char *saltStr);
  *
  * intervalSecs == 0  : rekeying disabled (default); the Argon2id-derived
  *                      key is used directly for the daemon's lifetime.
- * intervalSecs  > 0  : both UdpEncrypt and UdpDecrypt derive a per-epoch
- *                      subkey via crypto_kdf_derive_from_key (BLAKE2b).
+ * intervalSecs  > 0  : both NfdWireEncode and NfdWireDecode derive a
+ *                      per-epoch subkey via crypto_kdf_derive_from_key
+ *                      (BLAKE2b), for crypto=XCHACHA packets only.
  *                      The sender writes the epoch number into the wire
  *                      header; the receiver reads it back and accepts
  *                      epochs within ±NFD_MAX_EPOCH_SKEW of its own clock,
  *                      so clock differences up to
  *                      (NFD_MAX_EPOCH_SKEW × intervalSecs) are tolerated.
  *
- * Must be called before the first UdpEncrypt / UdpDecrypt call.
+ * Must be called before the first NfdWireEncode / NfdWireDecode call.
  * Safe to call on both the sender (nfpcapd) and receiver (nfcapd) side.
  */
 void SetUdpRekeyInterval(uint32_t intervalSecs);
 
 /* -----------------------------------------------------------------------
- * Packet-level encrypt / decrypt.
+ * Packet-level encode / decode. Universal: handles all four crypto x comp
+ * combinations described above.
  * ----------------------------------------------------------------------- */
 
 /*
- * UdpEncrypt — encrypt 'innerLen' bytes from 'inner' into 'wireBuf'.
+ * NfdWireEncode — wrap 'innerLen' bytes from 'inner' into a universal wire
+ * packet in 'wireBuf'.
  *
- * 'inner' is a complete v250 UDP payload (nfd_header_t + flow records).
- * 'wireBuf' must have at least NFD_ENC_HDR_SIZE + innerLen + NFD_AEAD_TAG_SIZE
- * bytes of space (extra room for LZ4 expansion is handled internally).
+ * 'inner' is a complete nfd_header_t + flow-records payload.
+ * 'wireBuf' must have at least NFD_WIRE_HDR_SIZE + innerLen bytes of space
+ * plus NFD_AEAD_TAG_SIZE when sessionKey is non-NULL (extra room for
+ * compression expansion in the rare case it doesn't help is handled
+ * internally — the wire packet only ever contains the smaller of the two).
  *
- * Optionally LZ4-compresses the inner payload before encryption when
- * innerLen > NFD_COMP_THRESHOLD and at least 10% compression is achieved.
- * The system LZ4 library or the bundled fallback supplies the codec.
+ * sessionKey == NULL: crypto=NONE. Works in any build, no libsodium needed.
+ * sessionKey != NULL: crypto=XCHACHA20_POLY1305. Requires HAVE_LIBSODIUM.
+ *
+ * Either way, compression is attempted whenever innerLen > NFD_COMP_THRESHOLD:
+ * zstd first (if this build has HAVE_ZSTD), else LZ4, kept only if the result
+ * is at least 10% smaller than innerLen.
  *
  * Returns total wire byte count on success, -1 on error.
  */
-ssize_t UdpEncrypt(void *wireBuf, size_t wireBufMax, const void *inner, size_t innerLen, const uint8_t *sessionKey);
+ssize_t NfdWireEncode(void *wireBuf, size_t wireBufMax, const void *inner, size_t innerLen, const uint8_t *sessionKey);
 
 /*
- * UdpDecrypt — decrypt and authenticate a version-251 wire packet.
+ * NfdWireDecode — unwrap and, if applicable, authenticate/decrypt/decompress
+ * a universal wire packet.
  *
- * Writes the recovered inner v250 payload (nfd_header_t + records) into
- * 'outBuf'.  'outBuf' must be at least 65536 bytes.
+ * Writes the recovered inner payload (nfd_header_t + records) into 'outBuf'.
+ * 'outBuf' must be at least 65536 bytes.
+ *
+ * sessionKey may be NULL: a crypto=NONE packet decodes regardless (no key
+ * needed); a crypto=XCHACHA packet with sessionKey==NULL is rejected (this
+ * receiver isn't configured to decrypt). Enforcing "sessionKey configured
+ * means crypto=NONE is rejected" (authentication required) is the caller's
+ * responsibility — see Process_nfd() in nfd_raw.c — not this function's,
+ * since that policy depends on whether -k was given, which this function
+ * has no notion of.
  *
  * The caller is responsible for anti-replay checking the inner
- * nfd_header_t.lastSequence after a successful return.
+ * nfd_header_t.lastSequence after a successful return, and only when the
+ * packet's crypto field was NFD_CRYPTO_XCHACHA20_POLY1305 — this function
+ * does not report which branch was taken, but the caller can peek
+ * wireBuf's crypto byte (offset 2) itself before calling.
  *
- * Returns inner payload byte count on success, -1 on auth or format error.
+ * Returns inner payload byte count on success, -1 on auth, format, or
+ * unsupported-algorithm error.
  */
-ssize_t UdpDecrypt(void *outBuf, size_t outBufSize, const void *wireBuf, size_t wireBufLen, const uint8_t *sessionKey);
+ssize_t NfdWireDecode(void *outBuf, size_t outBufSize, const void *wireBuf, size_t wireBufLen, const uint8_t *sessionKey);
 
 #endif /* _NFD_UDP_CRYPTO_H */

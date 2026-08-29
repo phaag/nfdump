@@ -160,7 +160,7 @@ static void usage(char *name) {
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
-        "-k[=passphrase|@keyfile]\tEncrypt UDP transport to -H host (v251). Passphrase from argument, key file, or interactive prompt.\n"
+        "-k[=passphrase|@keyfile]\tAuthenticate/encrypt UDP transport to -H host. Passphrase from argument, key file, or interactive prompt.\n"
         "-N <secs>\t\tUDP transport rekey interval in seconds (requires -k). Default 0 (disabled).\n"
         "-Q <bits>\t\tUDP anti-replay window in bits (power of 2, 64\342\200\2231024). Default 256.\n"
 #endif

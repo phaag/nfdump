@@ -79,9 +79,11 @@ typedef struct FlowSource_s {
     struct timeval received;     // time last packet received
 
     /*
-     * Per-source anti-replay state for encrypted nfpcapd v251 packets.
-     * Allocated lazily by nfd_raw.c on the first encrypted packet from
-     * this source; freed by freeFlowSource().  NULL when unused.
+     * Per-source anti-replay state for authenticated (crypto=XCHACHA20_
+     * POLY1305) -H/nfreplay packets. Allocated lazily by nfd_raw.c on the
+     * first authenticated packet from this source; freed by
+     * freeFlowSource().  NULL when unused. Never used for crypto=NONE
+     * traffic — replay protection without authentication isn't meaningful.
      * Opaque pointer — concrete type is anti_replay_t in nfd_udp_crypto.h.
      */
     void *udpAntiReplay;

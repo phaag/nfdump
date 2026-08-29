@@ -38,14 +38,19 @@
 #include "network/nfd_udp_crypto.h"
 
 /*
- * VERSION_NFDUMP (250) — plain nfpcapd UDP packet (nfd_header_t + records).
- * VERSION_NFD_ENCRYPTED (251) — encrypted nfpcapd UDP packet (nfd_enc_header_t
- *   wire header + ciphertext).  Handled transparently in Process_nfd().
+ * VERSION_NFDUMP (250)   — inner nfd_header_t record-container version.
+ *   It is never sent bare on UDP in 1.8.x; the old unwrapped v250 transport
+ *   is no longer supported.
+ * VERSION_NFD_WIRE (251) — the universal wire-transport version for every
+ *   -H/nfreplay UDP packet (nfd_wire_header_t envelope). crypto and comp are
+ *   independent fields inside that header — see nfd_udp_crypto.h for the
+ *   full combination table. There is no separate unwrapped wire format any
+ *   more; Process_nfd() always unwraps via NfdWireDecode() first.
  */
-#define VERSION_NFD_ENCRYPTED 251
+#define VERSION_NFD_WIRE NFD_WIRE_VERSION
 
 typedef struct nfd_header {
-    uint16_t version;       // set to 250 for pcapd
+    uint16_t version;       // set to VERSION_NFDUMP for the inner container
     uint16_t length;        // Total length incl. this header. up to 65535 bytes
     uint32_t exportTime;    // UNIX epoch export Time of flow.
     uint32_t lastSequence;  // Incremental sequence counter modulo 2^32 of all pcapd Data Records
@@ -56,10 +61,15 @@ typedef struct nfd_header {
 int Init_pcapd(int verbose);
 
 /*
- * Init_pcapd_udp_crypto — configure decryption of version-251 nfpcapd packets.
+ * Init_pcapd_udp_crypto — configure authentication/decryption for incoming
+ * -H/nfreplay UDP packets.
  *
  * sessionKey       32-byte Argon2id-derived key (from DeriveUdpSessionKey).
- *                  Pass NULL to disable decryption (plain v250 only).
+ *                  Pass NULL to accept only crypto=NONE traffic (no -k given).
+ *                  Non-NULL makes -k mean "authentication required":
+ *                  Process_nfd() then rejects crypto=NONE packets outright,
+ *                  rather than silently accepting them alongside
+ *                  authenticated ones.
  * replayWindowBits Per-source anti-replay window width in packets.
  *                  Must be a power of 2 in [64, ANTI_REPLAY_WINDOW_MAX].
  *                  Pass 0 to use ANTI_REPLAY_WINDOW_DEFAULT (256).

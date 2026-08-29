@@ -165,7 +165,7 @@ static void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
-        "-k[=passphrase|@keyfile]\tEncrypt UDP transport to -H host (v251). Passphrase from argument, key file, or interactive prompt.\n"
+        "-k[=passphrase|@keyfile]\tAuthenticate/encrypt UDP transport to -H host. Passphrase from argument, key file, or interactive prompt.\n"
 #endif
         ,
         name);

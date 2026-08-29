@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -54,6 +55,7 @@
 #include <stdio_ext.h>
 #endif
 
+#include "conf/nfconf.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "id.h"
@@ -96,20 +98,25 @@
 static send_peer_t peer;
 static uint32_t recordCnt = 0;
 static uint32_t sequence = 0;
-#ifdef HAVE_LIBSODIUM
+/* NfdWireEncode() is also used by the crypto=NONE native path in builds
+ * without libsodium. It receives NULL unless -k has derived a key. */
 static uint8_t *sessionKey = NULL;
-#endif
 
 /* Function Prototypes */
 static void usage(char *name);
 
 static int send_data(void *engine, uint64_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
-static int FlushBuffer(int confirm);
+static int FlushBuffer(int confirm, int netflow_version);
 
 static void Close_nfd_output(send_peer_t *peer);
 
 static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer);
+
+/* Logical raw packing limit for native output. The allocation itself is
+ * always large enough for a maximum nfd_header_t packet so that an otherwise
+ * valid record which exceeds this preferred limit can be sent on its own. */
+static uint32_t nfdRawPackLimit;
 
 /* Sleep until an absolute CLOCK_MONOTONIC deadline.  clock_nanosleep() is
  * preferable because an interrupted sleep can be retried without recalculating
@@ -221,16 +228,23 @@ static void usage(char *name) {
         "-b <bsize>\tSend buffer size.\n"
         "-r <input>\tRead input from a regular nfdump file (required).\n"
         "-f <filter>\tfilter syntaxfile\n"
-        "-v <version>\tUse netflow version to send flows. Either 5, 9, 10 (IPFIX) or 250 (nfdump native).\n"
-        "-z <factor>\tSimulate recorded timing; 1 = real time, N = N times faster.\n",
+        "-v <version>\tUse netflow version to send flows. Either 5, 9, 10 (IPFIX) or 251 (nfdump native).\n"
+        "-z <factor>\tSimulate recorded timing; 1 = real time, N = N times faster.\n"
+        "-C <file>\tRead optional config file.\n"
+        "-x <key>=<value>\tOverride a config parameter for this invocation only. May be repeated.\n",
         name);
 #ifdef HAVE_LIBSODIUM
     printf(
-        "-k[=<passphrase>|@<keyfile>]\tEncrypt forwarded flows using nfdump UDP transport protocol.\n"
+        "-k[=<passphrase>|@<keyfile>]\tAuthenticate/encrypt forwarded flows using the nfdump UDP transport protocol.\n"
         "\t\t\t\tPassphrase from argument, @keyfile, or interactive prompt.\n"
-        "\t\t\t\tUse together with -v 250.\n");
+        "\t\t\t\tUse together with -v 251.\n");
 #endif
-    printf("-Y\t\tConfirm each UDP packet before sending.\n");
+    printf(
+        "-Y\t\tConfirm each UDP packet before sending.\n"
+        "With -v 251, forwarded packets use the nfdump UDP transport protocol: opportunistically\n"
+        "compressed (zstd if available, else LZ4) independent of -k, and the target wire packet\n"
+        "size follows udp.sendThreshold in nfdump.conf(5) (default 1200 bytes), same as nfcapd/\n"
+        "nfpcapd/sfcapd -H.\n");
 } /* usage */
 
 static void Flush_nfd_header(send_peer_t *peer) {
@@ -257,22 +271,36 @@ void Close_nfd_output(send_peer_t *peer) {
 
 }  // End of Close_nfd_output
 
-int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer) {
+static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer) {
 #ifdef DEVEL
     size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
     printf("Buffer size: %zu, Record count: %u\n", len, recordCnt);
 #endif
+
+    if (record_header == NULL) return 0;
+    if (record_header->size > UINT16_MAX - sizeof(nfd_header_t)) {
+        LogError("nfreplay: record size %u exceeds nfd UDP payload limit", record_header->size);
+        return -1;
+    }
 
     if (peer->buff_ptr == peer->send_buffer) {
         // empty buffer - add nfd_header
         peer->buff_ptr = peer->buff_ptr + sizeof(nfd_header_t);
     }
 
-    if (record_header == NULL || (peer->buff_ptr + record_header->size) >= peer->endp) {
-        // flush packet first
+    size_t used = (size_t)((uint8_t *)peer->buff_ptr - (uint8_t *)peer->send_buffer);
+    if (recordCnt && used + record_header->size > nfdRawPackLimit) {
+        // Flush the accumulated packet. The caller retries this record.
         Flush_nfd_header(peer);
         peer->flush = 1;
         return 1;
+    }
+
+    /* Empty packet: permit one record larger than the preferred packing
+     * limit. The physical buffer remains a full nfd UDP payload. */
+    if (used + record_header->size > UINT16_MAX) {
+        LogError("nfreplay: record size %u exceeds nfd UDP payload limit", record_header->size);
+        return -1;
     }
     dbg_printf("Add record - type: %u, size: %u\n", record_header->type, record_header->size);
     memcpy(peer->buff_ptr, (void *)record_header, record_header->size);
@@ -282,7 +310,30 @@ int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer) {
 
 }  // End of Add_nfd_output_record
 
-static int FlushBuffer(int confirm) {
+/*
+ * NfdRawPackSize — raw (pre-compression) accumulation buffer size for the
+ * nfdump-native (-v 251) -H output path: 2x udp.sendThreshold (nfdump.conf(5)),
+ * clamped to 65535 since nfd_header_t.length is a uint16_t field — matches
+ * remote_backend.c's PackFlowBlock() design (see nfd_udp_crypto.h's shared
+ * NFD_SEND_THRESHOLD_* constants). Only meaningful for VERSION_NFD_WIRE output;
+ * v5/v9/IPFIX keep the fixed UDP_PACKET_SIZE buffer, unaffected by this key.
+ */
+static uint32_t NfdRawPackSize(void) {
+    uint32_t sendThreshold = NFD_SEND_THRESHOLD_DEFAULT;
+    int64_t confThreshold = ConfGetValue("udp.sendThreshold");
+    if (confThreshold != 0) {
+        if (confThreshold < NFD_SEND_THRESHOLD_MIN || confThreshold > NFD_SEND_THRESHOLD_MAX) {
+            LogError("nfreplay: udp.sendThreshold %" PRId64 " out of range [%u, %u] — using default %u", confThreshold, NFD_SEND_THRESHOLD_MIN,
+                     NFD_SEND_THRESHOLD_MAX, NFD_SEND_THRESHOLD_DEFAULT);
+        } else {
+            sendThreshold = (uint32_t)confThreshold;
+        }
+    }
+    uint64_t raw = (uint64_t)sendThreshold * 2;
+    return raw > 65535u ? 65535u : (uint32_t)raw;
+}  // End of NfdRawPackSize
+
+static int FlushBuffer(int confirm, int netflow_version) {
     static unsigned long cnt = 1;
 
     size_t len = (ptrdiff_t)peer.buff_ptr - (ptrdiff_t)peer.send_buffer;
@@ -296,18 +347,27 @@ static int FlushBuffer(int confirm) {
         fflush(stdout);
         fgetc(stdin);
     }
-#ifdef HAVE_LIBSODIUM
-    if (sessionKey) {
-        static uint8_t wireBuf[UDP_PACKET_SIZE + NFD_ENC_HDR_SIZE + NFD_AEAD_TAG_SIZE];
-        ssize_t wireLen = UdpEncrypt(wireBuf, sizeof(wireBuf), peer.send_buffer, len, sessionKey);
-        if (wireLen < 0) {
-            LogError("UdpEncrypt() failed");
-            return -1;
-        }
-        return sendto(peer.sockfd, wireBuf, (size_t)wireLen, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
+
+    // Only the nfdump-native output format (-v 251) is nfd wire traffic —
+    // v5/v9/IPFIX output must stay byte-for-byte what a real exporter would
+    // send, verbatim, for interop with any standard collector.  The
+    // universal wire envelope (and its optional compression/encryption)
+    // applies only to VERSION_NFD_WIRE.
+    if (netflow_version != VERSION_NFD_WIRE) {
+        return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
     }
-#endif
-    return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
+
+    // crypto=NONE when no sessionKey (works without libsodium), crypto=
+    // XCHACHA otherwise. Either way, NfdWireEncode() opportunistically
+    // compresses first. Sized for the worst case (NfdRawPackSize()'s own
+    // 65535 ceiling), independent of the actual configured threshold.
+    static uint8_t wireBuf[65535 + NFD_WIRE_HDR_SIZE + NFD_AEAD_TAG_SIZE];
+    ssize_t wireLen = NfdWireEncode(wireBuf, sizeof(wireBuf), peer.send_buffer, len, sessionKey);
+    if (wireLen < 0) {
+        LogError("NfdWireEncode() failed");
+        return -1;
+    }
+    return sendto(peer.sockfd, wireBuf, (size_t)wireLen, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
 static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
@@ -332,14 +392,20 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
     }
     FilterSetParam(engine, nffile->ident, NOGEODB);
 
-    peer.send_buffer = malloc(UDP_PACKET_SIZE);
+    // Only VERSION_NFD_WIRE (nfd-native, -H) output follows udp.sendThreshold —
+    // v5/v9/IPFIX output is genuine wire-format traffic and keeps the fixed
+    // UDP_PACKET_SIZE buffer regardless of that key.
+    uint32_t sendBufferSize = netflow_version == VERSION_NFD_WIRE ? UINT16_MAX : UDP_PACKET_SIZE;
+    nfdRawPackLimit = netflow_version == VERSION_NFD_WIRE ? NfdRawPackSize() : 0;
+
+    peer.send_buffer = malloc(sendBufferSize);
     peer.flush = 0;
     if (!peer.send_buffer) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         goto done;
     }
     peer.buff_ptr = peer.send_buffer;
-    peer.endp = (void *)((ptrdiff_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
+    peer.endp = (void *)((uint8_t *)peer.send_buffer + sendBufferSize);
 
     dbg_printf("Init output protocol version: %u\n", netflow_version);
     switch (netflow_version) {
@@ -356,7 +422,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
                 goto done;
             }
             break;
-        case VERSION_NFDUMP:
+        case VERSION_NFD_WIRE:
             // init is lazy — Add_nfd_output_record reserves header space on first record
             break;
     }
@@ -461,15 +527,22 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
                         case VERSION_IPFIX:
                             again = Add_ipfix_output_record(recordHandle, &peer);
                             break;
-                        case VERSION_NFDUMP:  // nfd raw format
+                        case VERSION_NFD_WIRE:  // nfd raw format
                             again = Add_nfd_output_record(record_ptr, &peer);
                             break;
+                    }
+
+                    if (again < 0) {
+                        LogError("Cannot add flow record to UDP packet");
+                        status = 0;
+                        FreeDataBlock(dataBlock);
+                        goto done;
                     }
 
                     numflows++;
 
                     if (peer.flush) {
-                        int err = FlushBuffer(confirm);
+                        int err = FlushBuffer(confirm, netflow_version);
 
                         if (err < 0) {
                             LogError("Error sending data");
@@ -495,9 +568,15 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
                             case VERSION_IPFIX:
                                 again = Add_ipfix_output_record(recordHandle, &peer);
                                 break;
-                            case VERSION_NFDUMP:  // nfd raw format
+                            case VERSION_NFD_WIRE:  // nfd raw format
                                 again = Add_nfd_output_record(record_ptr, &peer);
                                 break;
+                        }
+                        if (again != 0) {
+                            LogError("Cannot add flow record to an empty UDP packet");
+                            status = 0;
+                            FreeDataBlock(dataBlock);
+                            goto done;
                         }
                     }
 
@@ -543,11 +622,11 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
         case VERSION_IPFIX:
             Close_ipfix_output(&peer);
             break;
-        case VERSION_NFDUMP:  // nfd raw format
+        case VERSION_NFD_WIRE:  // nfd raw format
             Close_nfd_output(&peer);
             break;
     }
-    int ret = FlushBuffer(confirm);
+    int ret = FlushBuffer(confirm, netflow_version);
     if (ret < 0) {
         LogError("Error flushing send buffer");
         status = 0;
@@ -594,12 +673,13 @@ int main(int argc, char **argv) {
     uint64_t count = 0;
     int confirm = 0;
     int distribution = 0;
+    char *configFile = NULL;
 #ifdef HAVE_LIBSODIUM
     crypto_ctx_t *transfer_ctx = NULL;  // -k: UDP transport encryption
 #endif
 
     int c = 0;
-    while ((c = getopt(argc, argv, "46EhH:L:p:S:d:c:b:j:r:f:v:z:VYk::")) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:L:p:S:d:c:b:j:r:f:v:z:VYk::C:x:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -649,8 +729,13 @@ int main(int argc, char **argv) {
                 uint64_t value;
                 if (!ParseUnsignedOption("-v", optarg, INT_MAX, &value)) exit(EXIT_FAILURE);
                 netflow_version = (int)value;
-                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_IPFIX && netflow_version != VERSION_NFDUMP) {
-                    LogError("Invalid netflow version: %s. Accept only 5, 9, 10 (IPFIX) or %d", optarg, VERSION_NFDUMP);
+                if (netflow_version == VERSION_NFDUMP) {
+                    // 1.7.x no longer supported
+                    LogError("-v %d no longer supported. Use -v %d for the nfdump native protocol.", VERSION_NFDUMP, VERSION_NFD_WIRE);
+                    exit(EXIT_FAILURE);
+                }
+                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_IPFIX && netflow_version != VERSION_NFD_WIRE) {
+                    LogError("Invalid netflow version: %s. Accept only 5, 9, 10 (IPFIX) or %d", optarg, VERSION_NFD_WIRE);
                     exit(EXIT_FAILURE);
                 }
             } break;
@@ -708,6 +793,17 @@ int main(int argc, char **argv) {
 #endif
                 break;
             }
+            case 'C':
+                if (strcmp(optarg, NOCONF) == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
+                break;
+            case 'x':
+                if (!ConfSetOverride(optarg)) exit(EXIT_FAILURE);
+                break;
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -721,12 +817,34 @@ int main(int argc, char **argv) {
         filter = argv[optind];
     }
 
+    // No registered defaults needed — udp.sendThreshold is read directly via
+    // ConfGetValue(), same idiom as threads.* elsewhere.
+    if (ConfOpen(configFile, "nfreplay", NULL) < 0) exit(EXIT_FAILURE);
+
 #ifdef HAVE_LIBSODIUM
     if (transfer_ctx) {
-        if (netflow_version != VERSION_NFDUMP) {
-            LogError("-k requires -v %d (nfdump native protocol)", VERSION_NFDUMP);
+        if (netflow_version != VERSION_NFD_WIRE) {
+            LogError("-k requires -v %d (nfdump native protocol)", VERSION_NFD_WIRE);
             exit(EXIT_FAILURE);
         }
+
+        char *confSalt = ConfGetString("crypt.salt");
+        if (confSalt) {
+            SetUdpSalt(confSalt);
+            free(confSalt);
+        }
+
+        uint32_t rekeyIntervalSecs = REKEY_INTERVALSECS_DEFAULT;
+        int64_t confRekey = ConfGetValue("crypt.rekeyIntervalSecs");
+        if (confRekey < 0 || confRekey > 86400 * 7) {
+            LogError("nfreplay: nfdump.conf crypt.rekeyIntervalSecs %" PRId64
+                     " out of range [0, 604800]; using default %u",
+                     confRekey, REKEY_INTERVALSECS_DEFAULT);
+        } else {
+            rekeyIntervalSecs = (uint32_t)confRekey;
+        }
+        SetUdpRekeyInterval(rekeyIntervalSecs);
+
         sessionKey = DeriveUdpSessionKey(transfer_ctx);
         if (!sessionKey) {
             LogError("Failed to derive UDP session key");

@@ -30,22 +30,32 @@
 #
 # Native nfdump protocol live round-trip regression tests.
 #
+# Every -H/nfreplay UDP packet uses one wire version (251, nfd_wire_header_t)
+# regardless of encryption — crypto (NONE or XCHACHA20_POLY1305) and comp
+# (NONE/LZ4/ZSTD) are independent fields inside that header, see
+# nfd_udp_crypto.h. "-v 251" below is nfreplay's own CLI flag selecting the
+# nfdump-native record encoding (nfd_header_t + V4 records); that payload is
+# what gets wrapped, optionally compressed, and optionally encrypted before
+# it goes on the wire as wire version 251. 1.8.x has no other value: the
+# pre-1.8.x unwrapped "250" wire format no longer exists, including as a -v
+# selector.
+#
 # Tests:
-#   1. v250_plain           — plain nfdump native protocol (version 250)
-#   2. v251_encrypted       — XChaCha20-Poly1305 encrypted protocol (version 251)
-#   3. v251_wrong_passphrase — wrong passphrase: all packets must be rejected
+#   1. plain_transport       — crypto=NONE: nfreplay -H with no -k, nfcapd with no -k
+#   2. encrypted_transport   — crypto=XCHACHA20_POLY1305, matching passphrase both ends
+#   3. wrong_passphrase      — crypto=XCHACHA20_POLY1305, mismatched passphrase: MAC
+#                              verification must fail for every packet
+#   4. auth_required         — receiver has -k (authentication required); a
+#                              crypto=NONE sender must be rejected outright, not
+#                              silently accepted alongside authenticated traffic
 #
-# Protocol version 250:
-#   nfreplay -v 250  forwards flow records verbatim as raw nfdump V4 records
-#   inside an nfd_header UDP frame.  nfcapd receives and stores them without
-#   any special configuration.
-#
-# Protocol version 251:
-#   nfreplay -v 250 -k=<pass>  assembles a v250 inner packet, then encrypts it
-#   with XChaCha20-Poly1305 (per-packet random 192-bit nonce, 16-byte Poly1305
-#   MAC) and sends the result as a v251 wire packet.
-#   nfcapd -k=<pass>  derives the same session key via Argon2id and decrypts
-#   incoming v251 packets before processing them.
+# Encrypted transport:
+#   nfreplay -v 251 -k=<pass>  assembles the inner nfdump-native payload, then
+#   encrypts it with XChaCha20-Poly1305 (per-packet random 192-bit nonce,
+#   16-byte Poly1305 MAC) before sending.
+#   nfcapd -k=<pass>  derives the same session key via Argon2id, and — once
+#   -k is given — requires every incoming packet to be authenticated this way,
+#   rejecting crypto=NONE traffic (see test 4).
 #   Note: to also encrypt the output .nf files supply -K=<pass> to nfcapd;
 #   nfdump -K is then required to read them back.
 #
@@ -130,53 +140,54 @@ echo "  ref flows:   $REF_FLOWS"
 # Minimum acceptable received count (half of source, to tolerate protocol drops).
 MIN_FLOWS=$(( REF_FLOWS / 2 ))
 
-# Port selection: PID-based offset in the 49152–65151 range, step by 3 to
-# leave room for the three tests without collision.
-BASE_PORT=$(( 49152 + ( $$ * 3 ) % 16000 ))
-PORT_V250=$(( BASE_PORT ))
+# Port selection: PID-based offset in the 49152–65151 range, step by 4 to
+# leave room for the four tests without collision.
+BASE_PORT=$(( 49152 + ( $$ * 4 ) % 16000 ))
+PORT_PLAIN=$(( BASE_PORT ))
 PORT_V251=$(( BASE_PORT + 1 ))
 PORT_WRNG=$(( BASE_PORT + 2 ))
+PORT_AUTHREQ=$(( BASE_PORT + 3 ))
 
 PASSPHRASE="nfdump-test-v251-secret"
 
 # =============================================================================
-# 1. v250 plain round-trip
+# 1. plain transport (crypto=NONE) round-trip
 # =============================================================================
 echo ""
-echo "── v250 plain nfdump protocol ───────────────────────────────────────────"
+echo "── plain transport (crypto=NONE) ────────────────────────────────────────"
 
-LIVE_V250="$WORKDIR/live_v250"
-mkdir -p "$LIVE_V250"
+LIVE_PLAIN="$WORKDIR/live_plain"
+mkdir -p "$LIVE_PLAIN"
 
-nfcapd -p "$PORT_V250" -4 -w "$LIVE_V250" -D \
-       -P "$LIVE_V250/pidfile" -I live_v250 -v 0 >/dev/null 2>&1
+nfcapd -p "$PORT_PLAIN" -4 -w "$LIVE_PLAIN" -D \
+       -P "$LIVE_PLAIN/pidfile" -I live_plain -v 0 >/dev/null 2>&1
 sleep 1
-nfreplay -r "$DUMMY_NF" -v 250 -H 127.0.0.1 -p "$PORT_V250" >/dev/null 2>&1
+nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_PLAIN" >/dev/null 2>&1
 sleep 1
-kill -TERM "$(cat "$LIVE_V250/pidfile" 2>/dev/null)" 2>/dev/null || true
-wait_stop "$LIVE_V250/pidfile" 5
+kill -TERM "$(cat "$LIVE_PLAIN/pidfile" 2>/dev/null)" 2>/dev/null || true
+wait_stop "$LIVE_PLAIN/pidfile" 5
 
-if [ -f "$LIVE_V250/pidfile" ]; then
-    fail "v250_plain: nfcapd did not terminate within 5 s"
+if [ -f "$LIVE_PLAIN/pidfile" ]; then
+    fail "plain_transport: nfcapd did not terminate within 5 s"
 else
-    v250f=$(ls "$LIVE_V250"/nfcapd.* 2>/dev/null | head -1)
-    if [ -z "$v250f" ]; then
-        fail "v250_plain: no output file created"
+    plainf=$(ls "$LIVE_PLAIN"/nfcapd.* 2>/dev/null | head -1)
+    if [ -z "$plainf" ]; then
+        fail "plain_transport: no output file created"
     else
-        v250got=$(count_flows "$v250f")
-        if [ "${v250got:-0}" -ge "$MIN_FLOWS" ]; then
-            pass "v250_plain: ${v250got} flows (ref=${REF_FLOWS})"
+        plaingot=$(count_flows "$plainf")
+        if [ "${plaingot:-0}" -ge "$MIN_FLOWS" ]; then
+            pass "plain_transport: ${plaingot} flows (ref=${REF_FLOWS})"
         else
-            fail "v250_plain: ${v250got:-0} flows, expected >= $MIN_FLOWS (ref=${REF_FLOWS})"
+            fail "plain_transport: ${plaingot:-0} flows, expected >= $MIN_FLOWS (ref=${REF_FLOWS})"
         fi
     fi
 fi
 
 # =============================================================================
-# 2. v251 encrypted round-trip
+# 2. encrypted transport (crypto=XCHACHA20_POLY1305) round-trip
 # =============================================================================
 echo ""
-echo "── v251 encrypted nfdump protocol ───────────────────────────────────────"
+echo "── encrypted transport (crypto=XCHACHA20_POLY1305) ─────────────────────"
 
 if [ "$HAS_SODIUM" -eq 0 ]; then
     skip "v251_encrypted: libsodium not compiled in"
@@ -190,7 +201,7 @@ else
            -P "$LIVE_V251/pidfile" -I live_v251 \
            "-k=$PASSPHRASE" -v 0 >/dev/null 2>&1
     sleep 1
-    nfreplay -r "$DUMMY_NF" -v 250 -H 127.0.0.1 -p "$PORT_V251" \
+    nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_V251" \
              "-k=$PASSPHRASE" >/dev/null 2>&1
     sleep 1
     kill -TERM "$(cat "$LIVE_V251/pidfile" 2>/dev/null)" 2>/dev/null || true
@@ -215,10 +226,10 @@ else
 fi
 
 # =============================================================================
-# 3. v251 wrong passphrase — packets must be rejected
+# 3. wrong passphrase — packets must be rejected
 # =============================================================================
 echo ""
-echo "── v251 wrong passphrase rejection ──────────────────────────────────────"
+echo "── wrong passphrase rejection ───────────────────────────────────────────"
 
 if [ "$HAS_SODIUM" -eq 0 ]; then
     skip "v251_wrong_passphrase: libsodium not compiled in"
@@ -233,7 +244,7 @@ else
            -P "$LIVE_WRNG/pidfile" -I live_v251_wrong \
            "-k=$PASSPHRASE" -v 0 >/dev/null 2>&1
     sleep 1
-    nfreplay -r "$DUMMY_NF" -v 250 -H 127.0.0.1 -p "$PORT_WRNG" \
+    nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_WRNG" \
              "-k=wrong-passphrase-xyz" >/dev/null 2>&1
     sleep 1
     kill -TERM "$(cat "$LIVE_WRNG/pidfile" 2>/dev/null)" 2>/dev/null || true
@@ -252,6 +263,47 @@ else
                 pass "v251_wrong_passphrase: 0 flows stored — all packets rejected"
             else
                 fail "v251_wrong_passphrase: ${wrngot} flows stored — wrong-passphrase packets should have been rejected"
+            fi
+        fi
+    fi
+fi
+
+# =============================================================================
+# 4. -k enforcement — receiver requires authentication, sender sends crypto=NONE
+# =============================================================================
+echo ""
+echo "── -k enforcement (crypto=NONE rejected when -k is set) ────────────────"
+
+if [ "$HAS_SODIUM" -eq 0 ]; then
+    skip "auth_required: libsodium not compiled in"
+else
+    LIVE_AUTHREQ="$WORKDIR/live_authreq"
+    mkdir -p "$LIVE_AUTHREQ"
+
+    # Receiver requires authentication (-k); sender deliberately sends
+    # crypto=NONE (no -k). Process_nfd() must drop every packet outright —
+    # -k on the receiver means "authentication required", not "accept either".
+    nfcapd -p "$PORT_AUTHREQ" -4 -w "$LIVE_AUTHREQ" -D \
+           -P "$LIVE_AUTHREQ/pidfile" -I live_authreq \
+           "-k=$PASSPHRASE" -v 0 >/dev/null 2>&1
+    sleep 1
+    nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_AUTHREQ" >/dev/null 2>&1
+    sleep 1
+    kill -TERM "$(cat "$LIVE_AUTHREQ/pidfile" 2>/dev/null)" 2>/dev/null || true
+    wait_stop "$LIVE_AUTHREQ/pidfile" 5
+
+    if [ -f "$LIVE_AUTHREQ/pidfile" ]; then
+        fail "auth_required: nfcapd did not terminate within 5 s"
+    else
+        authreqf=$(ls "$LIVE_AUTHREQ"/nfcapd.* 2>/dev/null | head -1)
+        if [ -z "$authreqf" ]; then
+            pass "auth_required: no output file — all unauthenticated packets rejected"
+        else
+            authreqgot=$(count_flows "$authreqf")
+            if [ "${authreqgot:-0}" -eq 0 ]; then
+                pass "auth_required: 0 flows stored — all unauthenticated packets rejected"
+            else
+                fail "auth_required: ${authreqgot} flows stored — crypto=NONE packets should have been rejected when -k is set"
             fi
         fi
     fi

@@ -191,35 +191,63 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
 }  // End of getExporter
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
-    // Set once the v251 AEAD tag has verified this payload — used below to
-    // pick a cheaper per-record check level (see the verify call in the
-    // record loop). Plain v250 has no transport-level integrity guarantee
-    // at all, so it stays on the full structural check.
+    // Every -H/nfreplay packet arrives wrapped in the universal
+    // nfd_wire_header_t envelope (wire version VERSION_NFD_WIRE) — see
+    // nfd_udp_crypto.h. authenticated reflects this specific packet's own
+    // crypto field (peeked below, before unwrapping) and gates two things:
+    // the per-record verify-cost level further down, and whether anti-replay
+    // applies at all — replay protection without authentication isn't
+    // meaningful, so it's skipped entirely for crypto=NONE packets, same as
+    // the old plain v250 path's properties.
     bool authenticated = false;
 
-    // Decrypt version-251 packets before processing
+    if (in_buff_cnt < (ssize_t)NFD_WIRE_HDR_SIZE) {
+        LogError("Process_nfd: packet too short for wire header (%zd bytes)", in_buff_cnt);
+        fs->bad_packets++;
+        return;
+    }
+
     uint16_t wireVersion = 0;
-    if (in_buff_cnt >= (ssize_t)sizeof(wireVersion)) memcpy(&wireVersion, in_buff, sizeof(wireVersion));
-    if (in_buff_cnt >= (ssize_t)sizeof(wireVersion) && ntohs(wireVersion) == VERSION_NFD_ENCRYPTED) {
-        if (!g_udpSessionKey) {
-            LogError("Process_nfd: received encrypted v251 packet but no UDP session key configured — drop");
-            fs->bad_packets++;
-            return;
-        }
+    memcpy(&wireVersion, in_buff, sizeof(wireVersion));
+    if (ntohs(wireVersion) != VERSION_NFD_WIRE) {
+        LogError("Process_nfd: unsupported wire version %u — drop", ntohs(wireVersion));
+        fs->bad_packets++;
+        return;
+    }
 
-        ssize_t innerLen = UdpDecrypt(g_decryptBuf, sizeof(g_decryptBuf), in_buff, (size_t)in_buff_cnt, g_udpSessionKey);
-        if (innerLen < 0) {
-            // UdpDecrypt already logged the reason (auth failure, bad algo, etc.)
-            fs->bad_packets++;
-            return;
-        }
+    // crypto is byte offset 2 of nfd_wire_header_t — peek directly rather
+    // than parsing the full struct, mirroring the version peek above.
+    uint8_t wireCrypto = ((const uint8_t *)in_buff)[2];
+    authenticated = (wireCrypto == NFD_CRYPTO_XCHACHA20_POLY1305);
 
-        if ((size_t)innerLen < sizeof(nfd_header_t)) {
-            LogError("Process_nfd: decrypted inner payload too short (%zd bytes)", innerLen);
-            fs->bad_packets++;
-            return;
-        }
+    if (g_udpSessionKey && !authenticated) {
+        // -k means "authentication required" on the receive side: a
+        // receiver that was configured to expect authenticated traffic
+        // does not silently fall back to accepting plain packets.
+        LogError("Process_nfd: -k configured but received unauthenticated (crypto=NONE) packet — drop");
+        fs->bad_packets++;
+        return;
+    }
+    if (!g_udpSessionKey && authenticated) {
+        LogError("Process_nfd: received encrypted packet but no UDP session key configured — drop");
+        fs->bad_packets++;
+        return;
+    }
 
+    ssize_t innerLen = NfdWireDecode(g_decryptBuf, sizeof(g_decryptBuf), in_buff, (size_t)in_buff_cnt, g_udpSessionKey);
+    if (innerLen < 0) {
+        // NfdWireDecode already logged the reason (auth failure, bad/
+        // unsupported algorithm, short packet, etc.)
+        fs->bad_packets++;
+        return;
+    }
+    if ((size_t)innerLen < sizeof(nfd_header_t)) {
+        LogError("Process_nfd: decoded inner payload too short (%zd bytes)", innerLen);
+        fs->bad_packets++;
+        return;
+    }
+
+    if (authenticated) {
         /* Anti-replay check on the inner sequence number.
          * MAC verified above, so the sequence is trustworthy.
          * Window is keyed per FlowSource (per source IP). */
@@ -236,12 +264,11 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             fs->bad_packets++;
             return;
         }
-
-        // Continue processing the decrypted inner v250 payload
-        in_buff = g_decryptBuf;
-        in_buff_cnt = innerLen;
-        authenticated = true;
     }
+
+    // Continue processing the decoded inner nfd payload
+    in_buff = g_decryptBuf;
+    in_buff_cnt = innerLen;
 
     // map pcapd data structure to input buffer
     if ((size_t)in_buff_cnt < sizeof(nfd_header_t)) {
@@ -297,13 +324,14 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // Verify only after the declared record size is known to fit in this datagram.
         //
         // Check level depends on transport trust, not on record content:
-        // v251 (authenticated) already carries a verified AEAD tag over the
-        // whole payload, so a structurally malformed record at this point
-        // can only come from a bug in a trusted peer, not a forger — BASIC
-        // (header/size/type only) is enough, skipping the extension-table
-        // walk entirely. Plain v250 has no transport-level integrity
-        // guarantee at all, so it keeps the full structural check, including
-        // the pairwise extension-overlap validation.
+        // crypto=XCHACHA (authenticated) already carries a verified AEAD tag
+        // over the whole payload, so a structurally malformed record at this
+        // point can only come from a bug in a trusted peer, not a forger —
+        // BASIC (header/size/type only) is enough, skipping the
+        // extension-table walk entirely. crypto=NONE has no transport-level
+        // integrity guarantee at all (compressed or not — compression is
+        // independent of authentication), so it keeps the full structural
+        // check, including the pairwise extension-overlap validation.
         //
         // (A one-pass, rank-order high-water-mark replacement for that
         // pairwise check was tried here and reverted: an extension's

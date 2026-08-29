@@ -134,29 +134,21 @@ Sets the core limit when no
 .Fl W
 flag is given on the command line.
 The value 0 (or the absent key) means
-.Dq use all online CPU cores .
-.Sy GetThreadConfig()
-then splits the core limit across readers, writers, and filter/worker threads
-according to the program role and the active compression codec.
+.Dq use all online CPU cores ,
+split across readers, writers, and filter/worker threads according to the
+program role and the active compression codec.
 A non-zero
 .Sy limitCores
 caps the budget without overriding individual role counts.
 Prefer the
 .Sx [threads]
 sub-table keys for fine-grained per-role control.
-.Pp
 The legacy key name
 .Sy maxworkers
-is still accepted as a fallback: if
+is still accepted as a fallback when
 .Sy limitCores
-is absent or 0, the code falls back to
-.Sy maxworkers .
-New configurations should use
+is absent or 0; new configurations should use
 .Sy limitCores .
-.Pp
-Both supersede the previous behavior where the default was
-.Li cores/2
-clamped to [2,\~8].
 .It Sy crypt.salt
 16-byte string.
 Shared salt used for encrypted UDP data transfer between
@@ -177,32 +169,31 @@ Set to 0 to disable epoch rekeying.
 Default: 0.
 .It Sy udp.sendThreshold
 Integer, in the range [512,\~60000].
-Maximum inner-payload bytes buffered before a
+Target wire packet size for a
 .Fl H
 sender
-.Pq Xr nfcapd 1 , Xr nfpcapd 1 , Xr sfcapd 1
-flushes and sends a UDP packet carrying the native nfd protocol.
-Default: 1200, chosen so the wire packet stays under a 1500-byte Ethernet MTU
-even after encryption overhead.
-Raising this value toward a path's real MTU (jumbo frames, a private or
-tunnelled network segment, loopback) roughly halves the packet count for the
-same data volume, reducing per-packet receive-side overhead on the collector.
+.Pq Xr nfcapd 1 , Xr nfpcapd 1 , Xr sfcapd 1 , Xr nfreplay 1
+forwarding the nfdump native protocol.
+Default: 1200, chosen to stay under a 1500-byte Ethernet MTU even after
+encryption overhead.
 Values outside the valid range are rejected with a logged error and the
-default is used instead;
-.Fl H
-is not affected on the receiving side, which decodes whatever packet size it
-gets.
-Raising this beyond the actual path MTU causes IP fragmentation, which
-trades fewer UDP packets for the reassembly cost and partial-loss exposure
-of fragmented IP \(em only raise it when the real end-to-end MTU is known to
-support the chosen value.
+default is used instead.
+.Pp
+The sender buffers raw records up to twice this value, then compresses the
+batch (zstd if available, else LZ4) before sending \(em compression
+typically brings the packet back at or under
+.Sy udp.sendThreshold
+despite the larger batch, roughly halving the packet count for the same
+data volume.
+Raising the value further, toward a path's known real MTU (jumbo frames, a
+private segment, loopback), trades additional sender throughput for IP
+fragmentation risk if the actual path can't carry it \(em only raise it
+when the real end-to-end MTU is known.
 .El
 .Ss [threads] sub-table keys (valid in [common.threads] or [program.threads])
 The
 .Sy threads
-sub-table refines how
-.Sy GetThreadConfig()
-allocates threads within the budget.
+sub-table refines how threads are allocated within the budget.
 All values default to 0, meaning the role formula is applied.
 A non-zero value is a hard override that bypasses the formula entirely.
 These keys are accepted inside any section's
@@ -458,8 +449,9 @@ crypt.rekeyIntervalSecs   = 300
 .Ss Jumbo-frame UDP forwarding
 Raise the
 .Fl H
-send threshold on a segment known to carry a 9000-byte MTU end to end,
-roughly halving the packet count for the same data volume:
+send threshold further on a segment known to carry a 9000-byte MTU end to
+end, on top of the packet-count reduction compression already provides by
+default at any threshold:
 .Bd -literal -offset indent
 [common]
 udp.sendThreshold = 8900

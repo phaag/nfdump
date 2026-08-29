@@ -49,6 +49,8 @@
 .Op Fl f Ar filterfile
 .Op Fl z Ar num
 .Op Fl c Ar num
+.Op Fl C Ar config
+.Op Fl x Ar key=value
 .Op Fl Y
 .Op Fl V
 .Op Fl h
@@ -59,7 +61,7 @@ reads binary flow files stored by any nfdump collector and sends the flow record
 to a remote host or a multicast group.
 .Pp
 .Nm
-sends the data as netflow v5, v9 or as the native nfdump protocol (version 250/251)
+sends the data as NetFlow v5, v9, IPFIX, or the native nfdump protocol
 to the remote location.
 .Pp
 .Nm
@@ -99,7 +101,7 @@ an IPv4 and IPv6 address record.
 .It Fl v Ar version
 Send flows using the specified wire protocol version.
 Supported versions:
-.Bl -tag -width "250" -compact
+.Bl -tag -width "251" -compact
 .It 5
 NetFlow v5.
 All extensions beyond the standard v5 record are silently dropped;
@@ -124,24 +126,32 @@ Template sets use set ID 2 (vs.\ 0 for v9).
 The receiving
 .Xr nfcapd 1
 must support IPFIX (all nfdump 1.8.x builds do).
-.It 250
-Native nfdump protocol.
-Flow records are forwarded verbatim as raw nfdump V4 records inside an
-.Em nfd_header
-UDP frame (version 250).
+.It 251
+Native nfdump protocol, sent using nfdump's binary wire protocol v251 —
+the same wire format
+.Xr nfcapd 1 ,
+.Xr nfpcapd 1 ,
+and
+.Xr sfcapd 1
+use for
+.Fl H .
 The receiving
 .Xr nfcapd 1
 must run the same nfdump 1.8.x release.
-When
-.Fl k
-is also specified the packet is transparently encrypted and sent as
-protocol version 251.
+Records are compressed (zstd if available, else LZ4) before sending,
+independent of
+.Fl k ,
+and the target wire packet size follows
+.Sy udp.sendThreshold
+in
+.Xr nfdump.conf 5
+(default 1200 bytes).
 .El
 .It Fl k Ns Op = Ns Ar passphrase | Ns @ Ns Ar keyfile
-Enable authenticated encryption for forwarded flows using the nfdump encrypted
-UDP protocol (version 251).
+Enable authenticated encryption for forwarded flows using the nfdump UDP
+transport protocol.
 Must be used together with
-.Fl v No 250 .
+.Fl v No 251 .
 .Pp
 The passphrase is taken from the optional argument (
 .Fl k Ns = Ns Ar passphrase ) ,
@@ -188,9 +198,36 @@ With a factor of 1, 5 minutes of records are sent in 5 minutes.
 With a factor of 20, 5 minutes of records are sent in 5/20 = 0.25 minutes.
 .El
 .It Fl c Ar num
-Limit number of records to send to the first 
+Limit number of records to send to the first
 .Ar num
 flows.
+.It Fl C Ar config
+Reads additional configuration parameters from
+.Ar config
+file.
+.Nm
+tries to read the config file from the install default path
+.Ar $prefix/etc/
+which may be overwritten by the environment variable
+.Ar NFCONF ,
+which again is overwritten by this option
+.Fl C .
+If
+.Fl C Ar none
+is specified, then no config file is read, even if found in the search path.
+Currently only
+.Sy udp.sendThreshold
+(see
+.Xr nfdump.conf 5 )
+applies to
+.Nm ,
+and only with
+.Fl v No 251 .
+.It Fl x Ar key=value
+Override a configuration key for this invocation only. May be repeated.
+Overrides have higher priority than the configuration file.
+For example,
+.Dl nfreplay -r flows.nf -v 251 -H collector -x udp.sendThreshold=4000
 .It Fl Y
 Prompt before each UDP packet is sent. This is intended for interactive
 testing.

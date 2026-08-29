@@ -135,55 +135,39 @@ Optionally stores network packets in PCAP-compatible files in this directory and
 Send nfdump records to a remote
 .Xr nfcapd 1
 collector via UDP. Default port is 9995. Flows are not stored locally.
-The wire format used is nfdump protocol v250 (plain) or v251 (XChaCha20-Poly1305 encrypted).
+The wire format used is nfdumps binary protocol v251 for plain or XChaCha20-Poly1305 encrypted records.
 Use
 .Fl k
 to enable encrypted transport.
 The file-compression options
 .Fl z
-apply only to local nffile output and are ignored with
+do not apply for
 .Fl H .
-The UDP send threshold (the inner-payload size that triggers a packet flush)
-can be raised past its 1200-byte default via
+Records are compressed (zstd if available, otherwise LZ4)
+before sending, independent of
+.Fl k .
+The target wire packet size (1200 bytes by default) can be raised further via
 .Sy udp.sendThreshold
 in
 .Xr nfdump.conf 5 ,
-useful on paths with a larger MTU (jumbo frames, tunnels, loopback) to send
-fewer, larger packets for the same flow volume.
+useful on paths known to carry a larger MTU end to end (jumbo frames,
+tunnels, loopback) for an additional reduction in packet count.
 .It Fl F Ar filter
 Apply a post-decode record filter before flows are stored
 .Pq Fl w
 or forwarded
 .Pq Fl H .
-Non-matching records are discarded and never reach the backend.
+Non-matching records are discarded.
 .Ar filter
 uses the same filter syntax as
 .Xr nfdump 1 ,
-restricted to plain element filters on fields already present in the flow record:
+restricted to plain record element filters such as
 IP address/network/list, port, protocol, byte/packet counters, TCP flags, VLAN,
 MPLS, AS number, engine/exporter fields, time ranges, and similar direct
-comparisons or boolean combinations thereof. Filter primitives that need a
-resource outside the record itself
-.Po
-geo country lookup, Tor exit-node lookup, and timezone lookup, all backed by the
-MaxMind/Tor databases, plus payload content matching:
-.Cm payload dns ,
-.Cm payload ssl , ja3 , ja4 ,
-and
-.Cm payload regex
-.Pc
-are rejected with an error at filter-compile time; startup then fails immediately
-rather than silently collecting unfiltered or ignoring the filter.
-The query-context primitives
-.Cm ident
-and
-.Cm count
-are also rejected: they are not fields of an individual V4 record.
-The filter is compiled once at startup and evaluated by a single thread, so
-.Nm
-run without
-.Fl F
-is unaffected.
+comparisons or boolean combinations thereof.
+Filter primitives based on record enrichment
+.Pq geo country lookup, Tor exit-node lookup, timezone lookup, and payload content matching
+are rejected with an error at filter-compile time.
 .It Fl m Ar socket
 Send collector flow-summary metrics to the specified UNIX socket.
 .It Fl S Ar num
@@ -372,8 +356,8 @@ When records are sent to a remote
 .Xr nfcapd 1
 process,
 .Nm
-uses nfdump native forwarding protocol v250, or v251 with
-.Fl k .
+uses nfdump native forwarding protocol v251 for plain or with
+.Fl k encryption.
 Both endpoints must run compatible nfdump 1.8.x versions. The transport uses
 network byte order and does not require matching host endianness.
 .Pp

@@ -1,6 +1,6 @@
 
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
-AM_CPPFLAGS += $(LZ4_CFLAGS)
+AM_CPPFLAGS += $(LZ4_CFLAGS) $(ZSTD_CFLAGS)
 
 if HAVE_LIBSODIUM
 AM_CPPFLAGS += $(LIBSODIUM_CFLAGS)
