@@ -44,6 +44,7 @@
 
 #include "id.h"
 #include "logging.h"
+#include "network/nfd_udp_crypto.h"
 #include "nfdump.h"
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
@@ -67,7 +68,8 @@ static struct exporter_array_s {
 static const struct versionString_s {
     uint16_t version;
     char *string;
-} versionString[] = {{1, "netflow v1"}, {5, "netflow v5"}, {9, "netflow v9"}, {10, "ipfix v10"}, {9999, "sflow"}, {0, NULL}};
+} versionString[] = {{1, "netflow v1"},         {5, "netflow v5"}, {9, "netflow v9"}, {10, "ipfix v10"},
+                     {NFD_WIRE_VERSION, "nfdump native"}, {9999, "sflow"},   {0, NULL}};
 
 /* local prototypes */
 static char *getVersionString(uint16_t nfversion);

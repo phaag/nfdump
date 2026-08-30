@@ -38,24 +38,18 @@
 #include "network/nfd_udp_crypto.h"
 
 /*
- * VERSION_NFDUMP (250)   — inner nfd_header_t record-container version.
- *   It is never sent bare on UDP in 1.8.x; the old unwrapped v250 transport
- *   is no longer supported.
- * VERSION_NFD_WIRE (251) — the universal wire-transport version for every
- *   -H/nfreplay UDP packet (nfd_wire_header_t envelope). crypto and comp are
- *   independent fields inside that header — see nfd_udp_crypto.h for the
- *   full combination table. There is no separate unwrapped wire format any
- *   more; Process_nfd() always unwraps via NfdWireDecode() first.
+ * NFD_LEGACY_UDP_VERSION (250) — bare, unwrapped wire format used by
+ * nfdump/nfpcapd/nfreplay 1.7.x. Rejected by nfdump 1.8.x
  */
-#define VERSION_NFD_WIRE NFD_WIRE_VERSION
+#define NFD_LEGACY_UDP_VERSION 250u
 
-typedef struct nfd_header {
-    uint16_t version;       // set to VERSION_NFDUMP for the inner container
+typedef struct transfer_record_header {
+    uint16_t recordType;    // record-batch format identifier
     uint16_t length;        // Total length incl. this header. up to 65535 bytes
     uint32_t exportTime;    // UNIX epoch export Time of flow.
     uint32_t lastSequence;  // Incremental sequence counter modulo 2^32 of all pcapd Data Records
     uint32_t numRecord;     // number of pcapd records in this packet
-} nfd_header_t;
+} transfer_record_header_t;
 
 /* prototypes */
 int Init_pcapd(int verbose);

@@ -34,7 +34,7 @@
 # regardless of encryption — crypto (NONE or XCHACHA20_POLY1305) and comp
 # (NONE/LZ4/ZSTD) are independent fields inside that header, see
 # nfd_udp_crypto.h. "-v 251" below is nfreplay's own CLI flag selecting the
-# nfdump-native record encoding (nfd_header_t + V4 records); that payload is
+# nfdump-native record encoding (transfer_record_header_t + V4 records); that payload is
 # what gets wrapped, optionally compressed, and optionally encrypted before
 # it goes on the wire as wire version 251. 1.8.x has no other value: the
 # pre-1.8.x unwrapped "250" wire format no longer exists, including as a -v

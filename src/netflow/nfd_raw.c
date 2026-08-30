@@ -73,7 +73,7 @@ static uint32_t g_replayWindowBits = ANTI_REPLAY_WINDOW_DEFAULT;
 // Sized for the largest possible inner payload (65535 bytes).
 static uint8_t g_decryptBuf[65536];
 
-static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, transfer_record_header_t *header);
 
 /* functions */
 
@@ -119,9 +119,33 @@ static anti_replay_t *GetSourceAntiReplay(FlowSource_t *fs) {
     return ar;
 }  // End of GetSourceAntiReplay
 
-static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
+/*
+ * CheckSequenceGap — non-cryptographic packet-loss visibility for the nfd
+ * (-H/nfreplay) path, using transfer_record_header_t.lastSequence.
+ *
+ * As with any sequence number carried in an unauthenticated packet, this
+ * is best-effort. That is the same trust model NetFlow v9/IPFIX's own sequence
+ * tracking already has.
+ */
+static void CheckSequenceGap(FlowSource_t *fs, uint32_t seq) {
+    if (!fs->nfdSeqValid) {
+        fs->nfdSeqValid = 1;
+        fs->nfdSeqExpected = seq + 1;
+        return;
+    }
+
+    int32_t diff = (int32_t)(seq - fs->nfdSeqExpected);
+    if (diff > 0) {
+        LogError("Process_nfd: sequence gap from source: expected %u, got %u — %d packet(s) likely lost", fs->nfdSeqExpected, seq, diff);
+    }
+    if (diff >= 0) {
+        fs->nfdSeqExpected = seq + 1;
+    }
+}  // End of CheckSequenceGap
+
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, transfer_record_header_t *header) {
     (void)header;
-    const exporter_key_t key = {.version = VERSION_NFDUMP, .id = 0, .ip = fs->ipAddr};
+    const exporter_key_t key = {.version = NFD_WIRE_VERSION, .id = 0, .ip = fs->ipAddr};
 
     // fast cache
     if (fs->last_exp && EXPORTER_KEY_EQUAL(fs->last_key, key)) {
@@ -192,13 +216,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // Every -H/nfreplay packet arrives wrapped in the universal
-    // nfd_wire_header_t envelope (wire version VERSION_NFD_WIRE) — see
-    // nfd_udp_crypto.h. authenticated reflects this specific packet's own
-    // crypto field (peeked below, before unwrapping) and gates two things:
-    // the per-record verify-cost level further down, and whether anti-replay
-    // applies at all — replay protection without authentication isn't
-    // meaningful, so it's skipped entirely for crypto=NONE packets, same as
-    // the old plain v250 path's properties.
+    // nfd_wire_header_t envelope
     bool authenticated = false;
 
     if (in_buff_cnt < (ssize_t)NFD_WIRE_HDR_SIZE) {
@@ -209,7 +227,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     uint16_t wireVersion = 0;
     memcpy(&wireVersion, in_buff, sizeof(wireVersion));
-    if (ntohs(wireVersion) != VERSION_NFD_WIRE) {
+    if (ntohs(wireVersion) != NFD_WIRE_VERSION) {
         LogError("Process_nfd: unsupported wire version %u — drop", ntohs(wireVersion));
         fs->bad_packets++;
         return;
@@ -241,11 +259,26 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         fs->bad_packets++;
         return;
     }
-    if ((size_t)innerLen < sizeof(nfd_header_t)) {
+
+    // Validate the record-batch header
+    if ((size_t)innerLen < sizeof(transfer_record_header_t)) {
         LogError("Process_nfd: decoded inner payload too short (%zd bytes)", innerLen);
         fs->bad_packets++;
         return;
     }
+    transfer_record_header_t *transfer_record_header = (transfer_record_header_t *)g_decryptBuf;
+
+    if (ntohs(transfer_record_header->recordType) != V4Record || ntohs(transfer_record_header->length) != (uint16_t)innerLen) {
+        LogError("Process_nfd: invalid transfer record header type or length");
+        fs->bad_packets++;
+        return;
+    }
+
+    uint32_t seq = ntohl(transfer_record_header->lastSequence);
+
+    // Non-cryptographic packet-loss visibility (see CheckSequenceGap()) —
+    // independent of authentication, logging only, never drops a packet.
+    CheckSequenceGap(fs, seq);
 
     if (authenticated) {
         /* Anti-replay check on the inner sequence number.
@@ -257,8 +290,6 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             fs->bad_packets++;
             return;
         }
-        const nfd_header_t *innerHdr = (const nfd_header_t *)g_decryptBuf;
-        uint32_t seq = ntohl(innerHdr->lastSequence);
         if (!anti_replay_check(ar, seq)) {
             LogError("Process_nfd: replay detected from source, seq=%u — drop", seq);
             fs->bad_packets++;
@@ -266,23 +297,11 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
     }
 
-    // Continue processing the decoded inner nfd payload
+    // Continue processing the decoded transfer-record-header payload
     in_buff = g_decryptBuf;
     in_buff_cnt = innerLen;
 
-    // map pcapd data structure to input buffer
-    if ((size_t)in_buff_cnt < sizeof(nfd_header_t)) {
-        LogError("Process_nfd: packet too short for nfd header (%zd bytes)", in_buff_cnt);
-        fs->bad_packets++;
-        return;
-    }
-    nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
-    if (ntohs(pcapd_header->version) != VERSION_NFDUMP || ntohs(pcapd_header->length) != (uint16_t)in_buff_cnt) {
-        LogError("Process_nfd: invalid inner header version or length");
-        fs->bad_packets++;
-        return;
-    }
-    exporter_entry_t *exporter = getExporter(fs, pcapd_header);
+    exporter_entry_t *exporter = getExporter(fs, transfer_record_header);
     if (!exporter) {
         LogError("Process_nfd: NULL Exporter: Skip pcapd record processing");
         return;
@@ -295,7 +314,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // time received for this packet
     uint64_t msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
 
-    uint32_t count = ntohl(pcapd_header->numRecord);
+    uint32_t count = ntohl(transfer_record_header->numRecord);
     uint32_t numRecords = 0;
     dbg_printf("Process nfd packet: %" PRIu64 ", size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
@@ -304,14 +323,14 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         return;
     }
 
-    if ((sizeof(nfd_header_t) + sizeof(recordHeaderV4_t)) > size_left) {
+    if ((sizeof(transfer_record_header_t) + sizeof(recordHeaderV4_t)) > size_left) {
         LogError("Process_nfd: Not enough data.");
         return;
     }
 
     // 1st record
-    recordHeaderV4_t *recordHeaderV4 = in_buff + sizeof(nfd_header_t);
-    size_left -= sizeof(nfd_header_t);
+    recordHeaderV4_t *recordHeaderV4 = in_buff + sizeof(transfer_record_header_t);
+    size_left -= sizeof(transfer_record_header_t);
     while (size_left >= (ssize_t)sizeof(recordHeaderV4_t)) {
         // output buffer size check
         dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV4->type, recordHeaderV4->size);
@@ -322,30 +341,11 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         // Verify only after the declared record size is known to fit in this datagram.
-        //
-        // Check level depends on transport trust, not on record content:
+        // Check level depends on transport trust
         // crypto=XCHACHA (authenticated) already carries a verified AEAD tag
-        // over the whole payload, so a structurally malformed record at this
-        // point can only come from a bug in a trusted peer, not a forger —
-        // BASIC (header/size/type only) is enough, skipping the
-        // extension-table walk entirely. crypto=NONE has no transport-level
-        // integrity guarantee at all (compressed or not — compression is
-        // independent of authentication), so it keeps the full structural
-        // check, including the pairwise extension-overlap validation.
-        //
-        // (A one-pass, rank-order high-water-mark replacement for that
-        // pairwise check was tried here and reverted: an extension's
-        // offset-table *slot* is assigned by rank [popcount of extID bits
-        // below it, see GetExtension()/AddV4Extension() in nfxV4.h], but the
-        // *byte offset* stored in that slot is assigned by the encoder in
-        // whatever order it happens to call AddV4Extension() — pipeline/
-        // template field order, not ascending extID. So a legitimate
-        // record's extensions are routinely non-monotonic when walked in
-        // rank order, and a high-water-mark check rejects them. At the
-        // extension counts a real record actually carries [single digits to
-        // ~15], neither a sort-then-scan nor any other correct alternative
-        // meaningfully beats VerifyV4Record()'s existing O(n^2) pairwise
-        // check, so this path just uses it directly.)
+        // over the whole payload.
+        // crypto=NONE has no transport-level integrity guarantee at all
+        // (compressed or not) so we need a full structural check
         int recordOK = VerifyV4Record(recordHeaderV4, (size_t)size_left, authenticated ? V4RECORD_CHECK_BASIC : V4RECORD_CHECK_EXTENSIONS);
         if (!recordOK) {
             LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
@@ -364,25 +364,12 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             }
         }
 
-        // Plain copy, verbatim — including whatever EXipReceived extension
-        // (or lack of one) the record already carries. Every decoder that
-        // can originate a V4 record (netflow_v1/v5_v7/v9, ipfix) already
-        // stamps EXipReceived with the address it received the flow from at
-        // the point of original ingest, unless that extension was disabled
-        // via -X; forwarding preserves that original provenance unchanged.
-        // Previously, a record that reached here without EXipReceived (e.g.
-        // that -X case) had one inserted here, stamped with fs->ipAddr —
-        // the immediate relay's own address, not the original exporter's.
-        // In a relay chain that's actively misleading (it looks like the
-        // flow was received directly from the relay), so it's not
-        // reconstructed here; a record without it is left without it.
         void *buffPtr = GetCursor(fs->dataBlock);
         memcpy(buffPtr, (void *)recordHeaderV4, recordHeaderV4->size);
         recordHeaderV4_t *copiedV4 = (recordHeaderV4_t *)buffPtr;
 
-        /* Native UDP carries no exporter metadata. The receiver owns the
-         * single exporter for this sender, so do not leave stale source-side
-         * sysIDs in records that will be written with that one exporter. */
+        // Native UDP carries no exporter metadata. The receiver owns the
+        //  single exporter for this sender
         copiedV4->exporterID = exporter->sysID;
 
         dbg_printf("Record: %u elements, size: %u\n\n", copiedV4->numExtensions, copiedV4->size);

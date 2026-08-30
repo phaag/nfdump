@@ -50,15 +50,15 @@
 #include "queue.h"
 
 typedef struct udpsend_backend_ctx_s {
-    repeater_t sendHost;          /* UDP target: addr, addrlen, sockfd  */
-    const uint8_t *udpSessionKey; /* NULL = crypto=NONE, else crypto=XCHACHA */
-    uint32_t sequence;            /* incrementing packet sequence number */
-    uint32_t sendThreshold;       /* target wire-safe packet size, bytes; see
-                                    * udp.sendThreshold in nfdump.conf(5)  */
-    uint32_t rawPackThreshold;    /* raw (pre-compression) accumulation limit,
-                                    * 2x sendThreshold — see PackFlowBlock()  */
-    queue_t *blockQueue;          /* queue from the collector frontend   */
-    pthread_t self;               /* thread ID                           */
+    repeater_t sendHost;           // UDP target: addr, addrlen, sockfd
+    const uint8_t *udpSessionKey;  // NULL = crypto=NONE, else crypto=XCHACHA
+    uint32_t sequence;             // incrementing packet sequence number
+    uint32_t sendThreshold;        // target wire-safe packet size, bytes
+
+    uint32_t rawPackThreshold;  // raw (pre-compression) accumulation limit
+
+    queue_t *blockQueue;  // queue from the collector frontend
+    pthread_t self;       // thread ID
 } udpsend_backend_ctx_t;
 
 /*

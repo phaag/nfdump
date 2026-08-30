@@ -54,20 +54,11 @@ typedef struct FlowSource_s {
     void *backend_ctx;    // backend context
     queue_t *blockQueue;  // queue to backend (or to the filter stage, if active)
 
-    // true for a FlowSource created by newFlowSource() (nffile backend),
-    // false for one created by newSendFlowSource() (UDP send backend, -H).
-    // Set once at creation and never changed; the single source of truth for
-    // every "is this an nffile-backed source" decision (Init_FilterStage()'s
-    // exporter/stat bookkeeping, PeriodicCycle()'s FlushExporter() call) so
-    // that decision cannot drift between call sites. -H is mutually
-    // exclusive with -w/-n/-M (see ConfigureSendFlowSource()), so this is
-    // fixed for the lifetime of the process, not just the FlowSource.
-    bool isNffileBackend;
+    bool isNffileBackend;  // source uses nffile-backed
 
-    // optional post-filter stage — see backend/filter_stage.h. NULL/0 when
-    // no -F filter is configured: blockQueue then feeds the backend directly.
-    pthread_t filterTid;
-    void *filterCtx;
+    // optional post-filter stage
+    pthread_t filterTid;  // tod of post filter thread
+    void *filterCtx;      // post filter ctx
 
     ip128_t ipAddr;        // IPv4/IPv6 address of this flow source
     int sa_family;         // AF_INET of AF_INET6 cacheonly flag
@@ -80,13 +71,18 @@ typedef struct FlowSource_s {
 
     /*
      * Per-source anti-replay state for authenticated (crypto=XCHACHA20_
-     * POLY1305) -H/nfreplay packets. Allocated lazily by nfd_raw.c on the
-     * first authenticated packet from this source; freed by
-     * freeFlowSource().  NULL when unused. Never used for crypto=NONE
-     * traffic — replay protection without authentication isn't meaningful.
-     * Opaque pointer — concrete type is anti_replay_t in nfd_udp_crypto.h.
+     * POLY1305) packets.
+     * NULL when unused. Never used for crypto=NONE
      */
     void *udpAntiReplay;
+
+    /*
+     * Non-cryptographic packet-loss visibility with CheckSequenceGap()
+     * tracking lastSequence in transfer_record_header_t
+     * This is a plain diagnostic — logging only feature
+     */
+    uint32_t nfdSeqExpected;
+    int nfdSeqValid;
 } FlowSource_t;
 
 // index entry per flow source
@@ -110,9 +106,8 @@ typedef struct source_index_s {
     uint32_t count;
 } source_index_t;
 
-// -M creates a backend and output queue for every new source IP. Keep the
-// unattended default conservative; operators with a known larger population
-// can raise dyn_max_sources in the collector's nfdump.conf section.
+// -M creates a backend and output queue for every new source IP
+// Safety limit: dyn_max_sources in the collector's nfdump.conf section.
 #define DEFAULT_DYN_MAX_SOURCES 64u
 
 typedef struct source_array_s {

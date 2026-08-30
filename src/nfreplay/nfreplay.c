@@ -114,7 +114,7 @@ static void Close_nfd_output(send_peer_t *peer);
 static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *peer);
 
 /* Logical raw packing limit for native output. The allocation itself is
- * always large enough for a maximum nfd_header_t packet so that an otherwise
+ * always large enough for a maximum transfer_record_header_t packet so that an otherwise
  * valid record which exceeds this preferred limit can be sent on its own. */
 static uint32_t nfdRawPackLimit;
 
@@ -249,14 +249,14 @@ static void usage(char *name) {
 
 static void Flush_nfd_header(send_peer_t *peer) {
     size_t len = (ptrdiff_t)peer->buff_ptr - (ptrdiff_t)peer->send_buffer;
-    nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-    nfd_header->version = htons(VERSION_NFDUMP);
-    nfd_header->exportTime = htonl((uint32_t)time(NULL));
-    nfd_header->length = htons(len);
+    transfer_record_header_t *transfer_record_header = (transfer_record_header_t *)peer->send_buffer;
+    transfer_record_header->recordType = htons(V4Record);
+    transfer_record_header->exportTime = htonl((uint32_t)time(NULL));
+    transfer_record_header->length = htons(len);
     sequence++;
     dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
-    nfd_header->lastSequence = htonl(sequence);
-    nfd_header->numRecord = htonl(recordCnt);
+    transfer_record_header->lastSequence = htonl(sequence);
+    transfer_record_header->numRecord = htonl(recordCnt);
     recordCnt = 0;
 }  // End of Flush_nfd_header
 
@@ -278,14 +278,14 @@ static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *pee
 #endif
 
     if (record_header == NULL) return 0;
-    if (record_header->size > UINT16_MAX - sizeof(nfd_header_t)) {
+    if (record_header->size > UINT16_MAX - sizeof(transfer_record_header_t)) {
         LogError("nfreplay: record size %u exceeds nfd UDP payload limit", record_header->size);
         return -1;
     }
 
     if (peer->buff_ptr == peer->send_buffer) {
         // empty buffer - add nfd_header
-        peer->buff_ptr = peer->buff_ptr + sizeof(nfd_header_t);
+        peer->buff_ptr = peer->buff_ptr + sizeof(transfer_record_header_t);
     }
 
     size_t used = (size_t)((uint8_t *)peer->buff_ptr - (uint8_t *)peer->send_buffer);
@@ -313,9 +313,9 @@ static int Add_nfd_output_record(recordHeader_t *record_header, send_peer_t *pee
 /*
  * NfdRawPackSize — raw (pre-compression) accumulation buffer size for the
  * nfdump-native (-v 251) -H output path: 2x udp.sendThreshold (nfdump.conf(5)),
- * clamped to 65535 since nfd_header_t.length is a uint16_t field — matches
+ * clamped to 65535 since transfer_record_header_t.length is a uint16_t field — matches
  * remote_backend.c's PackFlowBlock() design (see nfd_udp_crypto.h's shared
- * NFD_SEND_THRESHOLD_* constants). Only meaningful for VERSION_NFD_WIRE output;
+ * NFD_SEND_THRESHOLD_* constants). Only meaningful for NFD_WIRE_VERSION output;
  * v5/v9/IPFIX keep the fixed UDP_PACKET_SIZE buffer, unaffected by this key.
  */
 static uint32_t NfdRawPackSize(void) {
@@ -352,8 +352,8 @@ static int FlushBuffer(int confirm, int netflow_version) {
     // v5/v9/IPFIX output must stay byte-for-byte what a real exporter would
     // send, verbatim, for interop with any standard collector.  The
     // universal wire envelope (and its optional compression/encryption)
-    // applies only to VERSION_NFD_WIRE.
-    if (netflow_version != VERSION_NFD_WIRE) {
+    // applies only to NFD_WIRE_VERSION.
+    if (netflow_version != NFD_WIRE_VERSION) {
         return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
     }
 
@@ -392,11 +392,11 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
     }
     FilterSetParam(engine, nffile->ident, NOGEODB);
 
-    // Only VERSION_NFD_WIRE (nfd-native, -H) output follows udp.sendThreshold —
+    // Only NFD_WIRE_VERSION (nfd-native, -H) output follows udp.sendThreshold —
     // v5/v9/IPFIX output is genuine wire-format traffic and keeps the fixed
     // UDP_PACKET_SIZE buffer regardless of that key.
-    uint32_t sendBufferSize = netflow_version == VERSION_NFD_WIRE ? UINT16_MAX : UDP_PACKET_SIZE;
-    nfdRawPackLimit = netflow_version == VERSION_NFD_WIRE ? NfdRawPackSize() : 0;
+    uint32_t sendBufferSize = netflow_version == NFD_WIRE_VERSION ? UINT16_MAX : UDP_PACKET_SIZE;
+    nfdRawPackLimit = netflow_version == NFD_WIRE_VERSION ? NfdRawPackSize() : 0;
 
     peer.send_buffer = malloc(sendBufferSize);
     peer.flush = 0;
@@ -422,7 +422,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
                 goto done;
             }
             break;
-        case VERSION_NFD_WIRE:
+        case NFD_WIRE_VERSION:
             // init is lazy — Add_nfd_output_record reserves header space on first record
             break;
     }
@@ -527,7 +527,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
                         case VERSION_IPFIX:
                             again = Add_ipfix_output_record(recordHandle, &peer);
                             break;
-                        case VERSION_NFD_WIRE:  // nfd raw format
+                        case NFD_WIRE_VERSION:  // nfd raw format
                             again = Add_nfd_output_record(record_ptr, &peer);
                             break;
                     }
@@ -568,7 +568,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
                             case VERSION_IPFIX:
                                 again = Add_ipfix_output_record(recordHandle, &peer);
                                 break;
-                            case VERSION_NFD_WIRE:  // nfd raw format
+                            case NFD_WIRE_VERSION:  // nfd raw format
                                 again = Add_nfd_output_record(record_ptr, &peer);
                                 break;
                         }
@@ -622,7 +622,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
         case VERSION_IPFIX:
             Close_ipfix_output(&peer);
             break;
-        case VERSION_NFD_WIRE:  // nfd raw format
+        case NFD_WIRE_VERSION:  // nfd raw format
             Close_nfd_output(&peer);
             break;
     }
@@ -729,13 +729,14 @@ int main(int argc, char **argv) {
                 uint64_t value;
                 if (!ParseUnsignedOption("-v", optarg, INT_MAX, &value)) exit(EXIT_FAILURE);
                 netflow_version = (int)value;
-                if (netflow_version == VERSION_NFDUMP) {
-                    // 1.7.x no longer supported
-                    LogError("-v %d no longer supported. Use -v %d for the nfdump native protocol.", VERSION_NFDUMP, VERSION_NFD_WIRE);
+                if (netflow_version == NFD_LEGACY_UDP_VERSION) {
+                    // 1.7.x's bare, unwrapped wire format — not supported
+                    LogError("legacy UDP version %d no longer supported. Use -v %d for the nfdump native protocol.", NFD_LEGACY_UDP_VERSION,
+                             NFD_WIRE_VERSION);
                     exit(EXIT_FAILURE);
                 }
-                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_IPFIX && netflow_version != VERSION_NFD_WIRE) {
-                    LogError("Invalid netflow version: %s. Accept only 5, 9, 10 (IPFIX) or %d", optarg, VERSION_NFD_WIRE);
+                if (netflow_version != 5 && netflow_version != 9 && netflow_version != VERSION_IPFIX && netflow_version != NFD_WIRE_VERSION) {
+                    LogError("Invalid netflow version: %s. Accept only 5, 9, 10 (IPFIX) or %d", optarg, NFD_WIRE_VERSION);
                     exit(EXIT_FAILURE);
                 }
             } break;
@@ -823,8 +824,8 @@ int main(int argc, char **argv) {
 
 #ifdef HAVE_LIBSODIUM
     if (transfer_ctx) {
-        if (netflow_version != VERSION_NFD_WIRE) {
-            LogError("-k requires -v %d (nfdump native protocol)", VERSION_NFD_WIRE);
+        if (netflow_version != NFD_WIRE_VERSION) {
+            LogError("-k requires -v %d (nfdump native protocol)", NFD_WIRE_VERSION);
             exit(EXIT_FAILURE);
         }
 
@@ -837,9 +838,8 @@ int main(int argc, char **argv) {
         uint32_t rekeyIntervalSecs = REKEY_INTERVALSECS_DEFAULT;
         int64_t confRekey = ConfGetValue("crypt.rekeyIntervalSecs");
         if (confRekey < 0 || confRekey > 86400 * 7) {
-            LogError("nfreplay: nfdump.conf crypt.rekeyIntervalSecs %" PRId64
-                     " out of range [0, 604800]; using default %u",
-                     confRekey, REKEY_INTERVALSECS_DEFAULT);
+            LogError("nfreplay: nfdump.conf crypt.rekeyIntervalSecs %" PRId64 " out of range [0, 604800]; using default %u", confRekey,
+                     REKEY_INTERVALSECS_DEFAULT);
         } else {
             rekeyIntervalSecs = (uint32_t)confRekey;
         }

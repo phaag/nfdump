@@ -162,7 +162,8 @@ static void usage(char *name) {
         "-Z\t\tAdd timezone offset to filename.\n"
 #ifdef HAVE_LIBSODIUM
         "-K[=passphrase|@keyfile]\tEncrypt output files (backend). Passphrase from argument, key file, or interactive prompt.\n"
-        "-k[=passphrase|@keyfile]\tAuthenticate/encrypt UDP transport. Encrypts with -H; requires and decrypts incoming flows accordingly. Passphrase from argument, "
+        "-k[=passphrase|@keyfile]\tAuthenticate/encrypt UDP transport. Encrypts with -H; requires and decrypts incoming flows accordingly. "
+        "Passphrase from argument, "
         "key file, or interactive prompt.\n"
         "-N <secs>\t\tUDP transport rekey interval in seconds (requires -k). Default 0 (disabled).\n"
         "-Q <bits>\t\tUDP anti-replay window in bits (power of 2, 64\u20131024). Default 256.\n"
@@ -266,26 +267,14 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
         case VERSION_IPFIX:
             Process_IPFIX(pkt_ctx->buffer, cnt, fs);
             break;
-        case VERSION_NFD_WIRE:
-            // Every -H/nfreplay packet uses this one wire version now —
-            // there is no separate unwrapped legacy format any more.
-            // crypto/comp are independent fields decoded inside
-            // Process_nfd() (unwrap, optional decrypt, optional
-            // decompress, replay-protection when authenticated).
+        case NFD_WIRE_VERSION:
+            // nfdump's internal binary transfer protocol
             Process_nfd(pkt_ctx->buffer, cnt, fs);
             break;
-        case VERSION_NFDUMP:
-            // A bare, unwrapped wire packet at version 250 can only come
-            // from a pre-1.8.x sender (nfdump/nfpcapd/nfreplay 1.7.x and
-            // earlier, which carry V3-format records and never used an
-            // envelope) — every current -H/nfreplay sender always wraps in
-            // VERSION_NFD_WIRE (251), so this is never our own traffic.
-            // Called out explicitly rather than falling into the generic
-            // "unexpected version" case below, since the fix (upgrade the
-            // sender) is specific and actionable.
-            LogError("Error packet %" PRIu64
-                     ": Ident: %s: protocol 250 from nfdump 1.7.x not supported. Use protocol 251. Sender: %s",
-                     *packets, fs->Ident, GetClientIPstring(&pkt_ctx->sender, sa_address));
+        case NFD_LEGACY_UDP_VERSION:
+            // not supported and rejected legacy nfdump 1.7.x protocol
+            LogError("Error packet %" PRIu64 ": Ident: %s: legacy UDP version %d not supported. Use version %d. Sender: %s", *packets, fs->Ident,
+                     NFD_LEGACY_UDP_VERSION, NFD_WIRE_VERSION, GetClientIPstring(&pkt_ctx->sender, sa_address));
             fs->bad_packets++;
             return;
         default: {

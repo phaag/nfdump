@@ -84,7 +84,7 @@
 
 #ifdef HAVE_ZSTD
 #include <zstd.h>
-#define NFD_ZSTD_LEVEL 1 // fast level; matches nffile's default zstd:1
+#define NFD_ZSTD_LEVEL 1  // fast level; matches nffile's default zstd:1
 #endif
 
 /* -----------------------------------------------------------------------
@@ -112,19 +112,19 @@
  *   UINT32_MAX is the sentinel meaning "not yet initialised".
  * ----------------------------------------------------------------------- */
 typedef struct {
-    uint8_t  salt[16];
+    uint8_t salt[16];
     uint32_t rekeyIntervalSecs;
     uint32_t encryptEpoch;
-    uint8_t  encryptKey[32];
+    uint8_t encryptKey[32];
     uint32_t decryptEpoch;
-    uint8_t  decryptKey[32];
+    uint8_t decryptKey[32];
 } udp_crypto_state_t;
 
 static udp_crypto_state_t g_udpCrypto = {
-    .salt              = {'n', 'f', 'p', 'c', 'a', 'p', 'd', '-', 'u', 'd', 'p', 'k', 'e', 'y', '1', '\0'},
+    .salt = {'n', 'f', 'p', 'c', 'a', 'p', 'd', '-', 'u', 'd', 'p', 'k', 'e', 'y', '1', '\0'},
     .rekeyIntervalSecs = 0,
-    .encryptEpoch      = UINT32_MAX,
-    .decryptEpoch      = UINT32_MAX,
+    .encryptEpoch = UINT32_MAX,
+    .decryptEpoch = UINT32_MAX,
 };
 
 /* -----------------------------------------------------------------------
@@ -310,17 +310,18 @@ int anti_replay_check(anti_replay_t *ar, uint32_t seq) {
 }  // End of anti_replay_check
 
 /* -----------------------------------------------------------------------
- * TryCompress — shared compression step for NfdWireEncode, independent of
+ * TryCompress — compression step for NfdWireEncode, independent of
  * crypto mode. Tries zstd first (if HAVE_ZSTD), falls back to LZ4. Leaves
- * the out-params at their no-compression defaults (NFD_COMP_NONE, innerLen,
- * 0) when compression isn't attempted or doesn't clear the 10%-smaller bar.
+ * the out-params at their no-compression defaults (NFD_COMP_NONE, innerLen)
+ * when compression isn't attempted or doesn't clear the 10%-smaller bar.
+ *
  * ----------------------------------------------------------------------- */
 static void TryCompress(const void *inner, size_t innerLen, uint8_t *scratch, size_t scratchSize, const uint8_t **outPtr, size_t *outLen,
-                         uint8_t *outAlgo, uint32_t *outOrigLen) {
+                        uint8_t *outAlgo, uint32_t *outOrigLen) {
     *outPtr = (const uint8_t *)inner;
     *outLen = innerLen;
     *outAlgo = NFD_COMP_NONE;
-    *outOrigLen = 0;
+    *outOrigLen = (uint32_t)innerLen;
 
     if (innerLen <= NFD_COMP_THRESHOLD) return;
 
@@ -333,7 +334,6 @@ static void TryCompress(const void *inner, size_t innerLen, uint8_t *scratch, si
                 *outPtr = scratch;
                 *outLen = zLen;
                 *outAlgo = NFD_COMP_ZSTD;
-                *outOrigLen = (uint32_t)innerLen;
                 return;
             }
         }
@@ -347,7 +347,6 @@ static void TryCompress(const void *inner, size_t innerLen, uint8_t *scratch, si
             *outPtr = scratch;
             *outLen = (size_t)compLen;
             *outAlgo = NFD_COMP_LZ4;
-            *outOrigLen = (uint32_t)innerLen;
         }
     }
 }  // End of TryCompress
@@ -450,6 +449,11 @@ ssize_t NfdWireEncode(void *wireBuf, size_t wireBufMax, const void *inner, size_
  * ----------------------------------------------------------------------- */
 static ssize_t Decompress(uint8_t comp, const uint8_t *src, size_t srcLen, uint32_t origLen, void *outBuf, size_t outBufSize) {
     if (comp == NFD_COMP_NONE) {
+        // origLen is always populated
+        if (origLen != (uint32_t)srcLen) {
+            LogError("NfdWireDecode: origLen mismatch for uncompressed payload (declared %u, actual %zu)", origLen, srcLen);
+            return -1;
+        }
         if (outBufSize < srcLen) {
             LogError("NfdWireDecode: outBuf too small (%zu < %zu)", outBufSize, srcLen);
             return -1;
@@ -476,8 +480,8 @@ static ssize_t Decompress(uint8_t comp, const uint8_t *src, size_t srcLen, uint3
     if (comp == NFD_COMP_ZSTD) {
         size_t decompLen = ZSTD_decompress(outBuf, outBufSize, src, srcLen);
         if (ZSTD_isError(decompLen) || decompLen != origLen) {
-            LogError("NfdWireDecode: ZSTD_decompress failed (expected %u, got %zu%s%s)", origLen, decompLen,
-                      ZSTD_isError(decompLen) ? ": " : "", ZSTD_isError(decompLen) ? ZSTD_getErrorName(decompLen) : "");
+            LogError("NfdWireDecode: ZSTD_decompress failed (expected %u, got %zu%s%s)", origLen, decompLen, ZSTD_isError(decompLen) ? ": " : "",
+                     ZSTD_isError(decompLen) ? ZSTD_getErrorName(decompLen) : "");
             return -1;
         }
         return (ssize_t)decompLen;
