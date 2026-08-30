@@ -78,7 +78,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, transfer_record_he
 /* functions */
 
 int Init_pcapd(int verbose) {
-    printRecord = verbose;
+    printRecord = verbose > 2;
     return 1;
 }  // End of Init_pcapd
 
