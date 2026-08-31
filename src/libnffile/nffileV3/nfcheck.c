@@ -348,7 +348,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     }
 
     if (footer) {
-        if (footer->checksum) printf("Checksum   : 0x%" PRIx64 "\n", footer->checksum);
+        if (footer->checksum) printf("Checksum    : 0x%" PRIx64 "\n", footer->checksum);
         do {
             if (blockDirectory == NULL) {
                 // no valid block directory found - try to recover from footer, if it is valid
