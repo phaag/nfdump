@@ -123,8 +123,9 @@ static int VerifyBloomMetaRecord(const metaRecordHeader_t *meta, size_t availabl
 }  // End of VerifyBloomMetaRecord
 
 /* Validate a decoded flow block. Record boundaries are always checked;
- * check-verbose additionally validates every V4 extension directory. */
-static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4RecordCheck_t checkLevel) {
+ * check-verbose additionally validates every V4 extension directory.
+ * bloomBlocks counts blocks with a complete bloom metadata prefix. */
+static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4RecordCheck_t checkLevel, uint32_t *bloomBlocks) {
     if (flowBlock->rawSize < sizeof(*flowBlock)) {
         printf("Flow block %u: rawSize %u is smaller than its header\n", blockNum, flowBlock->rawSize);
         return 0;
@@ -190,6 +191,8 @@ static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4
         printf("Flow block %u: incomplete bloom metadata prefix\n", blockNum);
         return 0;
     }
+
+    if (bloomMask == 0x0f) (*bloomBlocks)++;
 
     return 1;
 }  // End of VerifyFlowBlock
@@ -507,6 +510,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     int blockCheckFailed = 0;
     uint32_t totalBlocks = 0;
     uint32_t unknownBlocks = 0;
+    uint32_t bloomBlocks = 0;
     const v4RecordCheck_t v4CheckLevel = verbose ? V4RECORD_CHECK_EXTENSIONS : V4RECORD_CHECK_BASIC;
 
     off_t scanEnd = fileHeader->offDirectory ? (off_t)fileHeader->offDirectory : fileSize;
@@ -554,7 +558,7 @@ int VerifyFileV3(const char *filename, int verbose) {
             case BLOCK_TYPE_FLOW: {
                 blockStat[BLOCK_TYPE_FLOW].numBlocks++;
                 blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
-                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks, v4CheckLevel)) {
+                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks, v4CheckLevel, &bloomBlocks)) {
                     blockCheckFailed = 1;
                 }
             } break;
@@ -644,6 +648,9 @@ int VerifyFileV3(const char *filename, int verbose) {
         printf("  Total blocks    : %u\n", totalBlocks);
         if (blockStat[BLOCK_TYPE_FLOW].numBlocks)
             printf("  Flow blocks     : %u - %s\n", blockStat[BLOCK_TYPE_FLOW].numBlocks, CompressionType(blockStat[BLOCK_TYPE_FLOW].compression));
+        if (blockStat[BLOCK_TYPE_FLOW].numBlocks)
+            printf("  Bloom metadata  : %s (%u/%u flow blocks)\n", bloomBlocks ? "present" : "absent", bloomBlocks,
+                   blockStat[BLOCK_TYPE_FLOW].numBlocks);
         if (blockStat[BLOCK_TYPE_ARRAY].numBlocks)
             printf("  Array blocks    : %u - %s\n", blockStat[BLOCK_TYPE_ARRAY].numBlocks, CompressionType(blockStat[BLOCK_TYPE_ARRAY].compression));
         if (blockStat[BLOCK_TYPE_STATS].numBlocks)
