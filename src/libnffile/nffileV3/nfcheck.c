@@ -458,6 +458,9 @@ int VerifyFileV3(const char *filename, int verbose) {
     const blockDirectoryV3_t *blockDirectory = NULL;
     uint32_t dirSize = 0;
     int checksumFailed = 0;
+    int directoryChecksumAvailable = footer && footer->checksum != 0;
+    uint32_t availableBlockChecksums = 0;
+    uint32_t missingBlockChecksums = 0;
     if (fileHeader->offDirectory >= sizeof(fileHeaderV3_t) && fileHeader->offDirectory <= fileSize - sizeof(blockDirectoryV3_t)) {
         blockDirectory = (const blockDirectoryV3_t *)(map + fileHeader->offDirectory);
         if (blockDirectory->magic != DIRECTORY_MAGIC) {
@@ -658,6 +661,12 @@ int VerifyFileV3(const char *filename, int verbose) {
         dataBlockV3_t *dataBlock = (dataBlockV3_t *)(map + nextOffset);
         //    printf("\r%c %5u", spinner[totalBlocks & 0x3], totalBlocks);
 
+        if (dataBlock->checksum != 0) {
+            availableBlockChecksums++;
+        } else {
+            missingBlockChecksums++;
+        }
+
         // block size on disk
         if (dataBlock->discSize < sizeof(dataBlockV3_t)) {
             printf("Block %u: invalid discSize %u at offset %jd\n", totalBlocks, dataBlock->discSize, (intmax_t)nextOffset);
@@ -802,7 +811,15 @@ int VerifyFileV3(const char *filename, int verbose) {
         if (unknownBlocks) printf("  Unknown      : %u\n", unknownBlocks);
     }
     printf("  Directory       : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");
-    printf("  Checksums       : %s\n", checksumFailed == 0 ? "OK" : "FAILED");
+    const char *checksumStatus = "OK";
+    if (checksumFailed) {
+        checksumStatus = "FAILED";
+    } else if (!directoryChecksumAvailable && availableBlockChecksums == 0) {
+        checksumStatus = "not available";
+    } else if (!directoryChecksumAvailable || missingBlockChecksums != 0) {
+        checksumStatus = "incomplete";
+    }
+    printf("  Checksums       : %s\n", checksumStatus);
     if (fileEncrypted) {
         printf("  Encryption      : %s\n", keyVerified ? "key verified" : "could not verify key");
     }

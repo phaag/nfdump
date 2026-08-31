@@ -77,6 +77,13 @@ else
     pass "verify_hash_missing"
 fi
 
+if out=$(nfdump -v check -r dummy_flows.nf 2>&1) \
+   && echo "$out" | grep -q 'Checksums       : not available'; then
+    pass "verify_check_checksum_unavailable"
+else
+    fail "verify_check_checksum_unavailable"
+fi
+
 # tstart sort order (uses the lzo-compressed file from the previous test)
 if nfdump -r "$WORKDIR/lzo.nf" -q -O tstart -o raw \
           >"$WORKDIR/tstart_sort.txt" 2>/dev/null \
@@ -331,7 +338,7 @@ else
 fi
 
 if out=$(nfdump -v check-verbose -r dummy_flows.nf 2>&1) \
-   && echo "$out" | grep -q "Checksums       : OK"; then
+   && echo "$out" | grep -q "Checksums       : not available"; then
     pass "verify_check_verbose_valid"
 else
     fail "verify_check_verbose_valid"
