@@ -62,6 +62,21 @@ else
     fail "xxhash_cli_true"
 fi
 
+# Hash-only verification must verify all stored checksums without decoding
+# blocks. A file without checksums must not be reported as verified.
+if out=$(nfdump -v hash -r "$WORKDIR/xxhash.nf" 2>&1) \
+   && echo "$out" | grep -q 'XXH3 checksums: OK'; then
+    pass "verify_hash"
+else
+    fail "verify_hash"
+fi
+
+if nfdump -v hash -r dummy_flows.nf >/dev/null 2>&1; then
+    fail "verify_hash_missing: unexpectedly exited 0"
+else
+    pass "verify_hash_missing"
+fi
+
 # tstart sort order (uses the lzo-compressed file from the previous test)
 if nfdump -r "$WORKDIR/lzo.nf" -q -O tstart -o raw \
           >"$WORKDIR/tstart_sort.txt" 2>/dev/null \

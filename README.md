@@ -42,8 +42,9 @@ to be friendlier to L1/L2 caches, and the processing pipeline avoids work that w
 - V3 files can optionally use xxHash64 integrity checks. With libsodium,
   backend files can also be protected with XChaCha20-Poly1305 authenticated
   encryption, a fast and reliable method to protect your data.
-- `nfdump -v check`, `check-verbose`, and `repair` provide increasingly deep
-  V3 file validation and can rewrite recoverable on-disk inconsistencies.
+- `nfdump -r file.nf -v hash` verifies stored V3 checksums only. `check`,
+  `check-verbose`, and `repair` provide increasingly deep validation and can
+  rewrite recoverable on-disk inconsistencies.
 - Flow records have a new compact representation (record type v4) with an extension bitmap and
   offset table. The fields available to filters and output formats follow the
   same logical data flow already proven useful by pre-1.8.x nfdump versions.
@@ -189,7 +190,7 @@ rows first.
 
 | Option | 1.7.x | 1.8.x |
 | --- | --- | --- |
-| `-v <file>` | Verified a file, given directly as the argument. | `-v check\|check-verbose\|repair`, applied to the file given separately with `-r`. |
+| `-v <file>` | Verified a file, given directly as the argument. | `-v <mode>` with `hash`, `check`, `check-verbose`, or `repair`, applied to the file given separately with `-r`. |
 | `-x <file>` | Verified the extension records in a file. | Repurposed; see the shared `-x` row above. nffile v1 1.6.x extension based flow records are no longer supported. |
 | `-J <0-4>` | Selected a compression codec by number. | `-J=<codec>` takes the same codec name as `-z` (`lzo`, `lz4`, `bz2`, `zstd`). |
 | `-t <time>` | Selected a time window. | Removed. Use `'first seen' >= ... and 'last seen' <= ...'` filter expressions instead. |

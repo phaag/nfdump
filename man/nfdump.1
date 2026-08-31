@@ -765,6 +765,11 @@ Verify or repair the file given by
 .Fl r Ar flowfile .
 .Ar mode
 is one of
+.Sq hash
+(verify only the stored XXH3 checksums of a cleanly closed V3 file, without
+decompressing blocks, parsing records, prompting for an encryption passphrase,
+or verifying the encrypted-file MAC). Every data block and the directory must
+carry a checksum; missing or mismatched checksums cause failure,
 .Sq check
 (perform a fast structural integrity check and print file parameters and record
 count).  This verifies the file and block layout, checksums, decoded block
@@ -2262,8 +2267,8 @@ returns one of the following values:
 Success.
 .It 1
 Error - bad arguments, a missing or invalid input/filter file, filter
-syntax error, or a failed file check/repair
-.Po Fl v Ic check , check-verbose , repair Pc .
+syntax error, or a failed file hash/check/repair
+.Po Fl v Ic hash , check , check-verbose , repair Pc .
 .It 255
 Internal fault (out of memory or unable to create a worker thread) -
 should not normally occur.

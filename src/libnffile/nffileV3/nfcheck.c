@@ -219,6 +219,136 @@ static const char *EncryptionType(uint32_t enc) {
 // Phase 4 — Footer validation: verify magic, cross-check offDirectory
 // Phase 5 — Check no trailing garbage after footer
 
+/*
+ * VerifyHashesV3 — checksum-only verification for a cleanly closed V3 file.
+ *
+ * This deliberately does not decompress blocks, parse records, derive an
+ * encryption key, or verify the file MAC. It checks the stored XXH3-64
+ * checksum of every on-disk data block and of the serialized directory. A
+ * missing checksum is a failure: without it, this mode has nothing to prove.
+ */
+int VerifyHashesV3(const char *filename) {
+    if (!filename) return 0;
+
+    int fd = open(filename, O_RDONLY);
+    if (fd < 0) {
+        LogError("open() failed for '%s': %s", filename, strerror(errno));
+        return 0;
+    }
+
+    struct stat sb;
+    if (fstat(fd, &sb) < 0) {
+        LogError("fstat() failed for '%s': %s", filename, strerror(errno));
+        close(fd);
+        return 0;
+    }
+    if (sb.st_size < (off_t)(sizeof(fileHeaderV3_t) + sizeof(fileFooterV3_t))) {
+        LogError("File size error for '%s': too small for a V3 header and footer", filename);
+        close(fd);
+        return 0;
+    }
+
+    size_t fileSize = (size_t)sb.st_size;
+    const uint8_t *map = mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (map == MAP_FAILED) {
+        LogError("mmap() failed for '%s': %s", filename, strerror(errno));
+        close(fd);
+        return 0;
+    }
+
+    int ok = 0;
+    const fileHeaderV3_t *fileHeader = (const fileHeaderV3_t *)map;
+    const fileFooterV3_t *footer = (const fileFooterV3_t *)(map + fileSize - sizeof(*footer));
+    const uint64_t fileEnd = (uint64_t)fileSize;
+
+    if (fileHeader->magic != HEADER_MAGIC_V3 || fileHeader->layoutVersion != LAYOUT_VERSION_3) {
+        LogError("'%s' is not an nfdump V3 file; -v hash supports V3 files only", filename);
+        goto done;
+    }
+    if (footer->magic != FOOTER_MAGIC_V3) {
+        LogError("'%s' has no valid V3 footer; cannot verify hashes", filename);
+        goto done;
+    }
+    if (fileHeader->offDirectory < sizeof(*fileHeader) || fileHeader->offDirectory > fileEnd - sizeof(*footer) ||
+        fileHeader->dirSize < sizeof(blockDirectoryV3_t) || fileHeader->dirSize > fileEnd - sizeof(*footer) - fileHeader->offDirectory) {
+        LogError("'%s' has no valid V3 directory location; cannot verify hashes", filename);
+        goto done;
+    }
+    if (footer->offDirectory != fileHeader->offDirectory || footer->dirSize != fileHeader->dirSize) {
+        LogError("'%s' has inconsistent header/footer directory information; cannot verify hashes", filename);
+        goto done;
+    }
+
+    const uint64_t directoryOffset = fileHeader->offDirectory;
+    const uint32_t directorySize = fileHeader->dirSize;
+    const blockDirectoryV3_t *directory = (const blockDirectoryV3_t *)(map + directoryOffset);
+    if (directory->magic != DIRECTORY_MAGIC || directory->numEntries > (directorySize - sizeof(*directory)) / sizeof(directoryEntryV3_t)) {
+        LogError("'%s' has an invalid V3 directory; cannot verify hashes", filename);
+        goto done;
+    }
+
+    printf("Verify hashes: '%s' ...\n", filename);
+
+    uint32_t failures = 0;
+    uint32_t missing = 0;
+    uint32_t missingBlocks = 0;
+    if (footer->checksum == 0) {
+        printf("Directory checksum: missing\n");
+        missing++;
+    } else {
+        uint64_t checksum = XXH3_64bits(directory, directorySize);
+        if (checksum != footer->checksum) {
+            printf("Directory checksum: FAILED (stored %016" PRIx64 ", computed %016" PRIx64 ")\n", footer->checksum, checksum);
+            failures++;
+        }
+    }
+
+    for (uint32_t i = 0; i < directory->numEntries; i++) {
+        const directoryEntryV3_t *entry = &directory->entries[i];
+        if (entry->offset < sizeof(*fileHeader) || entry->offset > directoryOffset || entry->size < sizeof(dataBlockV3_t) ||
+            entry->size > directoryOffset - entry->offset) {
+            printf("Block %u: invalid directory entry\n", i);
+            failures++;
+            continue;
+        }
+
+        const dataBlockV3_t *block = (const dataBlockV3_t *)(map + entry->offset);
+        if (block->discSize != entry->size || block->type != entry->type) {
+            printf("Block %u: header does not match directory entry\n", i);
+            failures++;
+            continue;
+        }
+        if (block->checksum == 0) {
+            if (missingBlocks == 0) {
+                printf("Block %u: checksum missing\n", i);
+            }
+            missingBlocks++;
+            missing++;
+            continue;
+        }
+
+        const uint8_t *payload = (const uint8_t *)block + sizeof(*block);
+        uint32_t payloadSize = block->discSize - sizeof(*block);
+        uint64_t checksum = XXH3_64bits(payload, payloadSize);
+        if (checksum != block->checksum) {
+            printf("Block %u: checksum FAILED (stored %016" PRIx64 ", computed %016" PRIx64 ")\n", i, block->checksum, checksum);
+            failures++;
+        }
+    }
+
+    if (failures == 0 && missing == 0) {
+        printf("XXH3 checksums: OK (%u blocks plus directory)\n", directory->numEntries);
+        ok = 1;
+    } else {
+        printf("XXH3 checksums: FAILED (%u mismatches, %u missing)\n", failures, missing);
+    }
+
+done:
+    munmap((void *)map, fileSize);
+    close(fd);
+    return ok;
+}  // End of VerifyHashesV3
+
 int VerifyFileV3(const char *filename, int verbose) {
     if (!filename) return 0;
 

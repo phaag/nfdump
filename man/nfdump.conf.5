@@ -126,6 +126,10 @@ Settings for
 Boolean value (\fBtrue\fR/\fBfalse\fR or 0/1).
 When set to true (or 1), an xxHash checksum is appended to each written data block
 and verified on every read.
+Use
+.Dl nfdump -r data.nf -v hash
+to verify only the stored block and directory checksums, without decoding
+records. This mode fails if checksums are absent or incomplete.
 Detecting silent data corruption comes at a small CPU cost.
 Default: 0.
 .It Sy limitCores

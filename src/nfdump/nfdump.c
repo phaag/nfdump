@@ -194,7 +194,7 @@ static void usage(char *name) {
         "\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
         "-6\t\tPrint full length of IPv6 addresses in fmt output instead of condensed.\n"
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
-        "-v <mode>\tVerify or repair the file given by -r <file>. mode: check, check-verbose, repair.\n"
+        "-v <mode>\tVerify or repair the file given by -r <file>. mode: hash, check, check-verbose, repair.\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
@@ -1176,7 +1176,9 @@ int main(int argc, char **argv) {
             LogError("Missing file to %s. Add -r <file>", query_type);
             exit(EXIT_FAILURE);
         }
-        if (strcmp(query_type, "check") == 0) {
+        if (strcmp(query_type, "hash") == 0) {
+            exit(VerifyHashesV3(flist.single_file) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
+        } else if (strcmp(query_type, "check") == 0) {
             exit(VerifyFileV3(flist.single_file, 0) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
         } else if (strcmp(query_type, "check-verbose") == 0) {
             exit(VerifyFileV3(flist.single_file, 1) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -1186,7 +1188,7 @@ int main(int argc, char **argv) {
             // to the shell either way.
             exit(ReWriteV3(flist.single_file) == 1 ? EXIT_SUCCESS : EXIT_FAILURE);
         } else {
-            LogError("Unknown mode to verify file: %s. Use -v check, check-verbose, or repair", query_type);
+            LogError("Unknown mode to verify file: %s. Use -v hash, check, check-verbose, or repair", query_type);
             exit(EXIT_FAILURE);
         }
     }

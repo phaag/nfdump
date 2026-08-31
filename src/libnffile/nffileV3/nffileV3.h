@@ -468,6 +468,10 @@ int ChangeIdent(const char *filename, const char *ident);
 // nfcheck.c
 int VerifyFileV3(const char *filename, int verbose);
 
+// Verify only the stored xxHash checksums of a cleanly closed V3 file.
+// Returns failure when checksums are absent, incomplete, or do not match.
+int VerifyHashesV3(const char *filename);
+
 int ReWriteV3(const char *filename);
 
 #endif
