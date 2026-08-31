@@ -118,14 +118,15 @@ static int BloomMetaIndex(uint16_t metaType) {
 }  // End of BloomMetaIndex
 
 static int VerifyBloomMetaRecord(const metaRecordHeader_t *meta, size_t available) {
-    return available >= sizeof(*meta) && meta->type == METARecord && meta->align == 0 &&
-           meta->size == sizeof(*meta) + sizeof(bloomFilter_t);
+    return available >= sizeof(*meta) && meta->type == METARecord && meta->align == 0 && meta->size == sizeof(*meta) + sizeof(bloomFilter_t);
 }  // End of VerifyBloomMetaRecord
 
 /* Validate a decoded flow block. Record boundaries are always checked;
  * check-verbose additionally validates every V4 extension directory.
- * bloomBlocks counts blocks with a complete bloom metadata prefix. */
-static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4RecordCheck_t checkLevel, uint32_t *bloomBlocks) {
+ * bloomBlocks counts blocks with a complete bloom metadata prefix and
+ * flowRecords counts actual V4 flow records, excluding metadata records. */
+static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4RecordCheck_t checkLevel, uint32_t *bloomBlocks,
+                           uint64_t *flowRecords) {
     if (flowBlock->rawSize < sizeof(*flowBlock)) {
         printf("Flow block %u: rawSize %u is smaller than its header\n", blockNum, flowBlock->rawSize);
         return 0;
@@ -138,6 +139,7 @@ static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4
     const uint8_t *recordPtr = (const uint8_t *)flowBlock + sizeof(*flowBlock);
     const uint8_t *endPtr = (const uint8_t *)flowBlock + flowBlock->rawSize;
     uint8_t bloomMask = 0;
+    uint32_t blockFlowRecords = 0;
     for (uint32_t i = 0; i < flowBlock->numRecords; i++) {
         size_t remaining = (size_t)(endPtr - recordPtr);
         if (remaining < sizeof(recordHeader_t)) {
@@ -156,6 +158,7 @@ static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4
                 printf("Flow block %u: invalid V4 record %u\n", blockNum, i);
                 return 0;
             }
+            blockFlowRecords++;
         } else if (record->type == ExporterInfoRecordV4Type) {
             if (!VerifyExporterInfoRecord((const exporter_info_record_v4_t *)record, record->size)) {
                 printf("Flow block %u: invalid exporter record %u\n", blockNum, i);
@@ -193,6 +196,7 @@ static int VerifyFlowBlock(const flowBlockV3_t *flowBlock, uint32_t blockNum, v4
     }
 
     if (bloomMask == 0x0f) (*bloomBlocks)++;
+    *flowRecords += blockFlowRecords;
 
     return 1;
 }  // End of VerifyFlowBlock
@@ -511,6 +515,7 @@ int VerifyFileV3(const char *filename, int verbose) {
     uint32_t totalBlocks = 0;
     uint32_t unknownBlocks = 0;
     uint32_t bloomBlocks = 0;
+    uint64_t totalFlowRecords = 0;
     const v4RecordCheck_t v4CheckLevel = verbose ? V4RECORD_CHECK_EXTENSIONS : V4RECORD_CHECK_BASIC;
 
     off_t scanEnd = fileHeader->offDirectory ? (off_t)fileHeader->offDirectory : fileSize;
@@ -558,7 +563,7 @@ int VerifyFileV3(const char *filename, int verbose) {
             case BLOCK_TYPE_FLOW: {
                 blockStat[BLOCK_TYPE_FLOW].numBlocks++;
                 blockStat[BLOCK_TYPE_FLOW].compression = dataBlock->compression;
-                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks, v4CheckLevel, &bloomBlocks)) {
+                if (!VerifyFlowBlock((const flowBlockV3_t *)decodedBlock, totalBlocks, v4CheckLevel, &bloomBlocks, &totalFlowRecords)) {
                     blockCheckFailed = 1;
                 }
             } break;
@@ -648,6 +653,9 @@ int VerifyFileV3(const char *filename, int verbose) {
         printf("  Total blocks    : %u\n", totalBlocks);
         if (blockStat[BLOCK_TYPE_FLOW].numBlocks)
             printf("  Flow blocks     : %u - %s\n", blockStat[BLOCK_TYPE_FLOW].numBlocks, CompressionType(blockStat[BLOCK_TYPE_FLOW].compression));
+        if (blockStat[BLOCK_TYPE_FLOW].numBlocks)
+            printf("  Flow records    : %" PRIu64 " - avg. %.1f/flows block\n", totalFlowRecords,
+                   (double)totalFlowRecords / blockStat[BLOCK_TYPE_FLOW].numBlocks);
         if (blockStat[BLOCK_TYPE_FLOW].numBlocks)
             printf("  Bloom metadata  : %s (%u/%u flow blocks)\n", bloomBlocks ? "present" : "absent", bloomBlocks,
                    blockStat[BLOCK_TYPE_FLOW].numBlocks);
