@@ -1324,6 +1324,11 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
 
         uint64_t stack[STACK_MAX];
         memset((void *)stack, 0, sizeof(stack));
+        // A zero ICMP type/code is valid (for example, an echo reply). Use a
+        // sentinel so it remains distinguishable from an absent IE.
+        stack[STACK_ICMP] = UINT64_MAX;
+        stack[STACK_ICMPTYPE] = UINT64_MAX;
+        stack[STACK_ICMPCODE] = UINT64_MAX;
         // copy record data
         int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, buffAvail, stack);
         switch (ret) {
@@ -1520,10 +1525,12 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                         s2[1] = s1[0];
                         genericFlow->srcPort = 0;
                     }
-                    if (stack[STACK_ICMP] != 0) {
+                    if (stack[STACK_ICMP] != UINT64_MAX) {
                         genericFlow->dstPort = stack[STACK_ICMP];
-                    } else if (stack[STACK_ICMPTYPE] != 0 || stack[STACK_ICMPCODE] != 0) {
-                        genericFlow->dstPort = (stack[STACK_ICMPTYPE] << 8) + stack[STACK_ICMPCODE];
+                    } else if (stack[STACK_ICMPTYPE] != UINT64_MAX || stack[STACK_ICMPCODE] != UINT64_MAX) {
+                        uint64_t type = stack[STACK_ICMPTYPE] == UINT64_MAX ? 0 : stack[STACK_ICMPTYPE];
+                        uint64_t code = stack[STACK_ICMPCODE] == UINT64_MAX ? 0 : stack[STACK_ICMPCODE];
+                        genericFlow->dstPort = (type << 8) + code;
                     }
                     break;
                 case IPPROTO_TCP:
