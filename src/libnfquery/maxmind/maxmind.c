@@ -1,0 +1,465 @@
+/*
+ *  Copyright (c) 2021-2026, Peter Haag
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
+ *     this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
+ *     and/or other materials provided with the distribution.
+ *   * Neither the name of the author nor the names of its contributors may be
+ *     used to endorse or promote products derived from this software without
+ *     specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
+
+#include "maxmind.h"
+
+#include <arpa/inet.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "conf/nfconf.h"
+#include "id.h"
+#include "logging.h"
+#include "maxmind.h"
+#include "mmhash.h"
+#include "nffileV3/nffileV3.h"
+#include "util.h"
+#include "vcs_track.h"
+
+/* -----------------------------------------------------------------------
+ * The master geoDB file (built by `geolookup -d <csvDir> -w <file>`, loaded
+ * here by LoadMaxMind()) is an ordinary nffileV3 file - the same compressed,
+ * block-structured container format used for regular flow data files - not
+ * a bespoke format of its own. That makes it portable across machines/CPU
+ * architectures and reusable as-is by every existing nffileV3 tool (nfdump
+ * -r, verification, compression, etc.), and gives the geoDB LZ4 compression
+ * for free (see OpenNewFileV3()'s LZ4_COMPRESSED argument in SaveMaxMind()).
+ *
+ * Where it differs from a flow file: instead of BLOCK_TYPE_FLOW blocks
+ * holding variable-length flow records, it holds six BLOCK_TYPE_ARRAY blocks
+ * (arrayBlockV3_t), each a flat, fixed-element-size C array - one array per
+ * lookup table this module maintains in RAM:
+ *
+ *   LocalInfoElementID   locationInfo_t[]  geoname_id -> continent/country/
+ *                                          city/timeZone/utcOffset
+ *   IPV4treeElementID    ipV4Node_t[]      IPv4 network/mask -> geoname_id +
+ *                                          proxy/sat/lat/long/accuracy
+ *   IPV6treeElementID    ipV6Node_t[]      same, for IPv6 networks
+ *   ASV4treeElementID    asV4Node_t[]      IPv4 network/mask -> AS number +
+ *                                          org name
+ *   ASV6treeElementID    asV6Node_t[]      same, for IPv6 networks
+ *   ASOrgtreeElementID   asOrgNode_t[]     AS number -> org name (dedup'd,
+ *                                          one entry per AS regardless of
+ *                                          how many networks announce it)
+ *
+ * A table's rows may spill across several array blocks if they don't fit
+ * nffile's blockSize, but never mix element types within one block
+ * (dataBlock->elementType/elementSize identify what a block holds). Element
+ * structs are memcpy'd in/out verbatim (Store*() / Load*Tree()), so - same
+ * as the .flat cache in mmhash.c - this file's contents are tied to the
+ * exact struct layout that wrote it; LoadMaxMind() checks each block's
+ * elementSize against sizeof() of the expected struct and logs "rebuild
+ * nfdump geo DB" rather than trusting a mismatched block.
+ * ----------------------------------------------------------------------- */
+
+#define arrayElementSizeCheck(type)                                          \
+    if (arrayHeader->rawSize != sizeof(type##_t)) {                          \
+        LogError("Size check failed for %s - rebuild nfdump geo DB", #type); \
+        return 0;                                                            \
+    }
+
+static void StoreLocalMap(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
+
+    // init new array block
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
+    dataBlock->elementType = LocalInfoElementID;
+    dataBlock->elementSize = sizeof(locationInfo_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
+
+    for (locationInfo_t *locationInfo = NextLocation(FIRSTNODE); locationInfo != NULL; locationInfo = NextLocation(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(locationInfo_t))) {
+            // flush block - get an empty one
+            PushBlockV3(nffile->processQueue, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
+            dataBlock->elementType = LocalInfoElementID;
+            dataBlock->elementSize = sizeof(locationInfo_t);
+
+            outBuff = GetCursor(dataBlock);
+        }
+
+        memcpy(outBuff, locationInfo, sizeof(locationInfo_t));
+        outBuff += sizeof(locationInfo_t);
+        dataBlock->rawSize += sizeof(locationInfo_t);
+        dataBlock->numElements++;
+    }
+    // flush current datablock
+    FlushBlockV3(nffile, dataBlock);
+
+}  // End of StoreLocalMap
+
+static void StoreIPV4tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
+
+    // init new array block
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
+    dataBlock->elementType = IPV4treeElementID;
+    dataBlock->elementSize = sizeof(ipV4Node_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
+
+    for (ipV4Node_t *ipv4Node = NextIPv4Node(FIRSTNODE); ipv4Node != NULL; ipv4Node = NextIPv4Node(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(ipV4Node_t))) {
+            // flush block - get an empty one
+            PushBlockV3(nffile->processQueue, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
+            dataBlock->elementType = IPV4treeElementID;
+            dataBlock->elementSize = sizeof(ipV4Node_t);
+
+            outBuff = GetCursor(dataBlock);
+        }
+
+        memcpy(outBuff, ipv4Node, sizeof(ipV4Node_t));
+        outBuff += sizeof(ipV4Node_t);
+        dataBlock->rawSize += sizeof(ipV4Node_t);
+        dataBlock->numElements++;
+    }
+    // flush current datablock
+    FlushBlockV3(nffile, dataBlock);
+
+}  // End of StoreIPtree
+
+static void StoreIPV6tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
+    // get new empty data block
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
+    dataBlock->elementType = IPV6treeElementID;
+    dataBlock->elementSize = sizeof(ipV6Node_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
+
+    for (ipV6Node_t *ipv6Node = NextIPv6Node(FIRSTNODE); ipv6Node != NULL; ipv6Node = NextIPv6Node(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(ipV6Node_t))) {
+            // flush block - get an empty one
+            PushBlockV3(nffile->processQueue, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
+            dataBlock->elementType = IPV6treeElementID;
+            dataBlock->elementSize = sizeof(ipV6Node_t);
+
+            outBuff = GetCursor(dataBlock);
+        }
+
+        memcpy(outBuff, ipv6Node, sizeof(ipV6Node_t));
+        outBuff += sizeof(ipV6Node_t);
+        dataBlock->rawSize += sizeof(ipV6Node_t);
+        dataBlock->numElements++;
+    }
+    // flush current datablock
+    FlushBlockV3(nffile, dataBlock);
+
+}  // End of StoreIPtree
+
+static void StoreASV4tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
+    // get new empty data block
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
+    dataBlock->elementType = ASV4treeElementID;
+    dataBlock->elementSize = sizeof(asV4Node_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
+
+    for (asV4Node_t *asV4Node = NextasV4Node(FIRSTNODE); asV4Node != NULL; asV4Node = NextasV4Node(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(asV4Node_t))) {
+            // flush block - get an empty one
+            PushBlockV3(nffile->processQueue, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
+            dataBlock->elementType = ASV4treeElementID;
+            dataBlock->elementSize = sizeof(asV4Node_t);
+
+            outBuff = GetCursor(dataBlock);
+        }
+
+        memcpy(outBuff, asV4Node, sizeof(asV4Node_t));
+        outBuff += sizeof(asV4Node_t);
+        dataBlock->rawSize += sizeof(asV4Node_t);
+        dataBlock->numElements++;
+    }
+    // flush current datablock
+    FlushBlockV3(nffile, dataBlock);
+
+}  // End of StoreASV4tree
+
+static void StoreASV6tree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
+    // get new empty data block
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
+    dataBlock->elementType = ASV6treeElementID;
+    dataBlock->elementSize = sizeof(asV6Node_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
+
+    for (asV6Node_t *asV6Node = NextasV6Node(FIRSTNODE); asV6Node != NULL; asV6Node = NextasV6Node(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(asV6Node_t))) {
+            // flush block - get an empty one
+            PushBlockV3(nffile->processQueue, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
+            dataBlock->elementType = ASV6treeElementID;
+            dataBlock->elementSize = sizeof(asV6Node_t);
+
+            outBuff = GetCursor(dataBlock);
+        }
+
+        memcpy(outBuff, asV6Node, sizeof(asV6Node_t));
+        outBuff += sizeof(asV6Node_t);
+        dataBlock->rawSize += sizeof(asV6Node_t);
+        dataBlock->numElements++;
+    }
+    // flush current datablock
+    FlushBlockV3(nffile, dataBlock);
+
+}  // End of StoreASV6tree
+
+static void StoreASorgtree(nffileV3_t *nffile) {
+    uint32_t blockSize = nffile->fileHeader->blockSize;
+    // get new empty data block
+    arrayBlockV3_t *dataBlock = NULL;
+    InitDataBlock(dataBlock, blockSize);
+    dataBlock->elementType = ASOrgtreeElementID;
+    dataBlock->elementSize = sizeof(asOrgNode_t);
+
+    uint8_t *outBuff = GetCursor(dataBlock);
+
+    for (asOrgNode_t *asOrgNode = NextasOrgNode(FIRSTNODE); asOrgNode != NULL; asOrgNode = NextasOrgNode(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, blockSize, sizeof(asOrgNode_t))) {
+            // flush block - get an empty one
+            PushBlockV3(nffile->processQueue, dataBlock);
+            dataBlock = NULL;
+            InitDataBlock(dataBlock, blockSize);
+            dataBlock->elementType = ASOrgtreeElementID;
+            dataBlock->elementSize = sizeof(asOrgNode_t);
+
+            outBuff = GetCursor(dataBlock);
+        }
+
+        memcpy(outBuff, asOrgNode, sizeof(asOrgNode_t));
+        outBuff += sizeof(asOrgNode_t);
+        dataBlock->rawSize += sizeof(asOrgNode_t);
+        dataBlock->numElements++;
+    }
+    // flush current datablock
+    FlushBlockV3(nffile, dataBlock);
+
+}  // End of StoreASorgtree
+
+int SaveMaxMind(char *fileName) {
+    nffileV3_t *nffile = OpenNewFileV3(fileName, CREATOR_GEOLOOKUP, LZ4_COMPRESSED, LEVEL_0, NULL);
+    if (!nffile) {
+        LogError("OpenNewFile(%s) failed", fileName);
+        return 0;
+    }
+    // store all geo records
+    StoreLocalMap(nffile);
+    StoreIPV4tree(nffile);
+    StoreIPV6tree(nffile);
+    StoreASV4tree(nffile);
+    StoreASV6tree(nffile);
+    StoreASorgtree(nffile);
+    int ret = FlushFileV3(nffile);
+    CloseFileV3(nffile);
+
+    return ret;
+}  // End of SaveMaxMind
+
+int LoadMaxMind(char *fileName) {
+    dbg_printf("Load MaxMind file %s\n", fileName);
+
+    if (!Init_MaxMind()) return 0;
+
+    // if caller passed the .flat file directly, use it
+    size_t fnLen = strlen(fileName);
+    if (fnLen > 5 && strcmp(fileName + fnLen - 5, ".flat") == 0) {
+        if (LoadFlatCache(fileName)) {
+            dbg_printf("LoadMaxMind: direct flat file %s\n", fileName);
+            return 1;
+        }
+        LogError("LoadMaxMind: cannot load flat file %s", fileName);
+        return 0;
+    }
+
+    // build flat path: respect geodb.flatpath config key, if it exists
+    char flatPath[PATH_MAX];
+    char *flatDir = ConfGetString("geodb.flatpath");
+    int useFlatCache = 1;
+    if (flatDir) {
+        if (strcmp(flatDir, "none") == 0) {
+            useFlatCache = 0;
+            free(flatDir);
+        } else {
+            if (!CheckPath(flatDir, S_IFDIR)) {
+                LogError("Config value geodb.flatpath='%s' - is not a directory", flatDir);
+                free(flatDir);
+                return 0;
+            }
+            const char *base = strrchr(fileName, '/');
+            base = base ? base + 1 : fileName;
+            snprintf(flatPath, sizeof(flatPath), "%s/%s.flat", flatDir, base);
+            free(flatDir);
+        }
+    } else {
+        snprintf(flatPath, sizeof(flatPath), "%s.flat", fileName);
+    }
+
+    // fast path: mmap existing flat cache if it is newer than mmdb master db file
+    struct stat stNf, stFlat;
+    if (useFlatCache && stat(fileName, &stNf) == 0 && stat(flatPath, &stFlat) == 0 && stFlat.st_mtime >= stNf.st_mtime) {
+        if (LoadFlatCache(flatPath)) {
+            dbg_printf("LoadMaxMind: fast path via %s\n", flatPath);
+            return 1;
+        }
+        LogError("LoadMaxMind: Failed to load flat cache");
+    }
+
+    // slow path: decompress mmdb master file, build flat arrays, write cache
+    if (!InitFlatArrays()) return 0;
+
+    nffileV3_t *nffile = OpenFileV3(fileName);
+    if (!nffile) {
+        LogError("LoadMaxMind: Failed to open maxmind db file");
+        return 0;
+    }
+    if (nffile->fileHeader->nfdVersion < NFDVERSION) {
+        CloseFileV3(nffile);
+        LogError("LoadMaxMind: GeoDB file %s not compatible. Rebuild geoDB file.", fileName);
+        return 0;
+    }
+
+    int done = 0;
+    arrayBlockV3_t *dataBlock = NULL;
+    while (!done) {
+        // get next data block from file
+        dataBlock = ReadBlockV3(nffile);
+        if (dataBlock == NULL) {
+            done = 1;
+            continue;
+        }
+
+        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->rawSize);
+        if (dataBlock->type != BLOCK_TYPE_ARRAY) {
+            LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
+            FreeDataBlock(dataBlock);
+            continue;
+        }
+
+        void *arrayElement = ResetCursor(dataBlock);
+
+        size_t expected = (dataBlock->elementSize * dataBlock->numElements) + sizeof(arrayBlockV3_t);
+        if (expected != dataBlock->rawSize) {
+            LogError("Bad array block - size error - found: %zu, expected: %u for element: %u", expected, dataBlock->rawSize, dataBlock->elementType);
+            FreeDataBlock(dataBlock);
+            continue;
+        }
+
+        switch (dataBlock->elementType) {
+            case LocalInfoElementID: {
+                locationInfo_t *locationInfo = (locationInfo_t *)arrayElement;
+                if (dataBlock->elementSize != sizeof(locationInfo_t)) {
+                    LogError("Size check failed for location info - rebuild nfdump geo DB");
+                } else {
+                    LoadLocalInfo(locationInfo, dataBlock->numElements);
+                }
+            } break;
+            case IPV4treeElementID: {
+                ipV4Node_t *ipV4Node = (ipV4Node_t *)arrayElement;
+                if (dataBlock->elementSize != sizeof(ipV4Node_t)) {
+                    LogError("Size check failed for IPv4 node - rebuild nfdump geo DB");
+                } else {
+                    LoadIPv4Tree(ipV4Node, dataBlock->numElements);
+                }
+            } break;
+            case IPV6treeElementID: {
+                ipV6Node_t *ipV6Node = (ipV6Node_t *)arrayElement;
+                if (dataBlock->elementSize != sizeof(ipV6Node_t)) {
+                    LogError("Size check failed for IPv6 node - rebuild nfdump geo DB");
+                } else {
+                    LoadIPv6Tree(ipV6Node, dataBlock->numElements);
+                }
+            } break;
+            case ASV4treeElementID: {
+                asV4Node_t *asV4Node = (asV4Node_t *)arrayElement;
+                if (dataBlock->elementSize != sizeof(asV4Node_t)) {
+                    LogError("Size check failed for ASv4 node - rebuild nfdump geo DB");
+                } else {
+                    LoadASV4Tree(asV4Node, dataBlock->numElements);
+                }
+            } break;
+            case ASV6treeElementID: {
+                asV6Node_t *asV6Node = (asV6Node_t *)arrayElement;
+                if (dataBlock->elementSize != sizeof(asV6Node_t)) {
+                    LogError("Size check failed for ASv6 node - rebuild nfdump geo DB");
+                } else {
+                    LoadASV6Tree(asV6Node, dataBlock->numElements);
+                }
+            } break;
+            case ASOrgtreeElementID: {
+                asOrgNode_t *asOrgNode = (asOrgNode_t *)arrayElement;
+                if (dataBlock->elementSize != sizeof(asOrgNode_t)) {
+                    LogError("Size check failed for AS org node - rebuild nfdump geo DB");
+                } else {
+                    LoadASorgTree(asOrgNode, dataBlock->numElements);
+                }
+            } break;
+            default:
+                LogError("Skip unknown array element: %u", dataBlock->elementType);
+        }
+        FreeDataBlock(dataBlock);
+    }
+    FreeDataBlock(dataBlock);
+    CloseFileV3(nffile);
+
+    SortFlatArrays();
+    BuildTZCache();
+
+    // write flat cache for fast-path use next time (best effort)
+    if (useFlatCache) WriteFlatCache(flatPath);
+
+    return 1;
+}  // End of LoadMaxMind
