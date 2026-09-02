@@ -6,6 +6,6 @@ lib_LTLIBRARIES = libnfdump.la
 libnfdump_la_SOURCES = nfdump.h nfdump_abi.c
 libnfdump_la_LIBADD = ../libnffile/libnffile.la
 # libnfdump is the only supported external C ABI.  Export no nffile internals.
-libnfdump_la_LDFLAGS = -version-info 1:0:0 -export-symbols-regex '^nfdump_'
+libnfdump_la_LDFLAGS = -release @VERSION@ -export-symbols-regex '^nfdump_'
 
 include_HEADERS = nfdump.h
