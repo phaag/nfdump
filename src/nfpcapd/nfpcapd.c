@@ -81,7 +81,7 @@
 #include "network/nfd_udp_crypto.h"
 #include "network/nfnet.h"
 #include "network/repeater.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "pcapdump.h"
 #include "pcaproc.h"

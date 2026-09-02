@@ -54,7 +54,7 @@
 #include "id.h"
 #include "logging.h"
 #include "nbar.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nftrack_rrd.h"
 #include "nfxV4.h"

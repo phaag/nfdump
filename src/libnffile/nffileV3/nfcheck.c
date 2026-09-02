@@ -49,7 +49,7 @@
 #include "id.h"
 #include "logging.h"
 #include "nfcompress.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV2/nffileV2.h"
 #include "nffileV3.h"
 #include "nfxV4.h"

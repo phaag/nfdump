@@ -43,7 +43,7 @@
 
 #include "config.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfxV4.h"
 #include "userio.h"
 #include "util.h"

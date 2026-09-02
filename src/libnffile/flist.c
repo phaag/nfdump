@@ -60,7 +60,7 @@
 
 #include "flist.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "queue.h"
 #include "util.h"
 

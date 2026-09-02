@@ -31,7 +31,7 @@
 #ifndef _SEND_V5_H
 #define _SEND_V5_H 1
 
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "send_net.h"
 
 void Init_v5_v7_output(send_peer_t *peer);

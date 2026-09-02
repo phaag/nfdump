@@ -31,7 +31,7 @@
 #ifndef _OUTPUT_NDJSON_H
 #define _OUTPUT_NDJSON_H 1
 
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "output.h"
 
 void ndjson_prolog(outputParams_t *outputParam);

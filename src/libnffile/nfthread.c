@@ -44,7 +44,7 @@
 
 #include "logging.h"
 #include "nfconf.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfthread.h"
 #include "util.h"
 

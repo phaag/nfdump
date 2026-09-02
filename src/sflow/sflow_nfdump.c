@@ -55,7 +55,7 @@
 
 #include "logging.h"
 #include "metric.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfxV4.h"
 #include "output_short.h"
 // sFlow v5

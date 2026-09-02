@@ -38,7 +38,7 @@
 #include <sys/types.h>
 
 #include "nfthread.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "queue.h"
 
 /*

@@ -62,7 +62,7 @@
 #include <sys/types.h>
 
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "sflow.h"         // sFlow v5 protocol constants
 #include "sflow_nfdump.h"  // StoreSflowRecord
 #include "sflow_v2v4.h"    // sFlow v2/v4 constants

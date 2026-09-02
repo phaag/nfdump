@@ -54,7 +54,7 @@
 #include "metric.h"
 #include "nbar.h"
 #include "network/nfnet.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_short.h"

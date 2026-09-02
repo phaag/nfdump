@@ -36,7 +36,7 @@
 #include <stdio.h>
 
 #include "bloom.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "rbtree.h"
 
 typedef enum {

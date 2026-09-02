@@ -46,7 +46,7 @@
 #include "id.h"
 #include "logging.h"
 #include "nfconf.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nffile_inline.c"
 #include "nfthread.h"

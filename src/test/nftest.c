@@ -51,7 +51,7 @@
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfxV4.h"
 #include "output_short.h"
 #include "ssl/ssl.h"

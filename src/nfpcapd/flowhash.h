@@ -42,7 +42,7 @@
 
 #include "config.h"
 #include "ip128.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfxV4.h"
 #include "pflog.h"
 

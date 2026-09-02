@@ -50,7 +50,7 @@
 #include "filter/filter.h"
 #include "flist.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfstatfile.h"
 #include "rbtree.h"

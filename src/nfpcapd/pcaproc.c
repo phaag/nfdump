@@ -68,7 +68,7 @@
 #include "ip128.h"
 #include "ip_frag.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nflog.h"
 #include "pflog.h"
 #include "util.h"

@@ -34,7 +34,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "nfdump.h"
+#include "nfcommon.h"
 
 typedef enum { MODE_NULL = 0, MODE_RAW, MODE_FMT, MODE_CSV, MODE_CSV_FAST, MODE_JSON, MODE_NDJSON } outputMode_t;
 

@@ -33,7 +33,7 @@
 
 #include <stdint.h>
 
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfxV4.h"
 
 typedef struct message_header_s {

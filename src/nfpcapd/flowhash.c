@@ -51,7 +51,7 @@
 #endif
 #include "ip_frag.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "util.h"
 
 /* hash slot */

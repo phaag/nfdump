@@ -53,7 +53,7 @@
 #include "collector.h"
 #include "config.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "util.h"
 
 #define LAUNCH_EXEC 1

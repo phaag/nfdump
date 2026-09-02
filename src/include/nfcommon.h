@@ -28,8 +28,8 @@
  *
  */
 
-#ifndef _NFDUMP_H
-#define _NFDUMP_H 1
+#ifndef _NFCOMMON_H
+#define _NFCOMMON_H 1
 
 #include <stddef.h>
 #include <stdint.h>
@@ -136,4 +136,4 @@ typedef struct stat_record_s {
 
 #define NOGEODB 0
 
-#endif  //_NFDUMP_H
+#endif  //_NFCOMMON_H

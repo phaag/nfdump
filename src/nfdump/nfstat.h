@@ -36,7 +36,7 @@
 #include <sys/types.h>
 
 #include "config.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "output.h"
 
 #define FLAG_STAT 0x1

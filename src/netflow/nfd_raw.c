@@ -49,7 +49,7 @@
 #include "logging.h"
 #include "metric.h"
 #include "network/nfnet.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output_short.h"

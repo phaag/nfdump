@@ -36,7 +36,7 @@
 #include <sys/types.h>
 
 #include "config.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "output.h"

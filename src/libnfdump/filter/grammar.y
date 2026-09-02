@@ -57,7 +57,7 @@
 #include "ja4/ja4.h"
 #include "maxmind/maxmind.h"
 #endif
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "util.h"
 
 #define AnyMask 0xffffffffffffffffLL

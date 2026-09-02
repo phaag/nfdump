@@ -31,7 +31,7 @@
 #ifndef _SEND_V9_IPFIX_H
 #define _SEND_V9_IPFIX_H 1
 
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "send_net.h"
 
 #define NF_F_FLOW_CREATE_TIME_MSEC 152

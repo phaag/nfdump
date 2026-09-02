@@ -58,7 +58,7 @@
 #include "ip128.h"
 #include "launch.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "util.h"

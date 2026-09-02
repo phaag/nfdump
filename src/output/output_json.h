@@ -31,7 +31,7 @@
 #ifndef _OUTPUT_JSON_H
 #define _OUTPUT_JSON_H 1
 
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "output.h"
 
 void json_prolog(outputParams_t *outputParam);

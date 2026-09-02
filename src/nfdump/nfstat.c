@@ -53,7 +53,7 @@
 #include "ja4/ja4.h"
 #include "logging.h"
 #include "maxmind/maxmind.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfxV4.h"
 #include "output_fmt.h"
 #include "output_util.h"

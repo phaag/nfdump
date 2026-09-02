@@ -29,7 +29,7 @@
  *
  */
 
-#include "nfdump.h"
+#include "nfcommon.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>

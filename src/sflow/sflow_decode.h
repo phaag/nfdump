@@ -51,7 +51,7 @@
 #include <netinet/in.h>
 
 #include "collector.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "sflow.h"
 
 // -----------------------------------------------------------------------

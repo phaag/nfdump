@@ -41,7 +41,7 @@
 
 #include "id.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "util.h"
 
 // sub template IDs

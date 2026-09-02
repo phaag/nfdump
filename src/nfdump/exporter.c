@@ -45,7 +45,7 @@
 #include "id.h"
 #include "logging.h"
 #include "network/nfd_udp_crypto.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfxV4.h"
 #include "util.h"

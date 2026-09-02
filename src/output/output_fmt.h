@@ -38,7 +38,7 @@
 #include <time.h>
 
 #include "config.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "output.h"
 
 /* prototypes */

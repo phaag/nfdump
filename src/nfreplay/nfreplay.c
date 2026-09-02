@@ -62,7 +62,7 @@
 #include "logging.h"
 #include "nbar.h"
 #include "nfd_raw.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfthread.h"
 #include "nfxV4.h"

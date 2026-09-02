@@ -53,7 +53,7 @@
 #include "ftlib.h"
 #include "id.h"
 #include "logging.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
 #include "nfthread.h"
 #include "nfxV4.h"

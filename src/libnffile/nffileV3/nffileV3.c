@@ -51,7 +51,7 @@
 #include "logging.h"
 #include "nfcompress.h"
 #include "nfcrypto.h"
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "nfthread.h"
 #include "nfxV4.h"
 #include "queue.h"

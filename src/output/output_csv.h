@@ -33,7 +33,7 @@
 
 #include <stdio.h>
 
-#include "nfdump.h"
+#include "nfcommon.h"
 #include "output.h"
 
 int ParseCSVOutputFormat(char *format);
