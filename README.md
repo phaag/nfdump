@@ -456,12 +456,13 @@ in place.
 
 Besides the tools above, nfdump exposes a small, new, read-only C ABI
 for external programs to open an nffile V3 file and iterate its flow
-records directly. The interface is listed in — [`nfdump.h`](src/libnffile/nfdump.h).
-Nfdump files V2 froom nfdump 1.7.x are read transparently.
+records directly. The full interface is documented in
+[`nfdump.h`](src/libnfdump/nfdump.h). nffile V2 files from nfdump 1.7.x
+are read transparently, matching the CLI's own behavior.
 The ABI is plain C, no C++ — so any language with a C FFI can call
 it, and `make install` installs the header and a `pkg-config nfdump`
 entry alongside the usual binaries. The directory `extra/examples/` contains
-small examples in C, Python, Rust, Go, and Lua and an corresponding README file 
+small examples in C, Python, Rust, Go, and Lua and a corresponding README file
 to build and run them.
 
 ## Sampling and event logging

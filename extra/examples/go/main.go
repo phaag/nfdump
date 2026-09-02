@@ -12,8 +12,8 @@
 package main
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../../src/libnffile
-#cgo LDFLAGS: -L${SRCDIR}/../../../src/libnffile/.libs -lnffile
+#cgo CFLAGS: -I${SRCDIR}/../../../src/libnfdump
+#cgo LDFLAGS: -L${SRCDIR}/../../../src/libnfdump/.libs -lnfdump
 #include <stdlib.h>
 #include "nfdump.h"
 */
@@ -56,7 +56,6 @@ func (r *reader) lastError() string {
 
 func (r *reader) fileInfo() (C.nfdump_file_info_t, error) {
 	info := C.nfdump_file_info_t{
-		abi_version: C.NFDUMP_ABI_VERSION,
 		struct_size: C.uint32_t(unsafe.Sizeof(C.nfdump_file_info_t{})),
 	}
 	st := C.nfdump_reader_file_info(r.ptr, &info)
@@ -118,7 +117,7 @@ func main() {
 
 	fmt.Printf("nfdump ABI version: %d\n\n", uint32(C.nfdump_abi_version()))
 
-	fi := C.nfdump_field_info_t{abi_version: C.NFDUMP_ABI_VERSION, struct_size: C.uint32_t(unsafe.Sizeof(C.nfdump_field_info_t{}))}
+	fi := C.nfdump_field_info_t{struct_size: C.uint32_t(unsafe.Sizeof(C.nfdump_field_info_t{}))}
 	if C.nfdump_field_describe(C.NFDUMP_FIELD_IN_BYTES, &fi) == C.NFDUMP_OK {
 		fmt.Printf("field #%d: name=%s type=%d size=%d (of %d fields total)\n\n",
 			C.NFDUMP_FIELD_IN_BYTES, C.GoString(fi.name), fi._type, fi.size, C.nfdump_field_count())

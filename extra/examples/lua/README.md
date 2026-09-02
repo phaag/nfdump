@@ -1,7 +1,7 @@
 # Lua example
 
 Uses LuaJIT's `ffi` library over the ABI in
-[`../../../src/libnffile/nfdump.h`](../../../src/libnffile/nfdump.h).
+[`../../../src/libnfdump/nfdump.h`](../../../src/libnfdump/nfdump.h).
 **Requires LuaJIT**, not stock PUC Lua — plain Lua has no built-in FFI, and
 there's no C extension module here to bridge the gap (writing one would
 just be the C example wrapped as a Lua module).
@@ -18,11 +18,13 @@ LuaJIT's FFI is effectively that, live, with no separate generation step.
 luajit read_flows.lua <nfcapd-file> [max-records-to-print]
 ```
 
-`read_flows.lua` looks for the in-tree `libnffile` build at
-`../../../src/libnffile/.libs/` relative to itself (this repo's own build
-— see the top-level [examples README](../README.md)). Point it elsewhere
-with:
+`read_flows.lua` looks for the in-tree `libnfdump` build at
+`../../../src/libnfdump/.libs/` relative to itself (this repo's own build
+— see the top-level [examples README](../README.md)), and preloads its
+`libnffile` dependency from `../../../src/libnffile/.libs/` first so the
+dynamic loader can resolve it without `DYLD_LIBRARY_PATH`/`LD_LIBRARY_PATH`
+being set. Point the ABI library itself elsewhere with:
 
 ```
-NFDUMP_LIB=/path/to/libnffile.dylib luajit read_flows.lua ...
+NFDUMP_LIB=/path/to/libnfdump.dylib luajit read_flows.lua ...
 ```

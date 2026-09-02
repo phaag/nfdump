@@ -1,0 +1,358 @@
+.\" Copyright (c) 2026, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFDUMP 3
+.Os
+.Sh NAME
+.Nm nfdump
+.Nd stable, read-only C ABI for nffile flow files
+.Sh LIBRARY
+The
+.Nm libnfdump
+library
+.Sh SYNOPSIS
+.In nfdump.h
+.Bd -literal -offset indent
+typedef struct {
+        uint32_t    abi_version;
+        uint32_t    struct_size;
+        const char *passphrase;
+} nfdump_reader_options_t;
+.Ed
+.Pp
+.Ft uint32_t
+.Fn nfdump_abi_version void
+.Ft nfdump_status_t
+.Fn nfdump_reader_open "const char *path" "const nfdump_reader_options_t *options" "nfdump_reader_t **out_reader"
+.Ft void
+.Fn nfdump_reader_close "nfdump_reader_t *reader"
+.Ft const char *
+.Fn nfdump_reader_last_error "const nfdump_reader_t *reader"
+.Ft nfdump_status_t
+.Fn nfdump_reader_next "nfdump_reader_t *reader" "nfdump_record_view_t *record"
+.Ft nfdump_status_t
+.Fn nfdump_reader_file_info "const nfdump_reader_t *reader" "nfdump_file_info_t *out"
+.Ft size_t
+.Fn nfdump_field_count void
+.Ft nfdump_status_t
+.Fn nfdump_field_describe "nfdump_field_id_t field" "nfdump_field_info_t *out"
+.Ft nfdump_status_t
+.Fn nfdump_record_get "nfdump_reader_t *reader" "nfdump_field_id_t field" "void *out" "size_t out_size"
+.Sh DESCRIPTION
+The
+.Nm
+library is nfdump's small, stable public read ABI.
+It opens nfdump nffile flow-capture files and exposes their records without
+exposing nfdump's internal data structures or query engine.
+It is intended for independently built C applications and language bindings.
+The ABI is read-only: it contains no functions to modify, create, or write
+flow files.
+.Pp
+The primary file format is nffile V3.
+The current implementation also reads legacy nffile V2 input through
+nfdump's in-memory conversion path.
+Applications must not depend on that conversion for writing or on any
+internal V2/V3 structure layout.
+.Pp
+Link with
+.Fl lnfdump .
+When installed with pkg-config metadata, a typical build is:
+.Pp
+.Dl cc $(pkg-config --cflags nfdump) reader.c -o reader $(pkg-config --libs nfdump)
+.Sh ABI CONTRACT
+The public header has no nfdump-internal header dependencies and may be used
+by FFI generators.
+.Vt nfdump_reader_t
+is opaque; callers must allocate no reader object themselves and must access
+it only through these functions.
+.Pp
+.Dv NFDUMP_ABI_VERSION
+is the compile-time ABI version.
+.Fn nfdump_abi_version
+returns the ABI version of the loaded library, allowing dynamic callers to
+check it before using the API.
+.Pp
+The public field identifiers are append-only ABI values.
+They are deliberately independent from nfdump's internal extension IDs,
+which are not public and can change with the file format.
+Do not renumber, reuse, or derive meanings from the numeric values of
+.Vt nfdump_field_id_t .
+.Pp
+Set both
+.Va abi_version
+and
+.Va struct_size
+when passing
+.Vt nfdump_reader_options_t
+to
+.Fn nfdump_reader_open .
+For
+.Vt nfdump_file_info_t
+and
+.Vt nfdump_field_info_t ,
+set only
+.Va struct_size ;
+the library fills
+.Va abi_version
+and the remaining result fields.
+Future ABI versions can append members while retaining this convention.
+.Sh READER LIFETIME
+.Fn nfdump_reader_open
+opens
+.Fa path
+read-only and, on success, stores a new reader in
+.Fa *out_reader .
+Pass a null
+.Fa options
+pointer for default options, or a properly initialized
+.Vt nfdump_reader_options_t .
+Its
+.Va passphrase
+member is null or an empty string for unencrypted files.
+For encrypted files it supplies the passphrase; a missing or invalid
+passphrase fails without a terminal prompt or stdin read.
+.Pp
+On any failed open,
+.Fa *out_reader
+is null and must not be closed.
+.Fn nfdump_reader_close
+releases a reader and accepts a null pointer.
+.Pp
+Call
+.Fn nfdump_reader_next
+to advance through the file.
+On
+.Dv NFDUMP_OK ,
+it fills a
+.Vt nfdump_record_view_t
+with a one-based traversal
+.Va ordinal ,
+the raw record
+.Va data ,
+and its
+.Va size .
+The raw data is an opaque internal V4 record representation.
+It is supplied only for pass-through or archival purposes; applications must
+use
+.Fn nfdump_record_get
+to read fields and must not parse the raw bytes.
+.Pp
+The record view and its data are borrowed.
+They remain valid only until the next
+.Fn nfdump_reader_next
+or
+.Fn nfdump_reader_close
+call on that reader.
+Copy data which must survive either call.
+.Pp
+After a successful
+.Fn nfdump_reader_next ,
+.Fn nfdump_record_get
+may read fields from the current record.
+It copies the requested value into
+.Fa out .
+The caller supplies an output buffer at least as large as the field's
+published size; otherwise it returns
+.Dv NFDUMP_ERR_INVALID_ARG .
+If a valid field is not present in a particular record,
+.Dv NFDUMP_ABSENT
+is returned and the output buffer is left unchanged.
+.Pp
+.Fn nfdump_reader_file_info
+returns file statistics and time bounds immediately after a successful open.
+The returned
+.Va ident
+string is borrowed and remains valid until the reader is closed; it may be
+null.
+.Fn nfdump_reader_last_error
+returns a non-null, NUL-terminated diagnostic string for the most recent
+iteration or field-access error on that reader.
+It is empty if no such error has occurred.
+Open errors have no reader and are reported through nfdump's normal logging.
+.Sh FIELDS AND BYTE ORDER
+.Fn nfdump_field_count
+returns the number of valid public field IDs.
+Values from 1 through that count can be described with
+.Fn nfdump_field_describe .
+The latter provides a stable field name, type, and output size for generic
+or introspecting consumers.
+.Pp
+The available field types are
+.Dv NFDUMP_T_U8 ,
+.Dv NFDUMP_T_U16 ,
+.Dv NFDUMP_T_U32 ,
+.Dv NFDUMP_T_U64 ,
+and
+.Dv NFDUMP_T_IPV6 .
+All scalar values are copied in host byte order.
+The two address fields,
+.Dv NFDUMP_FIELD_SRC_ADDR
+and
+.Dv NFDUMP_FIELD_DST_ADDR ,
+are the exception: each is a 16-byte IPv6 buffer in network byte order.
+IPv4 addresses use the IPv4-mapped IPv6 form specified by RFC 4291
+.Po
+.Dq ::ffff:a.b.c.d
+.Pc .
+.Pp
+The current stable field set covers:
+.Bl -tag -width "routing and classification"
+.It timestamps
+.Dv NFDUMP_FIELD_FIRST_SEEN ,
+.Dv NFDUMP_FIELD_LAST_SEEN ,
+and
+.Dv NFDUMP_FIELD_RECEIVED
+in milliseconds since the Unix epoch.
+.It network tuple and protocol
+.Dv NFDUMP_FIELD_IP_VERSION ,
+.Dv NFDUMP_FIELD_SRC_ADDR ,
+.Dv NFDUMP_FIELD_DST_ADDR ,
+.Dv NFDUMP_FIELD_SRC_PORT ,
+.Dv NFDUMP_FIELD_DST_PORT ,
+.Dv NFDUMP_FIELD_ICMP_TYPE ,
+.Dv NFDUMP_FIELD_ICMP_CODE ,
+.Dv NFDUMP_FIELD_PROTO ,
+.Dv NFDUMP_FIELD_TCP_FLAGS ,
+.Dv NFDUMP_FIELD_SRC_TOS ,
+and
+.Dv NFDUMP_FIELD_FWD_STATUS .
+.It counters and aggregation
+.Dv NFDUMP_FIELD_IN_PACKETS ,
+.Dv NFDUMP_FIELD_IN_BYTES ,
+.Dv NFDUMP_FIELD_OUT_PACKETS ,
+.Dv NFDUMP_FIELD_OUT_BYTES ,
+and
+.Dv NFDUMP_FIELD_AGGR_FLOWS .
+Reverse-direction counters can be absent.
+.It routing and classification
+.Dv NFDUMP_FIELD_INPUT_IF ,
+.Dv NFDUMP_FIELD_OUTPUT_IF ,
+.Dv NFDUMP_FIELD_SRC_AS ,
+.Dv NFDUMP_FIELD_DST_AS ,
+.Dv NFDUMP_FIELD_SRC_VLAN ,
+.Dv NFDUMP_FIELD_DST_VLAN ,
+.Dv NFDUMP_FIELD_SRC_MASK ,
+.Dv NFDUMP_FIELD_DST_MASK ,
+.Dv NFDUMP_FIELD_DIRECTION ,
+.Dv NFDUMP_FIELD_DST_TOS ,
+and
+.Dv NFDUMP_FIELD_FLOW_END_REASON .
+.It exporter metadata
+.Dv NFDUMP_FIELD_EXPORTER_ID ,
+.Dv NFDUMP_FIELD_ENGINE_TYPE ,
+.Dv NFDUMP_FIELD_ENGINE_ID ,
+and
+.Dv NFDUMP_FIELD_NF_VERSION .
+.El
+.Pp
+The installed
+.In nfdump.h
+is authoritative for the enum's exact field list and types.
+New fields may be appended in later ABI-compatible releases.
+.Sh RETURN VALUES
+Functions returning
+.Vt nfdump_status_t
+return one of the following values.
+.Bl -tag -width "NFDUMP_ERR_UNSUPPORTED"
+.It Dv NFDUMP_OK
+The operation succeeded.
+.It Dv NFDUMP_EOF
+.Fn nfdump_reader_next
+reached the end of the flow records.
+.It Dv NFDUMP_ABSENT
+The requested field is not available on the current record.
+.It Dv NFDUMP_ERR_IO
+An allocation or other resource failure occurred.
+.It Dv NFDUMP_ERR_FORMAT
+The file could not be opened, validated, or decoded; this includes corrupt,
+truncated, unrecognized, and unreadable flow data.
+.It Dv NFDUMP_ERR_UNSUPPORTED
+The file layout is newer than this library, or a requested feature is not
+compiled into this build.
+.It Dv NFDUMP_ERR_CRYPTO
+The supplied crypto context could not be prepared, for example because crypto
+support is not available in this build.
+.It Dv NFDUMP_ERR_INVALID_ARG
+An argument is null or out of range, an ABI structure is too small, there is
+no current record, or an output buffer is too small.
+.El
+.Sh THREAD SAFETY
+Do not concurrently use one
+.Vt nfdump_reader_t
+from multiple threads.
+Independent readers are safe to use concurrently.
+.Fn nfdump_reader_open
+briefly serializes on a single process-wide lock for every call, not only
+for encrypted files, held for the duration of the underlying file
+validation step; this keeps key derivation for encrypted files race-free
+without a per-file lock.
+It does not affect
+.Fn nfdump_reader_next ,
+.Fn nfdump_record_get ,
+or any other call on an already-open reader, none of which take a lock.
+.Sh EXAMPLES
+.Bd -literal -offset indent
+#include <nfdump.h>
+#include <stdint.h>
+#include <stdio.h>
+int
+main(int argc, char **argv)
+{
+        nfdump_reader_options_t options = {
+                .abi_version = NFDUMP_ABI_VERSION,
+                .struct_size = sizeof(options),
+        };
+        nfdump_reader_t *reader = NULL;
+        nfdump_status_t status;
+
+        if (argc != 2 ||
+            nfdump_reader_open(argv[1], &options, &reader) != NFDUMP_OK)
+                return 1;
+
+        nfdump_record_view_t record;
+        while ((status = nfdump_reader_next(reader, &record)) == NFDUMP_OK) {
+                uint64_t bytes;
+                if (nfdump_record_get(reader, NFDUMP_FIELD_IN_BYTES,
+                    &bytes, sizeof(bytes)) == NFDUMP_OK)
+                        printf("%llu: %llu bytes\en",
+                            (unsigned long long)record.ordinal,
+                            (unsigned long long)bytes);
+        }
+        nfdump_reader_close(reader);
+        return status == NFDUMP_EOF ? 0 : 1;
+}
+.Ed
+.Sh SEE ALSO
+.Xr nfcapd 1 ,
+.Xr nfdump 1 ,
+.Xr nfpcapd 1 ,
+.Xr sfcapd 1
+.Sh HISTORY
+The public
+.Nm
+read ABI first appeared in nfdump 1.8.

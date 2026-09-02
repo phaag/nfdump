@@ -5,13 +5,13 @@ read_flows.lua — usage example for the nfdump read ABI from LuaJIT.
 Requires LuaJIT (its `ffi` library), not stock PUC Lua, which has no
 built-in FFI. LuaJIT's ffi.cdef() is close to a direct C declaration
 parser, so the block below is nearly a copy of
-../../../src/libnffile/nfdump.h with the comments and the NFDUMP_API
+../../../src/libnfdump/nfdump.h with the comments and the NFDUMP_API
 visibility macro stripped out — nfdump.h was deliberately kept dependency-
 free (see its header comment) so a binding generator like this one can
 consume it almost verbatim instead of hand-translating every struct.
 
 Usage:
-    NFDUMP_LIB=/path/to/libnffile.dylib luajit read_flows.lua nfcapd.file [max]
+    NFDUMP_LIB=/path/to/libnfdump.dylib luajit read_flows.lua nfcapd.file [max]
 ]]
 
 local ffi = require("ffi")
@@ -93,18 +93,29 @@ nfdump_status_t nfdump_field_describe(nfdump_field_id_t field, nfdump_field_info
 nfdump_status_t nfdump_record_get(nfdump_reader_t *reader, nfdump_field_id_t field, void *out, size_t out_size);
 ]]
 
--- The nfdump ABI is currently compiled into libnffile itself, not a
--- separate libnfdump-abi (see nfdump.h).
+-- The nfdump ABI is provided by its own libnfdump shared library.
+local function preload_in_tree_dependency(here)
+    for _, name in ipairs({ "libnffile.dylib", "libnffile.so" }) do
+        local candidate = here .. "../../../src/libnffile/.libs/" .. name
+        local f = io.open(candidate, "rb")
+        if f then
+            f:close()
+            return ffi.load(candidate, true)
+        end
+    end
+end
+
 local function find_lib()
     local explicit = os.getenv("NFDUMP_LIB")
     if explicit then return explicit end
     local here = arg[0]:match("(.*/)") or "./"
-    for _, name in ipairs({ "libnffile.dylib", "libnffile.so" }) do
-        local candidate = here .. "../../../src/libnffile/.libs/" .. name
+    preload_in_tree_dependency(here)
+    for _, name in ipairs({ "libnfdump.dylib", "libnfdump.so" }) do
+        local candidate = here .. "../../../src/libnfdump/.libs/" .. name
         local f = io.open(candidate, "rb")
         if f then f:close(); return candidate end
     end
-    error("could not locate libnffile; build nfdump first or set NFDUMP_LIB=/path/to/libnffile.{so,dylib}")
+    error("could not locate libnfdump; build nfdump first or set NFDUMP_LIB=/path/to/libnfdump.{so,dylib}")
 end
 
 local C = ffi.load(find_lib())
@@ -144,7 +155,7 @@ local function main(argv)
     print(string.format("nfdump ABI version: %d\n", C.nfdump_abi_version()))
 
     local fi = ffi.new("nfdump_field_info_t")
-    fi.abi_version, fi.struct_size = 1, ffi.sizeof("nfdump_field_info_t")
+    fi.struct_size = ffi.sizeof("nfdump_field_info_t")
     if C.nfdump_field_describe(C.NFDUMP_FIELD_IN_BYTES, fi) == C.NFDUMP_OK then
         print(string.format("field #%d: name=%s type=%d size=%d (of %d fields total)\n",
             tonumber(C.NFDUMP_FIELD_IN_BYTES), ffi.string(fi.name), tonumber(fi.type), fi.size, tonumber(C.nfdump_field_count())))
@@ -159,7 +170,7 @@ local function main(argv)
     local reader = readerPtr[0]
 
     local info = ffi.new("nfdump_file_info_t")
-    info.abi_version, info.struct_size = 1, ffi.sizeof("nfdump_file_info_t")
+    info.struct_size = ffi.sizeof("nfdump_file_info_t")
     if C.nfdump_reader_file_info(reader, info) == C.NFDUMP_OK then
         -- tonumber() on a uint64_t cdata goes through a Lua double, which is exact up to
         -- 2^53 - plenty for a flow/byte/packet count, just not the right tool near uint64 max.

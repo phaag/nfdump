@@ -19,8 +19,6 @@ nfxV3 = nffileV2/nfxV3.h nffileV2/nfxV3.c
 convert = nffileV3/nfconvert.h nffileV3/nfconvert.c
 conf = conf/nfconf.c conf/nfconf.h conf/toml.c conf/toml.h
 nflist = flist.c flist.h
-nfdumpabi = nfdump.h nfdump_abi.c
-
 if NO_FTS
 nflist += fts_compat.c fts_compat.h
 endif
@@ -34,16 +32,11 @@ vcs_track.h: Makefile
 	$(srcdir)/gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(logging) $(util) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(output) $(nfthread) $(bookkeeper) $(version) $(nfdumpabi)
+libnffile_la_SOURCES = $(conf) $(logging) $(util) $(compress) $(nffileV3) $(nffileV2) $(nfxV4) $(nfxV3) $(convert) $(nflist) $(output) $(nfthread) $(bookkeeper) $(version)
 nodist_libnffile_la_SOURCES = vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS) $(LIBSODIUM_CFLAGS)
 libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@
-
-# nfdump.h is the public read ABI - the only header this project
-# installs. Everything else in libnffile is internal. Matches
-# nfdump.pc.in's flat `-I${includedir}` Cflags.
-include_HEADERS = nfdump.h
 
 EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist
 

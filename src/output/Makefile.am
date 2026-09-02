@@ -1,5 +1,5 @@
 
-liboutput_a_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/collector $(DEPS_CFLAGS)
+liboutput_a_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnfquery -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/collector $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = liboutput.a
 

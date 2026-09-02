@@ -30,9 +30,8 @@ TEST_BZIP2="$(TEST_BZIP2)"; export TEST_BZIP2 \
 TEST_ZSTD="$(TEST_ZSTD)"; export TEST_ZSTD \
 ;
 
-AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnfdump -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnfquery -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/netflow -I$(top_srcdir)/src/collector $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
-AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)
 
@@ -41,16 +40,16 @@ NFDUMP_TRANSITIVE_LIBS = $(PCRE2_LIBS) $(NFFILE_TRANSITIVE_LIBS)
 
 nfgen4_SOURCES = nfgen4.c
 nfgen4_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
-nfgen4_LDFLAGS = -L../libnffile
+nfgen4_LDFLAGS = -L$(top_builddir)/src/libnffile
 
 nftest_SOURCES = nftest.c
-nftest_LDADD = -lnfdump -lnffile $(NFDUMP_TRANSITIVE_LIBS)
-nftest_LDFLAGS = -L../libnfdump -L../libnffile
+nftest_LDADD = -lnfquery -lnffile $(NFDUMP_TRANSITIVE_LIBS)
+nftest_LDFLAGS = -L$(top_builddir)/src/libnfquery -L$(top_builddir)/src/libnffile
 nftest_DEPENDENCIES = nfgen4
 
 test_append_SOURCES = test_append.c
 test_append_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
-test_append_LDFLAGS = -L../libnffile
+test_append_LDFLAGS = -L$(top_builddir)/src/libnffile
 
 sflowgen_SOURCES = sflowgen.c
 sflowgen_LDFLAGS =

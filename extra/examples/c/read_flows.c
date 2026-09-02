@@ -1,14 +1,4 @@
-/*
- * read_flows.c — minimal usage example for the nfdump read ABI.
- *
- * Opens an nfcapd/sfcapd file, prints its file-level stats, then iterates
- * every flow record and prints a handful of common fields for the first
- * few records plus running totals for all of them.
- *
- * See ../../../src/libnffile/nfdump.h for the full API.
- *
- * Build: see the Makefile in this directory.
- */
+/* Minimal nfdump reader example. See nfdump(3) and the local Makefile. */
 
 #include <arpa/inet.h>
 #include <inttypes.h>
@@ -56,11 +46,8 @@ int main(int argc, char **argv) {
 
     printf("nfdump ABI version: %u\n\n", nfdump_abi_version());
 
-    /* One field introspected via nfdump_field_describe(), to show generic
-     * tooling (an Arkime plugin, a schema generator, ...) can enumerate
-     * every field at runtime instead of hardcoding it - see
-     * nfdump_field_count()/nfdump_field_describe() in nfdump.h. */
-    nfdump_field_info_t fi = {.abi_version = NFDUMP_ABI_VERSION, .struct_size = sizeof(fi)};
+    /* Field metadata is available for generic consumers at runtime. */
+    nfdump_field_info_t fi = {.struct_size = sizeof(fi)};
     if (nfdump_field_describe(NFDUMP_FIELD_IN_BYTES, &fi) == NFDUMP_OK) {
         printf("field #%d: name=%s type=%d size=%u (of %zu fields total)\n\n", NFDUMP_FIELD_IN_BYTES, fi.name, fi.type, fi.size,
                nfdump_field_count());
@@ -73,7 +60,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    nfdump_file_info_t info = {.abi_version = NFDUMP_ABI_VERSION, .struct_size = sizeof(info)};
+    nfdump_file_info_t info = {.struct_size = sizeof(info)};
     if (nfdump_reader_file_info(reader, &info) == NFDUMP_OK) {
         printf("file: numFlows=%" PRIu64 " numBytes=%" PRIu64 " numPackets=%" PRIu64 " ident=%s\n\n", info.numFlows, info.numBytes,
                info.numPackets, info.ident ? info.ident : "(none)");

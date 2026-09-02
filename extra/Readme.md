@@ -8,8 +8,8 @@ Feel free to send updates/patches if something does not work.
 ## Contents
 
 - `examples/` - usage examples for the nfdump read ABI
-  (`src/libnffile/nfdump.h`) in C, Python, Rust, Go, and Lua. These files
-  are part of the nfdump distribution.  — see `examples/README.md`.
+  (`src/libnfdump/nfdump.h`) in C, Python, Rust, Go, and Lua. These files
+  are part of the nfdump distribution — see `examples/README.md`.
 - `CreateSubHierarchy.pl` - reorganizes flat `nfcapd.*` files into a `-S`
   subdirectory layout. Its format table still matches nfcapd/sfcapd's `-S`
   numbering in 1.8.x. Legacy code.

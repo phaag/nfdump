@@ -1,7 +1,7 @@
 # Python example
 
 `nfdump.py` is a small `ctypes` binding for the ABI in
-[`../../../src/libnffile/nfdump.h`](../../../src/libnffile/nfdump.h); see
+[`../../../src/libnfdump/nfdump.h`](../../../src/libnfdump/nfdump.h); see
 its module docstring for how the struct layouts are kept in sync by hand.
 `read_flows.py` is the usage example.
 
@@ -11,13 +11,13 @@ its module docstring for how the struct layouts are kept in sync by hand.
 python3 read_flows.py <nfcapd-file> [max-records-to-print]
 ```
 
-`nfdump.py` looks for the in-tree `libnffile` build at
-`../../../src/libnffile/.libs/` relative to itself (i.e. this repo's own
+`nfdump.py` looks for the in-tree `libnfdump` build at
+`../../../src/libnfdump/.libs/` relative to itself (i.e. this repo's own
 build — see the top-level [examples README](../README.md) for why there's
 no installed library yet). Point it elsewhere with:
 
 ```
-NFDUMP_LIB=/path/to/libnffile.dylib python3 read_flows.py ...
+NFDUMP_LIB=/path/to/libnfdump.dylib python3 read_flows.py ...
 ```
 
 ## Using it as a library

@@ -213,11 +213,10 @@ void FreeFileCrypto(nffile_crypto_t *crypto) {
 /* sodium.h already included above the unconditional InitCrypto/FreeFileCrypto */
 
 /* -----------------------------------------------------------------------
- * Module-level read-path context: set by RegisterReadCryptoCtx().
- * NULL → fall back to secure_prompt() in DeriveKeyFromFile().
- * This pointer is never freed here; the caller owns it.
+ * Module-level read-path context. The caller owns this pointer.
  * ----------------------------------------------------------------------- */
 static const crypto_ctx_t *g_readCtx = NULL;
+static int g_readInteractive = 1;
 
 /* -----------------------------------------------------------------------
  * Internal helper: run Argon2id KDF and write the 32-byte result into out.
@@ -312,9 +311,14 @@ void FreeCryptoCtx(crypto_ctx_t *ctx) {
  * DeriveKeyFromFile().  Pass NULL to revert to interactive prompting.
  * ----------------------------------------------------------------------- */
 void RegisterReadCryptoCtx(const crypto_ctx_t *ctx) {
-    //
     g_readCtx = ctx;
 }  // End of RegisterReadCryptoCtx
+
+int SetReadCryptoInteractive(int enabled) {
+    int previous = g_readInteractive;
+    g_readInteractive = enabled != 0;
+    return previous;
+}  // End of SetReadCryptoInteractive
 
 /* -----------------------------------------------------------------------
  * DeriveKeyForNewFile — write path: generate fresh random salt, derive key,
@@ -366,13 +370,16 @@ int DeriveKeyFromFile(const cryptoHeaderBlock_t *cryptoHdr, nffile_crypto_t *out
             return 0;
         }
         passphrase = unmasked;
-    } else {
+    } else if (g_readInteractive) {
         prompted = secure_prompt("Enter decryption passphrase: ");
         if (!prompted) {
             LogError("DeriveKeyFromFile: failed to read passphrase interactively");
             return 0;
         }
         passphrase = prompted;
+    } else {
+        LogError("DeriveKeyFromFile: encrypted file requires a passphrase");
+        return 0;
     }
 
     int ok = deriveKey(passphrase, cryptoHdr->salt, out->encKey);
@@ -511,9 +518,13 @@ void FreeCryptoCtx(crypto_ctx_t *ctx) {
 }  // End of FreeCryptoCtx
 
 void RegisterReadCryptoCtx(const crypto_ctx_t *ctx) {
-    //
     (void)ctx;
 }  // End of RegisterReadCryptoCtx
+
+int SetReadCryptoInteractive(int enabled) {
+    (void)enabled;
+    return 0;
+}  // End of SetReadCryptoInteractive
 
 int DeriveKeyForNewFile(const crypto_ctx_t *ctx, nffile_crypto_t *out, uint8_t salt32_out[32]) {
     (void)ctx;

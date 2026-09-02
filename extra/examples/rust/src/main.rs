@@ -1,7 +1,7 @@
 //! read_flows — usage example for the nfdump read ABI from Rust.
 //!
 //! Hand-declares the extern "C" surface of
-//! ../../../src/libnffile/nfdump.h rather than pulling in bindgen (see
+//! ../../../src/libnfdump/nfdump.h rather than pulling in bindgen (see
 //! Cargo.toml) - fine for a small, stable header like this one.
 //!
 //! Note the deliberate choice below to represent nfdump_status_t and
@@ -64,8 +64,6 @@ mod field {
     pub const ENGINE_ID: i32 = 33;
     pub const NF_VERSION: i32 = 34;
 }
-
-const ABI_VERSION: u32 = 1;
 
 // ---------------------------------------------------------------------
 // struct mirrors - #[repr(C)] gives the same layout/padding rules as a C
@@ -145,7 +143,7 @@ impl Reader {
 
     fn file_info(&self) -> Result<FileInfo, i32> {
         let mut info = FileInfo {
-            abi_version: ABI_VERSION,
+            abi_version: 0,
             struct_size: std::mem::size_of::<FileInfo>() as u32,
             num_flows: 0,
             num_bytes: 0,
@@ -242,7 +240,7 @@ fn main() {
 
     println!("nfdump ABI version: {}\n", unsafe { nfdump_abi_version() });
 
-    let mut fi = FieldInfo { abi_version: ABI_VERSION, struct_size: std::mem::size_of::<FieldInfo>() as u32, name: ptr::null(), field_type: 0, size: 0 };
+    let mut fi = FieldInfo { abi_version: 0, struct_size: std::mem::size_of::<FieldInfo>() as u32, name: ptr::null(), field_type: 0, size: 0 };
     if unsafe { nfdump_field_describe(field::IN_BYTES, &mut fi) } == STATUS_OK {
         println!(
             "field #{}: name={} type={} size={} (of {} fields total)\n",

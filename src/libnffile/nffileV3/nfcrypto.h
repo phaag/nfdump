@@ -157,6 +157,13 @@ void FreeCryptoCtx(crypto_ctx_t *ctx);
 void RegisterReadCryptoCtx(const crypto_ctx_t *ctx);
 
 /*
+ * Enable or disable the read-path passphrase prompt. Returns the previous
+ * setting. Library callers disable it when a missing passphrase must fail
+ * rather than read from a terminal.
+ */
+int SetReadCryptoInteractive(int enabled);
+
+/*
  * -----------------------------------------------------------------------
  * Internal functions — called by nfwrite.c and nfread.c only.
  * Not intended for direct use by CLI tools.

@@ -121,7 +121,7 @@ AS_IF([test "x$enable_lto" != "xno" -a "x$enable_devel" != "xyes"], [
 # and shared libraries on GNU ld / lld (default-visibility symbols are roots).
 # macOS -dead_strip is intentionally NOT used here: it strips exported symbols
 # from shared libraries (.dylib) that have no callers within the lib itself,
-# breaking the public API of libnffile/libnfdump.
+# breaking the public ABI of libnfdump.
 # LTO already handles dead code elimination on all platforms.
 AS_IF([test "x$enable_devel" != "xyes"], [
   AX_CHECK_COMPILE_FLAG([-ffunction-sections -fdata-sections], [have_sec_flags=yes], [have_sec_flags=no])
@@ -344,6 +344,7 @@ AC_CONFIG_FILES([
 	src/inline/Makefile
 	src/include/Makefile
 	src/libnffile/Makefile
+	src/libnfquery/Makefile
 	src/libnfdump/Makefile
 	src/output/Makefile
 	src/netflow/Makefile

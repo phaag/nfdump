@@ -2,7 +2,7 @@
 nfdump.py — a small ctypes binding for the nfdump read ABI.
 
 This hand-writes the ctypes.Structure/function-prototype mirrors of
-../../../src/libnffile/nfdump.h. ctypes has no way to parse a C header
+../../../src/libnfdump/nfdump.h. ctypes has no way to parse a C header
 directly (cffi/ctypesgen can, if that route is preferred) so the struct
 layouts below must be kept in sync with nfdump.h by hand. ctypes.Structure
 uses the platform's natural C struct alignment by default (no _pack_ set
@@ -161,14 +161,13 @@ class FieldInfo(ctypes.Structure):
 # ---------------------------------------------------------------------
 def _default_search_paths():
     """
-    Best-effort search for the in-tree libnffile build (the nfdump ABI is
-    currently compiled into it, not a separate library - see nfdump.h).
+    Best-effort search for the in-tree libnfdump ABI build.
     Set NFDUMP_LIB to an explicit path to skip guessing entirely.
     """
     here = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.normpath(os.path.join(here, "..", "..", ".."))
-    libdir = os.path.join(repo_root, "src", "libnffile", ".libs")
-    for name in ("libnffile.dylib", "libnffile.so"):
+    libdir = os.path.join(repo_root, "src", "libnfdump", ".libs")
+    for name in ("libnfdump.dylib", "libnfdump.so"):
         candidate = os.path.join(libdir, name)
         if os.path.exists(candidate):
             yield candidate
@@ -178,14 +177,28 @@ def _load_library():
     explicit = os.environ.get("NFDUMP_LIB")
     if explicit:
         return ctypes.CDLL(explicit)
+
+    # The in-tree public dylib has libnffile as a private runtime dependency.
+    # Preload it so this example also works without setting a loader-path
+    # environment variable (notably on macOS, where the install name is
+    # absolute). An installed libnfdump resolves this normally.
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.normpath(os.path.join(here, "..", "..", ".."))
+    depdir = os.path.join(repo_root, "src", "libnffile", ".libs")
+    for name in ("libnffile.dylib", "libnffile.so"):
+        dependency = os.path.join(depdir, name)
+        if os.path.exists(dependency):
+            ctypes.CDLL(dependency, mode=ctypes.RTLD_GLOBAL)
+            break
+
     for candidate in _default_search_paths():
         return ctypes.CDLL(candidate)
-    found = ctypes.util.find_library("nffile") or ctypes.util.find_library("nfdump-abi")
+    found = ctypes.util.find_library("nfdump")
     if found:
         return ctypes.CDLL(found)
     raise OSError(
-        "could not locate libnffile/libnfdump-abi; build nfdump first or set "
-        "NFDUMP_LIB=/path/to/libnffile.{so,dylib}"
+        "could not locate libnfdump; build nfdump first or set "
+        "NFDUMP_LIB=/path/to/libnfdump.{so,dylib}"
     )
 
 
@@ -230,7 +243,7 @@ def field_count():
 
 
 def field_describe(field):
-    fi = FieldInfo(abi_version=ABI_VERSION, struct_size=ctypes.sizeof(FieldInfo))
+    fi = FieldInfo(struct_size=ctypes.sizeof(FieldInfo))
     st = _lib.nfdump_field_describe(field, ctypes.byref(fi))
     if st != OK:
         raise NfdumpError(st)
@@ -331,7 +344,7 @@ class Reader:
             self._reader = ctypes.POINTER(_NfdumpReader)()
 
     def file_info(self):
-        info = FileInfo(abi_version=ABI_VERSION, struct_size=ctypes.sizeof(FileInfo))
+        info = FileInfo(struct_size=ctypes.sizeof(FileInfo))
         st = _lib.nfdump_reader_file_info(self._reader, ctypes.byref(info))
         if st != OK:
             raise NfdumpError(st)

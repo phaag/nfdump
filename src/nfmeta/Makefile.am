@@ -8,6 +8,6 @@ nfmeta_CFLAGS = $(PTHREAD_CFLAGS)
 
 nfmeta_LDADD = -lnffile $(PTHREAD_LIBS)
 nfmeta_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
-nfmeta_LDFLAGS = -L../libnffile
+nfmeta_LDFLAGS = -L$(top_builddir)/src/libnffile
 
 CLEANFILES = *.gch

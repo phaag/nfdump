@@ -8,6 +8,6 @@ nfanon_CFLAGS = $(PTHREAD_CFLAGS)
 
 nfanon_LDADD = -lnffile $(PTHREAD_LIBS)
 nfanon_LDADD += $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
-nfanon_LDFLAGS = -L../libnffile
+nfanon_LDFLAGS = -L$(top_builddir)/src/libnffile
 
 CLEANFILES = *.gch
