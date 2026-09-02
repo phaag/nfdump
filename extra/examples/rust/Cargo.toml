@@ -1,0 +1,14 @@
+[package]
+name = "read_flows"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Deliberately zero dependencies (no bindgen, no libc crate): the FFI
+# surface in src/main.rs is small enough to hand-declare, and this way
+# `cargo build` never needs network access to crates.io. See build.rs for
+# how it finds the in-tree nfdump library.
+
+[[bin]]
+name = "read_flows"
+path = "src/main.rs"

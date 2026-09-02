@@ -4,7 +4,7 @@ libdir=@libdir@
 includedir=@includedir@
 
 Name: nfdump
-Description: NetFlow processing toolkit
+Description: nfdump read ABI - read-only C library for nffile flow-capture files
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -lnfdump @ZSTD_LIBS@ @PTHREAD_LIBS@
-Cflags: -I${includedir} @ZSTD_CFLAGS@
+Libs: -L${libdir} -lnffile @LZ4_LIBS@ @ZSTD_LIBS@ @BZ2_LIBS@ @LIBSODIUM_LIBS@ @PTHREAD_LIBS@
+Cflags: -I${includedir} @LZ4_CFLAGS@ @ZSTD_CFLAGS@ @BZ2_CFLAGS@ @LIBSODIUM_CFLAGS@ @PTHREAD_CFLAGS@

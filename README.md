@@ -452,6 +452,18 @@ in place.
 - `nfreader` — A C framework/example for custom nffile readers; it is not
   installed by default.
 
+## Reading flow files from other programs (C ABI)
+
+Besides the tools above, nfdump exposes a small, new, read-only C ABI
+for external programs to open an nffile V3 file and iterate its flow
+records directly. The interface is listed in — [`nfdump.h`](src/libnffile/nfdump.h).
+Nfdump files V2 froom nfdump 1.7.x are read transparently.
+The ABI is plain C, no C++ — so any language with a C FFI can call
+it, and `make install` installs the header and a `pkg-config nfdump`
+entry alongside the usual binaries. The directory `extra/examples/` contains
+small examples in C, Python, Rust, Go, and Lua and an corresponding README file 
+to build and run them.
+
 ## Sampling and event logging
 
 Sampling is normally determined from exporter-provided NetFlow v9/IPFIX option
