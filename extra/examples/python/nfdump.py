@@ -159,46 +159,43 @@ class FieldInfo(ctypes.Structure):
 # ---------------------------------------------------------------------
 # library loading
 # ---------------------------------------------------------------------
-def _default_search_paths():
-    """
-    Best-effort search for the in-tree libnfdump ABI build.
-    Set NFDUMP_LIB to an explicit path to skip guessing entirely.
-    """
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.normpath(os.path.join(here, "..", "..", ".."))
-    libdir = os.path.join(repo_root, "src", "libnfdump", ".libs")
-    for name in ("libnfdump.dylib", "libnfdump.so"):
-        candidate = os.path.join(libdir, name)
-        if os.path.exists(candidate):
-            yield candidate
-
-
 def _load_library():
+    """
+    Loads libnfdump: an explicit NFDUMP_LIB path first, then the installed
+    library found the normal way for the platform, then the default
+    install prefix (/usr/local) as a last resort. Does not look inside any
+    nfdump source tree - if nfdump isn't installed under one of these, this
+    raises rather than guess further.
+    """
     explicit = os.environ.get("NFDUMP_LIB")
     if explicit:
         return ctypes.CDLL(explicit)
 
-    # The in-tree public dylib has libnffile as a private runtime dependency.
-    # Preload it so this example also works without setting a loader-path
-    # environment variable (notably on macOS, where the install name is
-    # absolute). An installed libnfdump resolves this normally.
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.normpath(os.path.join(here, "..", "..", ".."))
-    depdir = os.path.join(repo_root, "src", "libnffile", ".libs")
-    for name in ("libnffile.dylib", "libnffile.so"):
-        dependency = os.path.join(depdir, name)
-        if os.path.exists(dependency):
-            ctypes.CDLL(dependency, mode=ctypes.RTLD_GLOBAL)
-            break
-
-    for candidate in _default_search_paths():
-        return ctypes.CDLL(candidate)
     found = ctypes.util.find_library("nfdump")
     if found:
-        return ctypes.CDLL(found)
+        try:
+            return ctypes.CDLL(found)
+        except OSError:
+            # Found *a* library by that name, but it wouldn't load - e.g. an
+            # unrelated or stale library at a standard path. Fall through
+            # rather than crash on what might not even be nfdump.
+            pass
+
+    # find_library() missed it, or found something that wouldn't load -
+    # try the default install prefix directly. An installed libnfdump
+    # resolves its own libnffile dependency with no extra help.
+    prefix = os.environ.get("PREFIX", "/usr/local")
+    for name in ("libnfdump.dylib", "libnfdump.so"):
+        candidate = os.path.join(prefix, "lib", name)
+        if os.path.exists(candidate):
+            try:
+                return ctypes.CDLL(candidate)
+            except OSError:
+                pass
+
     raise OSError(
-        "could not locate libnfdump; build nfdump first or set "
-        "NFDUMP_LIB=/path/to/libnfdump.{so,dylib}"
+        "could not locate libnfdump; install nfdump (pkg-config nfdump "
+        "should then find it), or set NFDUMP_LIB=/path/to/libnfdump.{so,dylib}"
     )
 
 

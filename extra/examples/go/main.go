@@ -6,14 +6,22 @@
 // itself (C.nfdump_record_view_t, C.nfdump_field_id_t, ...), so there is
 // nothing here to keep in sync by hand if the header changes.
 //
-// Build/run: see the README in this directory - in short, CGO_CFLAGS and
-// CGO_LDFLAGS need to point at the in-tree nfdump build, and the dynamic
-// loader needs the same directory at run time.
+// Build/run: see the README in this directory. Unlike the C/Rust/Python/
+// Lua examples, this one can't automatically prefer pkg-config and fall
+// back to a default path: cgo's #cgo directives are static, and
+// "#cgo pkg-config: nfdump" is a hard build failure (not a soft,
+// skippable check) when pkg-config can't find the package - confirmed
+// while writing this example. So this defaults to the default install
+// prefix (/usr/local) directly, like the other examples' own fallback -
+// this file doesn't reach into the nfdump source tree at all. If nfdump
+// is installed somewhere pkg-config knows about but /usr/local doesn't,
+// swap the two lines below for the single "#cgo pkg-config: nfdump"
+// alternative instead.
 package main
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../../src/libnfdump
-#cgo LDFLAGS: -L${SRCDIR}/../../../src/libnfdump/.libs -lnfdump
+#cgo CFLAGS: -I/usr/local/include
+#cgo LDFLAGS: -L/usr/local/lib -lnfdump
 #include <stdlib.h>
 #include "nfdump.h"
 */

@@ -4,46 +4,44 @@ These small readers use the public libnfdump ABI from C, Python, Rust, Go,
 and Lua. Each prints file metadata, demonstrates field introspection, and
 iterates common 5-tuple and counter fields.
 
-The complete API contract is in src/libnfdump/nfdump.h and nfdump(3).
+The complete API contract is in src/libnfdump/nfdump.h and `nfdump(3)`.
+Each language directory's own README has a short usage sketch — a few
+lines showing the shape of the API in that language — before its build
+instructions.
 
-## Build against this source tree
+## Build and run
 
-Build nfdump first. The examples use the in-tree libraries, so the dynamic
-loader must also find libnfdump and its libnffile dependency.
+Every example resolves nfdump the same way, independently of the nfdump
+source tree — none of them reach into `../../../src/...` or need to be
+built from inside a checkout:
 
-    cd c
-    make
-    make run FILE=<nfdump-file>
+1. **Installed, found automatically.** C, Rust, and Go (by default) use
+   `pkg-config`; Python and Lua use the normal per-platform library
+   search (`ctypes.util.find_library`/a bare `ffi.load` name).
+2. **Installed at the default prefix (`/usr/local`), found directly**,
+   if step 1 didn't find it.
+3. **Fails**, clearly, if nfdump isn't at either — a compiler/linker
+   error for C/Rust/Go, an `OSError`/Lua `error()` for Python/Lua.
 
-    cd ../python
-    python3 read_flows.py <nfdump-file>
+Once resolved, the installed library resolves its own private
+dependencies (`libnffile`) at run time on its own — no loader-path
+environment variable needed for any of them:
 
-    cd ../rust
-    cargo build
-    DYLD_LIBRARY_PATH=../../../src/libnfdump/.libs:../../../src/libnffile/.libs \
-        ./target/debug/read_flows <nfdump-file>
+    cd c      && make                          && ./read_flows <nfdump-file>
+    cd python && python3 read_flows.py <nfdump-file>
+    cd rust   && cargo build                    && ./target/debug/read_flows <nfdump-file>
+    cd go     && go build -o read_flows .        && ./read_flows <nfdump-file>
+    cd lua    && luajit read_flows.lua <nfdump-file>
 
-    cd ../go
-    go build -o read_flows .
-    LD_LIBRARY_PATH=../../../src/libnfdump/.libs:../../../src/libnffile/.libs \
-        ./read_flows <nfdump-file>
+Go is the one exception to step 1's automatic `pkg-config` preference:
+cgo's `#cgo` directives are static, and a `pkg-config` miss there is a
+hard build failure rather than a skippable check, so `go/main.go`
+defaults straight to step 2 — see `go/README.md` for how to point it at
+`pkg-config` or a non-default prefix instead.
 
-    cd ../lua
-    luajit read_flows.lua <nfdump-file>
-
-Use LD_LIBRARY_PATH on Linux and DYLD_LIBRARY_PATH on macOS. Each language
-directory has its exact build requirements and supports the documented
-environment override when the nfdump tree is elsewhere.
-
-## Build after installation
-
-C applications should use pkg-config:
-
-    cc $(pkg-config --cflags nfdump) -o read_flows read_flows.c \
-       $(pkg-config --libs nfdump)
-
-The installed library resolves its private dependencies normally; no loader
-path override is needed.
+Each language directory's README has the exact environment-variable
+override (`PREFIX`/`NFDUMP_LIB`/`PKG_CONFIG`) if your install lives
+somewhere unusual.
 
 ## Language choices
 

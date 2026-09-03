@@ -93,32 +93,68 @@ nfdump_status_t nfdump_field_describe(nfdump_field_id_t field, nfdump_field_info
 nfdump_status_t nfdump_record_get(nfdump_reader_t *reader, nfdump_field_id_t field, void *out, size_t out_size);
 ]]
 
--- The nfdump ABI is provided by its own libnfdump shared library.
-local function preload_in_tree_dependency(here)
-    for _, name in ipairs({ "libnffile.dylib", "libnffile.so" }) do
-        local candidate = here .. "../../../src/libnffile/.libs/" .. name
+-- ffi.load()'s underlying dlopen() is lazily bound: it happily "succeeds"
+-- against a library that doesn't actually export what we need (observed
+-- for real: a stale, unrelated libnfdump at a standard path loaded
+-- without error, then crashed deep inside unrelated code the moment a
+-- missing symbol was first called). So every candidate below is verified
+-- by actually calling nfdump_abi_version() before being trusted, not just
+-- by whether ffi.load() itself raised.
+local function verified(lib)
+    local ok, version = pcall(function() return lib.nfdump_abi_version() end)
+    if ok and type(version) == "number" and version >= 1 then return lib end
+    return nil
+end
+
+-- Loads libnfdump: an explicit NFDUMP_LIB path first, then the installed
+-- library found the normal way for the platform (a bare name lets the
+-- dynamic loader's own search - ldconfig on Linux, DYLD_FALLBACK_LIBRARY_
+-- PATH incl. /usr/local/lib on macOS - find it), then the default install
+-- prefix (/usr/local) as a last resort. Does not look inside any nfdump
+-- source tree - if nfdump isn't installed under one of these, this
+-- errors rather than guess further.
+local function open_lib()
+    local explicit = os.getenv("NFDUMP_LIB")
+    if explicit then
+        -- Trust the caller's own path, but still verify it - a clear error
+        -- now beats a cryptic crash later if it points at the wrong file.
+        local good = verified(ffi.load(explicit))
+        if not good then
+            error("NFDUMP_LIB=" .. explicit .. " loaded but does not look like libnfdump")
+        end
+        return good
+    end
+
+    local ok, lib = pcall(ffi.load, "nfdump")
+    if ok then
+        local good = verified(lib)
+        if good then return good end
+    end
+
+    -- The bare-name search missed it (or found something that wouldn't
+    -- load or verify) - try the default install prefix directly. An
+    -- installed libnfdump resolves its own libnffile dependency with no
+    -- extra help.
+    local prefix = os.getenv("PREFIX") or "/usr/local"
+    for _, name in ipairs({ "libnfdump.dylib", "libnfdump.so" }) do
+        local candidate = prefix .. "/lib/" .. name
         local f = io.open(candidate, "rb")
         if f then
             f:close()
-            return ffi.load(candidate, true)
+            local pok, plib = pcall(ffi.load, candidate)
+            if pok then
+                local good = verified(plib)
+                if good then return good end
+            end
         end
     end
+
+    error("could not locate a working libnfdump; install nfdump (a bare "
+        .. "'nfdump' load should then find it), or set "
+        .. "NFDUMP_LIB=/path/to/libnfdump.{so,dylib}")
 end
 
-local function find_lib()
-    local explicit = os.getenv("NFDUMP_LIB")
-    if explicit then return explicit end
-    local here = arg[0]:match("(.*/)") or "./"
-    preload_in_tree_dependency(here)
-    for _, name in ipairs({ "libnfdump.dylib", "libnfdump.so" }) do
-        local candidate = here .. "../../../src/libnfdump/.libs/" .. name
-        local f = io.open(candidate, "rb")
-        if f then f:close(); return candidate end
-    end
-    error("could not locate libnfdump; build nfdump first or set NFDUMP_LIB=/path/to/libnfdump.{so,dylib}")
-end
-
-local C = ffi.load(find_lib())
+local C = open_lib()
 
 local function checked(status, context)
     if status ~= C.NFDUMP_OK then

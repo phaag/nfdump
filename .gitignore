@@ -45,6 +45,9 @@
 # Automake generated files
 *Makefile
 *Makefile.in
+# ...but not this one: it's hand-written, not autotools-generated - the C
+# example's own build file, not part of the automake tree at all.
+!extra/examples/c/Makefile
 /INSTALL
 /Makefile.in
 /aclocal.m4
