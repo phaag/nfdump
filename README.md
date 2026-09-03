@@ -449,8 +449,6 @@ in place.
 - `ft2nfdump` — Convert flow-tools files to nfdump; optional at configure time.
 - `nfprofile` — Process NfSen profiles and channels; optional at configure time.
 - `nftrack` — Support NfSen port tracking; optional at configure time.
-- `nfreader` — A C framework/example for custom nffile readers; it is not
-  installed by default.
 
 ## Reading flow files from other programs (C ABI)
 
@@ -462,7 +460,7 @@ are read transparently, matching the CLI's own behavior.
 The ABI is plain C, no C++ — so any language with a C FFI can call
 it, and `make install` installs the header and a `pkg-config nfdump`
 entry alongside the usual binaries. The directory `extra/examples/` contains
-small examples in C, Python, Rust, Go, and Lua and a corresponding README file
+small examples in C (replaces old nfreader) , Python, Rust, Go, and Lua and a corresponding README file
 to build and run them.
 
 ## Sampling and event logging

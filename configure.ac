@@ -356,7 +356,6 @@ AC_CONFIG_FILES([
 	src/nfexpire/Makefile 
 	src/nfanon/Makefile
 	src/nfreplay/Makefile
-	src/nfreader/Makefile 
 	src/maxmind/Makefile
 	src/tor/Makefile
 	src/nfmeta/Makefile
