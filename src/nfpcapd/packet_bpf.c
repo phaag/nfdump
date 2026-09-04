@@ -215,9 +215,10 @@ static void ReportStat(packetParam_t *param) {
         LogError("ioctl(BIOCGSTATS) failed: %s", strerror(errno));
     }
 
-    LogInfo("Packets kernel received: %u, dropped by OS/Buffer: %u, processed: %" PRIu64 " , decode errors: %u, short caplen: %u, unknown: %u",
+    LogInfo("Packets kernel received: %u, dropped by OS/Buffer: %u, processed: %" PRIu64 " , decode errors: %u, short caplen: %u, skipped: %u, unknown: %u",
             pstat.bs_recv - last_stat.bs_recv, pstat.bs_drop - last_stat.bs_drop, param->proc_stat.packets - proc_stat.packets,
             param->proc_stat.decoding_errors - proc_stat.decoding_errors, param->proc_stat.short_snap - proc_stat.short_snap,
+            param->proc_stat.skipped - proc_stat.skipped,
             param->proc_stat.unknown - proc_stat.unknown);
 
     last_stat = pstat;

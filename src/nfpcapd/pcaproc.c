@@ -643,6 +643,10 @@ int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, con
                 packetParam->proc_stat.decoding_errors++;
                 done = 1;
                 break;
+            case DECODE_SKIPPED:
+                packetParam->proc_stat.skipped++;
+                done = 1;
+                break;
             case DECODE_UNKNOWN:
                 packetParam->proc_stat.unknown++;
                 done = 1;

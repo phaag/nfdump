@@ -150,7 +150,7 @@ static decode_state_t decode_ethertype(decode_ctx_t *ctx) {
             }
             if (Code != 0) {
                 // skip packets other than session data
-                return DECODE_UNKNOWN;
+                return DECODE_SKIPPED;
             }
             if (pppProto != 0x0021 /* v4 */ && pppProto != 0x0057 /* v6 */) {
                 LogError("Unsupported ppp proto: 0x%x", pppProto);
@@ -162,14 +162,14 @@ static decode_state_t decode_ethertype(decode_ctx_t *ctx) {
 
         case ETHERTYPE_PPPOEDISC: {
             // skip PPPoE discovery messages
-            return DECODE_UNKNOWN;
+            return DECODE_SKIPPED;
         }
 
         case ETHERTYPE_ARP:          // skip ARP
         case ETHERTYPE_LOOPBACK:     // skip Loopback
         case ETHERTYPE_LLDP:         // skip LLDP
         case ETHERTYPE_FLOWCONTROL:  // skip flow control
-            return DECODE_UNKNOWN;
+            return DECODE_SKIPPED;
 
         default:
             LogError("Unsupported link protocol: 0x%x, packet: %u", ctx->protocol, ctx->pkg_cnt);

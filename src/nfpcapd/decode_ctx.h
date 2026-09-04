@@ -52,6 +52,7 @@ typedef enum {
     DECODE_DONE,        // Packet fully processed
     DECODE_SKIP,        // Skip packet - cursor error/truncated (short_snap)
     DECODE_ERROR,       // Protocol decoding error (decoding_errors)
+    DECODE_SKIPPED,     // Known protocol deliberately not represented as a flow (skipped)
     DECODE_UNKNOWN      // Unknown/unsupported protocol (unknown)
 } decode_state_t;
 

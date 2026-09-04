@@ -379,7 +379,7 @@ static decode_state_t decode_gre(decode_ctx_t *ctx) {
     }
 
     dbg_printf("Unsupported GRE protocol: 0x%x\n", gre_proto);
-    return DECODE_SKIP;
+    return DECODE_UNKNOWN;
 }  // End of decode_gre
 
 static decode_state_t decode_other(decode_ctx_t *ctx) {
