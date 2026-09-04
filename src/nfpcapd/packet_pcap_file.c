@@ -36,10 +36,8 @@
  * packet thread.
  *
  * API (minimal):
- *  int pcap_file_reader_start(const char *path, size_t batch_size);
- *  PktBatch_t *pcap_file_reader_pop(void); // blocking, returns NULL on EOF/error
- *  void pcap_file_reader_free_batch(PktBatch_t *b);
- *  void pcap_file_reader_stop(void);
+ *  int pcap_file_reader_start(packetParam_t *, readerParam_t *, const char *, const char *);
+ *  int pcap_file_reader_stop(readerParam_t *);
  *
  * Notes:
  *  - For gzipped files the reader copies packet payloads into malloc'd buffers
@@ -129,8 +127,10 @@ static int reader_mmap_run(readerParam_t *readerParam) {
     if (!batch) return -1;
 
     uint32_t cnt = 0;
+    int rc = 0;
     int done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
     while (remaining >= sizeof(struct pcaprec_hdr) && !done) {
+        size_t offset = (size_t)(p - (uint8_t *)readerParam->mmap_base);
         struct pcaprec_hdr rh;
         memcpy(&rh, p, sizeof(rh));
         p += sizeof(rh);
@@ -152,7 +152,17 @@ static int reader_mmap_run(readerParam_t *readerParam) {
         }
         size_t incl = pr.hdr.caplen;
 
-        if (incl > remaining) break;  // truncated - incomplete packet
+        if (pr.hdr.ts.tv_usec >= 1000000 || incl > (size_t)readerParam->snaplen || incl > pr.hdr.len) {
+            LogError("Malformed pcap record %u at offset %zu: ts_usec=%ld, caplen=%u, orig_len=%u, snaplen=%d", cnt, offset,
+                     (long)pr.hdr.ts.tv_usec, pr.hdr.caplen, pr.hdr.len, readerParam->snaplen);
+            rc = -1;
+            break;
+        }
+        if (incl > remaining) {
+            LogError("Truncated pcap record %u at offset %zu: caplen=%zu, only %zu bytes remain", cnt, offset, incl, remaining);
+            rc = -1;
+            break;
+        }
 
         pr.data = p;
 
@@ -187,6 +197,11 @@ static int reader_mmap_run(readerParam_t *readerParam) {
         // check for user interrupt - SIGINTR SIGTERM
         done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
     }
+    if (!done && rc == 0 && remaining != 0) {
+        size_t offset = (size_t)(p - (uint8_t *)readerParam->mmap_base);
+        LogError("Truncated pcap record header at offset %zu: only %zu bytes remain", offset, remaining);
+        rc = -1;
+    }
     dbg_printf("(%s) exit packet loop. Processed %u packets. Done state: %u\n", __func__, cnt, done);
 
     (void)cnt;
@@ -204,7 +219,7 @@ static int reader_mmap_run(readerParam_t *readerParam) {
 
     dbg_printf("(%s) exit\n", __func__);
 
-    return 0;
+    return rc;
 }  // End of reader_mmap_run
 
 static void *reader_thread(void *arg) {
@@ -225,7 +240,7 @@ static void *reader_thread(void *arg) {
 
     /* signal EOF by closing queue */
     queue_close(readerParam->batchQueue);
-    (void)rc; /* rc currently unused here; kept for future logging */
+    readerParam->reader_error = rc != 0;
 
     dbg_printf("Exit thread %s\n", __func__);
 
@@ -235,6 +250,7 @@ static void *reader_thread(void *arg) {
 // public pcap reader API
 int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerParam, const char *path, const char *filter) {
     if (readerParam->batch_size == 0) readerParam->batch_size = DEFAULT_BATCH_SIZE;
+    readerParam->reader_error = 0;
 
     /* initialize queue with capacity 64 (must be power of two) */
     readerParam->batchQueue = queue_init(8);
@@ -322,7 +338,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
     packetParam->batchQueue = readerParam->batchQueue;
     packetParam->live = 0;
 
-    readerParam->swapped = swapped;
+    if (readerParam->use_mmap) readerParam->swapped = swapped;
 
     /* compile BPF filter if provided */
     readerParam->have_filter = 0;
@@ -362,7 +378,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
     return 0;
 }  // End of pcap_file_reader_start
 
-void pcap_file_reader_stop(readerParam_t *readerParam) {
+int pcap_file_reader_stop(readerParam_t *readerParam) {
     /* wait for reader thread to exit (queue_close will be called by reader) */
     pthread_join(readerParam->reader_thread, NULL);
     if (readerParam->use_mmap) {
@@ -384,6 +400,7 @@ void pcap_file_reader_stop(readerParam_t *readerParam) {
         queue_free(readerParam->batchQueue);
         readerParam->batchQueue = NULL;
     }
+    return readerParam->reader_error ? -1 : 0;
 }  // End of pcap_file_reader_stop
 
 static void ReportStat(packetParam_t *param) {

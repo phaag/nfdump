@@ -611,6 +611,7 @@ int main(int argc, char *argv[]) {
     if (confBuffSize > (MINBUFFSIZE)) buffsize = (size_t)confBuffSize;
 
     int ret = 0;
+    int input_failed = 0;
     void *(*packet_thread)(void *) = NULL;
     if (pcapfile) {
         packetParam.live = 0;
@@ -816,7 +817,10 @@ int main(int argc, char *argv[]) {
 
     /* Cleanup file reader / libpcap handle depending on startup choice */
     if (packetParam.live == 0) {
-        pcap_file_reader_stop(&readerParam);
+        input_failed = pcap_file_reader_stop(&readerParam) != 0;
+        if (input_failed) {
+            LogError("PCAP input processing failed; output contains only packets processed before the failure");
+        }
     } else if (packetParam.pcap_dev) {
         pcap_close(packetParam.pcap_dev);
     }
@@ -854,5 +858,5 @@ int main(int argc, char *argv[]) {
     FreeCryptoCtx(crypto_ctx);
     EndLog();
 
-    exit(EXIT_SUCCESS);
+    exit(input_failed ? EXIT_FAILURE : EXIT_SUCCESS);
 } /* End of main */

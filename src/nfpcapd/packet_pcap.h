@@ -124,6 +124,7 @@ typedef struct readerParam_s {
     int linkType;
 
     int swapped;
+    int reader_error;
 
     int use_mmap;
     // memory mapped pcapd
@@ -180,7 +181,7 @@ void batch_free(PktBatch_t *batch);
 /* Fast file reader integration (mmap/gzip + batching) */
 int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerParam, const char *path, const char *filter);
 
-void pcap_file_reader_stop(readerParam_t *readerParam);
+int pcap_file_reader_stop(readerParam_t *readerParam);
 void *__attribute__((noreturn)) pcap_file_packet_thread(void *args);
 
 #ifdef USE_BPFSOCKET

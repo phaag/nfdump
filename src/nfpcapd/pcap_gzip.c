@@ -121,10 +121,20 @@ int reader_gz_run(readerParam_t *readerParam) {
     PktBatch_t *batch = batch_alloc(batch_size, readerParam->snaplen);
     if (!batch) return -1;
 
-    dbg(uint32_t cnt = 0);
+    uint32_t cnt = 0;
+    int rc = 0;
     struct pcaprec_hdr rh;
     int done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
-    while (gzread(gz, &rh, sizeof(rh)) == sizeof(rh) && !done) {
+    for (;;) {
+        int header_bytes = gzread(gz, &rh, sizeof(rh));
+        if (header_bytes == 0 || done) break;
+        if (header_bytes != sizeof(rh)) {
+            LogError("Truncated pcap record header %u: read %d of %zu bytes", cnt + 1, header_bytes, sizeof(rh));
+            rc = -1;
+            break;
+        }
+
+        cnt++;
         /* reference into mmap region */
         PacketRef pr;
         if (swapped) {
@@ -138,21 +148,22 @@ int reader_gz_run(readerParam_t *readerParam) {
             pr.hdr.caplen = rh.incl_len;
             pr.hdr.len = rh.orig_len;
         }
-        dbg(cnt++);
-
         size_t incl = pr.hdr.caplen;
+
+        if (pr.hdr.ts.tv_usec >= 1000000 || incl > (size_t)readerParam->snaplen || incl > pr.hdr.len) {
+            LogError("Malformed pcap record %u: ts_usec=%ld, caplen=%u, orig_len=%u, snaplen=%d", cnt, (long)pr.hdr.ts.tv_usec,
+                     pr.hdr.caplen, pr.hdr.len, readerParam->snaplen);
+            rc = -1;
+            break;
+        }
 
         // get new payload handle
         void *buf = payload_handle(batch, batch->count);
 
-        // should never trigger - test it anyway to prevent memory corruption
-        if (incl > batch->payload_size) {
-            LogError("pcap record exceeds snaplen");
-            break;
-        }
         int got = gzread(gz, buf, (unsigned)incl);
         if (got != (int)incl) {
-            LogError("Failed to gzread payload of size: %zu", incl);
+            LogError("Truncated pcap record %u payload: read %d of %zu bytes", cnt, got, incl);
+            rc = -1;
             break;
         }
 
@@ -197,5 +208,5 @@ int reader_gz_run(readerParam_t *readerParam) {
     }
 
     dbg_printf("(%s) exit\n", __func__);
-    return 0;
+    return rc;
 }  // End of reader_gz_run
