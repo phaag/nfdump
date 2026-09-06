@@ -5,7 +5,7 @@
 **nfdump** is a powerful suite of tools for collecting, processing, and analyzing NetFlow, IPFIX, and sFlow data from network devices. It supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
 
 > [!TIP]
-> **Tester wanted:** nfdump 1.8.x is nearing release. See the [devel_1.8.x](https://github.com/phaag/nfdump/tree/devel_1.8.x) branch. Give the new branch a try and let me know whether it works for you.
+> **Tester wanted:** nfdump 1.8.x is nearing release. See the [devel_1.8.x](https://github.com/phaag/nfdump/tree/1.8.x) branch. Give the new branch a try and let me know whether it works for you.
 
 ---
 
