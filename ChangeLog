@@ -1,1381 +1,1468 @@
-- 8f1af1c 2026-04-28  (HEAD -> master, origin/master, origin/HEAD) Fix exit codes
-- 24352a6 2026-04-22  Fix spelling errors and some uaf errors
-- 2e3c995 2026-04-22  Update ChangeLog and fix minor bugs
-- a22dcf0 2026-04-11  Cleanup filter code. Remove dead code
-- 13259cc 2026-04-04  Merge pull request #671 from castillo-n/fix/ipv6-dst-anon-uses-src
-- 6e39712 2026-04-04  Fix naming of variables
-- 3f7df8c 2026-04-02  Fix IPv6 destination anonymization using wrong address
-- 0683e3c 2026-03-29  Fix masked output in collector short prints. (-v3)
-- eb25282 2026-03-29  - Skip all '.' files in file listing process. Skip 1.8.x bookkeeping file - Improve robustness of netflow v9 time overflow handling
-- a9312e2 2026-03-20  Improve code of GuessSubDir()
-- 25ce654 2026-03-20  Fix string position, which silence error for 'Wrong time format' #669
-- 6292abd 2026-03-19  Fix minor bug in output_short. Fix #669 - remove debug assert() and make GuessSubDir more robust
-- 93ab698 2026-03-12  Add slack record and skip new v4 record. Fix address conversion in v1 processing
-- 01aea42 2026-03-05  Fix typos
-- 1b73c92 2026-03-04  Fix proper EXnull handling
-- 1499834 2026-02-26  Reduce min cycle time to 1s. New post processor thread can handle this. Fixed #664
-- 86a2cee 2026-02-26  Fix nfprofile race condition and therefore replace all remaining localtime() by localtime_r()
-- 68a18af 2026-02-25  Fix SetupPath() - terminating '\0'
-- 4d81212 2026-02-16  Remove old and no longer used libpcap life code
-- 6c6c87c 2026-02-16  Fix #667 duration bug in -s stat output
-- 14d0b46 2026-02-16  Cleanup TPACKETV3 code
-- 84f3b22 2026-02-16  Cleanup BPF code. Make buffer size configurable
-- fce61d7 2026-02-16  Fix IP fragment init code
-- 361bd5e 2026-02-15  Fix Statistic on BPF socket
-- 09de43b 2026-02-15  Fix nfpcapd build options and remove useless FIX_INCLUDES
-- dbdc2ba 2026-02-14  Fix potential swap32() double definition
-- b3e7370 2026-02-14  Add expire function to fragment list in nfpcapd
-- 8dfa9e5 2026-02-14  Update Readme
-- b9438dd 2026-02-14  Update nfpcapd - Refactor messy ProcessPacket code with state processing
-- e7af66f 2026-02-12  Update nfpcapd - Improve packet processing. Make it more robust
-- 9d585f8 2026-02-10  Update debug messages
-- 8c29f61 2026-02-10  Replace verbose option -v to verbose level -v <n> for most binaries. Needs more work
-- 3ea8d71 2026-02-09  Update nfpcapd - remove unused interrupt handler and use atomic done variables
-- 9a14047 2026-02-09  Fix statistic for pcap file processing
-- a2b1eb7 2026-02-09  Update nfpcapd - replace slow packet dump code by native calls
-- 5ab715f 2026-02-05  Add missing packet_pcap_file.c
-- 183f045 2026-02-05  Update nfpcapd - Replace pcap reader code with faster mmap version
-- ac07fa1 2026-02-04  Silently skip unknown records in nfanon. Fixed #665
-- 5aedf78 2026-02-04  Update nfpcapd - Modify slab allocator
-- 3490191 2026-02-03  Update nfpcapd - replace rb-tree with an open hash. Improves nfpcapd performance
-- dcabdb6 2026-02-01  Update nfpcapd - shrink slab check
-- 0cebb7c 2026-02-01  Update nfpcapd - Fix verbose logging
-- 8360a58 2026-02-01  Update nfpcapd - Update help text and man page for node cache size
-- 95b252e 2026-02-01  Update nfpcapd - Replace ever growing node cache with an adaptive slab allocator
-- edd6784 2026-01-31  Fix #662. Update man page
-- 29cf020 2026-01-29  Update nfpcapd - Rework a lot of code. Remove lock for NewNode() in hot path
-- 437fa2f 2026-01-27  Update nfpcapd - split node into hotNode and coldNode
-- 7c5b47d 2026-01-26  Update nfpcapd - re-arrange nfpcapd structs
-- c101504 2026-01-26  Update Readme for autotools 2.71.
-- b74d4d6 2026-01-26  Silently skip ETHERTYPE_FLOWCONTROL frames in nfpcapd
-- 855777b 2026-01-26  Fix memory leak, when processing and filtering ssl payload data
-- 446dd20 2026-01-22  Fix memory leak in sslFree
-- 6e71596 2026-01-22  Update stringList_t code
-- 1988d88 2026-01-19  Improve queue code - double cond vars improve performance
-- 7006225 2026-01-18  Cleanup nffile FlushFile and CloseFile. Get rid of FinaliseFile
-- 126268c 2026-01-17  Align ftconv compression arguments with other nfdump binaries
-- a62fbd6 2026-01-17  Remove MAXWORKERS altogether. Instead limit only to the number of cores
-- 323c092 2026-01-17  Remove MAXWORKERS from nffile. 1st step to remove MAXWORKERS entirely
-- 7d0adb0 2026-01-16  Update man pages for new worker heuristics
-- d4f3698 2026-01-16  Align nfanon with cli option -W num to request the number of worker threads. Improve the heuristics to select the number of workers if non requested. New heuristics applys to all nfdump programs.
-- 3885ccd 2026-01-16  Remove old legacy nffile handle re-usage. Cleanup nffile code. Fix minor code bugs.
-- 741837f 2026-01-14  Fix sfcapd nffile initialisation
-- 7ebe0f6 2026-01-14  Major code change in the collector module (nfcpad/sfcapd) - Introduce post processor thread to speed up rotation cycle (See also #628)   The hot path in the collector is heavily reduced. All post processing tasks   are moved to the post processor thread. - Do not allow to set the UDP receive buffer, below the system default. - Improved GetNumWorkers(). - Apply GetNumWorkers() to nfdump filter threads number by default.   the current file flushing, syncing
-- 852f1c0 2026-01-08  Apply the user supplied number of worker threads also to the filter threads
-- b87df34 2026-01-08  Anonymise exporter IPs in nfanon
-- 5036393 2026-01-07  Remove/move unused static
-- f200883 2026-01-07  Cleanup code in filelister thread. Remove global vars. for opt multithreading
-- 58e0bee 2026-01-07  Update configure.ac to work with multiarch layout of Ubuntu. Fixes #655
-- 72e6b85 2026-01-06  Fix type in ConfigureFixedFlowSource
-- 8160c45 2026-01-05  Fix DEVEL code
-- 910655b 2026-01-04  Remove old code, no longer needed
-- cea51ab 2026-01-04  move ip128_t files into collector library
-- 14fabb4 2026-01-04  Update README.md for new build options in configure.ac
-- 97611c3 2026-01-04  Cleanup more code
-- 6093cc7 2026-01-04  Cleanup code - remove static vars and update old nfprofile for new code
-- 0fd11dd 2026-01-04  Fix configure and compile time issues on some linux systems
-- ee9a102 2026-01-04  Merged with github
-- 17f6d79 2026-01-04  Major code change for the collector generic code. Remove old exporter flowsource code. Add new exporter/flowsource code to improve handling of multiple flow sources with lots of exporters, which are now organised in hash tables. Add --enable-lto switch to improve code linking Add --enable-native in order to generate locally more efficient code.
-- 1764402 2025-12-26  Code and build cleanup
-- 7ba0034 2025-12-17  Skip empty nbar records without name and description
-- abd32c6 2025-12-16  Cleanup sequence checks in netflow v5 and v9 module.. ipfix still broken
-- 6922c50 2025-12-16  Fix some nbar boundaries
-- 423b6c9 2025-12-07  #649 Implement dual stack listener for nfcapd and sfcapd.
-- e6c6f38 2025-11-30  Improve code robustness. Affects issues #643, #645. Introduce skip element records with length != 0 and type EXnull Improve handle mapper to mask out unneeded IP element if both IPv4 and IPv6 are present. Records with double IP address element (IPv4 and IPv6) are stripped accordingly. Adapt test procedure accordingly, make check no longer fails.
-- 8c2df82 2025-11-29  Improve mapping code with heuristics for lazy exporters
-- 1c3ebb5 2025-11-29  Fix building pcap reader with new configure.ac
-- 0c3bd5d 2025-11-25  Fix var setting in configure.ac
-- 03ab696 2025-11-24  Fix toc of Readme file
-- 5f3aa30 2025-11-24  Update Readme file for new configure.ac and fix minor issues
-- b563c23 2025-11-24  Rewrite old messy autotools configure.ac hell. Try to make it clean and remove old stuff not needed. Fix errors, make library search more automatic and reliable. Add more comments and structure. Add nfdump.pc.in pkg-config config for nfump libraries. Autoconf and me - did not become best friends ...
-- faa2983 2025-11-18  prevent rrd dependencies to be linked into libnffile
-- eb90b70 2025-11-10  (tag: v1.7.7) Prevent empty ipVersion element to be reported
-- d3cee8c 2025-11-09  Release v1..7.7
-- 473cf57 2025-11-09  Fix old ANSI C functions in fts_compat.c
-- a4f4b8d 2025-11-09  Add IPversion element to nfreplay and update tests
-- ceffc4c 2025-11-09  Cleanup error message in flist
-- 96ebd8f 2025-11-07  honor the ipVersion flag, if both - IPv4 and IPv6 addreeses are present
-- e693d54 2025-11-04  Auto generate NFDVERSION in nffileV2.h with gen_version.sh script
-- f899ab9 2025-11-03  Fix correct time calculation for tags 157 and 158 in ipfix. Fixes #642
-- c3f5e39 2025-10-16  Add tcp flags statistic for -s
-- 3d94f97 2025-10-16  Merge pull request #640 from MuriloChianfa/master
-- 06c19c0 2025-10-16  Add TCP Flags aggregation option
-- 79ecf32 2025-10-13  Add addressing label to HexDump
-- fc0f331 2025-10-10  Fix #629 uint32_t -> int32_t
-- 54d6c85 2025-10-09  Fix link
-- eb03517 2025-10-09  Add link to nfdump filter syntax cheatsheet in Readme
-- f807d48 2025-10-08  Fix some formating for stat output for IPv6 and geo
-- 07909a7 2025-10-08  Zero out ports in tunnel record
-- ebdcb97 2025-10-08  Fix symbolic strings for proto ipv6 and proto ipv4
-- 878518e 2025-10-07  Implement #635 for format fmt
-- e8e6990 2025-10-07  Fix #638 - bug for '-s dir'
-- add7f3a 2025-10-07  Add as lookup in raw output, if geoDB is loaded
-- e0fdb09 2025-10-07  Fix bug in nfpcapd for ipv6 processing
-- 8d5ab76 2025-10-07  Fix '-s geo' bug in nfstat and ja4 memory bug for '-s ja4'
-- 0811d7a 2025-09-14  Add element statistics about tunnel protocols
-- 9faf02d 2025-09-06  In nfpcapd, fix linktype for interface other than ethernet with TPACKET_V3
-- 581b046 2025-08-11  Fix header includes for some *BSD systems
-- 740e302 2025-07-27  Fix minor display bugs
-- fa001a8 2025-07-26  Add 'payload dns address <IP>' filter elements.
-- d44f6f5 2025-07-26  Add 'payload dns defined' and 'payload dns name ..' filter elements.
-- cbeb804 2025-07-25  Update DNS code. Free memory if decoding failed.
-- b06a913 2025-07-24  Replace pow(10.0, ..) by lookup table
-- a31c187 2025-07-24  Add -lm to compile on all*nices
-- 8864e1c 2025-07-24  Replace dns packet decoder with more complete SPCDNS decoder from Sean Conner
-- aba70c6 2025-07-22  Unify IPv4 and IPv6 fragmentation code
-- 8099caf 2025-07-22  Remove debug printf ..
-- 850d90c 2025-07-22  Evaluate IPv6 fragmentation header and reassemble IPv6 packets
-- 51ebb1f 2025-07-20  Fix payload in IPv4 fragmented packets
-- 122501b 2025-07-20  Fix propper payload size, due to possible ethernet payload padding
-- 7f508e8 2025-07-11  Dissolve in/out payload. Make handling more generic for more payload options
-- ae612b9 2025-07-05  Update README
-- 1aea4c3 2025-07-05  Improve the torlookup man page
-- 1c636c7 2025-07-05  Fix torlookup man page
-- 77ca1c9 2025-07-05  Fix other man pages to be mandoc compliant
-- a78fb5d 2025-07-05  Update nfpcapd.1 man page to proper mdoc format
-- f035322 2025-07-05  Update man pages for nfcapd and nfdump
-- 1ab40bd 2025-07-05  Add output payload to paylod filter if it exists. Add '\r' and '\n' to regex, allow payload filter to match end-of-line
-- 4ae55a5 2025-07-02  Implement yaf file reader. #632
-- 73359a5 2025-06-28  Fix compile errors on Linuxes without arc4random
-- f6fdff2 2025-06-28  Fix typo in nfconf.dist
-- 77b9003 2025-06-18  Remove not yet used collector code in master branch
-- c294d35 2025-06-18  stage 1 for collector improvement
-- 203d4af 2025-06-15  More code cleanup
-- c0c9c3e 2025-06-15  Cleanup queue code
-- 6ac8111 2025-06-15  Dissolve collector code and clean up. Replace tmp file with unique tmp flow file
-- 7cff9ed 2025-06-09  Replace broken AX_CHECK_ZLIB marco, which poisons include path when cross compiling
-- 372af73 2025-05-18  Make nfcapd less chatty, if a buffer reset happends. See #622
-- afa4a69 2025-05-10  Fix endian error in geo filter
-- 5986db6 2025-05-10  Replace AC_RUN_IFELSE for cross compilation. #579
-- a7feab4 2025-05-09  Fix FreeBSD 14.3 still missing includes in #620
-- 63e5f9f 2025-04-19  Fix code due to var name change in spell check
-- 6de613a 2025-04-19  Merge pull request #617 from jaegeral/2025-04_spell
-- 97161fc 2025-04-19  Update lz4hc.h
-- ada837a 2025-04-19  Update lz4hc.c
-- a50b645 2025-04-19  Update lz4.h
-- 4f837c9 2025-04-19  Update lz4.c
-- 99ca424 2025-04-19  Update nfdump.1
-- 350acf0 2025-04-18  spelling check
-- 754b076 2025-04-18  (tag: v1.7.6) Release nfdump-1.7.6
-- 11ac8c6 2025-04-18  Fix output for %evt printing, if both nat/nsel records exists. Should fix #613
-- 70ece2e 2025-04-15  Add Subdir -S to dynamic FlowSource -M. Replaces pull request #615
-- 3eb3043 2025-04-15  Fix #614 - first/last seen filter
-- 26425d8 2025-03-27  Improve exporter algo
-- f6f823d 2025-03-27  Improve exporter algo
-- a4b21c8 2025-03-27  Improve exporter algo
-- 64b7d8a 2025-03-27  Improve exporter algo and migrate lagacy sampler records into output
-- 04a08a8 2025-03-27  Update old exporter algorithm. See also #610
-- 97fb5d6 2025-03-25  Fix potential stack overflow with max workers. ##610
-- f64f3ee 2025-03-25  Fix #612. Prevent errornous ',' in Strings in csv output.
-- c4bab8d 2025-03-08  Improve some argument and error handling
-- c017486 2025-03-07  Refrag some code
-- b421fa6 2025-03-07  Use common ReadFilter() func
-- 9474fb6 2025-03-07  Minor cleanup
-- 4bb20c8 2025-03-07  Improve append file handling
-- c484146 2025-03-07  Improve reading filter file in nfdump.c - prevent race-condition
-- 522dd57 2025-03-07  Improve reading filter file in nfreplay.c - prevent race-condition
-- 6e8a1a1 2025-03-07  Fix various printf type formats
-- 7c6b31c 2025-02-21  Fix out packets/bytes filter and add checks in nftest
-- 32ec601 2025-02-19  Cleanup yyprintf in grammar file and limit potential string overflow. Keep gcc happy
-- 5ce0358 2025-02-16  Fix #602 - FreeBSD incompatible fts compar function definition
-- 43ae7f1 2025-02-16  Remove extra newline in too many LogError messages
-- 3f1e988 2025-02-09  Fix autoconf build. I hate autotools - sigh ..!
-- e2b697f 2025-02-09  Make nfpcapd to read gzip compressed pcap files transparently. Requires zlib to be installed.
-- 4107964 2025-02-07  Fixed#600 -  iplist filter syntax.
-- 8413cd0 2025-02-07  Fix help text. #599
-- 0fba14c 2025-02-07  Update help text for nfdump
-- 81c45e7 2025-01-31  Handle Palo Alto PA-5420 time stamps in V9 events without event time element
-- 284da0c 2025-01-31  Allow user selected output format with custom aggregation. See #597
-- 0618ad9 2025-01-26  Merge branch 'master' of ssh://github.com/phaag/nfdump Merge remote
-- e098f3d 2025-01-26  Minor formating cosmetic
-- e476142 2025-01-21  Merge pull request #594 from emmanuel-ferdman/master
-- f47a4d5 2025-01-20  Update JA4 Fingerprinting reference
-- 39bde28 2025-01-19  Remove batch
-- 89b6446 2025-01-19  Add batch
-- 70aaad5 2025-01-19  Some code cleanup
-- 753fa86 2025-01-19  Some code cleanup
-- 1eb14a5 2025-01-19  Make sure aggregated records are written properly to disk with -w.
-- 5d43e46 2025-01-19  Cleanup code
-- 25cf20a 2025-01-18  Add ident as %idt token in output formats. Adjust raw and json accordingly
-- c231972 2025-01-18  Streamline argument passing in printer function
-- a32fbcd 2025-01-18  Merge pull request #592 from droe/droe/fix-ja4-ssl2
-- a4fbb56 2025-01-17  Fix wrong SSL 2.0 version and remove SSL 1.0 (bug in older JA4 spec)
-- 9b2da1f 2025-01-11  Extend timeWindow to msec format everywhere
-- 52c93cd 2025-01-11  Add new filter elements: first seen xx, last seen xx. See also #590
-- 3831e66 2025-01-11  Cleanup code for time window -t. Remove relativ syntax - did not wotk correctly anyway
-- 597f9d0 2025-01-10  Update nfgen to update stat record
-- 81358f5 2025-01-10  Update man page nfdump.1 for nat filters. See #589
-- e183b01 2025-01-08  Implement #445 - add option to preserve src or dst IP address of the record. Do not implement privat ranges, as there is no value.
-- ad7f9a6 2025-01-08  Implements #574 Tunnel extension & IPv6 encapsulation in sfcapd. Implements code from pull request but uses proposed singel option parse_tun for gre and 6in4 likewise. Opens option for other tunnels such as 4in6 4in6, 6in6 ... Original pull request closed.
-- ad2815c 2025-01-03  Fix man page typos
-- 0665e9b 2024-12-30  Merge pull request #587 from co404/patch-2
-- 1c09762 2024-12-29  Update nfdump.1
-- a5c6419 2024-12-24  Fix mixed up stack positions
-- 07d17e3 2024-12-23  Wire ipfix tags 150/151 - seconds accuracy first/last seen timestamps. #585
-- 50ea00c 2024-12-13  Fix #584. 16byte element ype in hash
-- 6b7b397 2024-12-12  Fix writing pid file in nfpcapd. #582
-- a8f3ede 2024-12-04  Add 'ttl equal' filter for min ttl == max ttl
-- 21d61fc 2024-12-01  Add filter for "min ttl" and "max ttl" Remove old ttl. Map old filter ttl into "min ttl or max ttl" Add min/max TTL in ipfix and netflowv9 module Replace old TTL in nfpcapd and add min/max TTL. Closes #580
-- e221092 2024-11-24  Fix man page for #581 and adapt also the -s statistics xip -> natip
-- 856bbc0 2024-11-24  Wire ttl und frag flags - #580
-- ad15f25 2024-11-10  Fix flow counter in sort list. #575
-- c1db0ce 2024-11-10  Fix more %lld and %llx diag printf
-- b845a53 2024-11-10  Fix a few size_t diag printf
-- 8a11e1a 2024-11-10  Fix old %llu printf with PRIu64 format
-- 6cd6a95 2024-11-10  Fix #576 - Replace legacy TZ in tests
-- 79f8637 2024-11-09  Fix #577. Compiler slack space difference.
-- 79d251c 2024-10-23  (tag: v1.7.5) Commit Releas 1.7.5
-- 18dc06d 2024-10-23  Fix nfeplay template identifu ID
-- 4c8b892 2024-10-19  Merge pull request #571 from TiceDB/patch-2
-- b96828f 2024-10-19  Merge pull request #570 from TiceDB/patch-1
-- b1d2a1f 2024-10-18  Point JSON field in_bytes to inBytes instead of inPackets
-- 6825cb0 2024-10-18  Add missing delimiter for JSON output
-- 04cc2b8 2024-09-22  Fix #567 devel compile error.
-- 0d78cf7 2024-09-09  Fix broken length calculation
-- b72105d 2024-09-09  Replace sprintf with snprintf in output files
-- 49ed7d8 2024-09-08  Add RTT lantencu code - but disabled for now
-- 0e80ef2 2024-09-07  Merge pull request #564 from paineta/master
-- 76aa13a 2024-09-06  Update output_fmt.c
-- dc85e39 2024-08-31  Addint64 and uint64 config routines
-- 15b9bfd 2024-08-31  Change GRE cli option -G in sfcapd for -o gre option string. #559
-- 87a9e67 2024-08-31  Add new option functions in nfconf and wire nfpcapd options
-- 14b2179 2024-08-31  Use sysconfdir for default nfdump.conf file
-- 99db1cd 2024-08-31  Merge pull request #559 from simonschdev/parse-gre
-- 5c67031 2024-08-31  ADd FIN/RST signal flag to node
-- dbaa772 2024-08-29  Fix latency calculation in nfpcapd
-- 6d7d179 2024-08-27  Add src/dst tcp/udp port IE 180-183
-- ae52e09 2024-08-27  Fix #560 - geo filter containing keywords
-- dfb736f 2024-08-25  Add array decoding in ConfInventory()
-- 8b08c33 2024-08-25  Replace toml code with better maintained version
-- 71a2dd2 2024-08-25  Fix potential use after free
-- 6409763 2024-08-24  Change record count from 32 to 64bits
-- fb344fb 2024-08-23  minor cosmetic fixes
-- 268ff3f 2024-08-23  implemented GRE tunnel introspection for sFlow
-- c0ffe7d 2024-08-23  Fix duration string in summary line
-- 341575a 2024-08-23  Merge pull request #558 from Takalele/master
-- 5e08f54 2024-08-22  Fix #507 - gcc-14 issues with rrd version 1.9.x
-- 312951f 2024-08-20  fixed updateTorDB.sh
-- e1eed87 2024-08-20  Show some love to alpine linux
-- 0b2796b 2024-08-20  Make gcc-14 happy
-- 813da06 2024-08-20  Implement maxmind and tor lookup filter in nfprofile. See #557
-- 925dd28 2024-08-20  Cleanup nfpcapd Makefile and make Alpine Linux happy with GNU flag
-- 1cce258 2024-08-18  Merge pull request #556 from longregen/patch-1
-- 84c71a6 2024-08-17  fix: missing -W option in nfpcapd argparsing
-- 1fc74f0 2024-08-16  Make sure, only flow nodes get dummped - see also  #555
-- 6ec9d81 2024-08-16  Test if node is fragement node in defragment code. Fix #555
-- 56c7ddf 2024-08-09  Switch tcp flags to alpha string in json. ndjson output. #553
-- 10d4666 2024-08-09  Fix #554 - code dump in new processing pipeline.
-- 493c542 2024-08-07  Update nfdump(1) man page for ndjson and cleanup
-- 75cca36 2024-08-07  Fix coredump #552. Replace json-log by ndjson. #553 Cleanup json output. Replace " in maxmind org and city names by '. Otherwise breaks json output.
-- a29354c 2024-08-06  Add poc for post filter. See #551
-- aef51ae 2024-08-03  Align large vlan labels in ra output
-- c4a6a55 2024-08-01  Add file torlookup.1 man page
-- 0c815b2 2024-08-01  Add torlookup.1 man page as well as more information for torlookup in general
-- 7d437e5 2024-08-01  Fix tor code and update script
-- 2c461b5 2024-07-31  Add src,dst ip tor filter to match tor exit nodes and cleanup output buffer code
-- 2a78afa 2024-07-29  Merge branch 'master' of ssh://github.com/phaag/nfdump
-- 0c5e288 2024-07-29  Convert cvs output to itoa and local string buffer
-- 266b960 2024-07-29  Fix buffer check in output_csv_fast.c
-- cc0f593 2024-07-29  Add token %tsg, %teg for GMT start and end time in fmt and csv format. Update man page
-- 51fded0 2024-07-29  Cleanup some output code
-- 9d3cdd9 2024-07-29  Replace printf by local buffer and itoa. See #548
-- fa2785b 2024-07-29  Add fixed but fast csv output mode csv-fast. See #548
-- 87ee686 2024-07-29  Add local itoa
-- bd93c60 2024-07-29  Speedup json output
-- b6179a6 2024-07-22  Silence know record error message in filter thread
-- 9fb15d1 2024-07-22  Strip quotes from org name in Maxmind DB
-- 4804dbf 2024-07-22  Update mmhash.c
-- 2fbc960 2024-07-22  Update mmhash.c
-- 0577dee 2024-07-20  Fix ebuff size
-- ad70a1f 2024-07-20  Fix platform issues and compiler warnings
-- 961f0ab 2024-07-20  Update geolookup man page
-- 1811ea3 2024-07-20  Add AS lookup to geolookup and add new -s srcasn, dstasn and asn for AS organistation name. Needs maxmind DB to work.
-- 3a9908e 2024-07-20  Cleanup grammar. Fix error messages
-- a253e80 2024-07-20  Cleanup grammar file
-- 3f26afa 2024-07-19  Regex filter multithreading patch
-- 9965ceb 2024-07-19  Fix AS mmdb lookup for flow addregation
-- 62b8fb1 2024-07-11  Fix inherit compression bug. #525
-- 64759bd 2024-07-11  Implement #543 and moved fragment flags
-- 53f9fa0 2024-07-07  Cleanup fixes, and fix gcc complains
-- bc3c2c9 2024-07-07  Merge pull request #545 from dceara/issue544-fix-typo-domain-id
-- 44c2fe5 2024-07-05  output_json: Fix observationDoaminID typo in json output.
-- 0659254 2024-07-05  Wire dedup into optional packet dump -p
-- 9562322 2024-06-29  Add metrohash to nflowcache
-- fb660f7 2024-06-29  Fix action script
-- 69f5d13 2024-06-29  Update c-cpp.yml
-- 745c60b 2024-06-29  Change hash to metrohash for de-duplication
-- 65ad2f9 2024-06-29  Add packet de-duplication for nfpcapd
-- 3f8fcdd 2024-06-28  Cleanup Makefiles
-- 483e780 2024-06-25  Wire new csv format into aggregation output. #529
-- e56f7f1 2024-06-24  Fix compiler warnings on some Linux systems
-- ce52547 2024-06-24  Fix minor format issues
-- 2c661f6 2024-06-24  Fix minor format issues
-- a78db7f 2024-06-24  Fix minor format issues
-- 23c7f4a 2024-06-23  Switch to new csv format definition
-- 35bcbff 2024-06-19  Fix ja3/ja4 printing
-- e44d934 2024-06-10  Fix format printing in packet-linux
-- 8b1416f 2024-06-10  Add csv headers and config
-- 595c3bd 2024-06-09  Fix runtest
-- 2d68eca 2024-06-09  First batch of changes for flexible csv format output mode - still compatible
-- 0b20860 2024-06-09  First batch of changes for flexible csv format output mode - still compatible
-- e7df924 2024-06-03  update .gitignore
-- 3b06350 2024-06-03  Remove vcs_track in repo. Created automatically
-- 109860b 2024-06-02  Remove debug output
-- 2728a91 2024-06-02  Block formats other than auto fmt for aggregation
-- 7919b31 2024-06-02  Add json output for element stat. #528
-- f4fecaa 2024-06-02  Add size in verify mode -v
-- b3869bc 2024-06-02  Implement nokia NAT logging. See #533
-- f0a5f6f 2024-06-02  Add NOKIA enterprise IDs. Not yet wired. #533
-- 1619a60 2024-06-01  Merge pull request #538 from piorek94/fix_srcip6_agg
-- 558b513 2024-06-01  Remove local files - I hate the desktop client!
-- bf36a07 2024-06-01  Remove local files - I hate the desktop client!
-- c96efb9 2024-06-01  Remove local files - I hate the desktop client!
-- 044b1ae 2024-06-01  Remove local files - I hate the desktop client!
-- 5c12e57 2024-06-01  Fix some memory leaks, although process ends.
-- 5118e35 2024-06-01  fix srcip6 aggregation
-- 2b5db3b 2024-06-01  Fix convert.c from merge
-- c96f913 2024-06-01  Add multithreading filter processing
-- 56907f7 2024-06-01  Merge remote-tracking branch 'origin/nfdump-devel'
-- 3810acf 2024-05-31  Null IPs if inet aggregation does not match flow inet version. #537
-- 1d25d32 2024-05-31  Fix aggregation bug with v4/v6 flows #536
-- 7b701c9 2024-05-25  Add DLT_LINUX_SLL2 link type to pcap reader
-- af5d8d8 2024-05-24  Fix man page for 'bgp next ip' #531
-- daf20df 2024-05-24  Merge pull request #532 from piorek94/agg_zero_division_fix
-- 2ac8675 2024-05-24  Merge pull request #530 from piorek94/csv_newline_fix
-- 74c286f 2024-05-24  Fix #534 typo
-- 825ec11 2024-05-23  fix zero division issue in aggregation mode
-- 6b9d320 2024-05-23  remove etherType
-- 18e174a 2024-05-21  Fix coredump on dynamic exporter mode with no packets. #527
-- da06eb0 2024-05-20  Fix help and error text for compression
-- 564f3a9 2024-05-11  Cleanup minor issues and add example for ft2nfdump
-- d105409 2024-05-06  Add another dataBlock test
-- 43fd78d 2024-05-06  Fix #521. Cleanup unclear naming of xlate records
-- e8e8c38 2024-05-04  Remove heapsort. No longer needed these days
-- 5cd6645 2024-05-04  Fix ja3 pre-processing in filter
-- e3f4436 2024-05-03  Improve help text
-- 2450ace 2024-05-03  Remove hash back reference in nflowcache
-- d222bc0 2024-05-03  Cleanup hash code for nfstat and nflowcache
-- 885f7df 2024-05-02  Rework nflowcache. Replace hash code to speedup hash and have cleaner code for later multi-threading -s -A stats.
-- 73a2d8a 2024-04-20  Merge branch 'nfdump-devel' of ssh://github.com/phaag/nfdump into nfdump-devel
-- cfca245 2024-04-20  Test new hash in nfstat
-- f402ba3 2024-04-20  Merge branch 'master' of github.com:phaag/nfdump
-- 8feced6 2024-04-20  Test new hash in nfstat
-- f9e9e6a 2024-04-16  Improve boundary checking
-- edd489a 2024-04-16  Improve boundary checking
-- 9bc3553 2024-04-14  Sync with devel
-- def1e91 2024-04-14  Sync changes with master
-- 686f749 2024-04-14  Remove some old 1.6 code and clean up compat reader
-- ea0286a 2024-04-14  Finally remove old master_record
-- 18eff82 2024-04-14  Fix queue_close with multiple producers
-- 774e29d 2024-04-14  Fix IP lookup in filter
-- cb88b55 2024-04-14  Fix IP lookup in filter
-- d6a5d32 2024-04-14  Merge branch 'nfdump-devel' of ssh://github.com/phaag/nfdump into nfdump-devel
-- c1ba7d2 2024-04-14  Mark some structs as const
-- 383fa76 2024-04-14  mark some structs as const
-- 95e70eb 2024-04-14  Clear filter flag after use
-- b1373fb 2024-04-13  Update AS statistics fix
-- 833a09d 2024-04-13  Fix element stat for AS statistics. #519
-- 122b882 2024-04-12  Sync branch
-- 5abfd0d 2024-04-12  Work on filter code
-- 66cd4d3 2024-04-12  More work on threadding code
-- 97b619a 2024-04-12  refine const definitions in filter code
-- 63309d6 2024-04-12  Fix tunnel flow fmt printing
-- 37e70f3 2024-04-11  New convert block type 2 blocks code in pipelining
-- ff08a2d 2024-04-09  Enable convert1.6 in pipeline
-- 5071c2f 2024-04-07  Improve record processing
-- a16f86f 2024-04-07  Fix debugging messages
-- 020a772 2024-04-07  Test multithreadding nfdump
-- 1400011 2024-04-06  Fix nfstat ptr offset
-- 0c9293d 2024-04-06  Cleanup nfdump main loop
-- e7ef540 2024-04-05  Remove debugging code in  tor.c
-- a541557 2024-04-05  Fix typos in torlookup
-- 6ccca84 2024-04-05  Make sure to use new compiled geolookup binary to update mmdm
-- 5cfefa9 2024-04-05  Make sure to use new compiled torlookup binary
-- 5586eea 2024-04-05  Fix tor.c
-- 151aeb8 2024-04-05  Fix maxmind.c
-- 3adace8 2024-04-03  Fix json output
-- f462e2b 2024-04-02  Address #518 and silence output for normal conditions
-- b064481 2024-04-02  More readable output
-- 903f0c6 2024-04-02  Fix runtests
-- b42bdec 2024-04-02  Fix raw output for ip version
-- d36ecc5 2024-04-02  Update space to 64bit
-- 21c61f9 2024-04-02  Reserve space for vxLan element
-- 8941a79 2024-04-02  Fix nflowcache aggregation (see #515) and cleanup some code
-- 804d92e 2024-04-01  Cleanup code and fix ChangeIdent
-- d876444 2024-04-01  Cleanup #517 and fix runtest
-- fc2fae5 2024-04-01  Merge pull request #517 from jav4/ethertype
-- 50126db 2024-04-01  Update output_raw.c
-- f2c7375 2024-04-01  Update nffile_compat.c
-- 163bf0f 2024-04-01  Update output_json.c
-- 4a58dd5 2024-04-01  Update output_csv.c
-- 671e205 2024-04-01  Update nfxV3.h
-- a0d32aa 2024-04-01  Update output_raw.c
-- d9683df 2024-04-01  Update output_json.c
-- 2e13f89 2024-04-01  Update output_json.c
-- 5a5f00b 2024-04-01  Update output_fmt.c
-- 0615d34 2024-04-01  Update output_csv.c
-- 757be79 2024-04-01  Update nfstat.c
-- a532205 2024-04-01  Update nfx.h
-- 0c239df 2024-04-01  Update nflowcache.c
-- d145f87 2024-04-01  Update nfx.c
-- c0dbeb0 2024-04-01  Update nfdump_1_6_x.h
-- 0589904 2024-04-01  Update netflow_v9.c
-- e12da4b 2024-04-01  Update grammar.y
-- 4d69b07 2024-04-01  Merge branch 'master' into ethertype
-- 77b04b1 2024-04-01  Merge dot1q and physical extension into a single layer2 extension
-- 65fe66e 2024-04-01  Fix potential deadlock, if file queue empty
-- 9289f6a 2024-03-31  Add working threads to nfprofile
-- 819d8bc 2024-03-31  Remove exporter stuff from profiler. Not needed
-- d4420f7 2024-03-31  Rename pthread_barrier to avoid collision with Linux version
-- 9c9b71a 2024-03-31  Cleanup nfanon
-- 7169029 2024-03-30  Add user defined workers for nfanon
-- 3202fab 2024-03-30  Move barrier code into own files
-- 928653c 2024-03-30  Add threadding support to nfanon
-- 06475c9 2024-03-30  Fix nfreader sample code
-- ea6322e 2024-03-30  Cleanup nfanon
-- e7cac3e 2024-03-30  Fix AS range check
-- 2553d3e 2024-03-30  Sync nfcapd, sfcapd code
-- dabf79c 2024-03-30  Cleanup collector code and sync sfcapd
-- 5cffb3a 2024-03-29  Cleanup collector loop
-- 2d806f6 2024-03-29  Add more detaied error message
-- 903a8aa 2024-03-29  Handle potential file rotate error
-- 39a6946 2024-03-29  Remove unneeded check
-- c6ea78a 2024-03-29  Add IP version in json output
-- 98b1928 2024-03-29  Implement #515 features
-- 1b6139e 2024-03-29  Add dot1q in ipfix. Fix for #515
-- c4a2575 2024-03-29  Fix #516
-- 32770d5 2024-03-29  Dissolve dataBlock in nffile_t for writing in order to prepare for multi threading processing flows
-- ef928d6 2024-03-29  Add Netflow v9 ethertype field support
-- fb664fc 2024-03-22  Dissolve dataBlock for reading in nffile_t in order to prepare for mutli-threading processing.
-- 9198d94 2024-03-17  New FilterSetParam function
-- d253340 2024-03-17  Improve performance to read and convert nfdump-1.6.x records. See #512
-- 3b388b8 2024-03-16  Cleanup configure.ac
-- 70732b2 2024-03-16  Add conditional build and licensing terms for ja4+
-- 282187a 2024-03-16  Update nfdump.1 man page with ssl and ja4 filters
-- 6f4f6ad 2024-03-16  Add SSL/TLS sni filter
-- 69959f0 2024-03-16  Add SSL/TLS filter
-- 45ade57 2024-03-16  Add ja4 tests to nftest
-- 2e6d172 2024-03-16  Fix nftest
-- 8c18cff 2024-03-16  Add ja4s to filter syntax
-- 23fd4a2 2024-03-15  separate ja4, ja4s in nfstat
-- dedb73a 2024-03-15  Streamline ja3, ja4, ssl code
-- d5220a9 2024-03-14  Add ssl preproc to filter
-- 9b7a54a 2024-03-14  Fix getopt parsing - #513
-- 77ae680 2024-03-14  Add ja4 to filter. First try
-- 8fe6a2b 2024-03-11  Work on ja4 in nfstat
-- 595952a 2024-03-10  Work on ja4
-- ab0810d 2024-03-10  Wire ja4/ja4s in output json and do more work on SSL payload
-- 070cd71 2024-03-10  Wire ja4/ja4s in fmt output format
-- f09d7a5 2024-03-09  Wire ja4/ja4s in raw output format
-- b1bf5a1 2024-03-09  Move tor code to libnfdump
-- c9969ec 2024-03-09  Cleanup Makefiles
-- 8c97e7e 2024-03-09  Integrate maxmind code into libnfdump
-- b733d6c 2024-03-09  Fix typo
-- 84b425b 2024-03-09  Fix library order errors
-- 2043de7 2024-03-09  Split libnfdump into libnffile and libnfdump
-- 784e62d 2024-03-09  Merge remote-tracking branch 'origin/nfdump-ja4'
-- 8a0c883 2024-03-09  Fix typo
-- d5add6b 2024-03-09  Fix compile errors from pull #511
-- 9241fee 2024-03-09  Merge pull request #511 from blkmajik/json-log
-- f0f9f4b 2024-03-09  Merge branch 'master' into json-log
-- c5c5e47 2024-03-09  Code cleanup
-- 0b59bea 2024-03-08  Update nfdump.conf.dist
-- 3ff30f2 2024-03-08  Fix OS library order
-- d77c056 2024-03-08  Fix configure.ac
-- 93ce7fb 2024-03-08  Add torlookup for IPs
-- b65a3ff 2024-03-08  Maxmind code refactoring
-- c4f8169 2024-03-08  Streamline ja3/ja4
-- fb63274 2024-03-05  Move sampled to end to handle proper syntax on closing.  No final , on last field
-- 23ec1e5 2024-03-05  Use record separator instead of field separator between records
-- 031b462 2024-03-05  Swap fs/rs for json-log format
-- 3dfc829 2024-03-05  Make fprintf happy
-- 432925e 2024-03-05  Const char instead
-- da3cf0d 2024-03-05  Integrate json-log format into output_json
-- 9c1021d 2024-03-03  Merge remote-tracking branch 'origin/nfdump-ja4'
-- cd9b43e 2024-03-03  Fix Makefiles
-- 626be0b 2024-03-03  Merge remote-tracking branch 'origin/nfdump-ja4'
-- 17ead4c 2024-03-03  Updeate ChangeLog
-- c9fe29c 2024-03-03  Prepare nfstat for var length fields such as ja4
-- 2a55c3b 2024-03-03  Commit
-- 109c1c9 2024-03-03  Fix ssl decoder
-- f991322 2024-03-03  Remove debugging flag
-- 1e88803 2024-03-01  Implement ja4s
-- 4a60672 2024-03-01  Update Readme
-- c129b78 2024-03-01  Add ja4 Readme for license issue and add --enable-ja4, default no for building all ja4 modules
-- 5c72cc8 2024-03-01  Add ja3 filter in nfdump-ja4
-- 5cdc989 2024-03-01  Cleanup include
-- 539902c 2024-03-01  Insert ja3 filter code
-- 8ed9f34 2024-03-01  Add ja4_c
-- 2ded6b5 2024-02-29  Implement ja_a and ja_b of ja
-- ae92ef6 2024-02-29  Add ja4 files to start implementation
-- 16148ed 2024-02-29  Add sha256
-- a4f6a53 2024-02-26  Refrag ssl extension code
-- 6ea1b58 2024-02-25  Add ALPN extension decoding to ssl.c
-- 4115a8b 2024-02-25  Fix missing malloc() type casting
-- 07136b3 2024-02-25  Use new ssl module for ja3
-- 17d127e 2024-02-24  Debug ssl code - Client Hello
-- 79e9b8a 2024-02-24  Defrag ssl and ja3 - Add plain ssl code
-- 00e0e45 2024-02-24  Fix nfreader code
-- eb5bef5 2024-02-22  Cleanup code to handle legacy sampler record
-- a988a40 2024-02-18  Rework maxmind code
-- 9a0dddf 2024-02-17  Fix library dependencies on some *nix
-- 2c987ee 2024-02-17  The previous commit 466c27b is a merge with a working branch to remove the clumsy master_record_t in nfdump. This removes lot of legacy code and updates the code base. Furthermore, the filter engin has been replaced by a more flexible and faster one. The speed gain depends on the filter and the number of filter elements. The overall speed gain with this merge is 10% in average. Further improvements are planned with more worker threats. Please note that the filter syntax had some small changes such as 'icmp-type' is now 'icmp type' etc.
-- 466c27b 2024-02-17  Merge remote-tracking branch 'origin/nfdump-filter-ng'
-- bc08a0a 2024-02-17  Sync lz4 code
-- 4f409e9 2024-02-17  (tag: v1.7.4) Release v1.7.4
-- 4a7de41 2024-02-17  Fix compiler warnings for lz4
-- 4e98a35 2024-02-17  Update lz4 code
-- 519a052 2024-02-16  Fix compile issues
-- d301428 2024-02-16  Cleanup runtest.sh
-- e5976bd 2024-02-13  Move payload decode to own directory
-- df94907 2024-02-12  Update filter code, to be multi threading ready
-- 75d07cb 2024-02-11  Remove last debris from pipe output mode. Pipe output mode is gone now.
-- 21606f7 2024-02-11  Add DEVEL code
-- 72dcff4 2024-02-11  work on nflowcache
-- aa78fee 2024-02-11  Fix stat issues
-- dcf8499 2024-02-11  Fix nflowcache
-- 4c3a7e5 2024-02-10  Fix type bug
-- 89a43a4 2024-02-10  Cleanup and replace version script.
-- 7997ac4 2024-02-10  Replace Changelog file with git log history. Modify gen_version.sh. See #482
-- 0001529 2024-02-10  Honor printPlain Flag for String_evt. See #498
-- cf43542 2024-02-09  Cleanup strings
-- 286eac3 2024-02-09  Clean nfdump and geolookups
-- 5355fe8 2024-02-07  Wire maxmind geolookup in nfstat
-- 5b255f5 2024-02-07  Wire Maxmind geo filters in new filter engine
-- 249ca65 2024-02-06  Work on aggregation und filter issues
-- 88dda88 2024-02-04  Wrap up loose ends
-- 9db4215 2024-02-03  Fix buggy sflow code. Fixes #506
-- f8381be 2024-02-03  Update sflow
-- 98437f8 2024-02-03  dissolve code for output
-- a20249c 2024-02-03  Dissolve code for output
-- 56919df 2024-02-03  Change link order as some Linux linker do not correctly find static symbols. Fix #505
-- e6b9fce 2024-02-03  Fix init
-- e88056f 2024-02-02  Cleanup and fix nflowcache and nfstat
-- 05c7fbd 2024-01-29  Fix stat issues in nflowcahe and nfstat
-- 35d4292 2024-01-29  Fix format issues in output_fmt
-- 1b6cdd5 2024-01-29  Fix some output_fmt format issues
-- 627565a 2024-01-29  Remove local m4 files
-- f0d2750 2024-01-29  Fix err var in nfprofile
-- dc1b1b2 2024-01-29  Fix #503 - Append records in nfprofile
-- 1dcb7ae 2024-01-28  Fix fmt time 1970
-- c5ddbf0 2024-01-28  Fix fmt cores
-- 427b08e 2024-01-28  Removed master record from nfgen. Update make check
-- bbaef64 2024-01-26  master record removed from 1.7.x code
-- 373e8ad 2024-01-26  Modified nfgen and first cleanup
-- fb360cd 2024-01-26  removed master record from nfgen
-- 452c6ce 2024-01-25  Replace nftest. master_record removed
-- 40267bb 2024-01-25  Cleanup old master_record
-- b94b43c 2024-01-25  Removed master_record from nfstat
-- bb9765e 2024-01-24  Start cleanup nfstat
-- df7605b 2024-01-24  Work on nfstat
-- e325de6 2024-01-22  Implement #501. Add -X <extlist> option for sfcapd
-- c558152 2024-01-21  Start working on nfstat.c
-- c51748a 2024-01-21  Complete nflowcache.c
-- 83209d3 2024-01-21  Start to optimise nflowcache
-- 741addd 2024-01-20  Removed master record from nflowcache
-- 373ca78 2024-01-20  Removed master record from nflowcache
-- 7a795a5 2024-01-20  Work on nflowcache
-- 0208383 2024-01-19  Work on nflowcache
-- a1ac11b 2024-01-15  Add endian for ICMP for correct decoding
-- 2b11d66 2024-01-15  Work on nflowcache
-- ddf605e 2024-01-14  Fix for first test
-- 51148c6 2024-01-14  Working on nflowcache
-- 4b961bd 2024-01-14  Fix #498 - event string in output_fmt
-- a81832c 2024-01-14  Remove master_record from output_fmt
-- 19a0ec3 2024-01-13  Remove master record from output_json
-- 174139e 2024-01-13  Remove legacy pipe output format
-- f042b4c 2024-01-13  Remove master record from output_raw
-- 85c00ac 2024-01-13  Removed master record from output_csv
-- ebfc751 2024-01-13  Working on output_csv
-- fe96d8e 2024-01-11  master record removed from nfreplay
-- 7cb61a5 2024-01-09  Fixes
-- dcfd52e 2024-01-08  Add missing files
-- 400ac03 2024-01-07  Remove master_record from send_v5
-- acab1dd 2024-01-07  Work on nfreplay
-- 90cfd93 2024-01-07  Wire new filter in nftrack, nfprofile - easiest
-- 9637751 2024-01-07  Move filter files in own lib/filter directory
-- 1075d66 2024-01-07  Move filter files in own lib/filter directory
-- 4736178 2024-01-07  Update Readme
-- 389acc5 2024-01-06  Remove NSEL option from nfanon. NSEL included by default
-- d49a050 2024-01-06  Fix error message
-- b78ffba 2024-01-06  Refrag code into userio files. Prepare for next level code update
-- 05430dd 2024-01-06  Move code. Cleanup
-- 272c235 2024-01-03  Fix Offset/Size values in nfxV3.h
-- 5c19ff2 2023-12-31  Fix runtest with new field IPfrag flags
-- 3981646 2023-12-27  Add IP fragmentflags tag #197
-- 71d0afc 2023-12-27  Add cgNAT decoding to IPFIX decoder
-- b6841f6 2023-12-27  Fix #496 - Add RFC8158 NAT event flags
-- dec1d92 2023-12-16  Update Offset/Size for header fields
-- 305f1be 2023-12-15  Merge pull request #489 from g0tar/keep_flowStartMilliseconds
-- aaaee7e 2023-12-13  Don't clear flowStartMilliseconds when flowEndMilliseconds==0
-- 93797b2 2023-12-05  Fixed #486. Pull request #487
-- 2fd5df7 2023-12-03  Cleanup grammar.y with useless rule
-- 295f514 2023-12-03  Implement request #485 in sfcapd to store nat IP/port for sflow records if available
-- 042e68b 2023-12-02  Cleanup filter. String arguments in filter elements may be single or double quoted. Strings without quotes are accepted as strings as long as the string is not a reserved filter key word.#
-- 71f888f 2023-11-26  Update nfdump.spec. Thanks rexy74!
-- 40eb5c9 2023-11-26  Fix grammar
-- eaf96ce 2023-11-26  More fixes for #484
-- df50860 2023-11-26  Fix #484 - workaround not really a fix
-- 7f75c90 2023-11-18  Fix #481 - expire.c
-- 469dd81 2023-11-18  Merge branch 'master' of github.com:phaag/nfdump sync local
-- cc1073a 2023-11-18  Cleanup flist code
-- cbc617f 2023-11-01  Fix #480 Build error on CentOS
-- fded574 2023-10-19  Merge pull request #477 from chadf/configure-disable-xxxx
-- 622670b 2023-10-16  Fixed remaining ./configure --disable-xxxx issues. Corrected use of $enabled_xxxx vs $build_xxxx where appropriete.
-- ce7ff2c 2023-10-15  Fix ./configure --disable-xxxx handling.
-- e2b9f43 2023-10-15  Add multiple dir wildcard '@' for multiple dir argument -M
-- 6b69002 2023-10-14  Fix all HAVE_ZSTD macros
-- 3ac05de 2023-10-14  Repair version string
-- ec8b602 2023-10-14  Check time window, if given,  of a multi file selection
-- 94743ee 2023-10-14  Fix compiler warning in kbtree.h
-- 286d70d 2023-10-14  Update Readme
-- 3e4a992 2023-10-14  Improve build process for external compression libraries. Make bzip library optional
-- 9a50550 2023-10-08  Fix #474. Reject unspecified IP addresses and invalid prefix length in filter
-- 46d2db0 2023-09-25  Fix #469. Update usage and error messages and man pages
-- 02ee700 2023-09-25  Fix #467. Rework number of workers setting. Set max to 64
-- cfaf6ab 2023-09-02  (tag: v1.7.3) Release v1.7.3
-- 5e2aef9 2023-09-02  Improve error handling in privsep.c
-- 584453e 2023-08-20  Fix #459. change vars to uint64_t
-- 696f563 2023-08-12  Merge branch 'master' of github.com:phaag/nfdump
-- ec1f121 2023-08-12  Allow direction status > 2, althogh not defined
-- c2c097f 2023-07-27  Fix #452 - to add GeoInfo
-- 1163722 2023-06-23  Merge branch 'master' of github.com:phaag/nfdump
-- c51ce1f 2023-06-23  Fix #448 man page type
-- de9811c 2023-06-18  Cleanup unused extensions. Implemented as arrays. Collect Juniper inline-monitorig packet data. Data is not yet decoded.
-- 3a810ad 2023-06-18  Add types for Juniper inline-monitoring. No decoding yet
-- 130fafe 2023-06-17  Update test sequence for compression levels
-- 14be8fb 2023-06-17  Cleanup nffile struct
-- f9515d2 2023-06-17  Fix potential compressed appendix corruption
-- 4b7c42a 2023-06-17  Update Readme for building instructions on older Ubuntu 18.04 LTS
-- 837419b 2023-06-17  Fix broken installation of nfdump.conf.dist
-- df4fc16 2023-06-16  Cleanup all compress files into sub dir
-- 6c47de5 2023-06-16  Move conf subdir to nfdump library. Fix linker errors
-- 18f7bc5 2023-06-16  Add maxworkers to nfdump.conf
-- 336cb05 2023-06-16  Make count check more dynamic in v5
-- 1a71629 2023-06-06  Fix nfsen #15 on RH
-- 65ea877 2023-05-29  Bark if rename fails
-- 8802fa0 2023-05-29  Add zstd to QueryFile()
-- 98385f2 2023-05-29  Cleanup and fix minor bugs
-- 91aeeb8 2023-05-29  Enable multiple writer threads, depending on number of Cores online
-- a9a4322 2023-05-28  Update Readme
-- 92f8d01 2023-05-28  Update Readme
-- 2efd259 2023-05-27  Add zstd compression
-- cb254b1 2023-05-27  Enable lz4 compression levels 3..12
-- 3b7b92f 2023-05-27  Update lz4 code
-- 8123283 2023-05-27  Add code for compression level handling
-- c6fedc0 2023-05-26  Update compression code
-- c8c98d0 2023-05-26  Add compresson level parsing
-- 7413188 2023-05-21  Fix parsing compression option to work for all possible options
-- 12a90b4 2023-05-21  Adapt -J option in nfdump to new compression spec, being still compatible with old one.
-- a1f4f19 2023-05-21  Print usage() if no arguments are given
-- d8620c0 2023-05-21  Update man pages
-- e928c42 2023-05-21  Unify compression arguments. Use now -z=<format> for compression. Accept still old -j and -y for now
-- e8ee2fc 2023-05-19  Remove static var for lzo wrkmem
-- f2ddf67 2023-05-19  Cleanup nfprofile and fix issue #398
-- 69e4d98 2023-05-18  Add syslog by default for nfprofile
-- 7041498 2023-05-18  Add file verification for nfprofile
-- efd28ad 2023-05-18  Cleanup nfprofile code
-- b54e266 2023-05-08  Make geolookup more robust reading buggy files
-- d90d561 2023-05-08  Add flush() for nfprofile
-- 399014d 2023-05-07  Move from c11 to c17 compile standard
-- 7b791a1 2023-05-07  Cleanup profile code
-- 27d65be 2023-05-06  Prevent loading geoDB if not needed
-- f3a174f 2023-05-06  change var name
-- 2c5678f 2023-05-06  Add BlockReports
-- 18a34c1 2023-05-05  Update nfprofile
-- 43f3f14 2023-05-04  Fix last commit
-- 881707e 2023-05-04  Remove blockqueue. Reduce memory footprint
-- e10c2ef 2023-04-30  Code cleanup
-- af0f43e 2023-04-30  Code cleanup
-- 2944ac9 2023-04-30  Make consistent protocol ID for nfd raw
-- 0742648 2023-04-30  Code cleanup and minor bug fix
-- 328daaf 2023-04-30  Rework QueryFile code and cleanup
-- 058cecb 2023-04-29  Merge and cleanup nfpcapd and nfreplay code for sending raw records
-- 2864358 2023-04-29  Add nfdump protocol for nfreplay
-- 62ca665 2023-04-23  (tag: v1.7.2) Release v1.7.2
-- 2eaac76 2023-04-23  Update ChangeLog
-- 0080e79 2023-04-23  Update nfcapd/sfcapd man pages for erspan data link
-- 39ec029 2023-04-15  Fix AddGeoInfo
-- 8388cb1 2023-04-09  Cleanup linkoffset handling in nfpcapd
-- 38decb4 2023-04-09  Implement erspan protocol in nfpcapd packet processing
-- a2cb5e3 2023-04-08  Sync ipfix and netflow_v9 for option field processing
-- 075dd3a 2023-04-07  Handle buggy option data(!)
-- c87c892 2023-04-07  minor fixes
-- d8fe70a 2023-04-07  Fix linux compile warnings
-- bc3201c 2023-04-07  Fix FreeBSD include issue
-- 0546452 2023-04-07  Fix v9 option template processing
-- b7aee0b 2023-04-07  Fix option record processing for multiple records
-- a197e57 2023-04-07  Fix ipfix nbar processing
-- 64fc1e1 2023-04-06  Wire bufflen for pcap reader
-- 2dadbaa 2023-04-06  Add FUNDING
-- 42dea3e 2023-04-06  Fix compiler warnings
-- 520c3ee 2023-04-06  Update pcap reader with erspan device
-- 721f6f3 2023-04-02  Fix fmt argument parsing
-- 34171af 2023-04-02  Add IPv4 in IPv6 cases in geolookup
-- 5bb991d 2023-04-01  Cleanup buffsize memory
-- 771c0c9 2023-03-26  Fix IP version check in geolookup
-- 26a0f61 2023-03-26  Disable signals in threads. Different OS handle signals differently
-- 7099d56 2023-03-26  Recongnize old sampler with missing algorithm tag #35
-- 5d58d4c 2023-03-26  Fix memory leaks
-- 3781b43 2023-03-19  Cleanup
-- c3877c4 2023-03-12  Update pcap_reader and add CISCO application performance monitor tags
-- 28683f6 2023-03-11  Add ERSPAN decoding to pcap_reader
-- f41364c 2023-03-11  Fix FreeBSD include issue in pcap reader
-- 93f1af6 2023-03-11  Remove more autogen m4 files from repo
-- 488e213 2023-03-11  Remove autogen m4/libtool from repo
-- 20f2b51 2023-03-11  Check uid root for src spoofing option
-- 02dc34b 2023-03-06  Fix argument checking in nftrack. #432
-- 49661b5 2023-03-06  Fix valgrind error for uninitalised memory. #431
-- 99dc96e 2023-03-05  Update lz4 code
-- 919dd4e 2023-03-05  Update number of enabled tags in v9 and ipfix
-- ec8649f 2023-03-05  Fix Init message in v9 and ipfix
-- 175e651 2023-03-05  Fix broken init functions
-- 035c003 2023-03-05  Add collector option -X to limit stored data.
-- bffe640 2023-03-05  Add help text for format tokens
-- 3c03f24 2023-03-05  Implement %sasn, %dasn organisation name printing tags. See #430
-- b47eec0 2023-03-05  Rename macro
-- 1dbfb60 2023-03-05  Check record size in geo DB
-- a44f6f8 2023-03-04  Implement #428. Needs rebuild of the geoDB.
-- ebbdf30 2023-03-04  Fix #429. Correct header line for %dloc
-- 3e5aa64 2023-02-27  Fix launcher argument bug
-- 4498c9a 2023-02-26  Wire sampling extension for individual sampling
-- 9f96ec1 2023-02-26  Wire sampling extension for individual sampling.
-- 096aaef 2023-02-25  Fix #426 - compile bug with nsel option
-- 984530c 2023-02-25  Fix pcap_reader
-- 78ce872 2023-02-25  Merge branch 'master' of github.com:phaag/nfdump
-- 469d388 2023-02-25  Update ICMP type/code handling. Issue #423
-- f658456 2023-02-24  Merge pull request #424 from thezoggy/patch-1
-- 0f050fb 2023-02-21  Update .gitignore
-- 428bec0 2023-02-21  Merge pull request #422 from mkorkalo/master
-- d91a3f1 2023-02-21  Correct spelling correction
-- f7eb350 2023-02-21  Merge pull request #421 from thezoggy/codespell
-- 97f0e59 2023-02-21  fix String_LastSeenRaw ms formatting
-- bf52a99 2023-02-20  codespell - cleanup
-- 6f16426 2023-02-18  Pimp pcap_reader
-- 07c9150 2023-02-18  Fix #415. ICMP decoding in netflow v9
-- af0fcb3 2023-02-18  Fix exporter printing
-- ca2c430 2023-02-18  Update Readme
-- c2b18d7 2023-02-17  Update for #409 for a mixed environment
-- 5a760c3 2023-02-15  Fix #414. -O bps works correct now
-- 746c8dd 2023-02-14  Update geo filter test
-- 64076c8 2023-02-14  Update geofilter settings
-- d46474b 2023-02-11  Merge pull request #411 from borjam/nfreplay-sourceaddr
-- 174ec98 2023-02-11  Fix minor issues.
-- 4d0001b 2023-02-11  Refine sampling to fix #410
-- 75f1c1f 2023-02-10  Fix argument processing for -n
-- dc57aa5 2023-02-10  Added source address support for nfreplay
-- 33f9a6a 2023-02-07  Update README
-- e36ab60 2023-02-07  Fix c-cpp.yml
-- 28f3864 2023-02-07  Fix c-cpp.yml
-- b93a8d1 2023-02-07  Create c-cpp.yml
-- 4badf6c 2023-02-05  Fix dst tos bug in output_raw
-- 56cd416 2023-02-05  Code cleanup. Update nfxV3.h for Golang import
-- c82f195 2023-02-04  Add icmp type/code elements 176, 177, 178, 179
-- 3257543 2023-02-04  Add icmp type/code elements 176, 177, 178, 179
-- 8050588 2023-02-04  Fix #402 - Add AS info.
-- 4a4dac0 2023-02-04  Fix 408. Interchanged time stamps
-- 68d5a9f 2023-02-04  Add geo info in JSON output when using GeoDB.  #402
-- 55ebc72 2023-02-04  Fix more FreeBSD include issues
-- 01b244e 2023-02-04  Fix configure.ac bug
-- fe1d00a 2023-02-04  Fix FreeBSD include bug. #407
-- e0743b3 2023-01-29  Move fwd_status in correct block in output_raw
-- 23c6daa 2023-01-29  Fix gen_date.sh
-- 5ed2f8c 2023-01-28  Fix Makefiles
-- ca33e20 2023-01-28  Add unique version string
-- b4d0962 2023-01-23  Fix #400 - compile error
-- 4f49c8e 2023-01-22  Copy event time to flow start/stop
-- 2224193 2023-01-21  Fix Event display time, if not flagged as event
-- fcf422b 2023-01-21  Add creator tag in nffile header
-- ea596c7 2023-01-21  Add creator tag in nffile header
-- f559c36 2023-01-21  Fix filter concat bug. Add exporter filter
-- 4fd1909 2023-01-17  Update output_fmt.c
-- b6839c5 2023-01-14  Fix #396. Code cleanup
-- 1215e1a 2023-01-08  Fix CentOS compile issue
-- e74ce26 2023-01-07  Add pflog fmt tokens in man page
-- fd3e48d 2023-01-07  Fix grammer.y
-- 76c85d0 2023-01-07  Implement OpenBSD pflog filters elements and -o fmt print tokens
-- 22548d2 2023-01-04  Fix configure.ac
-- ce2d8b3 2023-01-04  Add pcap_dump_open_append() code, if missed by some libpcaps
-- fe45a36 2023-01-03  Disable debugging code
-- 193834c 2023-01-03  Implement source IP address spoofing for the packet repeater. See #248
-- abfab42 2023-01-02  Replace old packet repeater code with more modern privsep code
-- 5da05ad 2023-01-01  Remove old code
-- 7a7e15c 2022-12-31  Replace old launcher startup code with more modern privsep code
-- 3b0d80e 2022-12-29  Fix compile issue #395 on Alpine Linux
-- fd7ab9c 2022-12-24  (tag: v1.7.1) Release v1.7.1
-- 3a37f36 2022-12-23  Fix #394. Add Changelog
-- 35f9735 2022-12-22  Add NSEL/NEL event flag
-- 0c45f2d 2022-12-22  Fix compile error
-- e2e1191 2022-12-22  Update Changelog
-- 5ba2077 2022-12-22  Merge remote-tracking branch 'origin'
-- 164aa3c 2022-12-22  Fix #393 consistent logging
-- 0360d53 2022-12-20  Remove extra : in getopt of nfcapd.
-- 17a81d7 2022-12-18  Code cleanup
-- 3550a3f 2022-12-18  Add feature #391. Add country code addgregation
-- 27102b7 2022-12-18  Fix #392. Fix format options with IPv6
-- 9066972 2022-12-18  Fix #390. Aggregation not working for GeoDB's enriched AS data
-- ad0215a 2022-12-17  Add OpenBSD pflog decoding in nfpcapd and nfdump
-- c210f2f 2022-12-17  Add pfinfo extension
-- 29477da 2022-12-17  Fix Ident change
-- 7908190 2022-12-17  Sync nfcapd, sfcapd code. Cleanup pcaproc
-- eb6c5be 2022-12-17  Fix #389 receiving IPv4 on IPv6 socket in sfcapd
-- 70b17cb 2022-12-17  Code cleanup in nfpcapd
-- cb73d61 2022-12-09  Code cleanup
-- c475a7d 2022-12-09  Fix #385 bug - i386 32bit alignment
-- 7922f23 2022-12-09  Fix #384 bug when compile with --enable-nsel
-- 26cfd10 2022-12-04  Update nfprofile help text
-- e06830f 2022-12-04  Fix nfprofile record processing loop
-- 69143ae 2022-12-04  Fix -M for nfprofile
-- f37abff 2022-12-04  Add missing pflog.h
-- c878808 2022-12-03  Add OpenBSD pf linktype 117 for pflog
-- 626d5f2 2022-12-03  Fix #382 build error on certain platforms
-- 1f03a0b 2022-12-02  Code cleanup
-- 63e8496 2022-12-02  Code cleanup
-- 4bc869b 2022-12-02  Fix compile warnings
-- eeace4d 2022-12-02  Fix compile error
-- f4ff9ad 2022-12-02  Implement NFLOG link layer
-- f8b3be8 2022-12-02  Fix #381. pcap overwrite fixed
-- 5a9f88a 2022-12-02  Fix #380. utf8 string validation
-- 61c8aa7 2022-11-29  Add missing file id.h
-- f054d64 2022-11-27  Fix same table structs for ipfix anf v9
-- aebca21 2022-11-27  Fix #377. Rework sampling code in general. Switch to packet interval/space notation. Map older sampling to new notation. Fix #375 relative timestamps with sysUptime id 160
-- e57f215 2022-11-15  Merge pull request #378 from heiko3/master
-- 9fbbbf6 2022-11-15  Merge pull request #376 from vrbaji1/patch-1
-- c45be96 2022-11-14  Remove debug printf
-- 4748ac1 2022-11-13  #367 - Add if and vrf name tags 83, 236. Rework vrf ingress/egress outside of NEL records
-- 4dbdc8d 2022-11-08  stat() correct path for option -M
-- d6c2bee 2022-11-04  Fix aggregation on xdstip
-- 79b6700 2022-10-23  Update nbar ipfix code
-- 163b671 2022-10-23  Reworked nbar code to be more generic for other array records
-- 9d66b9a 2022-10-22  Fix #369. Legacy -M for NfSen works again
-- 9141f1c 2022-10-22  Fix #370. Help shows correct option -g
-- c347da1 2022-10-22  Cleanup unsed var in maxmind
-- 5cc35c6 2022-10-16  Update nbar field length #361
-- f3fc2c0 2022-10-07  Improve nbar handling
-- d54bce1 2022-10-03  Merge pull request #357 to master
-- 2d50c67 2022-10-01  Code refactoring and cleanup
-- 4129950 2022-09-30  Fix typo bug in docker files
-- ecb8d6b 2022-09-30  (tag: v1.7.0.1) Update to nudump-1.7.0.1 - build issues
-- 1fb8604 2022-09-30  Add docker file for alpine Linux.
-- 4707df9 2022-09-30  Update docker file for ubuntu
-- da6f37f 2022-09-30  Fix build issues on various Linuxes
-- 486a783 2022-09-29  Update Readme
-- 1bcd1a9 2022-09-29  Fix snprintf length argument
-- 42f8d7e 2022-09-29  Handle fscanf return value in pidfile.c
-- d07c313 2022-09-29  Add missing variable initialization
-- bef1a16 2022-09-28  (tag: v.1.7.0) Update Readme for CentOS 7.x
-- 1009e69 2022-09-28  Fix compile issues
-- c794e93 2022-09-28  Add missing daemon files
-- 563e8b2 2022-09-28  Release 1.7.0
-- cc8680e 2022-09-28  Merge branch 'master' into unicorn Merge unicorn brantch to master
-- 99242d6 2022-09-27  Update README
-- 7ea8626 2022-09-27  Update nfdump man page
-- 02ec100 2022-09-25  Update nfreplay man page
-- 8099894 2022-09-25  Update sfcapd man page
-- 5d44eec 2022-09-25  Clean up collector code
-- 8bf359b 2022-09-24  Cleanup nfcapd code and man page
-- 8dde91f 2022-09-23  Replace collector -l option with more speaking -w for output flow directory
-- 6313ed8 2022-09-23  Update nfexpire man page
-- 7154487 2022-09-23  Update nfanon man page
-- 1df7c96 2022-09-23  Cleanup nfanon code and man page
-- d12738b 2022-09-22  Update ft2nfdump man page
-- aecb79a 2022-09-22  Move reading NFCONF into nfconf.c
-- 12c5261 2022-09-22  Update geolookup man page
-- 94c828a 2022-09-20  Add update maxmind DB script
-- 803b100 2022-09-20  Add missing testfile
-- 428537c 2022-09-20  Let geolookup use the config geodb.path
-- ba33828 2022-09-19  Fix propper config file installation and set as default
-- 21c343f 2022-09-19  Fix man page installation
-- 0af0c2a 2022-09-19  Fix .gitignore and Makefile.am
-- 7ad99af 2022-09-19  Fix ckeck script
-- 1e99265 2022-09-19  Refactor nfcapd code in subdir
-- 2816bcc 2022-09-19  Cleanup files and update gitignore
-- f56fb1f 2022-09-19  Cleanup old files
-- bc3dd8b 2022-09-19  Cleanup Makfiles
-- d994abe 2022-09-19  Cleanup code
-- 1ba875b 2022-09-19  Collector code cleanup
-- ebf9d21 2022-09-19  Make gcc happy
-- cecbb08 2022-09-19  Add missing Makefile.am
-- e477e7c 2022-09-19  Cleanup collector code
-- 297578c 2022-09-19  Fix includes
-- 9d9f3a4 2022-09-19  Add include dir
-- 32b2824 2022-09-19  Code cleanup
-- 713d4da 2022-09-19  Cleanup code for nfreplay
-- 4d9522a 2022-09-18  Fix print_epilog
-- a6aa5b5 2022-09-18  Add maxmind subdir
-- 50c4387 2022-09-18  Move nfanon and nfreader in own sub dir
-- 17973b9 2022-09-18  Cleanup
-- d8280fc 2022-09-18  New netflow subdir for protocols
-- 4caadd0 2022-09-18  Add config file
-- 33aa5cf 2022-09-17  Cleanup files. Rearrange output processing
-- 0bd233c 2022-09-04  Add missing DLT_LINUX_SLL for BSD systems
-- 2f7781b 2022-09-04  Create FUNDING.yml
-- 87a4c9b 2022-09-01  Fix geolookup IPv6. Concat cmdline args without quotes
-- 0793925 2022-08-31  Improve ja3 handling/printing. Add sni name in output format
-- a734670 2022-08-28  Add missing argument getopt arg checks
-- 977b2ad 2022-08-28  Add geo stat. Minor changes/improvements ja3 and dns. Dump full payload in output raw
-- 95c6812 2022-08-27  Update man page for payload regex filter
-- 1ccf438 2022-08-27  Replace payload regex code
-- 1cd20bd 2022-08-24  Add geo location to stat output
-- 4746071 2022-08-24  Fix memory leak when for payload records
-- 80879ef 2022-08-22  Replace payload content matching
-- ae10427 2022-08-22  Replace getval inline functions
-- a968f63 2022-08-21  Recognise 6 byte input length in ipfix
-- 298e6e0 2022-08-21  Improve some link layer protocol discovery in nfpcapd
-- 9a252d2 2022-08-20  Cleanup sequencer
-- aaac6c8 2022-08-20  Fix compiler issues and time formats in nfpcapd
-- 3613641 2022-08-20  Cleanup inline code
-- 57d3257 2022-08-17  Fix filter bug. #356
-- 364c0ab 2022-08-14  Cleanup payload printing
-- f4ce829 2022-08-13  Some cleanup
-- 7f7e3cb 2022-08-13  Add payload regex filter
-- b1811b3 2022-08-11  Fix compiler warnings
-- ae76cd3 2022-08-06  Add example gnuplot command file to extra directory
-- d3f504d 2022-08-06  Add gnuplot summary output
-- 1aa8337 2022-08-06  Add record dynamic record count
-- 071ee4b 2022-08-06  Change display format for duration in more human readable format
-- 57d969b 2022-07-30  Correctly decode ether type 0x6558 in nfpcapd
-- 50b286b 2022-07-07  Fix flow label code
-- e0bea16 2022-07-05  Make sure existing flow files are not overwritten, but appended in nfcapd, nfpcapd and sfcapd
-- 2d786aa 2022-07-03  Add ipfix observation domainID/pointID. #351
-- 0afa9b9 2022-06-25  Fixed missing newline in CSV output
-- 7c2dd1b 2022-06-14  State 20220614
-- ebfedf2 2022-04-23  Fix #333 with NSEL event record sending flow icmp
-- fa49d12 2022-04-23  Fix #333 with NSEL event record sending flow icmp
-- 2dd036f 2022-03-26  (tag: v1.6.24) Release 1.6.24
-- 0418e73 2022-03-26  Update m4 files
-- 51ba781 2022-03-26  Update Doxigen.in file: #332
-- 3f8cca0 2022-03-25  Merge pull request #336 from thesamesam/m4-macro-dir
-- e882722 2022-03-24  Makefile.am: add ACLOCAL_AMFLAGS
-- 3e61002 2022-03-21  Set ident on OpenNewFile
-- ec483f0 2022-03-20  Update metric. Add ident. Remove rate
-- 7438fee 2022-03-19  Fix nfpcapd LDFLAGS
-- db6b1cd 2022-03-19  Fix nfpcapd LDFLAGS
-- be244d8 2022-03-19  Calculate metric/s with double
-- 77342cd 2022-03-11  Fix cmd line processinf in nfanon. #328
-- e6cb94b 2022-03-06  Update Readme regarding InfluxDB
-- 4859557 2022-03-06  Update Readme
-- ec4b48e 2022-03-06  Update metric code
-- b574c36 2022-03-06  Update metric code
-- 3c521ee 2022-03-06  Update metric code
-- e947298 2022-03-05  Update metric
-- 3274160 2022-03-05  Fix editing
-- 609b75a 2022-03-05  Compatibility to autoconf 2.69
-- a34890b 2022-03-05  Update metric. Make collector main clock reference
-- 4652c20 2022-03-03  Make configure.ac autoconf 2.69 compatible
-- 77f6f40 2022-02-25  Cleanup/update automake files
-- 67da975 2022-02-25  Cleanup automake files. Fixes #304.
-- e626109 2022-02-22  Fix issue #304 - accept CFLAGS
-- 5f13e05 2022-02-19  Fix sflow compile problem
-- 0c77815 2022-01-29  Fix ja3 bugs. Cleanup ja3
-- 38b1d09 2021-10-22  Fix link handling for nfpcapd
-- 6dab941 2021-10-22  Fix link handling for nfpcapd
-- 888695f 2021-10-22  Fix link handling for nfpcapd
-- 335d592 2021-10-22  Update flow_record_short to new format
-- 553063a 2021-09-19  Add tunnel flow handling (IPIP, GRE etc.)
-- b06010b 2021-09-12  Update metric to rate and not counters
-- 59530e4 2021-09-04  Add pppoe proto decoding for nfpcapd. Add tunnel flows in output
-- 2f2f90e 2021-08-28  Update metrics for multiple exporters on collector
-- f15f24c 2021-08-27  Revert #304 - does not work
-- ea1958c 2021-08-27   Fix compile flags  #304
-- a7b7590 2021-08-27  Update sfcapd and nfpcapd with metric export
-- 8408f49 2021-08-25  Update metric handling - no more diffing
-- 896a604 2021-08-24  Update metric code
-- 4e80f8e 2021-08-24  Enable metric export for v5/v9/ipfix
-- 1f8e469 2021-08-24  Add POC for metric export
-- 3c3d044 2021-08-12  Add more fields in colloctor raw output.
-- b8f3865 2021-08-01  Add NAT elements in IPFIX
-- cbb4c13 2021-07-31  Add NAT event record support for IPFIX: #298. Fix man page: #301
-- 5850f57 2021-07-16  Fix issue #296 - broken json format with option -q
-- 506330e 2021-07-10  Add bverbose option. Fix minor raw output bugs
-- 81b3f12 2021-07-10  Reduce memory footprint. Fix nfreplay
-- 87fb3ba 2021-07-06  Fix dns decoding
-- 74e495e 2021-07-04  Improve nfreader/writer threads
-- 4871d29 2021-07-04  Fix memory leaks while rotating files
-- 1fecb54 2021-07-03  Merge pull request #295 from piorek94/sfcapd_nfcapd_similarity
-- 202da1e 2021-07-03  Merge branch 'unicorn' into sfcapd_nfcapd_similarity
-- 3303fb6 2021-07-03  Complete ja3 hash processing
-- d5d6d7a 2021-06-29  keep code symiliarity (as max as possible) between nfcapd and sfcapd
-- 5bf9473 2021-06-29  Add ipfix engine type/id tags
-- 390bdd4 2021-06-25  Fixed json msec formating
-- 1f61277 2021-06-25  Fix json msec formating - #294
-- 8ee9de8 2021-06-25  Fix -t time window
-- 6f06ea2 2021-06-25  Fix broken time window
-- 19ddf1b 2021-06-20  Add ja3 code
-- 0472408 2021-06-13  Fix Debian odd select handling
-- 9440e4c 2021-06-10  Fix output of nbar ID/name
-- b66aea9 2021-06-04  Update pidfile check
-- a0938f0 2021-05-31  Change to new stat_record
-- b72f644 2021-05-31  Fixed broken bps, pps in pipe and csv output
-- bec6786 2021-05-30  Fix 'make check' and pid file handling
-- 67efa0e 2021-05-30  Add missing new line in pipe output format
-- ef739d8 2021-05-30  Fix debug(devel) output, in collector verbose mode
-- 3b9731a 2021-05-30  Fix typos and complete man pages
-- bbd3408 2021-05-30  Remove -T consistent in nfcapd, sfcapd and nfpcapd
-- 47595c7 2021-05-30  Remove -w in sfcapd to be consistent
-- b9664db 2021-05-24  Update README.md
-- 5dc8ec9 2021-05-24  Updated man pages
-- 62f37d4 2021-05-23  Update Readme
-- d2d39cc 2021-05-23  Update Readme
-- 6558007 2021-05-23  Update Readme
-- 1c6755b 2021-05-23  Update Readme
-- 37157b3 2021-05-23  Update Readme
-- a36d1e3 2021-05-23  Update Readme
-- 30f07a4 2021-05-23  Update Readme
-- c6fae55 2021-05-23  Status 20210523
-- adefae0 2021-05-19  Silence short packet logs due to small snaplen. #221
-- 357385b 2021-05-17  Status 20210517
-- c6724e6 2021-05-17  Status 20210517
-- df8c300 2021-05-12  Fix nftest for patch #289
-- 8e192df 2021-05-12  Merge pull request #290 from piorek94/sflow_new_structures
-- a8a2ac3 2021-05-12  Merge pull request #289 from piorek94/flags_with_tcp_block
-- 4620ded 2021-05-12  Merge pull request #288 from piorek94/icmp_error_msg
-- d2eff25 2021-05-11  sflow: add structures for delay,queue depth,egress queue,entities
-- 71195cd 2021-05-11  imply flags with a proto TCP block
-- 713633f 2021-05-11  icmp code/type error message code compatibility
-- dd47446 2021-05-08  Cleanup some code and files
-- e6d790b 2021-05-07  Status 20210507
-- 3e87069 2021-05-06  (tag: v1.6.23) Release 1.6.23
-- ffb2599 2021-05-04  Status 20210504
-- b29f927 2021-05-03  Status 20210503
-- d5dae03 2021-05-02  Status 20210502
-- 8b7db62 2021-05-02  Status 20210502
-- 121e80d 2021-04-30  Status 20210430
-- 1f15c2a 2021-04-30  Status 20210430
-- 7f995c2 2021-04-28  Fix potential FreeNode without valid Node in nfpcapd
-- aacb652 2021-04-23  Add all non TCP/UDP IP protocols as streams in nfpcapd
-- 2c8921c 2021-04-22  Unwrap MPLS in nfpcad. Handle ESP in nfpcapd
-- ab0d4f9 2021-04-18  Status 20210418
-- b7dfb37 2021-04-17  Status 20210417
-- 0ed3859 2021-04-10  Change spin lock to native C11 lock
-- 250c1ef 2021-04-10  Cleanup code for issue #283
-- 6613662 2021-04-10  status 2021-04-10
-- 28ad878 2021-04-09  Add mpls unwrap in sflow code
-- 66df862 2021-04-06  Merge pull request #282 from orbea/bin
-- 44b6854 2021-03-27  bin: Use the libtool archives to link.
-- 7850541 2021-03-13  Merge pull request #277 from piorek94/sflow_q_in_q
-- 6a11a7d 2021-03-13  Update rbtree. Fix potential nfpcapd deadlock
-- 39f9515 2021-03-12  enable sflow q-in-q, fix ipv6 header skip
-- 1c72021 2021-03-06  Add packet capture buffer size to nfpcapd
-- 26c96e4 2021-03-06  state 20210306
-- b00603c 2021-02-20  Merge pull request #267 from franciosi/patch-1
-- f134b16 2021-02-20  Fix #271 - endless loop of nfexpire, if it does not find files
-- f2d3dbc 2021-02-20  Fix sflow code extended field parsing. #262 and #273
-- 97ffcfe 2021-02-07  Status 20210207
-- 385edef 2021-01-31  State 20210131
-- 0b8d26f 2021-01-30  Fix yaf decoding error. Zero out tcp flags for non TCP flows
-- 9f9cb7c 2021-01-30  State 20210130
-- 657126f 2021-01-18  State 20210118
-- 5095232 2021-01-17  Fix sflow compile errors
-- 34456d4 2021-01-17  Make -Tall the default for nfcapd to collect extensions
-- b0c7a5e 2021-01-17  Add flow end reason element 136
-- d6aeca9 2021-01-16  Add biFlow direction element 239
-- 4465e4c 2021-01-16  Add reverse element enterprise ID 29305 for counter values
-- 0d515db 2021-01-12  Update README.md
-- bcebbe3 2020-12-22  Fix typos
-- a1926a2 2020-12-22  code cleanup and boundary checks in option template processing
-- 19416dc 2020-12-21  Implement element 160 (SystemInitTime) in option template. Issue #260
-- 621c87c 2020-12-19  Fix minor compile issues
-- 95d0984 2020-12-19  Fix compile/platform issues
-- 3be22d3 2020-12-19  Fix compile/platform issues
-- 5efd271 2020-12-19  status 20201219
-- b88a077 2020-12-19  Add Element 160 (SystemInitTime) in flow record used by Huawei
-- 6a78678 2020-12-05  Fix print plain numbers #263
-- 8e4964a 2020-12-05  Fix path handling for -l <dir>
-- 0cb13df 2020-12-01  State 20201201
-- 21922d4 2020-11-22  Snapshot 20201122
-- e8b30c3 2020-11-21  (tag: v1.6.22) Release 1.6.22
-- 9b59929 2020-10-24  20201024
-- d7a820a 2020-10-19  cleanup
-- 9b32c31 2020-10-19  Fix nfreplay v5 time shift bug
-- 0b11531 2020-10-17  code cleanup
-- 353d6ff 2020-10-17  Fix IPv4/IPv6 statistics representation #252
-- 4ce9edd 2020-10-17  Add element 139 for ICMP type/code in IPv6. #250
-- b05764e 2020-10-17  Fix syntax error 'flags AS' as 'AS' is a reserved word. #255
-- 7b2d510 2020-10-17  Merge pull request #256 from piorek94/new_comparators
-- 3b300ed 2020-10-14  add support for >=, <= comparators
-- ee87595 2020-09-21  State 20200921
-- 81f80a5 2020-09-12  Cleanup nip/xip filter syntax. Add filter syntax 'nip in [ <iplist>]'. Request #246
-- 93bb565 2020-09-03  Add nfversion to nfpcapd
-- 80b9cbb 2020-08-31  Merge pull request #243 from mildis/master
-- a766080 2020-08-31  Add collected netflow/sflow version in nfdump record. Request #242
-- 994cc18 2020-08-31  Fix GuessDir bug - issue #215
-- a95906f 2020-08-25  add option N to read multiple flows from file
-- f5ae2b8 2020-08-08  Re-address issue #231 - remove strict rule rfc 7011
-- 49a6469 2020-08-02  (tag: v1.6.21) Release 1.6.21
-- 7725402 2020-08-02  Address issue #236 Add token 'dir' equivalent to 'flowdir' in filter syntax
-- eae6e42 2020-08-02  Address issue #159. Implement rfc 7011 and include sender UDP port into unique template identification
-- 7a78d34 2020-07-26  State 20200726
-- 707e849 2020-07-25  Fix #230 - Avoid use_syslog name clash on certain OS
-- e7af79f 2020-07-25  Fixed #243
-- 801c3c5 2020-07-25  Add optional print direction ascending or descending to -s and -O output. Request #235
-- e306baf 2020-07-18  Fix #231 - sampling detection
-- 6aa5929 2020-07-12  2020711
-- 31cd138 2020-06-26  20200626
-- 50df654 2020-06-20  Honor -n flag when printing sorted flow cache
-- a378d83 2020-06-20  Fix uninitialized variable printPlain
-- e490115 2020-06-20  Fix bug #223
-- 63fc4e2 2020-05-23  Merge pull request #222 from irino/nfdump-fix-csv-title
-- c0ea62b 2020-05-21  Merge pull request #219 from yuriskinfo/man_fixes
-- 5f0bd07 2020-05-17  Snapshot 202017
-- 64d2bbd 2020-05-04  Add \n in csv prolog for separating title and first data.
-- b78e0f5 2020-04-24  Fixed some typos, missing/extra commas, restructured few ambiguous sentences for better readability
-- 8d9d528 2020-04-22  Restore old behaviour unlimiting output flows unless in -s stat
-- ff8e0f2 2020-04-18  Fix ft2nfdump nexthop fields/extension map size bug
-- 3bc1f07 2020-04-13  Unify all timestamps to msec
-- 9c4ad8b 2020-04-12  Merge pull request #216 from 2igosha/master
-- e25cfdf 2020-04-12  Sync GuessDir from master
-- 3a473dc 2020-04-12  Fix GuessDir bug - issue #215 in flow exporter
-- 7fb4110 2020-04-12  Fix GuessDir bug - issue #215
-- e3d84db 2020-04-08  Allow processing of DLT_RAW links (i.e. for a tun VPN)
-- 45a502d 2020-04-05  add output parameter struct
-- bfe19f9 2020-04-05  internal: put output parameters in a single struct
-- 7eccd20 2020-03-29  (tag: v1.6.20) Release 1.6.20
-- adb6b7b 2020-03-29  More cleanup on plain number printing
-- c65956b 2020-03-28  Fix profiler filer but
-- 1671401 2020-03-28  Fix plain numbers bug #213
-- d993301 2020-03-28  Fix plain numbers bug #213
-- 79a2c44 2020-03-22  Introduce file layout V2
-- 8a376ba 2020-02-29  Merge pull request #208 from bernhardschmidt/948039-crossbuild
-- b889a6b 2020-02-29  Merge pull request #207 from bernhardschmidt/909437-typo
-- 754b545 2020-02-25  Fix crossbuilding
-- 138eb60 2020-02-25  Fix typo in nfdump.1
-- 9c6137d 2020-02-23  Delete extra file
-- 998c385 2020-02-23  Add V3 extension definition. Generic V2 file types
-- a0fc169 2020-02-23  Update Readme for UNICORN branch
-- cb5f761 2020-02-22  Fix README
-- f86fbfc 2020-02-22  (tag: v1.6.19) Move version to nfdump-1.6.19
-- 1de8e38 2020-02-16  Add Push for new sgt tag
-- dce3e36 2020-02-16  Modify heuristic for bidir flows #59
-- 3714bc9 2020-02-16  Add Source security group tag (SGT 34000) issue #192
-- ae8ded0 2020-02-16  Remove debugging printf in sflow_process
-- df447a5 2020-02-16  Cleanup commented code
-- b394ff5 2020-02-16  Fix minror bug in nfnet
-- a254a7c 2020-02-14  More spring cleaning
-- 60efbf3 2020-02-09  Cleanup unused nffile records. Add nffileV2.h
-- 10d9e73 2020-02-02  Fix various compiler warnings
-- b0135e0 2020-02-01  Fix make check
-- a7ed5b8 2020-02-01  Set verbose logging off by default in non daemon mode
-- 4825c5e 2020-02-01  Remove external global vars
-- f7e9681 2020-01-31  Remove old legacy records
-- 6bcf930 2020-01-29  Major code rearrangements
-- d28bfb7 2020-01-26  More code cleanup
-- 8740d96 2020-01-26  Cleanup nftest
-- d5e2b76 2020-01-26  Cleanup header code
-- 6e46597 2020-01-18  Merge pull request #201 from spenceation/add-egress-vrfid-doc
-- a076571 2020-01-15  Add missing NF_N_EGRESS_VRFID documentation
-- a055ba8 2020-01-11  Fix bug for IPv6 network cidr representation in raw and cvs output mode
-- b3c1362 2019-12-04  Remove unused old code. Fix for #197
-- 0428577 2019-12-03  Fix bidir export issues. Cleanup code. Fix for #195
-- 0c138be 2019-11-17  Fix typo - Enable small time intervals < 60s. - #185
-- 7d5234b 2019-11-17  Enable small time intervals < 300s. - #185
-- 68fea3f 2019-11-09  Fix gcc compile issue
-- f579c73 2019-11-09  merge
-- 406a210 2019-11-09  Fix minor nfpcapd issues
-- c2a976e 2019-11-08  Fix corrupt file handling #193
-- c5db2c7 2019-11-03  Fix protocol width field
-- b0b99b5 2019-11-03  Fix protocol width field
-- a67b75b 2019-11-03  More code cleanup. Move code to dedicated files
-- 536671d 2019-10-28  Fix print_epilog
-- 3360ca3 2019-10-28  Cleanup
-- ff634c2 2019-10-28  Update README
-- 9994f76 2019-10-28  Fix issue #190. Add compile time option for JunOS.
-- 07350f2 2019-10-28  Fix bug #189 - valid json output - Restructure code for output into separate files
-- 955a662 2019-09-01  Cleanup configure.ac
-- 7a208e6 2019-08-31  Cleanup old compat15 comments
-- a26e360 2019-08-31  Add c11.m4 macro
-- 41dae12 2019-08-31  Fix various c11 compile issues. BSD/Linux gcc/clang
-- 0633e9a 2019-08-24  Fix sflow issue with Arista switches
-- ecf9b12 2019-08-24  Add vlan tags dot1qVlanId, 243, 254 - #182
-- 003a592 2019-08-19  Fix ft2nfdump next hop and ip router fields
-- 772cbd5 2019-08-17  Work in progress towards v1.7 Start cleanup of old and ugly code. More cleanup will follow Rewrite sampler handling code. Move definitions to correct header files. Move to C11 as global standard for nfdump. Move to -O3 as compile option for nfdump
-- e9cbaf4 2019-08-16  Cleanup and fix IPv6 network display in war records
-- bef82c0 2019-08-14  (tag: v1.6.18) Fix output buffer size for lzo1x_decompress_safe. #180
-- 3b6ee89 2019-08-14  Fix comple issues
-- 7029f89 2019-08-13  Fix Readme
-- 6469157 2019-08-07  Fix VerifyExtensionMap #179
-- 74b68ec 2019-08-06  Fix compile errors #178
-- 0dbf646 2019-08-05  Cleanup fixes
-- e1126d5 2019-08-05  Replace depricated pcap_lookupdev call in nfpcapd
-- 134c969 2019-08-05  Cleanup old code
-- 4538818 2019-08-05  Merge pull request #167 from mwmix/master
-- b64f2a6 2019-08-05  Move version to v1.6.18
-- a8b460e 2019-08-05  Remove COMPAT15 code
-- 76dfc7d 2019-08-05  Fix checks in InsertExtensionMap #177
-- 7234bcf 2019-08-05  Add bound checks in AddExporterInfo
-- 8d18888 2019-08-05  Add bound checks in AddSamplerInfo #176
-- 859ea2c 2019-08-05  Add bound checks in AddExporterStat #174
-- 7dbd3eb 2019-08-05  Fix use after free in ModifyCompressFile
-- 7bd6d5b 2019-08-05  Fix off by 1 array. #173
-- dfca80f 2019-08-05  Fix nfdump.1 man page. #175
-- 0b45172 2019-07-31  Add record size sanity check also for nfprofile, nfanona and nfreplay
-- 7b26ee9 2019-07-28  Change to safe lzo decompress function
-- 226d10e 2019-07-28  Fix hbo_nfx.c:216_3 segfault. Update minilzo to v2.10
-- 833c9bc 2019-07-28  Fix hbo_nffile_inline.c:85_1
-- 98d8ba6 2019-07-28  Fix hbo_exporter.c:249_1 segfault
-- d01083c 2019-07-28  nfpcapd cleanup
-- 3b006ed 2019-07-27  Fix potential unsigned integer underflow
-- 7c0d06a 2019-07-27  Rework nfpcapd and add it officially to the nfdump collection
-- fd3d3db 2019-07-17  Add latency extension if dumping flowcache
-- a19e18e 2019-07-15  Fix exporter struct inconsistancies. Coredump on ARM otherwise
-- 7af869d 2019-07-02  Add ipfix element #150, #151 unix time start/end
-- fb6790b 2019-06-20  Fixed typo with bgp6_next_hop
-- 4262304 2019-06-02  Add empty m4 directory - keep autoconf happy
-- 9641295 2019-06-02  Add empty m4 directory - keep autoconf happy
-- 5325378 2019-06-02  Add empty m4 directory - keep autoconf happy
-- 439b7e8 2019-06-02  Add empty m4 directory - keep autoconf happy
-- da2a126 2019-06-02  Add ipfix dyn element handling
-- b5b42ab 2019-06-01  Fix issue #156 - print flowtable index error
-- 90bcf77 2019-06-01  Fix issue #162 - ipfix mpls sequece
-- 52c819e 2019-03-17  Remove non thread safe logging in nfpcapd
-- 7c3c775 2019-03-17  Fix spec file - #149
-- d1b1731 2018-11-26  Merge pull request #137 from farrokhi/master
-- 4f55abd 2018-11-26  Merge pull request #134 from shigechika/fix-v5_output_record
-- a8e3586 2018-11-25  Merge pull request #131 from grimmfarmer/issue-130
-- d00dffb 2018-11-25  Merge pull request #144 from tsl-karlp/patch-1
-- cf63f79 2018-11-25  Fix bug to accept -y compression flag in nfcapd. - #145
-- afb6429 2018-11-25  Remove padding byte warning in log #141
-- 3e55add 2018-11-25  Add missing -M command line help to nfcapd
-- 0aa0202 2018-11-25  Merge pull request #139 from whh8b/master
-- 776a559 2018-11-25  Fix some error messages to be printed to the correct stream #135
-- 4963995 2018-11-25  Add TCP flags ECN,CVR - #132
-- ddcb5ba 2018-11-25  Merge branch 'master' of github.com:phaag/nfdump
-- 603302e 2018-11-25  Fix protocol tag for protocol 87 - TCF. #130
-- dac7334 2018-11-16  typos and formatting fixes
-- 7893364 2018-10-11  Document -M in usage for nfcapd
-- 9a6d629 2018-10-09  Fix bulid against libpcap when `--enable-readpcap` is given
-- b70496d 2018-10-04  Fix v5_output_record
-- 3d1e2a4 2018-09-05  Fix typo in protocol list: 87 should be "TCF" but is labeled "TCP".
-- 8da06b5 2018-08-18  Merge pull request #125 from marekbecka/scale_summary
-- 49587e6 2018-07-26  Also scale numeric values also in summary unless -N is used.
-- 4dafc2d 2018-06-24  Update man page nfreplay for -z parameter
-- 3fd3023 2018-06-24  Merge pull request #120 from LouisSinan/master
-- 9049c9f 2018-06-24  Cleanup comment
-- db100d7 2018-06-24  Add CISCO ASA elements initiatorPackets (298) responderPackets (299)
-- 3c0c3f8 2018-06-24  Ignore OSX .DS_Store files in -R file list
-- 9d187da 2018-06-24  Add multiple packet repeaters to nfcapd/sfcapd
-- 214091e 2018-06-24  Fix bookkeeper type - use key_t
-- 9768760 2018-05-24  Merge pull request #1 from LouisSinan/Distribution-accross-time
-- eaecb4c 2018-05-24  nfreplay - Distribution accross time
-- 11f9159 2018-05-06  New bookkeeper hash broke NfSen. Fixed. ported back to release 1.6.17
-- ec91b39 2018-04-22  (tag: v1.6.17) Release 1.6.17
-- eab0299 2018-04-20  Fix definition for InfluxDB in configure.ac Issue #98
-- bddfdb1 2018-04-20  Fix minor bugs
-- 29fb080 2018-04-20  Update nfdump.1 man page for xsrcport & xdstport aggregations. Request #109
-- 2fab2cc 2018-04-20  Merge pull request #109 from simPod/aggregations
-- 79a9c82 2018-04-20  Merge pull request #108 from simPod/master
-- 19a7b2d 2018-04-20  Fix bug in sorting when guessing flow direction. Issue #92
-- e94fbba 2018-04-03  Add xsrcport & xdstport aggregations
-- 5849192 2018-04-01  Fix autogen.sh permissions to be executable
-- 0082088 2018-04-01  Add Fix argument processing of influxDB URL in nfprofile. Issue #99
-- 325aea7 2018-04-01  Add missing option -M in man page for nfcapd. Issue #103
-- 9f0fe95 2018-04-01  Fix nfdump crashes, when feeded with garbage input. Issue #104
-- 27f62a5 2018-02-11  Add missing -v option in nfreplay help text
-- 9e2e0c4 2018-02-11  Add missing json output format help text
-- 2b4cfc7 2018-01-06  Merge pull request #51 Influxdb from Luca
-- 0ea114f 2018-01-01  IPFIX add fwd status tag #89 compatible to v9 (1byte)
-- c400f52 2018-01-01  IPFIX time stamps - fix offset calculation of unknown time formats
-- 2a829df 2018-01-01  IPFIX time stamps - Fix elements #21,#22 offset calculation
-- 31137a3 2017-12-31  Fix sampling for Juniper MX104. No sampling algorithm required
-- 13131ff 2017-12-30  Add new output format json
-- 0ec4e21 2017-12-29  Remove unneeded files
-- 84be3e4 2017-12-29  Update README.md
-- 1d2ed37 2017-12-29  Update Readme.md formating
-- 70edef1 2017-12-29  Fix formating errors
-- f999bfe 2017-12-29  Update Readme
-- fccabf6 2017-12-29  Activate flowlabel in filter syntax
-- 746d1bc 2017-12-29  Add sampling tags 302, 304, 305. Add option for filter labels
-- be29ad7 2017-12-28  Add more detailed autogen.sh - softlink bootstrap
-- 0a86642 2017-12-28  Fix 64bit fts compat issue in fts_compat.c
-- cedc847 2017-12-28  Cleanup headers. Satify includes for header file
-- 9c2e7d6 2017-12-28  Fix compiler warnings from different compilers clang/gcc
-- 8a9dcb2 2017-12-28  Cleanup sflow code - uncomment unnecessary code
-- eaa7a85 2017-12-27  Update sflow code to commit 7322984 of https://github.com/sflow/sflowtool
-- c4e8a5b 2017-12-27  Add ipfix delta timestamp elements 158/159
-- 020a4d0 2017-12-22  Fix potential memory leaks in nfpcapd
-- b776f8d 2017-12-21  Fix wrong offset calculation if unknown options are found
-- adfd5e9 2017-12-21  Add x-late src/dst ip aggregation, if compiled with NSEL support
-- f1b91aa 2017-12-21  Fix gcc/clang differences
-- 959edbc 2017-12-17  Report updates on existing samplers in v9 only if values change. issue 84
-- 79d9916 2017-12-17  Add sampling for IPFIX. See issue #47
-- a0ac615 2017-12-15  Merge pull request #89 from orca-software/add_doxygen_docs
-- 99387c0 2017-12-15  Merge pull request #88 from orca-software/remove_autotools_output
-- dbcf7a6 2017-12-13  Added generated docs to .gitignore
-- 15afb0a 2017-12-13  Configure building docs
-- 0874edf 2017-12-13  Fixed issue with HAVE_DOXYGEN define
-- 4bcdc8d 2017-12-06  Added doc directory for Doxygen files and output
-- b4f0881 2017-12-13  Added binaries generated by make to .gitignore
-- db4aa2b 2017-12-13  Added files generated by "configure" to .gitignore
-- 8214edb 2017-12-13  Added generated files by ./bootstrap to .gitignore
-- 376b3c8 2017-12-13  Removed lingering references to doc directory
-- b8111e7 2017-12-13  Removed generated files
-- 59e0eae 2017-12-12  Add lz4 compression. Remove old and experimental xstat code - cleanup
-- 3bf7296 2017-12-11  Add lz4 compression. Remove old and experimental xstat code
-- 235fad2 2017-12-03  Fix minor issues and compiler warnings
-- 659f582 2017-12-03  Fix sfcapd time slices < 60 are not allowed
-- 41e5ec8 2017-12-03  Fix version tags. update all to 1.6.16
-- 7b9fa68 2017-11-05  Fix readme for release 1.6.16
-- 9821114 2017-11-05  (tag: v1.6.16) Release 1.6.16
-- 29e80e4 2017-11-05  Change -B behaviour as proposed in issue #59. Should not impact with previous use, but is more flexible
-- a8bc82d 2017-11-05  Add bzip compress switch in usage output of nfpcapd
-- a35ecdd 2017-11-05  Fix issue #72 - multiple stat output
-- f7a4bc5 2017-11-05  Add 8byte timestamps exported by Nexus 7k family
-- ad62890 2017-03-18  Fix memory leak, if nfcapd can not write into directory
-- f0666be 2017-03-18  Fix compile issues on some platforms
-- f67d99e 2016-11-26  For nfpcapd, use more efficient spin locks for thread sync
-- 4c712ee 2016-11-26  Clean up logging. User Log* routines everywhere
-- 4cd1ef1 2016-11-26  Merge branch 'master' of github.com:phaag/nfdump
-- 4aa1272 2016-11-26  Add latency extension to nfpcapd. Streamline nfpcapd.
-- 88ed508 2016-11-19  Merge pull request #39 from bernhardschmidt/spelling
-- b1a20cc 2016-11-15  Merge pull request #43 from aapo/typo_in_man
-- aaa5c69 2016-11-13  Fix nfdump man page #44
-- 63e5ee7 2016-11-13  Push fixes
-- 4be59e0 2016-11-13  Add nfdump.test.out to git. Few debug changes in v9 and ipfix
-- beae8f5 2016-10-22  Fix typo in man
-- b22d19a 2016-10-03  Fix man warning in nfdump.1
-- 365c300 2016-10-03  Fix spelling errors in sources found by Debian lintian
-- 05e97ab 2016-10-03  Fix spelling errors in manpages found by Debian lintian
-- f8db5a9 2016-07-23  Replace unreliable _ftok in bookkeeper
-- 01bfb78 2016-07-20  Merge pull request #28 from candlerb/candlerb/in_out_bytes
-- ecf85cf 2016-07-20  Merge pull request #26 from simonflood/patch-7
-- 5fab779 2016-06-13  Aggregate using in+out bytes for bidirectional flows
-- e1120f0 2016-06-07  Update README.md
-- 812651f 2016-06-05  Cleanup formating of nf_common.c
-- 0cde713 2016-06-05  Merge pull request #25 from Opmantek/rawts
-- 68d660e 2016-06-05  (tag: v1.6.15) Release v1.6.15
-- 25138d8 2016-06-05  Fix wrong bps type case in cvs output. Fix opbs ipbs typos
-- 3039c97 2016-06-05  Fix obyte, opps and obps output records
-- 4237451 2016-05-11  fixed stupid mistake re msec inclusion in start and end timestamps (received was ok)
-- 69cc9c0 2016-05-11  added formats %tsr, %ter and %trr for printing raw, fractional unix timestamps
-- 6ef51a7 2016-05-07  Merge pull request #19 from adamlamar/nfxstat-header-guard
-- 0db0d7f 2016-05-07  Add %ff record flags to custom output format
-- bca76b9 2016-05-07  Cleanup code in netflow_v9.c
-- 5d77fad 2016-05-07  Fix email address in AUTHERS file
-- ff0e855 2016-05-07  Fix security issues in netflow_v9.c and ipfix.c
-- aeb703c 2016-05-06  Fix shared library build issue. --enable-shared=no and yes are honored correctly.
-- 83e3180 2016-03-14  Add header guard to nfxstat
-- 45c669c 2016-02-03  Merge pull request #13 from simonflood/patch-6
-- 73a775c 2016-02-03  Merge pull request #10 from simonflood/patch-3
-- 16438a2 2016-02-03  Merge pull request #11 from simonflood/patch-4
-- 09729c7 2016-02-03  Merge pull request #9 from simonflood/patch-2
-- 88f833b 2016-02-03  Merge pull request #8 from simonflood/patch-1
-- 089875b 2016-02-03  Merge pull request #12 from simonflood/patch-5
-- c3a33fb 2016-02-02  Update nfdump.spec
-- 3f8b8af 2016-02-02  Update nfdump.spec
-- 6bc66f6 2016-02-02  Update BSD-license.txt
-- 5933a03 2016-02-02  Update nfdump.spec
-- bfa4453 2016-01-29  Update sfcapd.c
-- 0e7540f 2016-01-29  Update nfcapd.c
-- ef7697f 2016-01-10  (tag: v1.6.14) Fix build issues on various Linux/*BSD
-- a12087c 2016-01-10  Add -Z in nfcapd/sfcapd for timezone extension. Breaks expire for now
-- 3b72bda 2016-01-10  sflow: fix timestamp overflow. Build: cleanup check files.
-- cc8315e 2015-12-23  Add nfdump library. Fix fragments iin sflow
-- 6f5ea04 2015-11-21  Fix help for -z -j description
-- 69d46a7 2015-11-21  (tag: v1.6.14-b2) Add missing nftrack to git
-- 7ffa3cb 2015-10-03  Fix Readme.md
-- 7f17ef9 2015-10-03  (tag: v1.6.14-b1) Cleanup
-- b9641c1 2015-10-03  Add code for 1.6.14 to GitHub
-- 5174b9f 2015-10-03  beautify README.md
-- 758237b 2015-10-03  Initial git release 1.6.13
-- 752de78 2015-08-09  Update README.md
-- 3cd8a32 2015-08-09  Initial commit
+- 34c57ffd 2026-09-02  (HEAD -> master, origin/master, origin/HEAD) Fix icmp handling in case of absent data
+- b99c8cb5 2026-08-27  Guard swap16 and swap32 to use builtins where available
+- 88cd1c4b 2026-08-27  Fix spelling errors, missing docs and improve some code for next release
+- cfc68e60 2026-08-27  Baclport fix from 1.8.x: apply postfilter to exported nffile
+- cd3018d8 2026-08-27  Fix extra files for release
+- 1c9c9682 2026-08-22  Spelling fixes and minor bugs fixed
+- 48783389 2026-08-21  Deal with some gcc warnings to shut up
+- 7f6d087b 2026-08-21  Cleanup signal handler, so it works on NetBSD
+- cf4c642e 2026-08-21  Fix argument passing of isdigit/tolower/toupper/isalnum/isxdigit/isspace/isalpha/isascii
+- 8ce5a69d 2026-08-20  Disable lto for netbsd
+- 813aa8ff 2026-08-19  Update workflow c-cpp.yml
+- ddc09ddf 2026-08-19  Update workflow c-cpp.yml
+- a85fa40d 2026-08-19  Update workflow c-cpp.yml
+- 2c979607 2026-08-18  Cleanup all Makefile.am
+- daf916a5 2026-08-18  Add tzdataAlpine Linux
+- 4b0492a5 2026-08-18  Add clang on NetBSD
+- 4210a012 2026-08-18  Add --add safe.directory for Alpine Linux
+- d5188d30 2026-08-18  Add missing headers for *BSD
+- 863725f3 2026-08-18  Disable make test on ASAN build for now - tmp
+- 63a0f7b0 2026-08-18  Fix Alpine Github CI action file
+- 09297a82 2026-08-18  Fix FreeBSD Github CI action file
+- 4aec8722 2026-08-18  Improve Github CI action files
+- 08e46309 2026-08-18  Improve Github CI action files
+- d4b5eead 2026-08-18  Update c-cpp.yml
+- e572e9c0 2026-08-18  Fix more potential race conditions
+- 892dac44 2026-08-18  Fix c-cpp alerts from github
+- 2b2876fd 2026-08-18  Update c-cpp.yml with permission block
+- ea11c8f3 2026-08-18  Update c-cpp.yml to use new node.js
+- 8091d0c9 2026-08-18  Fix wrong format string
+- 2bebbfcb 2026-08-14  Update README: Announce 1.8.x and fix spelling and grammar errors
+- 9a4ae15e 2026-08-14  Security review for all collectors
+- 64cd7126 2026-08-13  Add geo information for router/exporter IP in output_raw
+- 54e5ab58 2026-08-13  Add %gra geo enriched router address tag in fmt output
+- 6a836d19 2026-08-13  Add missing aggregation of srcasn, dstasn and ext
+- cbfbf6d1 2026-08-13  Cleanup man pages
+- 8fa1285b 2026-08-13  Add proper ParseWorkerCount
+- 0b865fed 2026-08-09  nfanon: Fix single output file bug
+- a25f1a3f 2026-08-09  nfanon: fix anonymize_v6() bug
+- afcb5860 2026-08-06  Cleanup man pages
+- 9e765845 2026-08-06  Fix sgregex memory leak
+- c6487741 2026-08-06  Fix some alignment and boundary bugs
+- d6c647dc 2026-08-04  Hardning flowsend code from nfpcapd
+- b6362de1 2026-08-03  Hardning flowsource code
+- e95eb6b3 2026-08-03  Add more boundary checks in for nfdump internal transfer protocol
+- 5705652f 2026-08-02  Add ipfix time elements 156/157 nsec. Campatibel with VPP 17.07. See #686
+- 3faa63c1 2026-07-29  Beautify asn stat output
+- dd66ed87 2026-07-28  Fix minor issues with maxmind parser
+- 13376a33 2026-07-28  Delete debug message
+- 89e70422 2026-07-28  Check tor code for potential security issue. Fix some boundary checks Speedup loading tor DB loading for lookup up to 40%
+- 2d607d4a 2026-07-28  Check maxmind code for potential security issue. Fix some boundary checks Speedup loading maxmind DB loading for lookup up to 40%
+- 051340ed 2026-07-23  Security fix: Integer overflow in NetFlow v9 option template offset processing
+- c008cb3d 2026-07-23  Cleanup old nfdump options. Fix man page. See #685
+- 4b23d6e4 2026-07-23  Security fix: NULL pointer dereference in NetFlow v9 sub-template sequencer traversal
+- 2022a246 2026-07-22  Security fix: compute the max record count that keeps the header's cumulative size within UINT16_MAX to prevent heap overflow
+- 7069cfc9 2026-07-22  Fix security issue: Legacy v1-layout file header ident field may cause stack out-of-bounds read
+- 1a3ef4c2 2026-07-22  Add check for extension_map_list when converting records from v1.6.x
+- 0b0f40ea 2026-07-22  Fix security issue: a malformed appendix block can cause an excessive loop and log-flood denial of service in nfdump Fix boundary and record counting checks for datablocks and records
+- 1a9265e5 2026-07-22  Fix nfanon dataBlock scope, which spans liftime of all workers.
+- d7444967 2026-07-22  Fix reported security issue: Out-of-bounds reads while parsing a malformed NBAR array record Fix similar bug for malformed vrf record
+- 6ff5c60f 2026-07-22  Fix security issue: Remote IPFIX Options Template replacement use-after-free in nfcapd
+- d5e8887d 2026-07-22  Fix security issue: Prevent Unauthenticated IPFIX subTemplateMultiList zero-size entry causes CPU exhaustion
+- 66af6496 2026-07-21  Fix security issue: unauthenticated IPFIX options template length wrap may cause emote SIGFPE
+- 1cf56662 2026-07-21  Fix security issue: remote IPFIX options template replacement use-after-free in nfcapd
+- 635bfdfd 2026-06-11  Fix man page
+- 5545a74f 2026-06-02  Fix race condition with multiple flow sources. (#681)
+- ece417fb 2026-06-02  Keep compiler happy
+- ad5ba249 2026-06-01  Replace lzo HEAP_ALLOC stack array with a real heap allocation
+- e6dede97 2026-06-01  Add missing header for *BSD in ft2nfdump.c
+- dca4537d 2026-05-30  Fix buffer pointer checks iin sflow reader
+- 1a852a2a 2026-05-30  Fix OOB read in sFlow 802.11 MAC parser
+- 0e7d63df 2026-05-30  Fix multiple OOB reads in sFlow MPLS label stack parser
+- d33adff3 2026-05-30  Fix insufficient bounds check in sFlow L4 decoder
+- fa1dd526 2026-05-30  Fix integer overflow in sFlow v2 extended gateway parser
+- c0bb6602 2026-05-30  Fix integer overflow in MPLS and VLAN tunnel parsers
+- 4b0e0265 2026-05-30  Potential fix for code scanning alert no. 64: Time-of-check time-of-use filesystem race condition
+- 313db3bb 2026-05-30  Potential fix for code scanning alert no. 67: Time-of-check time-of-use filesystem race condition
+- 5db3f99d 2026-05-30  Potential fix for code scanning alert no. 68: Multiplication result converted to larger type
+- 46d218aa 2026-05-30  Potential fix for code scanning alert no. 69: Wrong type of arguments to formatting function
+- a6ddde60 2026-05-29  Fix minor boundary checks
+- 7304101b 2026-05-29  Fix header checks in v5 and nfd protocol. See #697
+- 45420565 2026-05-23  Flush blocks only when NumRecords !== 0
+- 0bd4ce40 2026-05-21  Fix crash, when using multiple dynamic flow sources. See #676
+- 7b29b34d 2026-05-09  Merge pull request #675 from heywoodlh/docker-multistage-builds
+- 7e88b6cc 2026-05-09  Add proper include if libbsd is required
+- c1679303 2025-04-24  added multistage docker builds with docker instructions in readme
+- 4dbe683c 2026-04-29  Implement #670
+- e198c8b3 2026-04-28  (tag: v1.7.8) Release 1.7.8
+- 8f1af1c3 2026-04-28  Fix exit codes
+- 24352a6f 2026-04-22  Fix spelling errors and some uaf errors
+- 2e3c995e 2026-04-22  Update ChangeLog and fix minor bugs
+- a22dcf00 2026-04-11  Cleanup filter code. Remove dead code
+- 13259cc0 2026-04-04  Merge pull request #671 from castillo-n/fix/ipv6-dst-anon-uses-src
+- 6e397122 2026-04-04  Fix naming of variables
+- 3f7df8cd 2026-04-02  Fix IPv6 destination anonymization using wrong address
+- 0683e3c9 2026-03-29  Fix masked output in collector short prints. (-v3)
+- eb252823 2026-03-29  - Skip all '.' files in file listing process. Skip 1.8.x bookkeeping file - Improve robustness of netflow v9 time overflow handling
+- a9312e20 2026-03-20  Improve code of GuessSubDir()
+- 25ce654b 2026-03-20  Fix string position, which silence error for 'Wrong time format' #669
+- 6292abd4 2026-03-19  Fix minor bug in output_short. Fix #669 - remove debug assert() and make GuessSubDir more robust
+- 93ab698c 2026-03-12  Add slack record and skip new v4 record. Fix address conversion in v1 processing
+- 01aea421 2026-03-05  Fix typos
+- 1b73c927 2026-03-04  Fix proper EXnull handling
+- 14998342 2026-02-26  Reduce min cycle time to 1s. New post processor thread can handle this. Fixed #664
+- 86a2cee2 2026-02-26  Fix nfprofile race condition and therefore replace all remaining localtime() by localtime_r()
+- 68a18af4 2026-02-25  Fix SetupPath() - terminating '\0'
+- 4d81212f 2026-02-16  Remove old and no longer used libpcap life code
+- 6c6c87cf 2026-02-16  Fix #667 duration bug in -s stat output
+- 14d0b467 2026-02-16  Cleanup TPACKETV3 code
+- 84f3b229 2026-02-16  Cleanup BPF code. Make buffer size configurable
+- fce61d7b 2026-02-16  Fix IP fragment init code
+- 361bd5eb 2026-02-15  Fix Statistic on BPF socket
+- 09de43b0 2026-02-15  Fix nfpcapd build options and remove useless FIX_INCLUDES
+- dbdc2bac 2026-02-14  Fix potential swap32() double definition
+- b3e73706 2026-02-14  Add expire function to fragment list in nfpcapd
+- 8dfa9e58 2026-02-14  Update Readme
+- b9438dd1 2026-02-14  Update nfpcapd - Refactor messy ProcessPacket code with state processing
+- e7af66f3 2026-02-12  Update nfpcapd - Improve packet processing. Make it more robust
+- 9d585f83 2026-02-10  Update debug messages
+- 8c29f615 2026-02-10  Replace verbose option -v to verbose level -v <n> for most binaries. Needs more work
+- 3ea8d715 2026-02-09  Update nfpcapd - remove unused interrupt handler and use atomic done variables
+- 9a140476 2026-02-09  Fix statistic for pcap file processing
+- a2b1eb79 2026-02-09  Update nfpcapd - replace slow packet dump code by native calls
+- 5ab715fe 2026-02-05  Add missing packet_pcap_file.c
+- 183f0453 2026-02-05  Update nfpcapd - Replace pcap reader code with faster mmap version
+- ac07fa19 2026-02-04  Silently skip unknown records in nfanon. Fixed #665
+- 5aedf78b 2026-02-04  Update nfpcapd - Modify slab allocator
+- 34901919 2026-02-03  Update nfpcapd - replace rb-tree with an open hash. Improves nfpcapd performance
+- dcabdb6e 2026-02-01  Update nfpcapd - shrink slab check
+- 0cebb7c2 2026-02-01  Update nfpcapd - Fix verbose logging
+- 8360a582 2026-02-01  Update nfpcapd - Update help text and man page for node cache size
+- 95b252e2 2026-02-01  Update nfpcapd - Replace ever growing node cache with an adaptive slab allocator
+- edd6784e 2026-01-31  Fix #662. Update man page
+- 29cf020f 2026-01-29  Update nfpcapd - Rework a lot of code. Remove lock for NewNode() in hot path
+- 437fa2f8 2026-01-27  Update nfpcapd - split node into hotNode and coldNode
+- 7c5b47d2 2026-01-26  Update nfpcapd - re-arrange nfpcapd structs
+- c101504e 2026-01-26  Update Readme for autotools 2.71.
+- b74d4d6a 2026-01-26  Silently skip ETHERTYPE_FLOWCONTROL frames in nfpcapd
+- 855777ba 2026-01-26  Fix memory leak, when processing and filtering ssl payload data
+- 446dd201 2026-01-22  Fix memory leak in sslFree
+- 6e71596f 2026-01-22  Update stringList_t code
+- 1988d888 2026-01-19  Improve queue code - double cond vars improve performance
+- 70062256 2026-01-18  Cleanup nffile FlushFile and CloseFile. Get rid of FinaliseFile
+- 126268c1 2026-01-17  Align ftconv compression arguments with other nfdump binaries
+- a62fbd6b 2026-01-17  Remove MAXWORKERS altogether. Instead limit only to the number of cores
+- 323c0920 2026-01-17  Remove MAXWORKERS from nffile. 1st step to remove MAXWORKERS entirely
+- 7d0adb08 2026-01-16  Update man pages for new worker heuristics
+- d4f36983 2026-01-16  Align nfanon with cli option -W num to request the number of worker threads. Improve the heuristics to select the number of workers if non requested. New heuristics applys to all nfdump programs.
+- 3885ccd7 2026-01-16  Remove old legacy nffile handle re-usage. Cleanup nffile code. Fix minor code bugs.
+- 741837f7 2026-01-14  Fix sfcapd nffile initialisation
+- 7ebe0f69 2026-01-14  Major code change in the collector module (nfcpad/sfcapd) - Introduce post processor thread to speed up rotation cycle (See also #628)   The hot path in the collector is heavily reduced. All post processing tasks   are moved to the post processor thread. - Do not allow to set the UDP receive buffer, below the system default. - Improved GetNumWorkers(). - Apply GetNumWorkers() to nfdump filter threads number by default.   the current file flushing, syncing
+- 852f1c0d 2026-01-08  Apply the user supplied number of worker threads also to the filter threads
+- b87df348 2026-01-08  Anonymise exporter IPs in nfanon
+- 50363938 2026-01-07  Remove/move unused static
+- f2008830 2026-01-07  Cleanup code in filelister thread. Remove global vars. for opt multithreading
+- 58e0bee9 2026-01-07  Update configure.ac to work with multiarch layout of Ubuntu. Fixes #655
+- 72e6b854 2026-01-06  Fix type in ConfigureFixedFlowSource
+- 8160c45e 2026-01-05  Fix DEVEL code
+- 910655bd 2026-01-04  Remove old code, no longer needed
+- cea51ab9 2026-01-04  move ip128_t files into collector library
+- 14fabb4b 2026-01-04  Update README.md for new build options in configure.ac
+- 97611c33 2026-01-04  Cleanup more code
+- 6093cc79 2026-01-04  Cleanup code - remove static vars and update old nfprofile for new code
+- 0fd11ddf 2026-01-04  Fix configure and compile time issues on some linux systems
+- ee9a1026 2026-01-04  Merged with github
+- 17f6d792 2026-01-04  Major code change for the collector generic code. Remove old exporter flowsource code. Add new exporter/flowsource code to improve handling of multiple flow sources with lots of exporters, which are now organised in hash tables. Add --enable-lto switch to improve code linking Add --enable-native in order to generate locally more efficient code.
+- 1764402b 2025-12-26  Code and build cleanup
+- 7ba00342 2025-12-17  Skip empty nbar records without name and description
+- abd32c6f 2025-12-16  Cleanup sequence checks in netflow v5 and v9 module.. ipfix still broken
+- 6922c505 2025-12-16  Fix some nbar boundaries
+- 423b6c9f 2025-12-07  #649 Implement dual stack listener for nfcapd and sfcapd.
+- e6c6f385 2025-11-30  Improve code robustness. Affects issues #643, #645. Introduce skip element records with length != 0 and type EXnull Improve handle mapper to mask out unneeded IP element if both IPv4 and IPv6 are present. Records with double IP address element (IPv4 and IPv6) are stripped accordingly. Adapt test procedure accordingly, make check no longer fails.
+- 8c2df827 2025-11-29  Improve mapping code with heuristics for lazy exporters
+- 1c3ebb5b 2025-11-29  Fix building pcap reader with new configure.ac
+- 0c3bd5de 2025-11-25  Fix var setting in configure.ac
+- 03ab696b 2025-11-24  Fix toc of Readme file
+- 5f3aa300 2025-11-24  Update Readme file for new configure.ac and fix minor issues
+- b563c23f 2025-11-24  Rewrite old messy autotools configure.ac hell. Try to make it clean and remove old stuff not needed. Fix errors, make library search more automatic and reliable. Add more comments and structure. Add nfdump.pc.in pkg-config config for nfump libraries. Autoconf and me - did not become best friends ...
+- faa2983d 2025-11-18  prevent rrd dependencies to be linked into libnffile
+- eb90b70b 2025-11-10  (tag: v1.7.7) Prevent empty ipVersion element to be reported
+- d3cee8c4 2025-11-09  Release v1..7.7
+- 473cf579 2025-11-09  Fix old ANSI C functions in fts_compat.c
+- a4f4b8dd 2025-11-09  Add IPversion element to nfreplay and update tests
+- ceffc4c9 2025-11-09  Cleanup error message in flist
+- 96ebd8f3 2025-11-07  honor the ipVersion flag, if both - IPv4 and IPv6 addreeses are present
+- e693d543 2025-11-04  Auto generate NFDVERSION in nffileV2.h with gen_version.sh script
+- f899ab95 2025-11-03  Fix correct time calculation for tags 157 and 158 in ipfix. Fixes #642
+- c3f5e39e 2025-10-16  Add tcp flags statistic for -s
+- 3d94f972 2025-10-16  Merge pull request #640 from MuriloChianfa/master
+- 06c19c03 2025-10-16  Add TCP Flags aggregation option
+- 79ecf321 2025-10-13  Add addressing label to HexDump
+- fc0f3315 2025-10-10  Fix #629 uint32_t -> int32_t
+- 54d6c853 2025-10-09  Fix link
+- eb035175 2025-10-09  Add link to nfdump filter syntax cheatsheet in Readme
+- f807d480 2025-10-08  Fix some formating for stat output for IPv6 and geo
+- 07909a7a 2025-10-08  Zero out ports in tunnel record
+- ebdcb977 2025-10-08  Fix symbolic strings for proto ipv6 and proto ipv4
+- 878518e9 2025-10-07  Implement #635 for format fmt
+- e8e6990d 2025-10-07  Fix #638 - bug for '-s dir'
+- add7f3a3 2025-10-07  Add as lookup in raw output, if geoDB is loaded
+- e0fdb09b 2025-10-07  Fix bug in nfpcapd for ipv6 processing
+- 8d5ab76b 2025-10-07  Fix '-s geo' bug in nfstat and ja4 memory bug for '-s ja4'
+- 0811d7a3 2025-09-14  Add element statistics about tunnel protocols
+- 9faf02d1 2025-09-06  In nfpcapd, fix linktype for interface other than ethernet with TPACKET_V3
+- 581b0467 2025-08-11  Fix header includes for some *BSD systems
+- 740e3025 2025-07-27  Fix minor display bugs
+- fa001a85 2025-07-26  Add 'payload dns address <IP>' filter elements.
+- d44f6f5f 2025-07-26  Add 'payload dns defined' and 'payload dns name ..' filter elements.
+- cbeb804d 2025-07-25  Update DNS code. Free memory if decoding failed.
+- b06a913a 2025-07-24  Replace pow(10.0, ..) by lookup table
+- a31c1870 2025-07-24  Add -lm to compile on all*nices
+- 8864e1c1 2025-07-24  Replace dns packet decoder with more complete SPCDNS decoder from Sean Conner
+- aba70c6a 2025-07-22  Unify IPv4 and IPv6 fragmentation code
+- 8099caf8 2025-07-22  Remove debug printf ..
+- 850d90cb 2025-07-22  Evaluate IPv6 fragmentation header and reassemble IPv6 packets
+- 51ebb1f6 2025-07-20  Fix payload in IPv4 fragmented packets
+- 122501bf 2025-07-20  Fix propper payload size, due to possible ethernet payload padding
+- 7f508e8f 2025-07-11  Dissolve in/out payload. Make handling more generic for more payload options
+- ae612b9c 2025-07-05  Update README
+- 1aea4c3b 2025-07-05  Improve the torlookup man page
+- 1c636c7d 2025-07-05  Fix torlookup man page
+- 77ca1c91 2025-07-05  Fix other man pages to be mandoc compliant
+- a78fb5d4 2025-07-05  Update nfpcapd.1 man page to proper mdoc format
+- f0353222 2025-07-05  Update man pages for nfcapd and nfdump
+- 1ab40bd3 2025-07-05  Add output payload to paylod filter if it exists. Add '\r' and '\n' to regex, allow payload filter to match end-of-line
+- 4ae55a53 2025-07-02  Implement yaf file reader. #632
+- 73359a57 2025-06-28  Fix compile errors on Linuxes without arc4random
+- f6fdff23 2025-06-28  Fix typo in nfconf.dist
+- 77b9003d 2025-06-18  Remove not yet used collector code in master branch
+- c294d35d 2025-06-18  stage 1 for collector improvement
+- 203d4af5 2025-06-15  More code cleanup
+- c0c9c3e0 2025-06-15  Cleanup queue code
+- 6ac81116 2025-06-15  Dissolve collector code and clean up. Replace tmp file with unique tmp flow file
+- 7cff9eda 2025-06-09  Replace broken AX_CHECK_ZLIB marco, which poisons include path when cross compiling
+- 372af737 2025-05-18  Make nfcapd less chatty, if a buffer reset happends. See #622
+- afa4a69c 2025-05-10  Fix endian error in geo filter
+- 5986db66 2025-05-10  Replace AC_RUN_IFELSE for cross compilation. #579
+- a7feab45 2025-05-09  Fix FreeBSD 14.3 still missing includes in #620
+- 63e5f9fb 2025-04-19  Fix code due to var name change in spell check
+- 6de613a1 2025-04-19  Merge pull request #617 from jaegeral/2025-04_spell
+- 97161fcb 2025-04-19  Update lz4hc.h
+- ada837a5 2025-04-19  Update lz4hc.c
+- a50b6457 2025-04-19  Update lz4.h
+- 4f837c9e 2025-04-19  Update lz4.c
+- 99ca424b 2025-04-19  Update nfdump.1
+- 350acf0f 2025-04-18  spelling check
+- 754b0768 2025-04-18  (tag: v1.7.6) Release nfdump-1.7.6
+- 11ac8c60 2025-04-18  Fix output for %evt printing, if both nat/nsel records exists. Should fix #613
+- 70ece2e3 2025-04-15  Add Subdir -S to dynamic FlowSource -M. Replaces pull request #615
+- 3eb30430 2025-04-15  Fix #614 - first/last seen filter
+- 26425d8b 2025-03-27  Improve exporter algo
+- f6f823d8 2025-03-27  Improve exporter algo
+- a4b21c89 2025-03-27  Improve exporter algo
+- 64b7d8a6 2025-03-27  Improve exporter algo and migrate lagacy sampler records into output
+- 04a08a88 2025-03-27  Update old exporter algorithm. See also #610
+- 97fb5d60 2025-03-25  Fix potential stack overflow with max workers. ##610
+- f64f3eef 2025-03-25  Fix #612. Prevent errornous ',' in Strings in csv output.
+- c4bab8de 2025-03-08  Improve some argument and error handling
+- c0174862 2025-03-07  Refrag some code
+- b421fa6d 2025-03-07  Use common ReadFilter() func
+- 9474fb6b 2025-03-07  Minor cleanup
+- 4bb20c8d 2025-03-07  Improve append file handling
+- c484146e 2025-03-07  Improve reading filter file in nfdump.c - prevent race-condition
+- 522dd577 2025-03-07  Improve reading filter file in nfreplay.c - prevent race-condition
+- 6e8a1a1f 2025-03-07  Fix various printf type formats
+- 7c6b31c5 2025-02-21  Fix out packets/bytes filter and add checks in nftest
+- 32ec6017 2025-02-19  Cleanup yyprintf in grammar file and limit potential string overflow. Keep gcc happy
+- 5ce0358e 2025-02-16  Fix #602 - FreeBSD incompatible fts compar function definition
+- 43ae7f15 2025-02-16  Remove extra newline in too many LogError messages
+- 3f1e988e 2025-02-09  Fix autoconf build. I hate autotools - sigh ..!
+- e2b697ff 2025-02-09  Make nfpcapd to read gzip compressed pcap files transparently. Requires zlib to be installed.
+- 41079647 2025-02-07  Fixed#600 -  iplist filter syntax.
+- 8413cd05 2025-02-07  Fix help text. #599
+- 0fba14cc 2025-02-07  Update help text for nfdump
+- 81c45e73 2025-01-31  Handle Palo Alto PA-5420 time stamps in V9 events without event time element
+- 284da0ce 2025-01-31  Allow user selected output format with custom aggregation. See #597
+- 0618ad95 2025-01-26  Merge branch 'master' of ssh://github.com/phaag/nfdump Merge remote
+- e098f3d4 2025-01-26  Minor formating cosmetic
+- e4761429 2025-01-21  Merge pull request #594 from emmanuel-ferdman/master
+- f47a4d59 2025-01-20  Update JA4 Fingerprinting reference
+- 39bde286 2025-01-19  Remove batch
+- 89b6446c 2025-01-19  Add batch
+- 70aaad54 2025-01-19  Some code cleanup
+- 753fa867 2025-01-19  Some code cleanup
+- 1eb14a52 2025-01-19  Make sure aggregated records are written properly to disk with -w.
+- 5d43e465 2025-01-19  Cleanup code
+- 25cf20ac 2025-01-18  Add ident as %idt token in output formats. Adjust raw and json accordingly
+- c231972d 2025-01-18  Streamline argument passing in printer function
+- a32fbcde 2025-01-18  Merge pull request #592 from droe/droe/fix-ja4-ssl2
+- a4fbb562 2025-01-17  Fix wrong SSL 2.0 version and remove SSL 1.0 (bug in older JA4 spec)
+- 9b2da1ff 2025-01-11  Extend timeWindow to msec format everywhere
+- 52c93cda 2025-01-11  Add new filter elements: first seen xx, last seen xx. See also #590
+- 3831e66f 2025-01-11  Cleanup code for time window -t. Remove relativ syntax - did not wotk correctly anyway
+- 597f9d0c 2025-01-10  Update nfgen to update stat record
+- 81358f57 2025-01-10  Update man page nfdump.1 for nat filters. See #589
+- e183b01c 2025-01-08  Implement #445 - add option to preserve src or dst IP address of the record. Do not implement privat ranges, as there is no value.
+- ad7f9a63 2025-01-08  Implements #574 Tunnel extension & IPv6 encapsulation in sfcapd. Implements code from pull request but uses proposed singel option parse_tun for gre and 6in4 likewise. Opens option for other tunnels such as 4in6 4in6, 6in6 ... Original pull request closed.
+- ad2815c5 2025-01-03  Fix man page typos
+- 0665e9bd 2024-12-30  Merge pull request #587 from co404/patch-2
+- 1c09762a 2024-12-29  Update nfdump.1
+- a5c64192 2024-12-24  Fix mixed up stack positions
+- 07d17e30 2024-12-23  Wire ipfix tags 150/151 - seconds accuracy first/last seen timestamps. #585
+- 50ea00c0 2024-12-13  Fix #584. 16byte element ype in hash
+- 6b7b3971 2024-12-12  Fix writing pid file in nfpcapd. #582
+- a8f3edeb 2024-12-04  Add 'ttl equal' filter for min ttl == max ttl
+- 21d61fc0 2024-12-01  Add filter for "min ttl" and "max ttl" Remove old ttl. Map old filter ttl into "min ttl or max ttl" Add min/max TTL in ipfix and netflowv9 module Replace old TTL in nfpcapd and add min/max TTL. Closes #580
+- e221092b 2024-11-24  Fix man page for #581 and adapt also the -s statistics xip -> natip
+- 856bbc0b 2024-11-24  Wire ttl und frag flags - #580
+- ad15f25b 2024-11-10  Fix flow counter in sort list. #575
+- c1db0ce6 2024-11-10  Fix more %lld and %llx diag printf
+- b845a532 2024-11-10  Fix a few size_t diag printf
+- 8a11e1a3 2024-11-10  Fix old %llu printf with PRIu64 format
+- 6cd6a958 2024-11-10  Fix #576 - Replace legacy TZ in tests
+- 79f8637f 2024-11-09  Fix #577. Compiler slack space difference.
+- 79d251c8 2024-10-23  (tag: v1.7.5) Commit Releas 1.7.5
+- 18dc06d0 2024-10-23  Fix nfeplay template identifu ID
+- 4c8b8927 2024-10-19  Merge pull request #571 from TiceDB/patch-2
+- b96828f5 2024-10-19  Merge pull request #570 from TiceDB/patch-1
+- b1d2a1f3 2024-10-18  Point JSON field in_bytes to inBytes instead of inPackets
+- 6825cb07 2024-10-18  Add missing delimiter for JSON output
+- 04cc2b8c 2024-09-22  Fix #567 devel compile error.
+- 0d78cf71 2024-09-09  Fix broken length calculation
+- b72105d2 2024-09-09  Replace sprintf with snprintf in output files
+- 49ed7d85 2024-09-08  Add RTT lantencu code - but disabled for now
+- 0e80ef21 2024-09-07  Merge pull request #564 from paineta/master
+- 76aa13a2 2024-09-06  Update output_fmt.c
+- dc85e394 2024-08-31  Addint64 and uint64 config routines
+- 15b9bfd2 2024-08-31  Change GRE cli option -G in sfcapd for -o gre option string. #559
+- 87a9e671 2024-08-31  Add new option functions in nfconf and wire nfpcapd options
+- 14b2179d 2024-08-31  Use sysconfdir for default nfdump.conf file
+- 99db1cd6 2024-08-31  Merge pull request #559 from simonschdev/parse-gre
+- 5c67031e 2024-08-31  ADd FIN/RST signal flag to node
+- dbaa772d 2024-08-29  Fix latency calculation in nfpcapd
+- 6d7d1796 2024-08-27  Add src/dst tcp/udp port IE 180-183
+- ae52e09b 2024-08-27  Fix #560 - geo filter containing keywords
+- dfb736f9 2024-08-25  Add array decoding in ConfInventory()
+- 8b08c338 2024-08-25  Replace toml code with better maintained version
+- 71a2dd28 2024-08-25  Fix potential use after free
+- 64097632 2024-08-24  Change record count from 32 to 64bits
+- fb344fb3 2024-08-23  minor cosmetic fixes
+- 268ff3f1 2024-08-23  implemented GRE tunnel introspection for sFlow
+- c0ffe7d7 2024-08-23  Fix duration string in summary line
+- 341575a1 2024-08-23  Merge pull request #558 from Takalele/master
+- 5e08f546 2024-08-22  Fix #507 - gcc-14 issues with rrd version 1.9.x
+- 312951f7 2024-08-20  fixed updateTorDB.sh
+- e1eed87e 2024-08-20  Show some love to alpine linux
+- 0b2796b5 2024-08-20  Make gcc-14 happy
+- 813da06d 2024-08-20  Implement maxmind and tor lookup filter in nfprofile. See #557
+- 925dd28f 2024-08-20  Cleanup nfpcapd Makefile and make Alpine Linux happy with GNU flag
+- 1cce258e 2024-08-18  Merge pull request #556 from longregen/patch-1
+- 84c71a68 2024-08-17  fix: missing -W option in nfpcapd argparsing
+- 1fc74f0d 2024-08-16  Make sure, only flow nodes get dummped - see also  #555
+- 6ec9d813 2024-08-16  Test if node is fragement node in defragment code. Fix #555
+- 56c7ddf3 2024-08-09  Switch tcp flags to alpha string in json. ndjson output. #553
+- 10d4666d 2024-08-09  Fix #554 - code dump in new processing pipeline.
+- 493c542b 2024-08-07  Update nfdump(1) man page for ndjson and cleanup
+- 75cca36d 2024-08-07  Fix coredump #552. Replace json-log by ndjson. #553 Cleanup json output. Replace " in maxmind org and city names by '. Otherwise breaks json output.
+- a29354ca 2024-08-06  Add poc for post filter. See #551
+- aef51ae2 2024-08-03  Align large vlan labels in ra output
+- c4a6a55c 2024-08-01  Add file torlookup.1 man page
+- 0c815b2e 2024-08-01  Add torlookup.1 man page as well as more information for torlookup in general
+- 7d437e50 2024-08-01  Fix tor code and update script
+- 2c461b58 2024-07-31  Add src,dst ip tor filter to match tor exit nodes and cleanup output buffer code
+- 2a78afaa 2024-07-29  Merge branch 'master' of ssh://github.com/phaag/nfdump
+- 0c5e288f 2024-07-29  Convert cvs output to itoa and local string buffer
+- 266b960c 2024-07-29  Fix buffer check in output_csv_fast.c
+- cc0f5938 2024-07-29  Add token %tsg, %teg for GMT start and end time in fmt and csv format. Update man page
+- 51fded0c 2024-07-29  Cleanup some output code
+- 9d3cdd99 2024-07-29  Replace printf by local buffer and itoa. See #548
+- fa2785bf 2024-07-29  Add fixed but fast csv output mode csv-fast. See #548
+- 87ee6863 2024-07-29  Add local itoa
+- bd93c604 2024-07-29  Speedup json output
+- b6179a6f 2024-07-22  Silence know record error message in filter thread
+- 9fb15d18 2024-07-22  Strip quotes from org name in Maxmind DB
+- 4804dbf7 2024-07-22  Update mmhash.c
+- 2fbc9605 2024-07-22  Update mmhash.c
+- 0577deeb 2024-07-20  Fix ebuff size
+- ad70a1f9 2024-07-20  Fix platform issues and compiler warnings
+- 961f0ab6 2024-07-20  Update geolookup man page
+- 1811ea3a 2024-07-20  Add AS lookup to geolookup and add new -s srcasn, dstasn and asn for AS organistation name. Needs maxmind DB to work.
+- 3a9908ef 2024-07-20  Cleanup grammar. Fix error messages
+- a253e80c 2024-07-20  Cleanup grammar file
+- 3f26afa2 2024-07-19  Regex filter multithreading patch
+- 9965ceb9 2024-07-19  Fix AS mmdb lookup for flow addregation
+- 62b8fb1c 2024-07-11  Fix inherit compression bug. #525
+- 64759bd8 2024-07-11  Implement #543 and moved fragment flags
+- 53f9fa0c 2024-07-07  Cleanup fixes, and fix gcc complains
+- bc3c2c95 2024-07-07  Merge pull request #545 from dceara/issue544-fix-typo-domain-id
+- 44c2fe59 2024-07-05  output_json: Fix observationDoaminID typo in json output.
+- 06592546 2024-07-05  Wire dedup into optional packet dump -p
+- 95623225 2024-06-29  Add metrohash to nflowcache
+- fb660f7d 2024-06-29  Fix action script
+- 69f5d131 2024-06-29  Update c-cpp.yml
+- 745c60b0 2024-06-29  Change hash to metrohash for de-duplication
+- 65ad2f9c 2024-06-29  Add packet de-duplication for nfpcapd
+- 3f8fcdd3 2024-06-28  Cleanup Makefiles
+- 483e7800 2024-06-25  Wire new csv format into aggregation output. #529
+- e56f7f1d 2024-06-24  Fix compiler warnings on some Linux systems
+- ce52547d 2024-06-24  Fix minor format issues
+- 2c661f67 2024-06-24  Fix minor format issues
+- a78db7f0 2024-06-24  Fix minor format issues
+- 23c7f4a6 2024-06-23  Switch to new csv format definition
+- 35bcbff9 2024-06-19  Fix ja3/ja4 printing
+- e44d934e 2024-06-10  Fix format printing in packet-linux
+- 8b1416fc 2024-06-10  Add csv headers and config
+- 595c3bda 2024-06-09  Fix runtest
+- 2d68eca9 2024-06-09  First batch of changes for flexible csv format output mode - still compatible
+- 0b208601 2024-06-09  First batch of changes for flexible csv format output mode - still compatible
+- e7df924b 2024-06-03  update .gitignore
+- 3b06350c 2024-06-03  Remove vcs_track in repo. Created automatically
+- 109860b0 2024-06-02  Remove debug output
+- 2728a912 2024-06-02  Block formats other than auto fmt for aggregation
+- 7919b314 2024-06-02  Add json output for element stat. #528
+- f4fecaa7 2024-06-02  Add size in verify mode -v
+- b3869bcc 2024-06-02  Implement nokia NAT logging. See #533
+- f0a5f6f7 2024-06-02  Add NOKIA enterprise IDs. Not yet wired. #533
+- 1619a602 2024-06-01  Merge pull request #538 from piorek94/fix_srcip6_agg
+- 558b513e 2024-06-01  Remove local files - I hate the desktop client!
+- bf36a072 2024-06-01  Remove local files - I hate the desktop client!
+- c96efb9a 2024-06-01  Remove local files - I hate the desktop client!
+- 044b1ae5 2024-06-01  Remove local files - I hate the desktop client!
+- 5c12e576 2024-06-01  Fix some memory leaks, although process ends.
+- 5118e353 2024-06-01  fix srcip6 aggregation
+- 2b5db3b4 2024-06-01  Fix convert.c from merge
+- c96f913d 2024-06-01  Add multithreading filter processing
+- 56907f7c 2024-06-01  Merge remote-tracking branch 'origin/nfdump-devel'
+- 3810acfc 2024-05-31  Null IPs if inet aggregation does not match flow inet version. #537
+- 1d25d326 2024-05-31  Fix aggregation bug with v4/v6 flows #536
+- 7b701c91 2024-05-25  Add DLT_LINUX_SLL2 link type to pcap reader
+- af5d8d81 2024-05-24  Fix man page for 'bgp next ip' #531
+- daf20df9 2024-05-24  Merge pull request #532 from piorek94/agg_zero_division_fix
+- 2ac86752 2024-05-24  Merge pull request #530 from piorek94/csv_newline_fix
+- 74c286fb 2024-05-24  Fix #534 typo
+- 825ec115 2024-05-23  fix zero division issue in aggregation mode
+- 6b9d3208 2024-05-23  remove etherType
+- 18e174aa 2024-05-21  Fix coredump on dynamic exporter mode with no packets. #527
+- da06eb02 2024-05-20  Fix help and error text for compression
+- 564f3a96 2024-05-11  Cleanup minor issues and add example for ft2nfdump
+- d1054099 2024-05-06  Add another dataBlock test
+- 43fd78d4 2024-05-06  Fix #521. Cleanup unclear naming of xlate records
+- e8e8c384 2024-05-04  Remove heapsort. No longer needed these days
+- 5cd66455 2024-05-04  Fix ja3 pre-processing in filter
+- e3f44366 2024-05-03  Improve help text
+- 2450ace9 2024-05-03  Remove hash back reference in nflowcache
+- d222bc09 2024-05-03  Cleanup hash code for nfstat and nflowcache
+- 885f7df6 2024-05-02  Rework nflowcache. Replace hash code to speedup hash and have cleaner code for later multi-threading -s -A stats.
+- 73a2d8a2 2024-04-20  Merge branch 'nfdump-devel' of ssh://github.com/phaag/nfdump into nfdump-devel
+- cfca2458 2024-04-20  Test new hash in nfstat
+- f402ba30 2024-04-20  Merge branch 'master' of github.com:phaag/nfdump
+- 8feced64 2024-04-20  Test new hash in nfstat
+- f9e9e6af 2024-04-16  Improve boundary checking
+- edd489af 2024-04-16  Improve boundary checking
+- 9bc3553e 2024-04-14  Sync with devel
+- def1e913 2024-04-14  Sync changes with master
+- 686f7498 2024-04-14  Remove some old 1.6 code and clean up compat reader
+- ea0286a2 2024-04-14  Finally remove old master_record
+- 18eff825 2024-04-14  Fix queue_close with multiple producers
+- 774e29d9 2024-04-14  Fix IP lookup in filter
+- cb88b55f 2024-04-14  Fix IP lookup in filter
+- d6a5d321 2024-04-14  Merge branch 'nfdump-devel' of ssh://github.com/phaag/nfdump into nfdump-devel
+- c1ba7d21 2024-04-14  Mark some structs as const
+- 383fa767 2024-04-14  mark some structs as const
+- 95e70ebd 2024-04-14  Clear filter flag after use
+- b1373fb3 2024-04-13  Update AS statistics fix
+- 833a09d5 2024-04-13  Fix element stat for AS statistics. #519
+- 122b8827 2024-04-12  Sync branch
+- 5abfd0d7 2024-04-12  Work on filter code
+- 66cd4d36 2024-04-12  More work on threadding code
+- 97b619a2 2024-04-12  refine const definitions in filter code
+- 63309d64 2024-04-12  Fix tunnel flow fmt printing
+- 37e70f37 2024-04-11  New convert block type 2 blocks code in pipelining
+- ff08a2d8 2024-04-09  Enable convert1.6 in pipeline
+- 5071c2f4 2024-04-07  Improve record processing
+- a16f86f7 2024-04-07  Fix debugging messages
+- 020a7722 2024-04-07  Test multithreadding nfdump
+- 14000113 2024-04-06  Fix nfstat ptr offset
+- 0c9293da 2024-04-06  Cleanup nfdump main loop
+- e7ef540d 2024-04-05  Remove debugging code in  tor.c
+- a541557c 2024-04-05  Fix typos in torlookup
+- 6ccca84f 2024-04-05  Make sure to use new compiled geolookup binary to update mmdm
+- 5cfefa9e 2024-04-05  Make sure to use new compiled torlookup binary
+- 5586eead 2024-04-05  Fix tor.c
+- 151aeb81 2024-04-05  Fix maxmind.c
+- 3adace86 2024-04-03  Fix json output
+- f462e2bf 2024-04-02  Address #518 and silence output for normal conditions
+- b0644815 2024-04-02  More readable output
+- 903f0c6e 2024-04-02  Fix runtests
+- b42bdeca 2024-04-02  Fix raw output for ip version
+- d36ecc5b 2024-04-02  Update space to 64bit
+- 21c61f91 2024-04-02  Reserve space for vxLan element
+- 8941a799 2024-04-02  Fix nflowcache aggregation (see #515) and cleanup some code
+- 804d92e4 2024-04-01  Cleanup code and fix ChangeIdent
+- d876444a 2024-04-01  Cleanup #517 and fix runtest
+- fc2fae5b 2024-04-01  Merge pull request #517 from jav4/ethertype
+- 50126db9 2024-04-01  Update output_raw.c
+- f2c73757 2024-04-01  Update nffile_compat.c
+- 163bf0fa 2024-04-01  Update output_json.c
+- 4a58dd55 2024-04-01  Update output_csv.c
+- 671e2053 2024-04-01  Update nfxV3.h
+- a0d32aad 2024-04-01  Update output_raw.c
+- d9683df9 2024-04-01  Update output_json.c
+- 2e13f895 2024-04-01  Update output_json.c
+- 5a5f00be 2024-04-01  Update output_fmt.c
+- 0615d34f 2024-04-01  Update output_csv.c
+- 757be790 2024-04-01  Update nfstat.c
+- a532205e 2024-04-01  Update nfx.h
+- 0c239df3 2024-04-01  Update nflowcache.c
+- d145f877 2024-04-01  Update nfx.c
+- c0dbeb05 2024-04-01  Update nfdump_1_6_x.h
+- 0589904b 2024-04-01  Update netflow_v9.c
+- e12da4b9 2024-04-01  Update grammar.y
+- 4d69b07f 2024-04-01  Merge branch 'master' into ethertype
+- 77b04b1d 2024-04-01  Merge dot1q and physical extension into a single layer2 extension
+- 65fe66e1 2024-04-01  Fix potential deadlock, if file queue empty
+- 9289f6a8 2024-03-31  Add working threads to nfprofile
+- 819d8bc8 2024-03-31  Remove exporter stuff from profiler. Not needed
+- d4420f7c 2024-03-31  Rename pthread_barrier to avoid collision with Linux version
+- 9c9b71a3 2024-03-31  Cleanup nfanon
+- 7169029b 2024-03-30  Add user defined workers for nfanon
+- 3202fab4 2024-03-30  Move barrier code into own files
+- 928653c4 2024-03-30  Add threadding support to nfanon
+- 06475c98 2024-03-30  Fix nfreader sample code
+- ea6322e7 2024-03-30  Cleanup nfanon
+- e7cac3ed 2024-03-30  Fix AS range check
+- 2553d3ed 2024-03-30  Sync nfcapd, sfcapd code
+- dabf79c2 2024-03-30  Cleanup collector code and sync sfcapd
+- 5cffb3a9 2024-03-29  Cleanup collector loop
+- 2d806f68 2024-03-29  Add more detaied error message
+- 903a8aab 2024-03-29  Handle potential file rotate error
+- 39a69463 2024-03-29  Remove unneeded check
+- c6ea78a6 2024-03-29  Add IP version in json output
+- 98b1928c 2024-03-29  Implement #515 features
+- 1b6139e1 2024-03-29  Add dot1q in ipfix. Fix for #515
+- c4a2575d 2024-03-29  Fix #516
+- 32770d52 2024-03-29  Dissolve dataBlock in nffile_t for writing in order to prepare for multi threading processing flows
+- ef928d69 2024-03-29  Add Netflow v9 ethertype field support
+- fb664fcb 2024-03-22  Dissolve dataBlock for reading in nffile_t in order to prepare for mutli-threading processing.
+- 9198d949 2024-03-17  New FilterSetParam function
+- d253340b 2024-03-17  Improve performance to read and convert nfdump-1.6.x records. See #512
+- 3b388b8b 2024-03-16  Cleanup configure.ac
+- 70732b20 2024-03-16  Add conditional build and licensing terms for ja4+
+- 282187a3 2024-03-16  Update nfdump.1 man page with ssl and ja4 filters
+- 6f4f6ad4 2024-03-16  Add SSL/TLS sni filter
+- 69959f0c 2024-03-16  Add SSL/TLS filter
+- 45ade57e 2024-03-16  Add ja4 tests to nftest
+- 2e6d172a 2024-03-16  Fix nftest
+- 8c18cff7 2024-03-16  Add ja4s to filter syntax
+- 23fd4a24 2024-03-15  separate ja4, ja4s in nfstat
+- dedb73a8 2024-03-15  Streamline ja3, ja4, ssl code
+- d5220a9b 2024-03-14  Add ssl preproc to filter
+- 9b7a54a3 2024-03-14  Fix getopt parsing - #513
+- 77ae6806 2024-03-14  Add ja4 to filter. First try
+- 8fe6a2b2 2024-03-11  Work on ja4 in nfstat
+- 595952ad 2024-03-10  Work on ja4
+- ab0810d3 2024-03-10  Wire ja4/ja4s in output json and do more work on SSL payload
+- 070cd71b 2024-03-10  Wire ja4/ja4s in fmt output format
+- f09d7a52 2024-03-09  Wire ja4/ja4s in raw output format
+- b1bf5a1e 2024-03-09  Move tor code to libnfdump
+- c9969ec5 2024-03-09  Cleanup Makefiles
+- 8c97e7e7 2024-03-09  Integrate maxmind code into libnfdump
+- b733d6c7 2024-03-09  Fix typo
+- 84b425bb 2024-03-09  Fix library order errors
+- 2043de76 2024-03-09  Split libnfdump into libnffile and libnfdump
+- 784e62dc 2024-03-09  Merge remote-tracking branch 'origin/nfdump-ja4'
+- 8a0c883a 2024-03-09  Fix typo
+- d5add6b7 2024-03-09  Fix compile errors from pull #511
+- 9241fee9 2024-03-09  Merge pull request #511 from blkmajik/json-log
+- f0f9f4b2 2024-03-09  Merge branch 'master' into json-log
+- c5c5e476 2024-03-09  Code cleanup
+- 0b59bea2 2024-03-08  Update nfdump.conf.dist
+- 3ff30f25 2024-03-08  Fix OS library order
+- d77c056a 2024-03-08  Fix configure.ac
+- 93ce7fb9 2024-03-08  Add torlookup for IPs
+- b65a3ff1 2024-03-08  Maxmind code refactoring
+- c4f81699 2024-03-08  Streamline ja3/ja4
+- fb632743 2024-03-05  Move sampled to end to handle proper syntax on closing.  No final , on last field
+- 23ec1e5e 2024-03-05  Use record separator instead of field separator between records
+- 031b4623 2024-03-05  Swap fs/rs for json-log format
+- 3dfc829d 2024-03-05  Make fprintf happy
+- 432925e5 2024-03-05  Const char instead
+- da3cf0d3 2024-03-05  Integrate json-log format into output_json
+- 9c1021de 2024-03-03  Merge remote-tracking branch 'origin/nfdump-ja4'
+- cd9b43e7 2024-03-03  Fix Makefiles
+- 626be0bb 2024-03-03  Merge remote-tracking branch 'origin/nfdump-ja4'
+- 17ead4c6 2024-03-03  Updeate ChangeLog
+- c9fe29c8 2024-03-03  Prepare nfstat for var length fields such as ja4
+- 2a55c3bf 2024-03-03  Commit
+- 109c1c95 2024-03-03  Fix ssl decoder
+- f9913227 2024-03-03  Remove debugging flag
+- 1e88803a 2024-03-01  Implement ja4s
+- 4a606725 2024-03-01  Update Readme
+- c129b789 2024-03-01  Add ja4 Readme for license issue and add --enable-ja4, default no for building all ja4 modules
+- 5c72cc89 2024-03-01  Add ja3 filter in nfdump-ja4
+- 5cdc989d 2024-03-01  Cleanup include
+- 539902c5 2024-03-01  Insert ja3 filter code
+- 8ed9f341 2024-03-01  Add ja4_c
+- 2ded6b58 2024-02-29  Implement ja_a and ja_b of ja
+- ae92ef6f 2024-02-29  Add ja4 files to start implementation
+- 16148ed9 2024-02-29  Add sha256
+- a4f6a53a 2024-02-26  Refrag ssl extension code
+- 6ea1b581 2024-02-25  Add ALPN extension decoding to ssl.c
+- 4115a8b4 2024-02-25  Fix missing malloc() type casting
+- 07136b35 2024-02-25  Use new ssl module for ja3
+- 17d127e5 2024-02-24  Debug ssl code - Client Hello
+- 79e9b8a4 2024-02-24  Defrag ssl and ja3 - Add plain ssl code
+- 00e0e45c 2024-02-24  Fix nfreader code
+- eb5bef54 2024-02-22  Cleanup code to handle legacy sampler record
+- a988a40c 2024-02-18  Rework maxmind code
+- 9a0dddf5 2024-02-17  Fix library dependencies on some *nix
+- 2c987ee1 2024-02-17  The previous commit 466c27b is a merge with a working branch to remove the clumsy master_record_t in nfdump. This removes lot of legacy code and updates the code base. Furthermore, the filter engin has been replaced by a more flexible and faster one. The speed gain depends on the filter and the number of filter elements. The overall speed gain with this merge is 10% in average. Further improvements are planned with more worker threats. Please note that the filter syntax had some small changes such as 'icmp-type' is now 'icmp type' etc.
+- 466c27bd 2024-02-17  Merge remote-tracking branch 'origin/nfdump-filter-ng'
+- bc08a0a0 2024-02-17  Sync lz4 code
+- 4f409e98 2024-02-17  (tag: v1.7.4) Release v1.7.4
+- 4a7de413 2024-02-17  Fix compiler warnings for lz4
+- 4e98a352 2024-02-17  Update lz4 code
+- 519a052f 2024-02-16  Fix compile issues
+- d301428d 2024-02-16  Cleanup runtest.sh
+- e5976bde 2024-02-13  Move payload decode to own directory
+- df94907c 2024-02-12  Update filter code, to be multi threading ready
+- 75d07cba 2024-02-11  Remove last debris from pipe output mode. Pipe output mode is gone now.
+- 21606f7b 2024-02-11  Add DEVEL code
+- 72dcff45 2024-02-11  work on nflowcache
+- aa78fee4 2024-02-11  Fix stat issues
+- dcf84990 2024-02-11  Fix nflowcache
+- 4c3a7e57 2024-02-10  Fix type bug
+- 89a43a48 2024-02-10  Cleanup and replace version script.
+- 7997ac4c 2024-02-10  Replace Changelog file with git log history. Modify gen_version.sh. See #482
+- 00015298 2024-02-10  Honor printPlain Flag for String_evt. See #498
+- cf43542a 2024-02-09  Cleanup strings
+- 286eac3d 2024-02-09  Clean nfdump and geolookups
+- 5355fe88 2024-02-07  Wire maxmind geolookup in nfstat
+- 5b255f51 2024-02-07  Wire Maxmind geo filters in new filter engine
+- 249ca65a 2024-02-06  Work on aggregation und filter issues
+- 88dda882 2024-02-04  Wrap up loose ends
+- 9db42154 2024-02-03  Fix buggy sflow code. Fixes #506
+- f8381be8 2024-02-03  Update sflow
+- 98437f83 2024-02-03  dissolve code for output
+- a20249cd 2024-02-03  Dissolve code for output
+- 56919df1 2024-02-03  Change link order as some Linux linker do not correctly find static symbols. Fix #505
+- e6b9fce2 2024-02-03  Fix init
+- e88056f4 2024-02-02  Cleanup and fix nflowcache and nfstat
+- 05c7fbd1 2024-01-29  Fix stat issues in nflowcahe and nfstat
+- 35d42928 2024-01-29  Fix format issues in output_fmt
+- 1b6cdd5c 2024-01-29  Fix some output_fmt format issues
+- 627565a0 2024-01-29  Remove local m4 files
+- f0d27505 2024-01-29  Fix err var in nfprofile
+- dc1b1b28 2024-01-29  Fix #503 - Append records in nfprofile
+- 1dcb7aee 2024-01-28  Fix fmt time 1970
+- c5ddbf07 2024-01-28  Fix fmt cores
+- 427b08e6 2024-01-28  Removed master record from nfgen. Update make check
+- bbaef64c 2024-01-26  master record removed from 1.7.x code
+- 373e8ad9 2024-01-26  Modified nfgen and first cleanup
+- fb360cd9 2024-01-26  removed master record from nfgen
+- 452c6ce7 2024-01-25  Replace nftest. master_record removed
+- 40267bbf 2024-01-25  Cleanup old master_record
+- b94b43c0 2024-01-25  Removed master_record from nfstat
+- bb9765e2 2024-01-24  Start cleanup nfstat
+- df7605b3 2024-01-24  Work on nfstat
+- e325de67 2024-01-22  Implement #501. Add -X <extlist> option for sfcapd
+- c558152d 2024-01-21  Start working on nfstat.c
+- c51748a4 2024-01-21  Complete nflowcache.c
+- 83209d3c 2024-01-21  Start to optimise nflowcache
+- 741addd1 2024-01-20  Removed master record from nflowcache
+- 373ca782 2024-01-20  Removed master record from nflowcache
+- 7a795a53 2024-01-20  Work on nflowcache
+- 02083833 2024-01-19  Work on nflowcache
+- a1ac11bf 2024-01-15  Add endian for ICMP for correct decoding
+- 2b11d66c 2024-01-15  Work on nflowcache
+- ddf605e5 2024-01-14  Fix for first test
+- 51148c61 2024-01-14  Working on nflowcache
+- 4b961bd4 2024-01-14  Fix #498 - event string in output_fmt
+- a81832c5 2024-01-14  Remove master_record from output_fmt
+- 19a0ec35 2024-01-13  Remove master record from output_json
+- 174139e0 2024-01-13  Remove legacy pipe output format
+- f042b4c4 2024-01-13  Remove master record from output_raw
+- 85c00acc 2024-01-13  Removed master record from output_csv
+- ebfc7511 2024-01-13  Working on output_csv
+- fe96d8ed 2024-01-11  master record removed from nfreplay
+- 7cb61a58 2024-01-09  Fixes
+- dcfd52e3 2024-01-08  Add missing files
+- 400ac03a 2024-01-07  Remove master_record from send_v5
+- acab1dd0 2024-01-07  Work on nfreplay
+- 90cfd936 2024-01-07  Wire new filter in nftrack, nfprofile - easiest
+- 96377510 2024-01-07  Move filter files in own lib/filter directory
+- 1075d660 2024-01-07  Move filter files in own lib/filter directory
+- 47361785 2024-01-07  Update Readme
+- 389acc58 2024-01-06  Remove NSEL option from nfanon. NSEL included by default
+- d49a0503 2024-01-06  Fix error message
+- b78ffba3 2024-01-06  Refrag code into userio files. Prepare for next level code update
+- 05430dd7 2024-01-06  Move code. Cleanup
+- 272c235d 2024-01-03  Fix Offset/Size values in nfxV3.h
+- 5c19ff27 2023-12-31  Fix runtest with new field IPfrag flags
+- 3981646e 2023-12-27  Add IP fragmentflags tag #197
+- 71d0afc9 2023-12-27  Add cgNAT decoding to IPFIX decoder
+- b6841f6d 2023-12-27  Fix #496 - Add RFC8158 NAT event flags
+- dec1d926 2023-12-16  Update Offset/Size for header fields
+- 305f1bef 2023-12-15  Merge pull request #489 from g0tar/keep_flowStartMilliseconds
+- aaaee7e8 2023-12-13  Don't clear flowStartMilliseconds when flowEndMilliseconds==0
+- 93797b22 2023-12-05  Fixed #486. Pull request #487
+- 2fd5df73 2023-12-03  Cleanup grammar.y with useless rule
+- 295f5145 2023-12-03  Implement request #485 in sfcapd to store nat IP/port for sflow records if available
+- 042e68b2 2023-12-02  Cleanup filter. String arguments in filter elements may be single or double quoted. Strings without quotes are accepted as strings as long as the string is not a reserved filter key word.#
+- 71f888f7 2023-11-26  Update nfdump.spec. Thanks rexy74!
+- 40eb5c90 2023-11-26  Fix grammar
+- eaf96ce5 2023-11-26  More fixes for #484
+- df508602 2023-11-26  Fix #484 - workaround not really a fix
+- 7f75c90e 2023-11-18  Fix #481 - expire.c
+- 469dd817 2023-11-18  Merge branch 'master' of github.com:phaag/nfdump sync local
+- cc1073ab 2023-11-18  Cleanup flist code
+- cbc617fe 2023-11-01  Fix #480 Build error on CentOS
+- fded574c 2023-10-19  Merge pull request #477 from chadf/configure-disable-xxxx
+- 622670ba 2023-10-16  Fixed remaining ./configure --disable-xxxx issues. Corrected use of $enabled_xxxx vs $build_xxxx where appropriete.
+- ce7ff2c4 2023-10-15  Fix ./configure --disable-xxxx handling.
+- e2b9f432 2023-10-15  Add multiple dir wildcard '@' for multiple dir argument -M
+- 6b69002c 2023-10-14  Fix all HAVE_ZSTD macros
+- 3ac05dee 2023-10-14  Repair version string
+- ec8b602f 2023-10-14  Check time window, if given,  of a multi file selection
+- 94743ee0 2023-10-14  Fix compiler warning in kbtree.h
+- 286d70db 2023-10-14  Update Readme
+- 3e4a9925 2023-10-14  Improve build process for external compression libraries. Make bzip library optional
+- 9a505505 2023-10-08  Fix #474. Reject unspecified IP addresses and invalid prefix length in filter
+- 46d2db01 2023-09-25  Fix #469. Update usage and error messages and man pages
+- 02ee7008 2023-09-25  Fix #467. Rework number of workers setting. Set max to 64
+- cfaf6abb 2023-09-02  (tag: v1.7.3) Release v1.7.3
+- 5e2aef98 2023-09-02  Improve error handling in privsep.c
+- 584453e6 2023-08-20  Fix #459. change vars to uint64_t
+- 696f5632 2023-08-12  Merge branch 'master' of github.com:phaag/nfdump
+- ec1f1215 2023-08-12  Allow direction status > 2, althogh not defined
+- c2c097f7 2023-07-27  Fix #452 - to add GeoInfo
+- 11637224 2023-06-23  Merge branch 'master' of github.com:phaag/nfdump
+- c51ce1f1 2023-06-23  Fix #448 man page type
+- de9811c1 2023-06-18  Cleanup unused extensions. Implemented as arrays. Collect Juniper inline-monitorig packet data. Data is not yet decoded.
+- 3a810ad8 2023-06-18  Add types for Juniper inline-monitoring. No decoding yet
+- 130fafef 2023-06-17  Update test sequence for compression levels
+- 14be8fb7 2023-06-17  Cleanup nffile struct
+- f9515d25 2023-06-17  Fix potential compressed appendix corruption
+- 4b7c42a1 2023-06-17  Update Readme for building instructions on older Ubuntu 18.04 LTS
+- 837419b5 2023-06-17  Fix broken installation of nfdump.conf.dist
+- df4fc16c 2023-06-16  Cleanup all compress files into sub dir
+- 6c47de55 2023-06-16  Move conf subdir to nfdump library. Fix linker errors
+- 18f7bc57 2023-06-16  Add maxworkers to nfdump.conf
+- 336cb054 2023-06-16  Make count check more dynamic in v5
+- 1a716299 2023-06-06  Fix nfsen #15 on RH
+- 65ea877c 2023-05-29  Bark if rename fails
+- 8802fa07 2023-05-29  Add zstd to QueryFile()
+- 98385f2c 2023-05-29  Cleanup and fix minor bugs
+- 91aeeb89 2023-05-29  Enable multiple writer threads, depending on number of Cores online
+- a9a43225 2023-05-28  Update Readme
+- 92f8d01d 2023-05-28  Update Readme
+- 2efd259a 2023-05-27  Add zstd compression
+- cb254b17 2023-05-27  Enable lz4 compression levels 3..12
+- 3b7b92fb 2023-05-27  Update lz4 code
+- 81232837 2023-05-27  Add code for compression level handling
+- c6fedc09 2023-05-26  Update compression code
+- c8c98d0c 2023-05-26  Add compresson level parsing
+- 74131882 2023-05-21  Fix parsing compression option to work for all possible options
+- 12a90b4a 2023-05-21  Adapt -J option in nfdump to new compression spec, being still compatible with old one.
+- a1f4f19c 2023-05-21  Print usage() if no arguments are given
+- d8620c05 2023-05-21  Update man pages
+- e928c42e 2023-05-21  Unify compression arguments. Use now -z=<format> for compression. Accept still old -j and -y for now
+- e8ee2fce 2023-05-19  Remove static var for lzo wrkmem
+- f2ddf67b 2023-05-19  Cleanup nfprofile and fix issue #398
+- 69e4d983 2023-05-18  Add syslog by default for nfprofile
+- 7041498e 2023-05-18  Add file verification for nfprofile
+- efd28adb 2023-05-18  Cleanup nfprofile code
+- b54e2662 2023-05-08  Make geolookup more robust reading buggy files
+- d90d5618 2023-05-08  Add flush() for nfprofile
+- 399014dd 2023-05-07  Move from c11 to c17 compile standard
+- 7b791a1c 2023-05-07  Cleanup profile code
+- 27d65be7 2023-05-06  Prevent loading geoDB if not needed
+- f3a174fc 2023-05-06  change var name
+- 2c5678f2 2023-05-06  Add BlockReports
+- 18a34c16 2023-05-05  Update nfprofile
+- 43f3f14a 2023-05-04  Fix last commit
+- 881707ed 2023-05-04  Remove blockqueue. Reduce memory footprint
+- e10c2ef2 2023-04-30  Code cleanup
+- af0f43e6 2023-04-30  Code cleanup
+- 2944ac90 2023-04-30  Make consistent protocol ID for nfd raw
+- 07426485 2023-04-30  Code cleanup and minor bug fix
+- 328daafc 2023-04-30  Rework QueryFile code and cleanup
+- 058cecb3 2023-04-29  Merge and cleanup nfpcapd and nfreplay code for sending raw records
+- 2864358a 2023-04-29  Add nfdump protocol for nfreplay
+- 62ca6656 2023-04-23  (tag: v1.7.2) Release v1.7.2
+- 2eaac76c 2023-04-23  Update ChangeLog
+- 0080e791 2023-04-23  Update nfcapd/sfcapd man pages for erspan data link
+- 39ec0295 2023-04-15  Fix AddGeoInfo
+- 8388cb18 2023-04-09  Cleanup linkoffset handling in nfpcapd
+- 38decb4c 2023-04-09  Implement erspan protocol in nfpcapd packet processing
+- a2cb5e3a 2023-04-08  Sync ipfix and netflow_v9 for option field processing
+- 075dd3a5 2023-04-07  Handle buggy option data(!)
+- c87c8924 2023-04-07  minor fixes
+- d8fe70ab 2023-04-07  Fix linux compile warnings
+- bc3201c3 2023-04-07  Fix FreeBSD include issue
+- 0546452b 2023-04-07  Fix v9 option template processing
+- b7aee0be 2023-04-07  Fix option record processing for multiple records
+- a197e571 2023-04-07  Fix ipfix nbar processing
+- 64fc1e14 2023-04-06  Wire bufflen for pcap reader
+- 2dadbaae 2023-04-06  Add FUNDING
+- 42dea3e6 2023-04-06  Fix compiler warnings
+- 520c3eef 2023-04-06  Update pcap reader with erspan device
+- 721f6f3c 2023-04-02  Fix fmt argument parsing
+- 34171af4 2023-04-02  Add IPv4 in IPv6 cases in geolookup
+- 5bb991d6 2023-04-01  Cleanup buffsize memory
+- 771c0c9f 2023-03-26  Fix IP version check in geolookup
+- 26a0f614 2023-03-26  Disable signals in threads. Different OS handle signals differently
+- 7099d56a 2023-03-26  Recongnize old sampler with missing algorithm tag #35
+- 5d58d4c7 2023-03-26  Fix memory leaks
+- 3781b431 2023-03-19  Cleanup
+- c3877c43 2023-03-12  Update pcap_reader and add CISCO application performance monitor tags
+- 28683f6e 2023-03-11  Add ERSPAN decoding to pcap_reader
+- f41364c5 2023-03-11  Fix FreeBSD include issue in pcap reader
+- 93f1af69 2023-03-11  Remove more autogen m4 files from repo
+- 488e2136 2023-03-11  Remove autogen m4/libtool from repo
+- 20f2b516 2023-03-11  Check uid root for src spoofing option
+- 02dc34b3 2023-03-06  Fix argument checking in nftrack. #432
+- 49661b53 2023-03-06  Fix valgrind error for uninitalised memory. #431
+- 99dc96e8 2023-03-05  Update lz4 code
+- 919dd4e0 2023-03-05  Update number of enabled tags in v9 and ipfix
+- ec8649fb 2023-03-05  Fix Init message in v9 and ipfix
+- 175e6519 2023-03-05  Fix broken init functions
+- 035c0034 2023-03-05  Add collector option -X to limit stored data.
+- bffe6406 2023-03-05  Add help text for format tokens
+- 3c03f249 2023-03-05  Implement %sasn, %dasn organisation name printing tags. See #430
+- b47eec00 2023-03-05  Rename macro
+- 1dbfb602 2023-03-05  Check record size in geo DB
+- a44f6f8d 2023-03-04  Implement #428. Needs rebuild of the geoDB.
+- ebbdf309 2023-03-04  Fix #429. Correct header line for %dloc
+- 3e5aa643 2023-02-27  Fix launcher argument bug
+- 4498c9ae 2023-02-26  Wire sampling extension for individual sampling
+- 9f96ec16 2023-02-26  Wire sampling extension for individual sampling.
+- 096aaefc 2023-02-25  Fix #426 - compile bug with nsel option
+- 984530ce 2023-02-25  Fix pcap_reader
+- 78ce872a 2023-02-25  Merge branch 'master' of github.com:phaag/nfdump
+- 469d3880 2023-02-25  Update ICMP type/code handling. Issue #423
+- f6584561 2023-02-24  Merge pull request #424 from thezoggy/patch-1
+- 0f050fb8 2023-02-21  Update .gitignore
+- 428bec05 2023-02-21  Merge pull request #422 from mkorkalo/master
+- d91a3f1a 2023-02-21  Correct spelling correction
+- f7eb3509 2023-02-21  Merge pull request #421 from thezoggy/codespell
+- 97f0e597 2023-02-21  fix String_LastSeenRaw ms formatting
+- bf52a99f 2023-02-20  codespell - cleanup
+- 6f16426b 2023-02-18  Pimp pcap_reader
+- 07c9150b 2023-02-18  Fix #415. ICMP decoding in netflow v9
+- af0fcb38 2023-02-18  Fix exporter printing
+- ca2c430d 2023-02-18  Update Readme
+- c2b18d7c 2023-02-17  Update for #409 for a mixed environment
+- 5a760c36 2023-02-15  Fix #414. -O bps works correct now
+- 746c8dd5 2023-02-14  Update geo filter test
+- 64076c83 2023-02-14  Update geofilter settings
+- d46474b8 2023-02-11  Merge pull request #411 from borjam/nfreplay-sourceaddr
+- 174ec983 2023-02-11  Fix minor issues.
+- 4d0001b7 2023-02-11  Refine sampling to fix #410
+- 75f1c1fd 2023-02-10  Fix argument processing for -n
+- dc57aa57 2023-02-10  Added source address support for nfreplay
+- 33f9a6ac 2023-02-07  Update README
+- e36ab605 2023-02-07  Fix c-cpp.yml
+- 28f38642 2023-02-07  Fix c-cpp.yml
+- b93a8d18 2023-02-07  Create c-cpp.yml
+- 4badf6cd 2023-02-05  Fix dst tos bug in output_raw
+- 56cd416a 2023-02-05  Code cleanup. Update nfxV3.h for Golang import
+- c82f1952 2023-02-04  Add icmp type/code elements 176, 177, 178, 179
+- 32575435 2023-02-04  Add icmp type/code elements 176, 177, 178, 179
+- 80505880 2023-02-04  Fix #402 - Add AS info.
+- 4a4dac0b 2023-02-04  Fix 408. Interchanged time stamps
+- 68d5a9f7 2023-02-04  Add geo info in JSON output when using GeoDB.  #402
+- 55ebc725 2023-02-04  Fix more FreeBSD include issues
+- 01b244e9 2023-02-04  Fix configure.ac bug
+- fe1d00a8 2023-02-04  Fix FreeBSD include bug. #407
+- e0743b30 2023-01-29  Move fwd_status in correct block in output_raw
+- 23c6daad 2023-01-29  Fix gen_date.sh
+- 5ed2f8c6 2023-01-28  Fix Makefiles
+- ca33e203 2023-01-28  Add unique version string
+- b4d0962b 2023-01-23  Fix #400 - compile error
+- 4f49c8e4 2023-01-22  Copy event time to flow start/stop
+- 22241936 2023-01-21  Fix Event display time, if not flagged as event
+- fcf422b0 2023-01-21  Add creator tag in nffile header
+- ea596c7c 2023-01-21  Add creator tag in nffile header
+- f559c368 2023-01-21  Fix filter concat bug. Add exporter filter
+- 4fd19092 2023-01-17  Update output_fmt.c
+- b6839c51 2023-01-14  Fix #396. Code cleanup
+- 1215e1a6 2023-01-08  Fix CentOS compile issue
+- e74ce265 2023-01-07  Add pflog fmt tokens in man page
+- fd3e48d4 2023-01-07  Fix grammer.y
+- 76c85d05 2023-01-07  Implement OpenBSD pflog filters elements and -o fmt print tokens
+- 22548d2a 2023-01-04  Fix configure.ac
+- ce2d8b37 2023-01-04  Add pcap_dump_open_append() code, if missed by some libpcaps
+- fe45a360 2023-01-03  Disable debugging code
+- 193834c5 2023-01-03  Implement source IP address spoofing for the packet repeater. See #248
+- abfab424 2023-01-02  Replace old packet repeater code with more modern privsep code
+- 5da05add 2023-01-01  Remove old code
+- 7a7e15c0 2022-12-31  Replace old launcher startup code with more modern privsep code
+- 3b0d80e8 2022-12-29  Fix compile issue #395 on Alpine Linux
+- fd7ab9c0 2022-12-24  (tag: v1.7.1) Release v1.7.1
+- 3a37f363 2022-12-23  Fix #394. Add Changelog
+- 35f9735d 2022-12-22  Add NSEL/NEL event flag
+- 0c45f2d7 2022-12-22  Fix compile error
+- e2e11919 2022-12-22  Update Changelog
+- 5ba2077f 2022-12-22  Merge remote-tracking branch 'origin'
+- 164aa3c4 2022-12-22  Fix #393 consistent logging
+- 0360d535 2022-12-20  Remove extra : in getopt of nfcapd.
+- 17a81d7d 2022-12-18  Code cleanup
+- 3550a3f4 2022-12-18  Add feature #391. Add country code addgregation
+- 27102b73 2022-12-18  Fix #392. Fix format options with IPv6
+- 90669726 2022-12-18  Fix #390. Aggregation not working for GeoDB's enriched AS data
+- ad0215a3 2022-12-17  Add OpenBSD pflog decoding in nfpcapd and nfdump
+- c210f2f8 2022-12-17  Add pfinfo extension
+- 29477da8 2022-12-17  Fix Ident change
+- 7908190b 2022-12-17  Sync nfcapd, sfcapd code. Cleanup pcaproc
+- eb6c5bec 2022-12-17  Fix #389 receiving IPv4 on IPv6 socket in sfcapd
+- 70b17cbd 2022-12-17  Code cleanup in nfpcapd
+- cb73d61f 2022-12-09  Code cleanup
+- c475a7d5 2022-12-09  Fix #385 bug - i386 32bit alignment
+- 7922f23a 2022-12-09  Fix #384 bug when compile with --enable-nsel
+- 26cfd107 2022-12-04  Update nfprofile help text
+- e06830f4 2022-12-04  Fix nfprofile record processing loop
+- 69143aec 2022-12-04  Fix -M for nfprofile
+- f37abff5 2022-12-04  Add missing pflog.h
+- c8788087 2022-12-03  Add OpenBSD pf linktype 117 for pflog
+- 626d5f21 2022-12-03  Fix #382 build error on certain platforms
+- 1f03a0b4 2022-12-02  Code cleanup
+- 63e8496b 2022-12-02  Code cleanup
+- 4bc869be 2022-12-02  Fix compile warnings
+- eeace4df 2022-12-02  Fix compile error
+- f4ff9ad9 2022-12-02  Implement NFLOG link layer
+- f8b3be80 2022-12-02  Fix #381. pcap overwrite fixed
+- 5a9f88a2 2022-12-02  Fix #380. utf8 string validation
+- 61c8aa77 2022-11-29  Add missing file id.h
+- f054d64b 2022-11-27  Fix same table structs for ipfix anf v9
+- aebca211 2022-11-27  Fix #377. Rework sampling code in general. Switch to packet interval/space notation. Map older sampling to new notation. Fix #375 relative timestamps with sysUptime id 160
+- e57f2150 2022-11-15  Merge pull request #378 from heiko3/master
+- 9fbbbf63 2022-11-15  Merge pull request #376 from vrbaji1/patch-1
+- c45be96a 2022-11-14  Remove debug printf
+- 4748ac1c 2022-11-13  #367 - Add if and vrf name tags 83, 236. Rework vrf ingress/egress outside of NEL records
+- 4dbdc8db 2022-11-08  stat() correct path for option -M
+- d6c2bee1 2022-11-04  Fix aggregation on xdstip
+- 79b67002 2022-10-23  Update nbar ipfix code
+- 163b671d 2022-10-23  Reworked nbar code to be more generic for other array records
+- 9d66b9a6 2022-10-22  Fix #369. Legacy -M for NfSen works again
+- 9141f1cc 2022-10-22  Fix #370. Help shows correct option -g
+- c347da1d 2022-10-22  Cleanup unsed var in maxmind
+- 5cc35c69 2022-10-16  Update nbar field length #361
+- f3fc2c06 2022-10-07  Improve nbar handling
+- d54bce13 2022-10-03  Merge pull request #357 to master
+- 2d50c678 2022-10-01  Code refactoring and cleanup
+- 41299500 2022-09-30  Fix typo bug in docker files
+- ecb8d6bb 2022-09-30  (tag: v1.7.0.1) Update to nudump-1.7.0.1 - build issues
+- 1fb86045 2022-09-30  Add docker file for alpine Linux.
+- 4707df91 2022-09-30  Update docker file for ubuntu
+- da6f37f6 2022-09-30  Fix build issues on various Linuxes
+- 486a7830 2022-09-29  Update Readme
+- 1bcd1a90 2022-09-29  Fix snprintf length argument
+- 42f8d7ee 2022-09-29  Handle fscanf return value in pidfile.c
+- d07c3135 2022-09-29  Add missing variable initialization
+- bef1a167 2022-09-28  (tag: v.1.7.0) Update Readme for CentOS 7.x
+- 1009e69b 2022-09-28  Fix compile issues
+- c794e930 2022-09-28  Add missing daemon files
+- 563e8b25 2022-09-28  Release 1.7.0
+- cc8680e9 2022-09-28  Merge branch 'master' into unicorn Merge unicorn brantch to master
+- 99242d64 2022-09-27  Update README
+- 7ea86263 2022-09-27  Update nfdump man page
+- 02ec100e 2022-09-25  Update nfreplay man page
+- 8099894e 2022-09-25  Update sfcapd man page
+- 5d44eec3 2022-09-25  Clean up collector code
+- 8bf359b9 2022-09-24  Cleanup nfcapd code and man page
+- 8dde91f0 2022-09-23  Replace collector -l option with more speaking -w for output flow directory
+- 6313ed81 2022-09-23  Update nfexpire man page
+- 71544877 2022-09-23  Update nfanon man page
+- 1df7c968 2022-09-23  Cleanup nfanon code and man page
+- d12738b3 2022-09-22  Update ft2nfdump man page
+- aecb79a5 2022-09-22  Move reading NFCONF into nfconf.c
+- 12c5261d 2022-09-22  Update geolookup man page
+- 94c828a0 2022-09-20  Add update maxmind DB script
+- 803b100d 2022-09-20  Add missing testfile
+- 428537ca 2022-09-20  Let geolookup use the config geodb.path
+- ba338283 2022-09-19  Fix propper config file installation and set as default
+- 21c343f6 2022-09-19  Fix man page installation
+- 0af0c2ae 2022-09-19  Fix .gitignore and Makefile.am
+- 7ad99af7 2022-09-19  Fix ckeck script
+- 1e992655 2022-09-19  Refactor nfcapd code in subdir
+- 2816bccd 2022-09-19  Cleanup files and update gitignore
+- f56fb1f4 2022-09-19  Cleanup old files
+- bc3dd8b8 2022-09-19  Cleanup Makfiles
+- d994abee 2022-09-19  Cleanup code
+- 1ba875bd 2022-09-19  Collector code cleanup
+- ebf9d214 2022-09-19  Make gcc happy
+- cecbb08a 2022-09-19  Add missing Makefile.am
+- e477e7cc 2022-09-19  Cleanup collector code
+- 297578c0 2022-09-19  Fix includes
+- 9d9f3a4d 2022-09-19  Add include dir
+- 32b28249 2022-09-19  Code cleanup
+- 713d4daf 2022-09-19  Cleanup code for nfreplay
+- 4d9522a6 2022-09-18  Fix print_epilog
+- a6aa5b56 2022-09-18  Add maxmind subdir
+- 50c43875 2022-09-18  Move nfanon and nfreader in own sub dir
+- 17973b98 2022-09-18  Cleanup
+- d8280fc2 2022-09-18  New netflow subdir for protocols
+- 4caadd08 2022-09-18  Add config file
+- 33aa5cf7 2022-09-17  Cleanup files. Rearrange output processing
+- 0bd233c2 2022-09-04  Add missing DLT_LINUX_SLL for BSD systems
+- 2f7781bf 2022-09-04  Create FUNDING.yml
+- 87a4c9ba 2022-09-01  Fix geolookup IPv6. Concat cmdline args without quotes
+- 07939258 2022-08-31  Improve ja3 handling/printing. Add sni name in output format
+- a7346705 2022-08-28  Add missing argument getopt arg checks
+- 977b2ad0 2022-08-28  Add geo stat. Minor changes/improvements ja3 and dns. Dump full payload in output raw
+- 95c68123 2022-08-27  Update man page for payload regex filter
+- 1ccf4386 2022-08-27  Replace payload regex code
+- 1cd20bda 2022-08-24  Add geo location to stat output
+- 47460714 2022-08-24  Fix memory leak when for payload records
+- 80879efa 2022-08-22  Replace payload content matching
+- ae104274 2022-08-22  Replace getval inline functions
+- a968f631 2022-08-21  Recognise 6 byte input length in ipfix
+- 298e6e06 2022-08-21  Improve some link layer protocol discovery in nfpcapd
+- 9a252d25 2022-08-20  Cleanup sequencer
+- aaac6c87 2022-08-20  Fix compiler issues and time formats in nfpcapd
+- 36136417 2022-08-20  Cleanup inline code
+- 57d3257f 2022-08-17  Fix filter bug. #356
+- 364c0ab1 2022-08-14  Cleanup payload printing
+- f4ce8295 2022-08-13  Some cleanup
+- 7f7e3cb6 2022-08-13  Add payload regex filter
+- b1811b34 2022-08-11  Fix compiler warnings
+- ae76cd3d 2022-08-06  Add example gnuplot command file to extra directory
+- d3f504db 2022-08-06  Add gnuplot summary output
+- 1aa83372 2022-08-06  Add record dynamic record count
+- 071ee4b4 2022-08-06  Change display format for duration in more human readable format
+- 57d969be 2022-07-30  Correctly decode ether type 0x6558 in nfpcapd
+- 50b286bf 2022-07-07  Fix flow label code
+- e0bea16d 2022-07-05  Make sure existing flow files are not overwritten, but appended in nfcapd, nfpcapd and sfcapd
+- 2d786aa3 2022-07-03  Add ipfix observation domainID/pointID. #351
+- 0afa9b96 2022-06-25  Fixed missing newline in CSV output
+- 7c2dd1bf 2022-06-14  State 20220614
+- ebfedf2f 2022-04-23  Fix #333 with NSEL event record sending flow icmp
+- fa49d129 2022-04-23  Fix #333 with NSEL event record sending flow icmp
+- 2dd036fc 2022-03-26  (tag: v1.6.24) Release 1.6.24
+- 0418e731 2022-03-26  Update m4 files
+- 51ba781f 2022-03-26  Update Doxigen.in file: #332
+- 3f8cca01 2022-03-25  Merge pull request #336 from thesamesam/m4-macro-dir
+- e882722e 2022-03-24  Makefile.am: add ACLOCAL_AMFLAGS
+- 3e610026 2022-03-21  Set ident on OpenNewFile
+- ec483f05 2022-03-20  Update metric. Add ident. Remove rate
+- 7438fee2 2022-03-19  Fix nfpcapd LDFLAGS
+- db6b1cda 2022-03-19  Fix nfpcapd LDFLAGS
+- be244d8c 2022-03-19  Calculate metric/s with double
+- 77342cd7 2022-03-11  Fix cmd line processinf in nfanon. #328
+- e6cb94bc 2022-03-06  Update Readme regarding InfluxDB
+- 4859557a 2022-03-06  Update Readme
+- ec4b48e7 2022-03-06  Update metric code
+- b574c365 2022-03-06  Update metric code
+- 3c521ee3 2022-03-06  Update metric code
+- e9472987 2022-03-05  Update metric
+- 32741601 2022-03-05  Fix editing
+- 609b75a9 2022-03-05  Compatibility to autoconf 2.69
+- a34890b6 2022-03-05  Update metric. Make collector main clock reference
+- 4652c201 2022-03-03  Make configure.ac autoconf 2.69 compatible
+- 77f6f409 2022-02-25  Cleanup/update automake files
+- 67da975f 2022-02-25  Cleanup automake files. Fixes #304.
+- e6261098 2022-02-22  Fix issue #304 - accept CFLAGS
+- 5f13e055 2022-02-19  Fix sflow compile problem
+- 0c778156 2022-01-29  Fix ja3 bugs. Cleanup ja3
+- 38b1d092 2021-10-22  Fix link handling for nfpcapd
+- 6dab9418 2021-10-22  Fix link handling for nfpcapd
+- 888695f6 2021-10-22  Fix link handling for nfpcapd
+- 335d5924 2021-10-22  Update flow_record_short to new format
+- 553063a4 2021-09-19  Add tunnel flow handling (IPIP, GRE etc.)
+- b06010bf 2021-09-12  Update metric to rate and not counters
+- 59530e47 2021-09-04  Add pppoe proto decoding for nfpcapd. Add tunnel flows in output
+- 2f2f90e6 2021-08-28  Update metrics for multiple exporters on collector
+- f15f24c5 2021-08-27  Revert #304 - does not work
+- ea1958c1 2021-08-27   Fix compile flags  #304
+- a7b75905 2021-08-27  Update sfcapd and nfpcapd with metric export
+- 8408f499 2021-08-25  Update metric handling - no more diffing
+- 896a604b 2021-08-24  Update metric code
+- 4e80f8e9 2021-08-24  Enable metric export for v5/v9/ipfix
+- 1f8e4693 2021-08-24  Add POC for metric export
+- 3c3d044e 2021-08-12  Add more fields in colloctor raw output.
+- b8f38654 2021-08-01  Add NAT elements in IPFIX
+- cbb4c13f 2021-07-31  Add NAT event record support for IPFIX: #298. Fix man page: #301
+- 5850f575 2021-07-16  Fix issue #296 - broken json format with option -q
+- 506330ee 2021-07-10  Add bverbose option. Fix minor raw output bugs
+- 81b3f126 2021-07-10  Reduce memory footprint. Fix nfreplay
+- 87fb3ba9 2021-07-06  Fix dns decoding
+- 74e495ec 2021-07-04  Improve nfreader/writer threads
+- 4871d29f 2021-07-04  Fix memory leaks while rotating files
+- 1fecb546 2021-07-03  Merge pull request #295 from piorek94/sfcapd_nfcapd_similarity
+- 202da1e7 2021-07-03  Merge branch 'unicorn' into sfcapd_nfcapd_similarity
+- 3303fb64 2021-07-03  Complete ja3 hash processing
+- d5d6d7a0 2021-06-29  keep code symiliarity (as max as possible) between nfcapd and sfcapd
+- 5bf94735 2021-06-29  Add ipfix engine type/id tags
+- 390bdd40 2021-06-25  Fixed json msec formating
+- 1f612770 2021-06-25  Fix json msec formating - #294
+- 8ee9de8c 2021-06-25  Fix -t time window
+- 6f06ea23 2021-06-25  Fix broken time window
+- 19ddf1b6 2021-06-20  Add ja3 code
+- 0472408c 2021-06-13  Fix Debian odd select handling
+- 9440e4c6 2021-06-10  Fix output of nbar ID/name
+- b66aea9a 2021-06-04  Update pidfile check
+- a0938f08 2021-05-31  Change to new stat_record
+- b72f644b 2021-05-31  Fixed broken bps, pps in pipe and csv output
+- bec6786a 2021-05-30  Fix 'make check' and pid file handling
+- 67efa0ef 2021-05-30  Add missing new line in pipe output format
+- ef739d82 2021-05-30  Fix debug(devel) output, in collector verbose mode
+- 3b9731a7 2021-05-30  Fix typos and complete man pages
+- bbd3408f 2021-05-30  Remove -T consistent in nfcapd, sfcapd and nfpcapd
+- 47595c70 2021-05-30  Remove -w in sfcapd to be consistent
+- b9664db6 2021-05-24  Update README.md
+- 5dc8ec9b 2021-05-24  Updated man pages
+- 62f37d4c 2021-05-23  Update Readme
+- d2d39cc6 2021-05-23  Update Readme
+- 6558007c 2021-05-23  Update Readme
+- 1c6755b0 2021-05-23  Update Readme
+- 37157b34 2021-05-23  Update Readme
+- a36d1e33 2021-05-23  Update Readme
+- 30f07a4f 2021-05-23  Update Readme
+- c6fae55d 2021-05-23  Status 20210523
+- adefae06 2021-05-19  Silence short packet logs due to small snaplen. #221
+- 357385b9 2021-05-17  Status 20210517
+- c6724e66 2021-05-17  Status 20210517
+- df8c300d 2021-05-12  Fix nftest for patch #289
+- 8e192dfa 2021-05-12  Merge pull request #290 from piorek94/sflow_new_structures
+- a8a2ac3b 2021-05-12  Merge pull request #289 from piorek94/flags_with_tcp_block
+- 4620dedd 2021-05-12  Merge pull request #288 from piorek94/icmp_error_msg
+- d2eff251 2021-05-11  sflow: add structures for delay,queue depth,egress queue,entities
+- 71195cde 2021-05-11  imply flags with a proto TCP block
+- 713633fd 2021-05-11  icmp code/type error message code compatibility
+- dd474461 2021-05-08  Cleanup some code and files
+- e6d790b8 2021-05-07  Status 20210507
+- 3e870695 2021-05-06  (tag: v1.6.23) Release 1.6.23
+- ffb25990 2021-05-04  Status 20210504
+- b29f9278 2021-05-03  Status 20210503
+- d5dae03a 2021-05-02  Status 20210502
+- 8b7db620 2021-05-02  Status 20210502
+- 121e80d6 2021-04-30  Status 20210430
+- 1f15c2a9 2021-04-30  Status 20210430
+- 7f995c25 2021-04-28  Fix potential FreeNode without valid Node in nfpcapd
+- aacb652b 2021-04-23  Add all non TCP/UDP IP protocols as streams in nfpcapd
+- 2c8921c8 2021-04-22  Unwrap MPLS in nfpcad. Handle ESP in nfpcapd
+- ab0d4f97 2021-04-18  Status 20210418
+- b7dfb37b 2021-04-17  Status 20210417
+- 0ed38597 2021-04-10  Change spin lock to native C11 lock
+- 250c1eff 2021-04-10  Cleanup code for issue #283
+- 66136620 2021-04-10  status 2021-04-10
+- 28ad878a 2021-04-09  Add mpls unwrap in sflow code
+- 66df8627 2021-04-06  Merge pull request #282 from orbea/bin
+- 44b6854a 2021-03-27  bin: Use the libtool archives to link.
+- 78505418 2021-03-13  Merge pull request #277 from piorek94/sflow_q_in_q
+- 6a11a7dd 2021-03-13  Update rbtree. Fix potential nfpcapd deadlock
+- 39f95157 2021-03-12  enable sflow q-in-q, fix ipv6 header skip
+- 1c720216 2021-03-06  Add packet capture buffer size to nfpcapd
+- 26c96e4d 2021-03-06  state 20210306
+- b00603c6 2021-02-20  Merge pull request #267 from franciosi/patch-1
+- f134b16a 2021-02-20  Fix #271 - endless loop of nfexpire, if it does not find files
+- f2d3dbc8 2021-02-20  Fix sflow code extended field parsing. #262 and #273
+- 97ffcfeb 2021-02-07  Status 20210207
+- 385edef2 2021-01-31  State 20210131
+- 0b8d26f7 2021-01-30  Fix yaf decoding error. Zero out tcp flags for non TCP flows
+- 9f9cb7c4 2021-01-30  State 20210130
+- 657126f1 2021-01-18  State 20210118
+- 50952329 2021-01-17  Fix sflow compile errors
+- 34456d4c 2021-01-17  Make -Tall the default for nfcapd to collect extensions
+- b0c7a5ec 2021-01-17  Add flow end reason element 136
+- d6aeca97 2021-01-16  Add biFlow direction element 239
+- 4465e4c0 2021-01-16  Add reverse element enterprise ID 29305 for counter values
+- 0d515dbf 2021-01-12  Update README.md
+- bcebbe32 2020-12-22  Fix typos
+- a1926a2d 2020-12-22  code cleanup and boundary checks in option template processing
+- 19416dc8 2020-12-21  Implement element 160 (SystemInitTime) in option template. Issue #260
+- 621c87c9 2020-12-19  Fix minor compile issues
+- 95d0984a 2020-12-19  Fix compile/platform issues
+- 3be22d3d 2020-12-19  Fix compile/platform issues
+- 5efd2718 2020-12-19  status 20201219
+- b88a077a 2020-12-19  Add Element 160 (SystemInitTime) in flow record used by Huawei
+- 6a786788 2020-12-05  Fix print plain numbers #263
+- 8e4964a5 2020-12-05  Fix path handling for -l <dir>
+- 0cb13df2 2020-12-01  State 20201201
+- 21922d46 2020-11-22  Snapshot 20201122
+- e8b30c3d 2020-11-21  (tag: v1.6.22) Release 1.6.22
+- 9b599298 2020-10-24  20201024
+- d7a820a6 2020-10-19  cleanup
+- 9b32c31b 2020-10-19  Fix nfreplay v5 time shift bug
+- 0b115314 2020-10-17  code cleanup
+- 353d6ff4 2020-10-17  Fix IPv4/IPv6 statistics representation #252
+- 4ce9eddc 2020-10-17  Add element 139 for ICMP type/code in IPv6. #250
+- b05764ed 2020-10-17  Fix syntax error 'flags AS' as 'AS' is a reserved word. #255
+- 7b2d5102 2020-10-17  Merge pull request #256 from piorek94/new_comparators
+- 3b300ed3 2020-10-14  add support for >=, <= comparators
+- ee875956 2020-09-21  State 20200921
+- 81f80a5c 2020-09-12  Cleanup nip/xip filter syntax. Add filter syntax 'nip in [ <iplist>]'. Request #246
+- 93bb5652 2020-09-03  Add nfversion to nfpcapd
+- 80b9cbb9 2020-08-31  Merge pull request #243 from mildis/master
+- a766080d 2020-08-31  Add collected netflow/sflow version in nfdump record. Request #242
+- 994cc18a 2020-08-31  Fix GuessDir bug - issue #215
+- a95906fa 2020-08-25  add option N to read multiple flows from file
+- f5ae2b82 2020-08-08  Re-address issue #231 - remove strict rule rfc 7011
+- 49a64695 2020-08-02  (tag: v1.6.21) Release 1.6.21
+- 77254026 2020-08-02  Address issue #236 Add token 'dir' equivalent to 'flowdir' in filter syntax
+- eae6e42b 2020-08-02  Address issue #159. Implement rfc 7011 and include sender UDP port into unique template identification
+- 7a78d344 2020-07-26  State 20200726
+- 707e8490 2020-07-25  Fix #230 - Avoid use_syslog name clash on certain OS
+- e7af79fd 2020-07-25  Fixed #243
+- 801c3c5d 2020-07-25  Add optional print direction ascending or descending to -s and -O output. Request #235
+- e306baf7 2020-07-18  Fix #231 - sampling detection
+- 6aa5929b 2020-07-12  2020711
+- 31cd138e 2020-06-26  20200626
+- 50df654e 2020-06-20  Honor -n flag when printing sorted flow cache
+- a378d837 2020-06-20  Fix uninitialized variable printPlain
+- e4901158 2020-06-20  Fix bug #223
+- 63fc4e2b 2020-05-23  Merge pull request #222 from irino/nfdump-fix-csv-title
+- c0ea62bd 2020-05-21  Merge pull request #219 from yuriskinfo/man_fixes
+- 5f0bd07f 2020-05-17  Snapshot 202017
+- 64d2bbd6 2020-05-04  Add \n in csv prolog for separating title and first data.
+- b78e0f50 2020-04-24  Fixed some typos, missing/extra commas, restructured few ambiguous sentences for better readability
+- 8d9d5281 2020-04-22  Restore old behaviour unlimiting output flows unless in -s stat
+- ff8e0f2d 2020-04-18  Fix ft2nfdump nexthop fields/extension map size bug
+- 3bc1f072 2020-04-13  Unify all timestamps to msec
+- 9c4ad8b9 2020-04-12  Merge pull request #216 from 2igosha/master
+- e25cfdf5 2020-04-12  Sync GuessDir from master
+- 3a473dc5 2020-04-12  Fix GuessDir bug - issue #215 in flow exporter
+- 7fb4110b 2020-04-12  Fix GuessDir bug - issue #215
+- e3d84dbf 2020-04-08  Allow processing of DLT_RAW links (i.e. for a tun VPN)
+- 45a502d9 2020-04-05  add output parameter struct
+- bfe19f9e 2020-04-05  internal: put output parameters in a single struct
+- 7eccd20b 2020-03-29  (tag: v1.6.20) Release 1.6.20
+- adb6b7bb 2020-03-29  More cleanup on plain number printing
+- c65956b5 2020-03-28  Fix profiler filer but
+- 1671401b 2020-03-28  Fix plain numbers bug #213
+- d9933019 2020-03-28  Fix plain numbers bug #213
+- 79a2c442 2020-03-22  Introduce file layout V2
+- 8a376ba6 2020-02-29  Merge pull request #208 from bernhardschmidt/948039-crossbuild
+- b889a6b6 2020-02-29  Merge pull request #207 from bernhardschmidt/909437-typo
+- 754b5451 2020-02-25  Fix crossbuilding
+- 138eb604 2020-02-25  Fix typo in nfdump.1
+- 9c6137df 2020-02-23  Delete extra file
+- 998c385f 2020-02-23  Add V3 extension definition. Generic V2 file types
+- a0fc1691 2020-02-23  Update Readme for UNICORN branch
+- cb5f7617 2020-02-22  Fix README
+- f86fbfca 2020-02-22  (tag: v1.6.19) Move version to nfdump-1.6.19
+- 1de8e38f 2020-02-16  Add Push for new sgt tag
+- dce3e368 2020-02-16  Modify heuristic for bidir flows #59
+- 3714bc9b 2020-02-16  Add Source security group tag (SGT 34000) issue #192
+- ae8ded02 2020-02-16  Remove debugging printf in sflow_process
+- df447a52 2020-02-16  Cleanup commented code
+- b394ff57 2020-02-16  Fix minror bug in nfnet
+- a254a7c0 2020-02-14  More spring cleaning
+- 60efbf38 2020-02-09  Cleanup unused nffile records. Add nffileV2.h
+- 10d9e734 2020-02-02  Fix various compiler warnings
+- b0135e0a 2020-02-01  Fix make check
+- a7ed5b87 2020-02-01  Set verbose logging off by default in non daemon mode
+- 4825c5e5 2020-02-01  Remove external global vars
+- f7e9681e 2020-01-31  Remove old legacy records
+- 6bcf930f 2020-01-29  Major code rearrangements
+- d28bfb79 2020-01-26  More code cleanup
+- 8740d965 2020-01-26  Cleanup nftest
+- d5e2b762 2020-01-26  Cleanup header code
+- 6e465972 2020-01-18  Merge pull request #201 from spenceation/add-egress-vrfid-doc
+- a076571d 2020-01-15  Add missing NF_N_EGRESS_VRFID documentation
+- a055ba86 2020-01-11  Fix bug for IPv6 network cidr representation in raw and cvs output mode
+- b3c13622 2019-12-04  Remove unused old code. Fix for #197
+- 0428577a 2019-12-03  Fix bidir export issues. Cleanup code. Fix for #195
+- 0c138be5 2019-11-17  Fix typo - Enable small time intervals < 60s. - #185
+- 7d5234bd 2019-11-17  Enable small time intervals < 300s. - #185
+- 68fea3f6 2019-11-09  Fix gcc compile issue
+- f579c73c 2019-11-09  merge
+- 406a2103 2019-11-09  Fix minor nfpcapd issues
+- c2a976e7 2019-11-08  Fix corrupt file handling #193
+- c5db2c73 2019-11-03  Fix protocol width field
+- b0b99b59 2019-11-03  Fix protocol width field
+- a67b75be 2019-11-03  More code cleanup. Move code to dedicated files
+- 536671df 2019-10-28  Fix print_epilog
+- 3360ca37 2019-10-28  Cleanup
+- ff634c25 2019-10-28  Update README
+- 9994f766 2019-10-28  Fix issue #190. Add compile time option for JunOS.
+- 07350f2f 2019-10-28  Fix bug #189 - valid json output - Restructure code for output into separate files
+- 955a6626 2019-09-01  Cleanup configure.ac
+- 7a208e6e 2019-08-31  Cleanup old compat15 comments
+- a26e360c 2019-08-31  Add c11.m4 macro
+- 41dae127 2019-08-31  Fix various c11 compile issues. BSD/Linux gcc/clang
+- 0633e9a0 2019-08-24  Fix sflow issue with Arista switches
+- ecf9b12c 2019-08-24  Add vlan tags dot1qVlanId, 243, 254 - #182
+- 003a592b 2019-08-19  Fix ft2nfdump next hop and ip router fields
+- 772cbd56 2019-08-17  Work in progress towards v1.7 Start cleanup of old and ugly code. More cleanup will follow Rewrite sampler handling code. Move definitions to correct header files. Move to C11 as global standard for nfdump. Move to -O3 as compile option for nfdump
+- e9cbaf46 2019-08-16  Cleanup and fix IPv6 network display in war records
+- bef82c09 2019-08-14  (tag: v1.6.18) Fix output buffer size for lzo1x_decompress_safe. #180
+- 3b6ee89a 2019-08-14  Fix comple issues
+- 7029f892 2019-08-13  Fix Readme
+- 6469157d 2019-08-07  Fix VerifyExtensionMap #179
+- 74b68ec0 2019-08-06  Fix compile errors #178
+- 0dbf6462 2019-08-05  Cleanup fixes
+- e1126d55 2019-08-05  Replace depricated pcap_lookupdev call in nfpcapd
+- 134c9699 2019-08-05  Cleanup old code
+- 45388187 2019-08-05  Merge pull request #167 from mwmix/master
+- b64f2a63 2019-08-05  Move version to v1.6.18
+- a8b460e1 2019-08-05  Remove COMPAT15 code
+- 76dfc7d1 2019-08-05  Fix checks in InsertExtensionMap #177
+- 7234bcf0 2019-08-05  Add bound checks in AddExporterInfo
+- 8d188885 2019-08-05  Add bound checks in AddSamplerInfo #176
+- 859ea2c5 2019-08-05  Add bound checks in AddExporterStat #174
+- 7dbd3eb4 2019-08-05  Fix use after free in ModifyCompressFile
+- 7bd6d5b8 2019-08-05  Fix off by 1 array. #173
+- dfca80fe 2019-08-05  Fix nfdump.1 man page. #175
+- 0b451721 2019-07-31  Add record size sanity check also for nfprofile, nfanona and nfreplay
+- 7b26ee97 2019-07-28  Change to safe lzo decompress function
+- 226d10ea 2019-07-28  Fix hbo_nfx.c:216_3 segfault. Update minilzo to v2.10
+- 833c9bc4 2019-07-28  Fix hbo_nffile_inline.c:85_1
+- 98d8ba61 2019-07-28  Fix hbo_exporter.c:249_1 segfault
+- d01083c3 2019-07-28  nfpcapd cleanup
+- 3b006ede 2019-07-27  Fix potential unsigned integer underflow
+- 7c0d06af 2019-07-27  Rework nfpcapd and add it officially to the nfdump collection
+- fd3d3dbb 2019-07-17  Add latency extension if dumping flowcache
+- a19e18e4 2019-07-15  Fix exporter struct inconsistancies. Coredump on ARM otherwise
+- 7af869d3 2019-07-02  Add ipfix element #150, #151 unix time start/end
+- fb6790bb 2019-06-20  Fixed typo with bgp6_next_hop
+- 42623047 2019-06-02  Add empty m4 directory - keep autoconf happy
+- 96412959 2019-06-02  Add empty m4 directory - keep autoconf happy
+- 53253783 2019-06-02  Add empty m4 directory - keep autoconf happy
+- 439b7e81 2019-06-02  Add empty m4 directory - keep autoconf happy
+- da2a1261 2019-06-02  Add ipfix dyn element handling
+- b5b42abe 2019-06-01  Fix issue #156 - print flowtable index error
+- 90bcf774 2019-06-01  Fix issue #162 - ipfix mpls sequece
+- 52c819e7 2019-03-17  Remove non thread safe logging in nfpcapd
+- 7c3c775f 2019-03-17  Fix spec file - #149
+- d1b17315 2018-11-26  Merge pull request #137 from farrokhi/master
+- 4f55abd7 2018-11-26  Merge pull request #134 from shigechika/fix-v5_output_record
+- a8e3586a 2018-11-25  Merge pull request #131 from grimmfarmer/issue-130
+- d00dffb3 2018-11-25  Merge pull request #144 from tsl-karlp/patch-1
+- cf63f796 2018-11-25  Fix bug to accept -y compression flag in nfcapd. - #145
+- afb64297 2018-11-25  Remove padding byte warning in log #141
+- 3e55add0 2018-11-25  Add missing -M command line help to nfcapd
+- 0aa02021 2018-11-25  Merge pull request #139 from whh8b/master
+- 776a5596 2018-11-25  Fix some error messages to be printed to the correct stream #135
+- 4963995d 2018-11-25  Add TCP flags ECN,CVR - #132
+- ddcb5ba5 2018-11-25  Merge branch 'master' of github.com:phaag/nfdump
+- 603302eb 2018-11-25  Fix protocol tag for protocol 87 - TCF. #130
+- dac73346 2018-11-16  typos and formatting fixes
+- 78933642 2018-10-11  Document -M in usage for nfcapd
+- 9a6d6292 2018-10-09  Fix bulid against libpcap when `--enable-readpcap` is given
+- b70496db 2018-10-04  Fix v5_output_record
+- 3d1e2a48 2018-09-05  Fix typo in protocol list: 87 should be "TCF" but is labeled "TCP".
+- 8da06b59 2018-08-18  Merge pull request #125 from marekbecka/scale_summary
+- 49587e68 2018-07-26  Also scale numeric values also in summary unless -N is used.
+- 4dafc2dc 2018-06-24  Update man page nfreplay for -z parameter
+- 3fd30239 2018-06-24  Merge pull request #120 from LouisSinan/master
+- 9049c9f5 2018-06-24  Cleanup comment
+- db100d7e 2018-06-24  Add CISCO ASA elements initiatorPackets (298) responderPackets (299)
+- 3c0c3f8d 2018-06-24  Ignore OSX .DS_Store files in -R file list
+- 9d187da6 2018-06-24  Add multiple packet repeaters to nfcapd/sfcapd
+- 214091e4 2018-06-24  Fix bookkeeper type - use key_t
+- 97687605 2018-05-24  Merge pull request #1 from LouisSinan/Distribution-accross-time
+- eaecb4c9 2018-05-24  nfreplay - Distribution accross time
+- 11f91591 2018-05-06  New bookkeeper hash broke NfSen. Fixed. ported back to release 1.6.17
+- ec91b397 2018-04-22  (tag: v1.6.17) Release 1.6.17
+- eab02996 2018-04-20  Fix definition for InfluxDB in configure.ac Issue #98
+- bddfdb13 2018-04-20  Fix minor bugs
+- 29fb080a 2018-04-20  Update nfdump.1 man page for xsrcport & xdstport aggregations. Request #109
+- 2fab2cc9 2018-04-20  Merge pull request #109 from simPod/aggregations
+- 79a9c82d 2018-04-20  Merge pull request #108 from simPod/master
+- 19a7b2d7 2018-04-20  Fix bug in sorting when guessing flow direction. Issue #92
+- e94fbbaa 2018-04-03  Add xsrcport & xdstport aggregations
+- 5849192c 2018-04-01  Fix autogen.sh permissions to be executable
+- 0082088c 2018-04-01  Add Fix argument processing of influxDB URL in nfprofile. Issue #99
+- 325aea7c 2018-04-01  Add missing option -M in man page for nfcapd. Issue #103
+- 9f0fe956 2018-04-01  Fix nfdump crashes, when feeded with garbage input. Issue #104
+- 27f62a55 2018-02-11  Add missing -v option in nfreplay help text
+- 9e2e0c48 2018-02-11  Add missing json output format help text
+- 2b4cfc7e 2018-01-06  Merge pull request #51 Influxdb from Luca
+- 0ea114f8 2018-01-01  IPFIX add fwd status tag #89 compatible to v9 (1byte)
+- c400f52d 2018-01-01  IPFIX time stamps - fix offset calculation of unknown time formats
+- 2a829dfb 2018-01-01  IPFIX time stamps - Fix elements #21,#22 offset calculation
+- 31137a3f 2017-12-31  Fix sampling for Juniper MX104. No sampling algorithm required
+- 13131ffb 2017-12-30  Add new output format json
+- 0ec4e212 2017-12-29  Remove unneeded files
+- 84be3e45 2017-12-29  Update README.md
+- 1d2ed37d 2017-12-29  Update Readme.md formating
+- 70edef1d 2017-12-29  Fix formating errors
+- f999bfe0 2017-12-29  Update Readme
+- fccabf69 2017-12-29  Activate flowlabel in filter syntax
+- 746d1bcd 2017-12-29  Add sampling tags 302, 304, 305. Add option for filter labels
+- be29ad70 2017-12-28  Add more detailed autogen.sh - softlink bootstrap
+- 0a86642a 2017-12-28  Fix 64bit fts compat issue in fts_compat.c
+- cedc8479 2017-12-28  Cleanup headers. Satify includes for header file
+- 9c2e7d6f 2017-12-28  Fix compiler warnings from different compilers clang/gcc
+- 8a9dcb2b 2017-12-28  Cleanup sflow code - uncomment unnecessary code
+- eaa7a857 2017-12-27  Update sflow code to commit 7322984 of https://github.com/sflow/sflowtool
+- c4e8a5b5 2017-12-27  Add ipfix delta timestamp elements 158/159
+- 020a4d08 2017-12-22  Fix potential memory leaks in nfpcapd
+- b776f8df 2017-12-21  Fix wrong offset calculation if unknown options are found
+- adfd5e96 2017-12-21  Add x-late src/dst ip aggregation, if compiled with NSEL support
+- f1b91aaa 2017-12-21  Fix gcc/clang differences
+- 959edbcc 2017-12-17  Report updates on existing samplers in v9 only if values change. issue 84
+- 79d9916c 2017-12-17  Add sampling for IPFIX. See issue #47
+- a0ac615e 2017-12-15  Merge pull request #89 from orca-software/add_doxygen_docs
+- 99387c0e 2017-12-15  Merge pull request #88 from orca-software/remove_autotools_output
+- dbcf7a67 2017-12-13  Added generated docs to .gitignore
+- 15afb0a0 2017-12-13  Configure building docs
+- 0874edfd 2017-12-13  Fixed issue with HAVE_DOXYGEN define
+- 4bcdc8da 2017-12-06  Added doc directory for Doxygen files and output
+- b4f08813 2017-12-13  Added binaries generated by make to .gitignore
+- db4aa2b2 2017-12-13  Added files generated by "configure" to .gitignore
+- 8214edba 2017-12-13  Added generated files by ./bootstrap to .gitignore
+- 376b3c8c 2017-12-13  Removed lingering references to doc directory
+- b8111e7c 2017-12-13  Removed generated files
+- 59e0eaec 2017-12-12  Add lz4 compression. Remove old and experimental xstat code - cleanup
+- 3bf72967 2017-12-11  Add lz4 compression. Remove old and experimental xstat code
+- 235fad2e 2017-12-03  Fix minor issues and compiler warnings
+- 659f582b 2017-12-03  Fix sfcapd time slices < 60 are not allowed
+- 41e5ec8d 2017-12-03  Fix version tags. update all to 1.6.16
+- 7b9fa686 2017-11-05  Fix readme for release 1.6.16
+- 98211146 2017-11-05  (tag: v1.6.16) Release 1.6.16
+- 29e80e48 2017-11-05  Change -B behaviour as proposed in issue #59. Should not impact with previous use, but is more flexible
+- a8bc82de 2017-11-05  Add bzip compress switch in usage output of nfpcapd
+- a35ecdd1 2017-11-05  Fix issue #72 - multiple stat output
+- f7a4bc56 2017-11-05  Add 8byte timestamps exported by Nexus 7k family
+- ad628903 2017-03-18  Fix memory leak, if nfcapd can not write into directory
+- f0666be4 2017-03-18  Fix compile issues on some platforms
+- f67d99e2 2016-11-26  For nfpcapd, use more efficient spin locks for thread sync
+- 4c712ee6 2016-11-26  Clean up logging. User Log* routines everywhere
+- 4cd1ef11 2016-11-26  Merge branch 'master' of github.com:phaag/nfdump
+- 4aa12726 2016-11-26  Add latency extension to nfpcapd. Streamline nfpcapd.
+- 88ed5083 2016-11-19  Merge pull request #39 from bernhardschmidt/spelling
+- b1a20cc1 2016-11-15  Merge pull request #43 from aapo/typo_in_man
+- aaa5c690 2016-11-13  Fix nfdump man page #44
+- 63e5ee71 2016-11-13  Push fixes
+- 4be59e0e 2016-11-13  Add nfdump.test.out to git. Few debug changes in v9 and ipfix
+- beae8f53 2016-10-22  Fix typo in man
+- b22d19a0 2016-10-03  Fix man warning in nfdump.1
+- 365c3004 2016-10-03  Fix spelling errors in sources found by Debian lintian
+- 05e97ab2 2016-10-03  Fix spelling errors in manpages found by Debian lintian
+- f8db5a90 2016-07-23  Replace unreliable _ftok in bookkeeper
+- 01bfb785 2016-07-20  Merge pull request #28 from candlerb/candlerb/in_out_bytes
+- ecf85cff 2016-07-20  Merge pull request #26 from simonflood/patch-7
+- 5fab7794 2016-06-13  Aggregate using in+out bytes for bidirectional flows
+- e1120f0e 2016-06-07  Update README.md
+- 812651f1 2016-06-05  Cleanup formating of nf_common.c
+- 0cde713e 2016-06-05  Merge pull request #25 from Opmantek/rawts
+- 68d660e9 2016-06-05  (tag: v1.6.15) Release v1.6.15
+- 25138d83 2016-06-05  Fix wrong bps type case in cvs output. Fix opbs ipbs typos
+- 3039c97c 2016-06-05  Fix obyte, opps and obps output records
+- 4237451c 2016-05-11  fixed stupid mistake re msec inclusion in start and end timestamps (received was ok)
+- 69cc9c06 2016-05-11  added formats %tsr, %ter and %trr for printing raw, fractional unix timestamps
+- 6ef51a74 2016-05-07  Merge pull request #19 from adamlamar/nfxstat-header-guard
+- 0db0d7ff 2016-05-07  Add %ff record flags to custom output format
+- bca76b91 2016-05-07  Cleanup code in netflow_v9.c
+- 5d77fad3 2016-05-07  Fix email address in AUTHERS file
+- ff0e855b 2016-05-07  Fix security issues in netflow_v9.c and ipfix.c
+- aeb703c7 2016-05-06  Fix shared library build issue. --enable-shared=no and yes are honored correctly.
+- 83e31800 2016-03-14  Add header guard to nfxstat
+- 45c669ce 2016-02-03  Merge pull request #13 from simonflood/patch-6
+- 73a775c5 2016-02-03  Merge pull request #10 from simonflood/patch-3
+- 16438a2b 2016-02-03  Merge pull request #11 from simonflood/patch-4
+- 09729c72 2016-02-03  Merge pull request #9 from simonflood/patch-2
+- 88f833b9 2016-02-03  Merge pull request #8 from simonflood/patch-1
+- 089875b9 2016-02-03  Merge pull request #12 from simonflood/patch-5
+- c3a33fb5 2016-02-02  Update nfdump.spec
+- 3f8b8aff 2016-02-02  Update nfdump.spec
+- 6bc66f68 2016-02-02  Update BSD-license.txt
+- 5933a03e 2016-02-02  Update nfdump.spec
+- bfa44538 2016-01-29  Update sfcapd.c
+- 0e7540fe 2016-01-29  Update nfcapd.c
+- ef7697f0 2016-01-10  (tag: v1.6.14) Fix build issues on various Linux/*BSD
+- a12087c1 2016-01-10  Add -Z in nfcapd/sfcapd for timezone extension. Breaks expire for now
+- 3b72bdac 2016-01-10  sflow: fix timestamp overflow. Build: cleanup check files.
+- cc8315ea 2015-12-23  Add nfdump library. Fix fragments iin sflow
+- 6f5ea046 2015-11-21  Fix help for -z -j description
+- 69d46a71 2015-11-21  (tag: v1.6.14-b2) Add missing nftrack to git
+- 7ffa3cb4 2015-10-03  Fix Readme.md
+- 7f17ef9d 2015-10-03  (tag: v1.6.14-b1) Cleanup
+- b9641c11 2015-10-03  Add code for 1.6.14 to GitHub
+- 5174b9f5 2015-10-03  beautify README.md
+- 758237b4 2015-10-03  Initial git release 1.6.13
+- 752de785 2015-08-09  Update README.md
+- 3cd8a326 2015-08-09  Initial commit
