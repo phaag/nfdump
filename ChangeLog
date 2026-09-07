@@ -1,4 +1,8 @@
-- 34c57ffd 2026-09-02  (HEAD -> master, origin/master, origin/HEAD) Fix icmp handling in case of absent data
+- 93378b4e 2026-09-07  (HEAD -> master, origin/master, origin/HEAD) Fix bidirectional flow (-b/-B) aggregation broken by gcc -O3 (#690)
+- f8d8bded 2026-09-06  Update README.md
+- 60020d2e 2026-09-06  Update README.md
+- 94d5f8a8 2026-09-06  (tag: v1.7.9) Release 1.7.9
+- 34c57ffd 2026-09-02  Fix icmp handling in case of absent data
 - b99c8cb5 2026-08-27  Guard swap16 and swap32 to use builtins where available
 - 88cd1c4b 2026-08-27  Fix spelling errors, missing docs and improve some code for next release
 - cfc68e60 2026-08-27  Baclport fix from 1.8.x: apply postfilter to exported nffile

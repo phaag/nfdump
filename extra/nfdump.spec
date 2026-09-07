@@ -1,5 +1,5 @@
 Name:		nfdump
-Version:	1.7.9
+Version:	1.7.10
 Release:	%mkrel 0
 Summary:	NetFlow collecting and processing tools
 License:	BSD
@@ -47,6 +47,10 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/*
 
 %changelog
+* Mon Sep 07 2026 Peter Haag <peter@people.ops-trust.net>
+- Version 1.7.10
+- Fix bidirectional flow (-b/-B) aggregation broken by gcc -O3 builds (#690)
+
 * Thu Aug 27 2026 Peter Haag <peter@people.ops-trust.net>
 - Version 1.7.9
 - Drop --enable-nftrack and --disable-rpath: no longer valid configure options
