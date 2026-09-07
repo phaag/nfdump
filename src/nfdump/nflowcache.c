@@ -262,6 +262,10 @@ static uint32_t GuessDirection = 0;
 static uint32_t HasGeoDB = 0;
 
 // predefined V6 hash key struct, used in -s record/..
+// may_alias: this struct is repeatedly overlaid (via pointer cast) onto a raw byte
+// buffer that is also read back as uint64_t[2] / hashed as a byte stream. Without
+// this attribute, -fstrict-aliasing allows the compiler to assume those accesses
+// don't alias, which can (and does, with gcc -O3)
 typedef struct FlowKeyV6_s {
     uint16_t af;
     uint16_t srcPort;
@@ -269,9 +273,10 @@ typedef struct FlowKeyV6_s {
     uint16_t proto;
     uint64_t srcAddr[2];
     uint64_t dstAddr[2];
-} FlowKeyV6_t;
+} __attribute__((may_alias)) FlowKeyV6_t;
 
 // predefined V4 hash key struct, used in -s record/..
+// may_alias: see FlowKeyV6_t above - same buffer-overlay pattern.
 typedef struct FlowKeyV4_s {
     uint16_t af;
     uint16_t srcPort;
@@ -279,7 +284,7 @@ typedef struct FlowKeyV4_s {
     uint16_t proto;
     uint32_t srcAddr;
     uint32_t dstAddr;
-} FlowKeyV4_t;
+} __attribute__((may_alias)) FlowKeyV4_t;
 
 static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
 

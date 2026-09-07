@@ -44,6 +44,7 @@ AX_APPEND_FLAG([-Wstrict-prototypes],[CFLAGS])
 AX_APPEND_FLAG([-Wmissing-prototypes],[CFLAGS])
 AX_APPEND_FLAG([-Wmissing-declarations],[CFLAGS])
 AX_APPEND_FLAG([-Wmissing-noreturn],[CFLAGS])
+AX_APPEND_FLAG([-fno-strict-aliasing],[CFLAGS])
 
 LT_INIT
 
