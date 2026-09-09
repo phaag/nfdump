@@ -75,10 +75,6 @@
 #workers = 0
 
 [nfdump]
-[nfdump.threads]
-#readers = 0
-#writers = 0
-#workers = 0
 
 # format definitions
 
@@ -120,6 +116,15 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # tordb
 # if you use tor DB to identify tor exit node IPs - see torlookup(1)
 # tordb.path = "/var/db/tordb.nf"
+
+# NOTE: [nfdump.threads] must come last in this section - in TOML, any
+# direct [nfdump] keys (fmt.*, csv.*, geodb.path, tordb.path, ...) written
+# after a [nfdump.threads] sub-table would silently nest inside it instead
+# and never be read, since there is no way to reopen [nfdump] afterwards.
+[nfdump.threads]
+#readers = 0
+#writers = 0
+#workers = 0
 
 [nfcapd]
 # TC_ROLE_WRITE_ONLY: budget left after fixed collector threads goes to

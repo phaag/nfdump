@@ -73,6 +73,7 @@ static option_t confOverrides[CONF_MAX_OVERRIDES];
 static int numConfOverrides = 0;
 
 static bool confKeyExists(const char *key);
+static bool confValidateConfTable(toml_table_t *table, const char *pathPrefix);
 static bool confTableGetBool(toml_table_t *root, const char *key, bool *out);
 
 static bool confOverrideGetBool(const char *value) {
@@ -81,10 +82,26 @@ static bool confOverrideGetBool(const char *value) {
     return strtoll(value, NULL, 0) != 0;
 }  // End of confOverrideGetBool
 
+// Verify the CLI override table (-x key=value) against nfconf's static key
+// reference (see confKeyExists() below). Deliberately independent of whether a
+// config file was found or what it contains - a key is either a real, known
+// setting or it isn't; an override must resolve to one regardless of whether
+// nfdump.conf happens to mention it. Every unknown key e.g. typos are reported
+static bool ConfValidateOverrides(void) {
+    bool allValid = true;
+    for (int i = 0; i < numConfOverrides; i++) {
+        if (!confKeyExists(confOverrides[i].key)) {
+            LogError("Invalid config override: unknown key '%s'", confOverrides[i].key);
+            allValid = false;
+        }
+    }
+    return allValid;
+}  // End of ConfValidateOverrides
+
 /*
  * Open config file provided
  * returns:
- * -1 error
+ * -1 error - includes an unknown/invalid -x override
  *  0 no config file
  *  1 successfully read config
  */
@@ -93,6 +110,12 @@ int ConfOpen(char *filename, char *section, option_t *defaultConf) {
     // is disabled or no file exists.
     nfconfFile.defaultConf = defaultConf;
 
+    // Validate -x overrides up front, against the static key reference alone -
+    // independent of whether a config file exists, is readable, or mentions the
+    // key at all. Every code path below returns after this without needing its
+    // own validation call.
+    if (!ConfValidateOverrides()) return -1;
+
     // if read prevented
     if (filename && strcmp(filename, NOCONF) == 0) return 0;
 
@@ -100,7 +123,7 @@ int ConfOpen(char *filename, char *section, option_t *defaultConf) {
     if (filename == NULL) filename = getenv("NFCONF");
 
     // if no config file is given, check for default
-    // silently return if not found
+    // silently continue without a file if not found
     if (filename == NULL) {
         // NFCONF_FILE expands to SYSCONFDIR "/nfdump.conf" at compile time
         filename = NFCONF_FILE;
@@ -139,9 +162,15 @@ int ConfOpen(char *filename, char *section, option_t *defaultConf) {
     nfconfFile.commonConf = commonConf;
     nfconfFile.defaultConf = defaultConf;  // may be NULL
 
-    // Verify override table — warn for keys absent from both file and defaults
-    for (int i = 0; i < numConfOverrides; i++) {
-        if (!confKeyExists(confOverrides[i].key)) LogInfo("Config override: unknown key '%s' - using it anyway", confOverrides[i].key);
+    // Validate every entry actually present in the config file the same way as
+    // -x overrides, against the same static key reference - a typo in
+    // nfdump.conf itself (e.g. 'flowcache.max_node') is reported and aborts the
+    // run instead of being silently ignored.
+    bool sectionValid = confValidateConfTable(sectionConf, NULL);
+    bool commonValid = confValidateConfTable(commonConf, NULL);
+    if (!sectionValid || !commonValid) {
+        free(conf);
+        return -1;
     }
 
     // ConfInventory();
@@ -316,35 +345,108 @@ static bool confTableGetInt64(toml_table_t *root, const char *key, int64_t *out)
     return false;
 }  // End of confTableGetInt64
 
-// Check if a key exists in the config file or in the program defaults.
-// Used to decide whether to warn about an unknown -x override.
-static bool confKeyExists(const char *key) {
-    // whitelist threads argument
-    if (strncmp(key, "threads.", 8) == 0) return true;
+// Master reference of every config key any program reads via a literal
+// ConfGetValue()/ConfGetString()/ConfGetBool() call, outside its own
+//
+// Keep in sync with nfdump.conf.dist and with any new ConfGet*("literal.key")
+// call site - grep the tree for ConfGetValue\(\"|ConfGetString\(\"|ConfGetBool\(\"
+// to re-derive this list from scratch.
+static const char *knownConfigKeys[] = {
+    // shared nffile I/O thread-pool sizing (nfthread.c)
+    "threads.readers",
+    "threads.writers",
+    "threads.workers",
+    "limitCores",
+    "maxworkers",  // legacy alias for limitCores
+    // shared nffile block checksum (nfcheck.c, nfwrite.c)
+    "xxhash",
+    // encrypted UDP transport (sfcapd, nfcapd, nfpcapd, nfreplay)
+    "crypt.salt",
+    "crypt.rekeyIntervalSecs",
+    "crypt.antiReplayWindowBits",
+    // nfdump native protocol sender batching (nfreplay, collector backend)
+    "udp.sendThreshold",
+    // geo/tor lookup DBs (geolookup, nfprofile, nfdump, torlookup, maxmind/tor libs)
+    "geodb.path",
+    "geodb.flatpath",
+    "tordb.path",
+    "tordb.flatpath",
+    // collector source-directory limit (nfcapd, sfcapd)
+    "dyn_max_sources",
+    // sflow tunnel decoding (sfcapd)
+    "opt.tun",
+    // nfpcapd flow options and flow-cache tuning
+    "opt.fat",
+    "opt.payload",
+    "flowcache.expireinterval",
+    "flowcache.max_nodes",
+    "flowcache.max_payload_bytes",
+    "flowcache.max_output_nodes",
+    "buffSize",
+    NULL,
+};
 
-    // check program defaults (always available, even without a config file)
+// Check if a key is a real, known config setting - either in the static
+// reference above or in the running program's own defaultConf table. This is
+// deliberately independent of any loaded config file: an -x override is valid
+// or it isn't, regardless of what nfdump.conf happens to contain.
+static bool confKeyExists(const char *key) {
+    for (int i = 0; knownConfigKeys[i] != NULL; i++)
+        if (strcmp(knownConfigKeys[i], key) == 0) return true;
+
     if (nfconfFile.defaultConf) {
         for (int i = 0; nfconfFile.defaultConf[i].key != NULL; i++)
             if (strcmp(nfconfFile.defaultConf[i].key, key) == 0) return true;
     }
-    if (!nfconfFile.valid) return false;
-    char *s;
-    if (confTableGetString(nfconfFile.sectionConf, key, &s)) {
-        free(s);
-        return true;
-    }
-    if (confTableGetString(nfconfFile.commonConf, key, &s)) {
-        free(s);
-        return true;
-    }
-    int64_t i;
-    if (confTableGetInt64(nfconfFile.sectionConf, key, &i)) return true;
-    if (confTableGetInt64(nfconfFile.commonConf, key, &i)) return true;
-    bool b;
-    if (confTableGetBool(nfconfFile.sectionConf, key, &b)) return true;
-    if (confTableGetBool(nfconfFile.commonConf, key, &b)) return true;
     return false;
 }  // End of confKeyExists
+
+// Sub-tables whose member keys are user-chosen identifiers rather than literal
+// config keys - contents are never validated by name:
+//   fmt, csv       - user-defined output format names (ConfGetFormatEntry())
+//   exporter       - static exporter idents, keyed by name (ConfGetExporter())
+static const char *dynamicKeyTables[] = {"fmt", "csv", "exporter", NULL};
+
+static bool confIsDynamicTable(const char *name) {
+    for (int i = 0; dynamicKeyTables[i] != NULL; i++)
+        if (strcmp(dynamicKeyTables[i], name) == 0) return true;
+    return false;
+}  // End of confIsDynamicTable
+
+// Recursively walk a parsed TOML table and validate every scalar leaf's full
+// dotted key path (e.g. 'flowcache.max_nodes') against confKeyExists()
+static bool confValidateConfTable(toml_table_t *table, const char *pathPrefix) {
+    if (!table) return true;
+
+    bool allValid = true;
+    int len = toml_table_len(table);
+    for (int i = 0; i < len; i++) {
+        int keylen;
+        const char *entry = toml_table_key(table, i, &keylen);
+        if (!entry) break;
+
+        char path[256];
+        if (pathPrefix)
+            snprintf(path, sizeof(path), "%s.%s", pathPrefix, entry);
+        else
+            snprintf(path, sizeof(path), "%s", entry);
+
+        toml_table_t *subTable = toml_table_table(table, entry);
+        if (subTable) {
+            if (!confIsDynamicTable(entry) && !confValidateConfTable(subTable, path)) allValid = false;
+            continue;
+        }
+
+        toml_array_t *subArray = toml_table_array(table, entry);
+        if (subArray) continue;  // no scalar-array config keys exist today
+
+        if (!confKeyExists(path)) {
+            LogError("Invalid config file entry: unknown key '%s'", path);
+            allValid = false;
+        }
+    }
+    return allValid;
+}  // End of confValidateConfTable
 
 int ConfSetOverride(const char *confString) {
     char *dup = strdup(confString);

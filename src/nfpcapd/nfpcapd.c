@@ -115,6 +115,7 @@ static option_t nfpcapdConfig[] = {
     {.type = CONF_UINT64, .key = "flowcache.max_nodes", .valUint64 = 262144},
     {.type = CONF_UINT64, .key = "flowcache.max_payload_bytes", .valUint64 = 64ULL * 1024ULL * 1024ULL},
     {.type = CONF_UINT64, .key = "flowcache.max_output_nodes", .valUint64 = 65536},
+    {.type = CONF_UINT64, .key = "buffSize", .valUint64 = 0},  // 0 = platform default, see MINBUFFSIZE below
     {.key = NULL},
 };
 
