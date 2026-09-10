@@ -492,9 +492,10 @@ Enable block checksums for one run without touching the config file:
 nfdump -x xxhash=1 -r data.nf -w output.nf
 .Ed
 .Pp
-Override limitCores and an unknown key (the latter produces a warning):
+Unknown keys and invalid values cause startup to fail. It's the users 
+responsibility if a particular key applies to a particular program.
 .Bd -literal -offset indent
-nfpcapd -x limitCores=4 -x debug.verbose=1 -w /var/nflow
+nfpcapd -x limitCores=4 -w /var/nflow
 .Ed
 .Ss Disable config file entirely
 .Bd -literal -offset indent

@@ -31,6 +31,7 @@
 #include "nfconf.h"
 
 #include <arpa/nameser.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -72,7 +73,14 @@ static nfconfFile_t nfconfFile = {0};
 static option_t confOverrides[CONF_MAX_OVERRIDES];
 static int numConfOverrides = 0;
 
-static bool confKeyExists(const char *key);
+typedef struct confTag_s {
+    const char *key;
+    confType_t type;
+} confTag_t;
+
+static const confTag_t *confFindTag(const char *key);
+static const char *confTypeName(confType_t type);
+static bool confValueIsValid(const char *value, confType_t type);
 static bool confValidateConfTable(toml_table_t *table, const char *pathPrefix);
 static bool confTableGetBool(toml_table_t *root, const char *key, bool *out);
 
@@ -82,16 +90,15 @@ static bool confOverrideGetBool(const char *value) {
     return strtoll(value, NULL, 0) != 0;
 }  // End of confOverrideGetBool
 
-// Verify the CLI override table (-x key=value) against nfconf's static key
-// reference (see confKeyExists() below). Deliberately independent of whether a
-// config file was found or what it contains - a key is either a real, known
-// setting or it isn't; an override must resolve to one regardless of whether
-// nfdump.conf happens to mention it. Every unknown key e.g. typos are reported
 static bool ConfValidateOverrides(void) {
     bool allValid = true;
     for (int i = 0; i < numConfOverrides; i++) {
-        if (!confKeyExists(confOverrides[i].key)) {
+        const confTag_t *tag = confFindTag(confOverrides[i].key);
+        if (!tag) {
             LogError("Invalid config override: unknown key '%s'", confOverrides[i].key);
+            allValid = false;
+        } else if (!confValueIsValid(confOverrides[i].valString, tag->type)) {
+            LogError("Invalid config override: key '%s' requires %s value", confOverrides[i].key, confTypeName(tag->type));
             allValid = false;
         }
     }
@@ -109,11 +116,6 @@ int ConfOpen(char *filename, char *section, option_t *defaultConf) {
     // Program defaults remain available even when configuration-file loading
     // is disabled or no file exists.
     nfconfFile.defaultConf = defaultConf;
-
-    // Validate -x overrides up front, against the static key reference alone -
-    // independent of whether a config file exists, is readable, or mentions the
-    // key at all. Every code path below returns after this without needing its
-    // own validation call.
     if (!ConfValidateOverrides()) return -1;
 
     // if read prevented
@@ -151,29 +153,18 @@ int ConfOpen(char *filename, char *section, option_t *defaultConf) {
     toml_table_t *sectionConf = toml_table_table(conf, section);
     toml_table_t *commonConf = toml_table_table(conf, "common");
     if (!sectionConf && !commonConf) {
-        // Neither the requested section nor [common] was found
-        free(conf);
+        toml_free(conf);
         return 0;
+    }
+    if (!confValidateConfTable(sectionConf, NULL) || !confValidateConfTable(commonConf, NULL)) {
+        toml_free(conf);
+        return -1;
     }
 
     nfconfFile.valid = 1;
     nfconfFile.conf = conf;
-    nfconfFile.sectionConf = sectionConf;  // may be NULL when only [common] exists
+    nfconfFile.sectionConf = sectionConf;
     nfconfFile.commonConf = commonConf;
-    nfconfFile.defaultConf = defaultConf;  // may be NULL
-
-    // Validate every entry actually present in the config file the same way as
-    // -x overrides, against the same static key reference - a typo in
-    // nfdump.conf itself (e.g. 'flowcache.max_node') is reported and aborts the
-    // run instead of being silently ignored.
-    bool sectionValid = confValidateConfTable(sectionConf, NULL);
-    bool commonValid = confValidateConfTable(commonConf, NULL);
-    if (!sectionValid || !commonValid) {
-        free(conf);
-        return -1;
-    }
-
-    // ConfInventory();
     return 1;
 }  // ConfOpen
 
@@ -345,103 +336,134 @@ static bool confTableGetInt64(toml_table_t *root, const char *key, int64_t *out)
     return false;
 }  // End of confTableGetInt64
 
-// Master reference of every config key any program reads via a literal
-// ConfGetValue()/ConfGetString()/ConfGetBool() call, outside its own
-//
-// Keep in sync with nfdump.conf.dist and with any new ConfGet*("literal.key")
-// call site - grep the tree for ConfGetValue\(\"|ConfGetString\(\"|ConfGetBool\(\"
-// to re-derive this list from scratch.
-static const char *knownConfigKeys[] = {
-    // shared nffile I/O thread-pool sizing (nfthread.c)
-    "threads.readers",
-    "threads.writers",
-    "threads.workers",
-    "limitCores",
-    "maxworkers",  // legacy alias for limitCores
-    // shared nffile block checksum (nfcheck.c, nfwrite.c)
-    "xxhash",
-    // encrypted UDP transport (sfcapd, nfcapd, nfpcapd, nfreplay)
-    "crypt.salt",
-    "crypt.rekeyIntervalSecs",
-    "crypt.antiReplayWindowBits",
-    // nfdump native protocol sender batching (nfreplay, collector backend)
-    "udp.sendThreshold",
-    // geo/tor lookup DBs (geolookup, nfprofile, nfdump, torlookup, maxmind/tor libs)
-    "geodb.path",
-    "geodb.flatpath",
-    "tordb.path",
-    "tordb.flatpath",
-    // collector source-directory limit (nfcapd, sfcapd)
-    "dyn_max_sources",
-    // sflow tunnel decoding (sfcapd)
-    "opt.tun",
-    // nfpcapd flow options and flow-cache tuning
-    "opt.fat",
-    "opt.payload",
-    "flowcache.expireinterval",
-    "flowcache.max_nodes",
-    "flowcache.max_payload_bytes",
-    "flowcache.max_output_nodes",
-    "buffSize",
-    NULL,
+// Flat list of scalar configuration keys accepted by -x and checked in the
+// active TOML section. Section applicability remains the application's job.
+static const confTag_t confTags[] = {
+    {"threads.readers", CONF_UINT64},
+    {"threads.writers", CONF_UINT64},
+    {"threads.workers", CONF_UINT64},
+    {"limitCores", CONF_UINT64},
+    {"maxworkers", CONF_UINT64},
+    {"xxhash", CONF_BOOL},
+    {"crypt.salt", CONF_STRING},
+    {"crypt.rekeyIntervalSecs", CONF_UINT64},
+    {"crypt.antiReplayWindowBits", CONF_UINT64},
+    {"udp.sendThreshold", CONF_UINT64},
+    {"geodb.path", CONF_STRING},
+    {"geodb.flatpath", CONF_STRING},
+    {"tordb.path", CONF_STRING},
+    {"tordb.flatpath", CONF_STRING},
+    {"dyn_max_sources", CONF_UINT64},
+    {"opt.tun", CONF_BOOL},
+    {"opt.fat", CONF_BOOL},
+    {"opt.payload", CONF_BOOL},
+    {"flowcache.expireinterval", CONF_UINT64},
+    {"flowcache.max_nodes", CONF_UINT64},
+    {"flowcache.max_payload_bytes", CONF_UINT64},
+    {"flowcache.max_output_nodes", CONF_UINT64},
+    {"buffSize", CONF_UINT64},
+    {NULL, CONF_BOOL},
 };
 
-// Check if a key is a real, known config setting - either in the static
-// reference above or in the running program's own defaultConf table. This is
-// deliberately independent of any loaded config file: an -x override is valid
-// or it isn't, regardless of what nfdump.conf happens to contain.
-static bool confKeyExists(const char *key) {
-    for (int i = 0; knownConfigKeys[i] != NULL; i++)
-        if (strcmp(knownConfigKeys[i], key) == 0) return true;
+static const confTag_t *confFindTag(const char *key) {
+    for (const confTag_t *tag = confTags; tag->key != NULL; tag++)
+        if (strcmp(tag->key, key) == 0) return tag;
+    return NULL;
+}  // End of confFindTag
 
-    if (nfconfFile.defaultConf) {
-        for (int i = 0; nfconfFile.defaultConf[i].key != NULL; i++)
-            if (strcmp(nfconfFile.defaultConf[i].key, key) == 0) return true;
+static const char *confTypeName(confType_t type) {
+    switch (type) {
+        case CONF_BOOL:
+            return "a boolean (true, false, 0, or 1)";
+        case CONF_STRING:
+            return "a string";
+        case CONF_INT64:
+        case CONF_UINT64:
+            return "an integer";
     }
-    return false;
-}  // End of confKeyExists
+    return "a valid value";
+}  // End of confTypeName
 
-// Sub-tables whose member keys are user-chosen identifiers rather than literal
-// config keys - contents are never validated by name:
-//   fmt, csv       - user-defined output format names (ConfGetFormatEntry())
-//   exporter       - static exporter idents, keyed by name (ConfGetExporter())
-static const char *dynamicKeyTables[] = {"fmt", "csv", "exporter", NULL};
+static bool confValueIsValid(const char *value, confType_t type) {
+    if (type == CONF_STRING) return true;
+    if (!value || !*value || isspace((unsigned char)value[0])) return false;
+    if (type == CONF_BOOL)
+        return strcasecmp(value, "true") == 0 || strcasecmp(value, "false") == 0 || strcmp(value, "0") == 0 || strcmp(value, "1") == 0;
 
-static bool confIsDynamicTable(const char *name) {
-    for (int i = 0; dynamicKeyTables[i] != NULL; i++)
-        if (strcmp(dynamicKeyTables[i], name) == 0) return true;
-    return false;
+    char *end;
+    errno = 0;
+    if (type == CONF_UINT64) {
+        if (value[0] == '-') return false;
+        (void)strtoull(value, &end, 0);
+    } else {
+        (void)strtoll(value, &end, 0);
+    }
+    return errno == 0 && *end == '\0';
+}  // End of confValueIsValid
+
+static bool confValidateScalar(toml_table_t *table, const char *entry, const char *path, confType_t type) {
+    bool valid = false;
+    toml_value_t value = {0};
+    switch (type) {
+        case CONF_BOOL:
+            value = toml_table_bool(table, entry);
+            if (value.ok) {
+                valid = true;
+            } else {
+                value = toml_table_int(table, entry);
+                valid = value.ok && (value.u.i == 0 || value.u.i == 1);
+            }
+            break;
+        case CONF_INT64:
+            valid = toml_table_int(table, entry).ok;
+            break;
+        case CONF_UINT64:
+            value = toml_table_int(table, entry);
+            valid = value.ok && value.u.i >= 0;
+            break;
+        case CONF_STRING:
+            value = toml_table_string(table, entry);
+            valid = value.ok;
+            if (value.ok) free(value.u.s);
+            break;
+    }
+    if (!valid) LogError("Invalid config file entry '%s': requires %s value", path, confTypeName(type));
+    return valid;
+}  // End of confValidateScalar
+
+static bool confIsDynamicTable(const char *entry) {
+    return strcmp(entry, "fmt") == 0 || strcmp(entry, "csv") == 0 || strcmp(entry, "exporter") == 0;
 }  // End of confIsDynamicTable
 
-// Recursively walk a parsed TOML table and validate every scalar leaf's full
-// dotted key path (e.g. 'flowcache.max_nodes') against confKeyExists()
 static bool confValidateConfTable(toml_table_t *table, const char *pathPrefix) {
     if (!table) return true;
 
     bool allValid = true;
-    int len = toml_table_len(table);
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < toml_table_len(table); i++) {
         int keylen;
         const char *entry = toml_table_key(table, i, &keylen);
         if (!entry) break;
 
         char path[256];
-        if (pathPrefix)
-            snprintf(path, sizeof(path), "%s.%s", pathPrefix, entry);
-        else
-            snprintf(path, sizeof(path), "%s", entry);
+        int written = pathPrefix ? snprintf(path, sizeof(path), "%s.%s", pathPrefix, entry) : snprintf(path, sizeof(path), "%s", entry);
+        if (written < 0 || (size_t)written >= sizeof(path)) {
+            LogError("Invalid config file entry: key path is too long");
+            allValid = false;
+            continue;
+        }
 
         toml_table_t *subTable = toml_table_table(table, entry);
         if (subTable) {
             if (!confIsDynamicTable(entry) && !confValidateConfTable(subTable, path)) allValid = false;
             continue;
         }
+        if (toml_table_array(table, entry)) continue;
 
-        toml_array_t *subArray = toml_table_array(table, entry);
-        if (subArray) continue;  // no scalar-array config keys exist today
-
-        if (!confKeyExists(path)) {
+        const confTag_t *tag = confFindTag(path);
+        if (!tag) {
             LogError("Invalid config file entry: unknown key '%s'", path);
+            allValid = false;
+        } else if (!confValidateScalar(table, entry, path, tag->type)) {
             allValid = false;
         }
     }
