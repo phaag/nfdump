@@ -52,96 +52,102 @@
 #include "logging.h"
 #include "util.h"
 
-static int SetFileLock(int fd) {
-    struct flock fl;
-
-    fl.l_type = F_WRLCK;    /* F_RDLCK, F_WRLCK, F_UNLCK    */
-    fl.l_whence = SEEK_SET; /* SEEK_SET, SEEK_CUR, SEEK_END */
-    fl.l_start = 0;         /* Offset from l_whence         */
-    fl.l_len = 0;           /* length, 0 = to EOF           */
-    fl.l_pid = getpid();    /* our PID                      */
-
-    return fcntl(fd, F_SETLKW, &fl); /* F_GETLK, F_SETLK, F_SETLKW */
-
-}  // End of SetFileLock
-
-static int ReleaseFileLock(int fd) {
-    struct flock fl;
-
-    fl.l_type = F_UNLCK;    /* F_RDLCK, F_WRLCK, F_UNLCK    */
-    fl.l_whence = SEEK_SET; /* SEEK_SET, SEEK_CUR, SEEK_END */
-    fl.l_start = 0;         /* Offset from l_whence         */
-    fl.l_len = 0;           /* length, 0 = to EOF           */
-    fl.l_pid = getpid();    /* our PID                      */
-
-    return fcntl(fd, F_SETLK, &fl); /* set the region to unlocked */
-
-}  // End of SetFileLock
-
+// NfSen reads this file under flock(LOCK_SH). Take the matching lock before
+// reading the book or truncating, so concurrent exporters cannot publish an
+// older snapshot after a newer one.
 int WriteStatInfo(channel_t *channel) {
-    char stat_file[MAXPATHLEN];
-    snprintf(stat_file, sizeof(stat_file), "%s/%s", channel->datadir, ".nfstat");
-
-    bookkeeper_t bookkeeper;
-    book_get(channel->book_handle, &bookkeeper);
-
-    int fd = open(stat_file, O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    char path[MAXPATHLEN];
+    if (!channel || !channel->datadir || !channel->book_handle) return 0;
+    int len = snprintf(path, sizeof(path), "%s/.nfstat", channel->datadir);
+    if (len < 0 || (size_t)len >= sizeof(path)) return 0;
+    int fd = open(path, O_RDWR | O_CREAT, 0644);
     if (fd < 0) {
-        LogError("open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("open() error on '%s': %s", path, strerror(errno));
         return 0;
     }
-
-    int err = SetFileLock(fd);
-    if (err != 0) {
-        LogError("ioctl(F_WRLCK) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    while (flock(fd, LOCK_EX) < 0) {
+        if (errno == EINTR) continue;
+        LogError("Lock failed on '%s': %s", path, strerror(errno));
         close(fd);
         return 0;
     }
 
-    if (ftruncate(fd, 0) < 0) {
-        LogError("ftruncate() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        ReleaseFileLock(fd);
-        close(fd);
+    bookkeeper_t book;
+    book_get(channel->book_handle, &book);
+    char buffer[512];
+    len = snprintf(buffer, sizeof(buffer),
+                   "first=%llu\nlast=%llu\nsize=%llu\nmaxsize=%llu\nnumfiles=%llu\nlifetime=%llu\nwatermark=%u\nstatus=%u\n",
+                   (unsigned long long)book.first, (unsigned long long)book.last, (unsigned long long)book.filesize,
+                   (unsigned long long)book.max_filesize, (unsigned long long)book.numfiles,
+                   (unsigned long long)book.max_lifetime, book.watermark, book.dirty ? 3U : 0U);
+    int ok = len > 0 && (size_t)len < sizeof(buffer) && ftruncate(fd, 0) == 0;
+    size_t offset = 0;
+    while (ok && offset < (size_t)len) {
+        ssize_t n = write(fd, buffer + offset, (size_t)len - offset);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) {
+            if (n == 0) errno = EIO;
+            ok = 0;
+        } else {
+            offset += (size_t)n;
+        }
+    }
+    if (!ok) LogError("Writing '%s' failed: %s", path, strerror(errno));
+    // close releases the lock, including on errors.
+    if (close(fd) < 0) {
+        LogError("Closing '%s' failed: %s", path, strerror(errno));
+        ok = 0;
+    }
+    return ok;
+}
+
+// Import only retention settings on first migration. Counts and timestamps
+// are rebuilt from files, never trusted from the legacy statistics file.
+int ImportStatLimits(const channel_t *channel) {
+    char path[MAXPATHLEN];
+    snprintf(path, sizeof(path), "%s/.nfstat", channel->datadir);
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        if (errno != ENOENT) return 0;
+        book_set_limits(channel->book_handle, 0, 0, 95, BOOK_LIMIT_WATERMARK);
+        return 1;
+    }
+    if (flock(fileno(file), LOCK_SH) < 0) {
+        fclose(file);
         return 0;
     }
-
-    char line[256];
-    int len = snprintf(line, sizeof(line), "first=%llu\n", (unsigned long long)bookkeeper.first);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    bookkeeper_t book;
+    book_get(channel->book_handle, &book);
+    book.watermark = 95;  // legacy default
+    char line[256], key[64], value[64];
+    int ok = 1;
+    while (fgets(line, sizeof(line), file)) {
+        if (sscanf(line, "%63[^=]=%63s", key, value) != 2) continue;
+        if (strcmp(key, "maxsize") && strcmp(key, "lifetime") && strcmp(key, "watermark")) continue;
+        char *end;
+        errno = 0;
+        unsigned long long n = strtoull(value, &end, 10);
+        if (errno || *end || value[0] == '-') {
+            ok = 0;
+            break;
+        }
+        if (strcmp(key, "maxsize") == 0) book.max_filesize = n;
+        if (strcmp(key, "lifetime") == 0) {
+            if ((time_t)n < 0 || (unsigned long long)(time_t)n != n) {
+                ok = 0;
+                break;
+            }
+            book.max_lifetime = (time_t)n;
+        }
+        if (strcmp(key, "watermark") == 0) {
+            if (n > 100) {
+                ok = 0;
+                break;
+            }
+            book.watermark = (uint32_t)n;
+        }
     }
-    len = snprintf(line, sizeof(line), "last=%llu\n", (unsigned long long)bookkeeper.last);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    len = snprintf(line, sizeof(line), "size=%llu\n", (unsigned long long)bookkeeper.filesize);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    len = snprintf(line, sizeof(line), "maxsize=%llu\n", (unsigned long long)bookkeeper.max_filesize);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    len = snprintf(line, sizeof(line), "numfiles=%llu\n", (unsigned long long)bookkeeper.numfiles);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    len = snprintf(line, sizeof(line), "lifetime=%llu\n", (unsigned long long)bookkeeper.max_lifetime);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    len = snprintf(line, sizeof(line), "watermark=%llu\n", (unsigned long long)bookkeeper.watermark);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    len = snprintf(line, sizeof(line), "status=%llu\n", (unsigned long long)bookkeeper.dirty);
-    if (write(fd, line, len) < 0) {
-        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-
-    ReleaseFileLock(fd);
-    close(fd);
-
-    return 1;
-
-}  // End of WriteStatInfo
+    if (ferror(file)) ok = 0;
+    fclose(file);
+    return ok && book_set(channel->book_handle, &book);
+}

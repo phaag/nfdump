@@ -761,7 +761,7 @@ int main(int argc, char **argv) {
 
     free(tid);
     free(workerList);
-    UpdateChannels(tslot);
+    if (!UpdateChannels(tslot)) ok = 0;
 #if 0
     VerifyFiles();
 #endif

@@ -45,4 +45,6 @@ char *ScaleTime(char *buf, size_t len, uint64_t v);
 
 int WriteStatInfo(channel_t *channel);
 
+int ImportStatLimits(const channel_t *channel);
+
 #endif  //_NFSTATFILE_H

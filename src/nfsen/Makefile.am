@@ -7,7 +7,7 @@ bin_PROGRAMS = nfprofile nftrack
 
 nfstatfile = ../nfexpire/nfstatfile.c ../nfexpire/nfstatfile.h
 
-nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) 
+nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) ../nfexpire/expire.c ../nfexpire/expire.h
 nfprofile_LDADD = -lnfquery -lnffile $(RRD_LIBS)
 nfprofile_LDADD += $(PCRE2_LIBS) $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
 nfprofile_LDFLAGS = -L$(top_builddir)/src/libnfquery -L$(top_builddir)/src/libnffile

@@ -66,3 +66,8 @@ EXTRA_DIST = testsetup.sh \
              sflowgen.c
 EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt
 CLEANFILES = $(check_PROGRAMS) test.flows.nf dummy_flows.nf *.gch
+
+if BUILD_NFPROFILE
+TESTS += test_nfprofile.sh
+endif
+EXTRA_DIST += test_nfprofile.sh test_nfprofile.py

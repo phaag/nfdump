@@ -163,6 +163,13 @@ static int VerifyChannels(const channel_t *channel, int do_rescan) {
     while (current_channel) {
         if (ExpireStopRequested()) return -1;
         if (do_rescan || book_is_dirty(current_channel->book_handle)) {
+            bookkeeper_t book;
+            book_get(current_channel->book_handle, &book);
+            if (book.dirty && book.numfiles == 0 && book.last == 0 && book.max_filesize == 0 && book.max_lifetime == 0 &&
+                book.watermark == 0 && !ImportStatLimits(current_channel)) {
+                LogError("Cannot import legacy retention settings for '%s'", current_channel->datadir);
+                return 0;
+            }
             // A rescan is needed, if no book file exists or the book is dirty for some reason
             int maxTries = 3;
             int ok = 0;
@@ -565,7 +572,7 @@ cleanup:
         // WriteStatInfo() reads the current bookkeeper via book_get()
         if (is_profile && !ExpireStopRequested())
             // write legacy .nfsts file
-            WriteStatInfo(current_channel);
+            if (!WriteStatInfo(current_channel)) exit_status = EXIT_FAILURE;
         book_close(current_channel->book_handle);
 
         current_channel = current_channel->next;

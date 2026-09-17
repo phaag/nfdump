@@ -345,30 +345,83 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
 }  // End of SetupProfileChannels
 
-void UpdateChannels(time_t tslot) {
-    for (unsigned num = 0; num < num_channels; num++) {
-        if (profile_channels[num].ofile) {
-            struct stat fstat;
-            // ofile is our own nfprofile.<pid> file - stat() it before the rename() below
-            // grabs its block count for accounting. If it has vanished in the meantime, skip
-            // the size accounting rather than use fstat's uninitialized contents.
-            int haveStat = stat(profile_channels[num].ofile, &fstat) == 0;
+// Serialize initialization and file accounting with nfexpire and other
+// profilers. Rescan before the rename so the new slot is not counted twice.
+static int UpdateProfileFile(profile_channel_info_t *profile, time_t tslot) {
+    channel_t channel = {.datadir = profile->dirstat_path};
+    book_status_t status = book_attach(channel.datadir, &channel.book_handle);
+    if (status == BOOK_ERR_NOT_EXISTS) status = book_open(channel.datadir, 0, &channel.book_handle);
+    if (status != BOOK_OK) {
+        LogError("Cannot initialize bookkeeping for '%s'", channel.datadir);
+        return 0;
+    }
+    book_handle_t *handle = channel.book_handle;
+    for (int attempt = 0; attempt < 30; attempt++) {
+        status = book_claim_expire(handle, getpid(), NULL);
+        if (status != BOOK_ERR_EXISTS) break;
+        sleep(1);
+    }
+    if (status != BOOK_OK) {
+        LogError("Cannot lock profile channel '%s'", channel.datadir);
+        book_close(handle);
+        return 0;
+    }
 
-            if (rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0) {
-                LogError("Failed to rename file %s to %s: %s\n", profile_channels[num].ofile, profile_channels[num].wfile, strerror(errno));
-            } else {
-                book_handle_t *book_handle = NULL;
-                if (book_attach(profile_channels[num].dirstat_path, &book_handle) == BOOK_OK) {
-                    uint64_t file_size = haveStat ? 512LL * fstat.st_blocks : 0;
-                    // was book_update(NULL, ...) - a pre-existing NULL-handle bug found
-                    // while adapting this call site to the new book_attach() signature.
-                    book_update(book_handle, tslot, file_size);
-                    channel_t channel = {.book_handle = book_handle};
-                    WriteStatInfo(&channel);
-                    book_close(book_handle);
-                }
-            }
+    int ok = 0;
+    bookkeeper_t book;
+    book_get(handle, &book);
+    if (book.dirty) {
+        if (book.numfiles == 0 && book.last == 0 && book.max_filesize == 0 && book.max_lifetime == 0 &&
+            book.watermark == 0 && !ImportStatLimits(&channel)) {
+            LogError("Cannot import legacy retention settings for '%s'", channel.datadir);
+            goto out;
         }
+        LogInfo("Initializing profile statistics from files in '%s'", channel.datadir);
+        int scanned = 0;
+        for (int attempt = 0; attempt < 3 && !scanned; attempt++) scanned = RescanDir(&channel);
+        if (!scanned) {
+            LogError("Cannot rescan profile channel '%s'", channel.datadir);
+            goto out;
+        }
+    }
+
+    struct stat st;
+    if (stat(profile->ofile, &st) < 0) {
+        LogError("Cannot stat '%s': %s", profile->ofile, strerror(errno));
+        goto out;
+    }
+    // A crash between rename and accounting leaves a recoverable dirty book.
+    if (!book_mark_dirty(handle)) goto out;
+    if (rename(profile->ofile, profile->wfile) < 0) {
+        LogError("Failed to rename '%s' to '%s': %s", profile->ofile, profile->wfile, strerror(errno));
+        goto out;
+    }
+    book_get(handle, &book);
+    // Legacy 1.7.10 semantics: reruns and older slots do not add to totals.
+    if (tslot > book.last) {
+        if (book.first == 0) book.first = tslot;
+        book.last = tslot;
+        book.numfiles++;
+        book.filesize += 512ULL * st.st_blocks;
+    }
+    book.dirty = 0;
+    // Sequence-checked commit keeps the test and update atomic with respect
+    // to other book writers; a conflict leaves the recovery marker intact.
+    if (!book_set(handle, &book)) {
+        LogError("Concurrent bookkeeping change for '%s'; rescan required", channel.datadir);
+        goto out;
+    }
+    ok = WriteStatInfo(&channel);
+out:
+    book_release_expire(handle);
+    book_close(handle);
+    return ok;
+}
+
+int UpdateChannels(time_t tslot) {
+    int ok = 1;
+    for (unsigned num = 0; num < num_channels; num++) {
+        if (profile_channels[num].ofile && !UpdateProfileFile(&profile_channels[num], tslot)) ok = 0;
         if (((profile_channels[num].type & 0x8) == 0) && tslot > 0) {
             UpdateRRD(tslot, &profile_channels[num]);
 #ifdef HAVE_INFLUXDB
@@ -377,6 +430,7 @@ void UpdateChannels(time_t tslot) {
         }
     }
 
+    return ok;
 }  // End of UpdateChannels
 
 void VerifyFiles(void) {

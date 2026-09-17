@@ -67,7 +67,7 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
 
 profile_channel_info_t *GetChannelInfoList(void);
 
-void UpdateChannels(time_t tslot);
+int UpdateChannels(time_t tslot);
 
 void UpdateRRD(time_t tslot, profile_channel_info_t *channel);
 
