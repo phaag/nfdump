@@ -155,9 +155,6 @@ void *NewGenericDataBlock(uint32_t blockSize, uint32_t blockType, uint32_t heade
 }  // End of NewGenericDataBlock
 
 dataBlockV3_t *NewDataBlock(uint32_t blockSize) {
-    arrayBlockV3_t *a = NULL;
-    InitDataBlock(a, blockSize);
-
     dbg_printf("Enter %s\n", __func__);
     if (blockSize == 0) blockSize = BLOCK_SIZE_V3;
     dataBlockV3_t *dataBlock = malloc(blockSize);

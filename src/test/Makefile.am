@@ -1,8 +1,9 @@
 
-check_PROGRAMS = nftest nfgen4 test_append
+check_PROGRAMS = nftest nfgen4 test_append test_rotation
 TESTS = nftest test_prepare.sh test_compress_lzo.sh test_compress_lz4.sh
 TESTS += test_append.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh
 TESTS += test_maxmind.sh test_nfexpire.sh
+TESTS += test_rotation
 
 if HAVE_LIBSODIUM
 TESTS += test_crypto_nfcapd.sh
@@ -50,6 +51,10 @@ nftest_DEPENDENCIES = nfgen4
 test_append_SOURCES = test_append.c
 test_append_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
 test_append_LDFLAGS = -L$(top_builddir)/src/libnffile
+
+test_rotation_SOURCES = test_rotation.c
+test_rotation_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
+test_rotation_LDFLAGS = -L$(top_builddir)/src/libnffile
 
 sflowgen_SOURCES = sflowgen.c
 sflowgen_LDFLAGS =

@@ -284,26 +284,36 @@ static noreturn void *nffile_backend_thread(void *arg) {
             case BLOCK_TYPE_ARRAY:
             case BLOCK_TYPE_EXP: {
                 dbg_printf("%s() process next datablock\n", __func__);
-                queue_push(nffile_ctx->nffile->processQueue, dataBlock);
+                if (queue_push(nffile_ctx->nffile->processQueue, dataBlock) == QUEUE_CLOSED) {
+                    FreeDataBlock(dataBlock);
+                    done = 1;
+                }
                 cnt++;
             } break;
             case BLOCK_TYPE_MSG: {
                 dbg_printf("%s() process message block\n", __func__);
                 if (!BackendRotateCycle(nffile_ctx, (msgBlockV3_t *)dataBlock, nffile_ctx->pfd, &done)) {
                     LogError("File rotation cycle failed for ident: %s", nffile_ctx->Ident);
+                    done = 1;
                 }
                 FreeDataBlock(dataBlock);
             } break;
             default:
                 LogError("Backend: received unknown block type %u", dataBlock->type);
+                FreeDataBlock(dataBlock);
         }
     }
 
     dbg_printf("%s() - exit loop - processed %u data blocks\n", __func__, cnt);
     (void)cnt;
 
+    // Stop upstream producers before releasing unprocessed blocks.
+    queue_close(blockQueue);
+    queue_clear(blockQueue, FreeDataBlock);
+
     if (nffile_ctx->nffile) {
         DeleteFileV3(nffile_ctx->nffile);
+        nffile_ctx->nffile = NULL;
     }
 
     dbg_printf("%s() thread exit\n", __func__);

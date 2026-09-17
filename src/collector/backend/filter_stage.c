@@ -347,6 +347,7 @@ void Close_FilterStage(FlowSource_t *fs) {
     // harmless, idempotent no-op — the filter thread already closed it).
     fs->blockQueue = ctx->outQueue;
 
+    queue_clear(ctx->inQueue, FreeDataBlock);
     queue_free(ctx->inQueue);
     free(ctx->exporters);
     DisposeFilter(ctx->engine);
@@ -437,6 +438,7 @@ static noreturn void *filter_stage_thread(void *arg) {
         }
     }
 
+    queue_close(ctx->inQueue);
     queue_close(ctx->outQueue);
 
     dbg_printf("%s() exit\n", __func__);

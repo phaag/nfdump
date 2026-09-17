@@ -73,24 +73,7 @@ extern threadConfig_t threadConfig;
 static void DeleteFile(nffileV3_t *nffile) {
     if (nffile == NULL) return;
 
-    TerminateWorkers(nffile);
-    if (nffile->fd >= 0) {
-        close(nffile->fd);
-        unlink(nffile->fileName);
-    }
-
-    if (nffile->fileName) free(nffile->fileName);
-    if (nffile->stat_record) free(nffile->stat_record);
-    if (nffile->ident) free(nffile->ident);
-    if (nffile->blockList.entries) free(nffile->blockList.entries);
-    FreeFileCrypto(nffile->crypto);
-
-    if (nffile->processQueue) {
-        // Free all pending blocks even if queue was aborted
-        queue_clear(nffile->processQueue, (void (*)(void *))FreeDataBlock);
-        queue_free(nffile->processQueue);
-    }
-    free(nffile);
+    DeleteFileV3(nffile);
 
 }  // End of DeleteFile
 
@@ -576,7 +559,7 @@ nffileV3_t *OpenNewFileTmpV3(const char *tmplate, uint32_t creator, uint16_t com
 }  // End of OpenNewFileTmpV3
 
 // PushBlockV3 — pushes a block onto the processQueue of nffileV3
-// Returns a new empty defult datablock
+// Takes ownership, including when the block is empty or the queue is closed.
 void PushBlockV3(queue_t *queue, void *blockHeader) {
     if (blockHeader == NULL) return;
 
@@ -584,8 +567,9 @@ void PushBlockV3(queue_t *queue, void *blockHeader) {
     if (dataBlockV3->rawSize != 0) {
         // empty blocks need not to be written
         dbg_printf("PushBlockV3 - push block type: %u, with size: %u\n", dataBlockV3->type, dataBlockV3->rawSize);
-        queue_push(queue, blockHeader);
+        if (queue_push(queue, blockHeader) == NULL) return;
     }
+    FreeDataBlock(blockHeader);
 
 }  // End of PushBlockV3
 
@@ -594,16 +578,7 @@ void PushBlockV3(queue_t *queue, void *blockHeader) {
  * if empty, frees block
  */
 void FlushBlockV3(nffileV3_t *nffile, void *blockHeader) {
-    if (blockHeader != NULL) {
-        dataBlockV3_t *dataBlock = (dataBlockV3_t *)blockHeader;
-        if (dataBlock->rawSize != 0) {
-            dbg_printf("Flush block of size: %u\n", dataBlock->rawSize);
-            queue_push(nffile->processQueue, dataBlock);
-        } else {
-            dbg_printf("Skip Flush block of size: %u\n", dataBlock->rawSize);
-            FreeDataBlock(blockHeader);
-        }
-    }
+    PushBlockV3(nffile->processQueue, blockHeader);
 }  // End of FlushBlock
 
 // Called during FlushFileV3(), after all data blocks are written.
@@ -623,7 +598,7 @@ static void WriteStatsBlock(nffileV3_t *nffile) {
     uint8_t *buf = (uint8_t *)dataBlock + sizeof(dataBlockV3_t);
     memcpy(buf, nffile->stat_record, sizeof(stat_record_t));
 
-    queue_push(nffile->processQueue, dataBlock);
+    PushBlockV3(nffile->processQueue, dataBlock);
 
 }  // End of WriteStatsBlock
 
@@ -649,7 +624,7 @@ static void WriteIdentBlock(nffileV3_t *nffile) {
     char *buf = (char *)dataBlock + sizeof(dataBlockV3_t);
     strncpy(buf, nffile->ident, IDENTLEN);
 
-    queue_push(nffile->processQueue, dataBlock);
+    PushBlockV3(nffile->processQueue, dataBlock);
 
 }  // End of WriteIdentBlock
 

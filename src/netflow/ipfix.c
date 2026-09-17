@@ -1985,10 +1985,13 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
         if (arrayBlock->numElements > 0) {
             dbg_printf("Push ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
             PushBlockV3(fs->blockQueue, arrayBlock);
-            arrayBlock = NULL;
+        } else {
+            // all records in this block were skipped (e.g. invalid utf8) - release it
+            // now, otherwise the next iteration's NewArrayBlock() overwrites the pointer
+            FreeDataBlock(arrayBlock);
         }
+        arrayBlock = NULL;
     }
-    FreeDataBlock(arrayBlock);
 
     if (size_left > 7) {
         LogVerbose("Process nbar data record - %u extra bytes", size_left);
@@ -2118,10 +2121,13 @@ static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSour
         if (arrayBlock->numElements > 0) {
             dbg_printf("Push ifvrf ARRAYBLOCK: %u elements\n", arrayBlock->numElements);
             PushBlockV3(fs->blockQueue, arrayBlock);
-            arrayBlock = NULL;
+        } else {
+            // all records in this block were skipped (e.g. invalid utf8) - release it
+            // now, otherwise the next iteration's NewArrayBlock() overwrites the pointer
+            FreeDataBlock(arrayBlock);
         }
+        arrayBlock = NULL;
     }
-    FreeDataBlock(arrayBlock);
 
     if (size_left > 7) {
         LogVerbose("Process ifvrf data record - %u extra bytes", size_left);

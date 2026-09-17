@@ -37,8 +37,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "nfthread.h"
 #include "nfcommon.h"
+#include "nfthread.h"
 #include "queue.h"
 
 /*
@@ -327,8 +327,7 @@ typedef struct nffile_crypto_s {
 /* Decode one block from a mapped V3 file. The returned block is heap allocated
  * and must be released with FreeDataBlock(). The helper is shared by normal
  * readers and the file checker so both enforce identical wire-format rules. */
-dataBlockV3_t *DecodeBlockV3(const uint8_t *map, size_t mapSize, uint32_t blockSize, const directoryEntryV3_t *entry,
-                             const nffile_crypto_t *crypto);
+dataBlockV3_t *DecodeBlockV3(const uint8_t *map, size_t mapSize, uint32_t blockSize, const directoryEntryV3_t *entry, const nffile_crypto_t *crypto);
 
 // file handle for v3 type file
 typedef struct nffileV3_s {
@@ -349,16 +348,16 @@ typedef struct nffileV3_s {
     stat_record_t *stat_record;
     char *ident;
 
-    uint32_t numWorkers;        // number of workers for this handle
-    uint32_t compression;       // default type of compression
-    uint32_t compressionLevel;  // default compression level, if available.
-    uint32_t xxHash;            // non-zero: calculate per-block and directory xxHash checksum
-    atomic_bool abortRequested; // cancellation requested: finish current block, then stop workers
-    nffile_crypto_t *crypto;    // per-file crypto state; NULL = not encrypted
-    _Atomic off_t blockOffset;  // atomic block I/O offset (read: mmap scan pos, write: pwrite pos)
-    queue_t *processQueue;      // blocks ready to be processed. Connects consumer/producer threads
-    pthread_mutex_t wlock;      // writer lock
-    pthread_t worker[];         // nfread/nfwrite worker thread;
+    uint32_t numWorkers;         // number of workers for this handle
+    uint32_t compression;        // default type of compression
+    uint32_t compressionLevel;   // default compression level, if available.
+    uint32_t xxHash;             // non-zero: calculate per-block and directory xxHash checksum
+    atomic_bool abortRequested;  // cancellation requested: finish current block, then stop workers
+    nffile_crypto_t *crypto;     // per-file crypto state; NULL = not encrypted
+    _Atomic off_t blockOffset;   // atomic block I/O offset (read: mmap scan pos, write: pwrite pos)
+    queue_t *processQueue;       // blocks ready to be processed. Connects consumer/producer threads
+    pthread_mutex_t wlock;       // writer lock
+    pthread_t worker[];          // nfread/nfwrite worker thread;
 } nffileV3_t;
 
 #define DefaultQueueSize 8

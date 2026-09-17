@@ -410,10 +410,12 @@ int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
                    UNIX2ISO(fs->dataBlock->msecLast / 1000), fs->dataBlock->msecLast % 1000);
         PushBlockV3(fs->blockQueue, fs->dataBlock);
         fs->dataBlock = NULL;
-        InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
-        if (fs->dataBlock == NULL) {
-            LogError("PeriodicCycle: out of memory allocating new data block");
-            return 0;
+        if (!done) {
+            InitDataBlock(fs->dataBlock, BLOCK_SIZE_V3);
+            if (fs->dataBlock == NULL) {
+                LogError("PeriodicCycle: out of memory allocating new data block");
+                return 0;
+            }
         }
 
         // Flush Exporter to file. A UDP send backend has no use for this
@@ -470,7 +472,7 @@ void FlushExporter(FlowSource_t *fs) {
         info_record->packets = entry->packets;
         info_record->sequence_failure = entry->sequence_failure;
         if (available < info_record->size) {
-            queue_push(fs->blockQueue, expBlock);
+            PushBlockV3(fs->blockQueue, expBlock);
             expBlock = NULL;
             InitDataBlock(expBlock, BLOCK_SIZE_V3);
             p = GetCursor(expBlock);
@@ -492,7 +494,7 @@ void FlushExporter(FlowSource_t *fs) {
 
 #endif
     }
-    queue_push(fs->blockQueue, expBlock);
+    PushBlockV3(fs->blockQueue, expBlock);
 
 }  // End of FlushExporter
 
@@ -541,7 +543,9 @@ int ScanExtension(char *extensionList) {
 void CleanupCollector(collector_ctx_t *ctx) {
     dbg_printf("Cleanup Collector\n");
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        if (fs->blockQueue) queue_clear(fs->blockQueue, FreeDataBlock);
         queue_free(fs->blockQueue);
+        fs->blockQueue = NULL;
         FreeDataBlock(fs->dataBlock);
         fs->dataBlock = NULL;
     }
