@@ -160,7 +160,7 @@ echo "── aggregation ──────────────────�
 
 # -a: default 5-tuple aggregation collapses repeated flows
 a_n=$(nfdump -r dummy_flows.nf -q -a 2>/dev/null | wc -l | tr -d ' ')
-[ "$a_n" = "38" ] && pass "aggregate_default" || fail "aggregate_default: got $a_n, expected 38"
+[ "$a_n" = "37" ] && pass "aggregate_default" || fail "aggregate_default: got $a_n, expected 37"
 
 # -A srcip: aggregate by a single custom key
 A_n=$(nfdump -r dummy_flows.nf -q -A srcip 2>/dev/null | wc -l | tr -d ' ')
@@ -172,10 +172,28 @@ subnet_n=$(nfdump -r dummy_flows.nf -q -A srcip4/24 2>/dev/null | wc -l | tr -d 
 
 # -b / -B: bidirectional aggregation (own vs. guessed direction)
 b_n=$(nfdump -r dummy_flows.nf -q -b 2>/dev/null | wc -l | tr -d ' ')
-[ "$b_n" = "36" ] && pass "aggregate_bidir" || fail "aggregate_bidir: got $b_n, expected 36"
+[ "$b_n" = "35" ] && pass "aggregate_bidir" || fail "aggregate_bidir: got $b_n, expected 35"
 
 B_n=$(nfdump -r dummy_flows.nf -q -B 2>/dev/null | wc -l | tr -d ' ')
-[ "$B_n" = "36" ] && pass "aggregate_bidir_guess" || fail "aggregate_bidir_guess: got $B_n, expected 36"
+[ "$B_n" = "35" ] && pass "aggregate_bidir_guess" || fail "aggregate_bidir_guess: got $B_n, expected 35"
+
+# Records without an IPv4 or IPv6 extension use an AF_UNSPEC key. They must
+# retain their ports, print the missing addresses as 0, and emit no diagnostic.
+if unspecified=$(nfdump -r dummy_flows.nf -q -N -n 0 -s record/flows 'not ipv4 and not ipv6' 2>&1) \
+   && printf '%s\n' "$unspecified" | grep -Eq '0:12345[[:space:]]+->[[:space:]]+0:443' \
+   && ! printf '%s\n' "$unspecified" | grep -q 'ipv4Flow:'; then
+    pass "aggregate_unspecified_address"
+else
+    fail "aggregate_unspecified_address: output='$unspecified'"
+fi
+
+if unspecified=$(nfdump -r dummy_flows.nf -q -N -n 0 -b 'not ipv4 and not ipv6' 2>&1) \
+   && printf '%s\n' "$unspecified" | grep -Eq '0:12345[[:space:]]+<->[[:space:]]+0:443' \
+   && ! printf '%s\n' "$unspecified" | grep -q 'ipv4Flow:'; then
+    pass "aggregate_unspecified_address_bidir"
+else
+    fail "aggregate_unspecified_address_bidir: output='$unspecified'"
+fi
 
 echo ""
 echo "── statistics ────────────────────────────────────────────────────────"
@@ -255,7 +273,7 @@ n0_n=$(nfdump -r dummy_flows.nf -q -s srcip/bytes -n 0 2>/dev/null | wc -l | tr 
 
 # -P <expr>: post-filter narrows the flow-record output of an aggregation
 p_n=$(nfdump -r dummy_flows.nf -q -a -P 'bytes > 100000' -o line 2>/dev/null | wc -l | tr -d ' ')
-[ "$p_n" = "9" ] && pass "postfilter_aggregated" || fail "postfilter_aggregated: got $p_n, expected 9"
+[ "$p_n" = "8" ] && pass "postfilter_aggregated" || fail "postfilter_aggregated: got $p_n, expected 8"
 
 # -P also applies to a plain -O sort (it goes through the same flow-record
 # result-set path as -a/-A/-b/-B; see nflowcache.c's PrintSortList()).
@@ -268,8 +286,7 @@ o_n=$(nfdump -r dummy_flows.nf -q -O tstart -P 'bytes > 100000' -o line 2>/dev/n
 postfilter_file="$WORKDIR/postfilter_aggregated.nf"
 if nfdump -r dummy_flows.nf -q -a -P 'bytes > 100000' -w "$postfilter_file" >/dev/null 2>&1 \
    && nfdump -v check -r "$postfilter_file" >/dev/null 2>&1; then
-    # The aggregation debug banner is emitted on stdout, so count only data
-    # rows from a deliberately narrow output format.
+    # Count only data rows from a deliberately narrow output format.
     postfilter_print_n=$(nfdump -r dummy_flows.nf -q -a -P 'bytes > 100000' -o 'fmt:%pr' 2>/dev/null | grep -c '^TCP')
     postfilter_export_n=$(nfdump -r "$postfilter_file" -q -o 'fmt:%pr' 2>/dev/null | grep -c '^TCP')
     postfilter_file_stats=$(nfdump -r "$postfilter_file" -I 2>/dev/null | \

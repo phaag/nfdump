@@ -879,6 +879,15 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keymem += sizeof(FlowKeyV6_t);
             keyLen = sizeof(FlowKeyV6_t);
             *hash_out = hash_flow_v6(keystart);
+        } else {
+            FlowKeyV4_t *keyptr = (FlowKeyV4_t *)keymem;
+            memset(keyptr, 0, sizeof(*keyptr));
+            keyptr->srcPort = genericFlow->dstPort;
+            keyptr->dstPort = genericFlow->srcPort;
+            keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_UNSPEC;
+            keyLen = sizeof(*keyptr);
+            *hash_out = hash_flow_v4(keystart);
         }
     } else {
         // default 5-tuple aggregation
@@ -906,10 +915,14 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyLen = sizeof(FlowKeyV6_t);
             *hash_out = hash_flow_v6(keystart);
         } else {
-            // catch all cases, actually not needed.
-            LogError("ipv4Flow: %d, ipv6Flow: %d, maxKeyLen: %zu", ipv4Flow != NULL, ipv6Flow != NULL, maxKeyLen);
-            memset(keymem, 0, maxKeyLen);
-            *hash_out = 0;  // error path — should not be reached
+            FlowKeyV4_t *keyptr = (FlowKeyV4_t *)keymem;
+            memset(keyptr, 0, sizeof(*keyptr));
+            keyptr->srcPort = genericFlow->srcPort;
+            keyptr->dstPort = genericFlow->dstPort;
+            keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_UNSPEC;
+            keyLen = sizeof(*keyptr);
+            *hash_out = hash_flow_v4(keystart);
         }
     }
 
