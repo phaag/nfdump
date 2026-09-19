@@ -829,6 +829,14 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET6;
             keymem += sizeof(FlowKeyV6_t);
             keyLen = sizeof(FlowKeyV6_t);
+        } else {
+            FlowKeyV4_t *keyptr = (FlowKeyV4_t *)keymem;
+            memset(keyptr, 0, sizeof(*keyptr));
+            keyptr->srcPort = genericFlow->dstPort;
+            keyptr->dstPort = genericFlow->srcPort;
+            keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_UNSPEC;
+            keyLen = sizeof(*keyptr);
         }
     } else {
         // default 5-tuple aggregation
@@ -854,9 +862,13 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keymem += sizeof(FlowKeyV6_t);
             keyLen = sizeof(FlowKeyV6_t);
         } else {
-            // catch all cases, actually not needed.
-            LogError("ipv4Flow: %d, ipv6Flow: %d, maxKeyLen: %zu", ipv4Flow != NULL, ipv6Flow != NULL, maxKeyLen);
-            memset(keymem, 0, maxKeyLen);
+            FlowKeyV4_t *keyptr = (FlowKeyV4_t *)keymem;
+            memset(keyptr, 0, sizeof(*keyptr));
+            keyptr->srcPort = genericFlow->srcPort;
+            keyptr->dstPort = genericFlow->dstPort;
+            keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_UNSPEC;
+            keyLen = sizeof(*keyptr);
         }
     }
     dbg_printf("New_HashKey() size: %u\n", keyLen);

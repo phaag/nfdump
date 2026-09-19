@@ -1439,7 +1439,7 @@ static void String_SrcAddr(FILE *stream, recordHandle_t *recordHandle) {
             CondenseV6(tmp_str);
         }
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
     }
     tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
@@ -1470,7 +1470,7 @@ static void String_SrcGeoAddr(FILE *stream, recordHandle_t *recordHandle) {
             CondenseV6(tmp_str);
         }
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
         recordHandle->geo[0] = '.';
         recordHandle->geo[1] = '.';
     }
@@ -1506,7 +1506,7 @@ static void String_SrcAddrPort(FILE *stream, recordHandle_t *recordHandle) {
         }
         portChar = '.';
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
         portChar = ':';
     }
     tmp_str[INET6_ADDRSTRLEN - 1] = 0;
@@ -1543,7 +1543,7 @@ static void String_SrcAddrGeoPort(FILE *stream, recordHandle_t *recordHandle) {
         }
         portChar = '.';
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
         recordHandle->geo[0] = '.';
         recordHandle->geo[1] = '.';
         portChar = ':';
@@ -1575,7 +1575,7 @@ static void String_DstAddr(FILE *stream, recordHandle_t *recordHandle) {
             CondenseV6(tmp_str);
         }
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
     }
     tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
@@ -1606,7 +1606,7 @@ static void String_DstGeoAddr(FILE *stream, recordHandle_t *recordHandle) {
             CondenseV6(tmp_str);
         }
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
         recordHandle->geo[2] = '.';
         recordHandle->geo[3] = '.';
     }
@@ -1641,7 +1641,7 @@ static void String_DstAddrPort(FILE *stream, recordHandle_t *recordHandle) {
         }
         portChar = '.';
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
         portChar = ':';
     }
     tmp_str[INET6_ADDRSTRLEN - 1] = 0;
@@ -1677,7 +1677,7 @@ static void String_DstAddrGeoPort(FILE *stream, recordHandle_t *recordHandle) {
         }
         portChar = '.';
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
         recordHandle->geo[2] = '.';
         recordHandle->geo[3] = '.';
         portChar = ':';
@@ -1714,7 +1714,7 @@ static void String_SrcNet(FILE *stream, recordHandle_t *recordHandle) {
             CondenseV6(tmp_str);
         }
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
     }
     tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
@@ -1746,7 +1746,7 @@ static void String_DstNet(FILE *stream, recordHandle_t *recordHandle) {
             CondenseV6(tmp_str);
         }
     } else {
-        strcpy(tmp_str, "0.0.0.0");
+        strcpy(tmp_str, "0");
     }
     tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
