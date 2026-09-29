@@ -175,6 +175,16 @@ const blockConstraint_t *GetBlockConstraint(const void *engine) {
     return &((const FilterEngine_t *)engine)->blockConstraint;
 }  // End of GetBlockConstraint
 
+uint32_t FilterCapabilities(const void *enginePtr) {
+    if (!enginePtr) return 0;
+
+    const FilterEngine_t *engine = (const FilterEngine_t *)enginePtr;
+    uint32_t capabilities = 0;
+    if (engine->blockConstraint.hasTimeConstraint) capabilities |= FILTER_CAP_TIME;
+    if (engine->blockConstraint.hasIPConstraint) capabilities |= FILTER_CAP_EXACT_IP;
+    return capabilities;
+}  // End of FilterCapabilities
+
 int FilterBlock(const void *enginePtr, uint64_t blockMsecFirst, uint64_t blockMsecLast,
                 const bloomHandle_t *bh) {
     if (!enginePtr) return 1;
@@ -220,3 +230,13 @@ int FilterBlock(const void *enginePtr, uint64_t blockMsecFirst, uint64_t blockMs
 
     return 0;
 }  // End of FilterBlock
+
+prefilterResult_t FilterFile(const void *engine, const stat_record_t *statRecord) {
+    if (!statRecord) return PREFILTER_MAY_MATCH;
+    return FilterBlock(engine, statRecord->msecFirstSeen, statRecord->msecLastSeen, NULL) ? PREFILTER_MAY_MATCH : PREFILTER_REJECT;
+}  // End of FilterFile
+
+prefilterResult_t FilterDataBlock(const void *engine, uint64_t blockMsecFirst, uint64_t blockMsecLast,
+                                  const bloomHandle_t *bh) {
+    return FilterBlock(engine, blockMsecFirst, blockMsecLast, bh) ? PREFILTER_MAY_MATCH : PREFILTER_REJECT;
+}  // End of FilterDataBlock

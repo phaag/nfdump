@@ -483,7 +483,14 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
             // join workers
             for (int i = 0; i < numWorkers; i++) pthread_join(tids[i], NULL);
 
-            if (!flushAndClose(nffile_w, NULL, srcFile)) break;
+            if (GetReadErrors(nffile_r)) {
+                // never replace the original with a file missing unreadable blocks
+                LogError("Read error: %u data block(s) of %s could not be read - file not replaced", GetReadErrors(nffile_r), srcFile);
+                FlushFileV3(nffile_w);
+                DeleteFileV3(nffile_w);
+            } else if (!flushAndClose(nffile_w, NULL, srcFile)) {
+                break;
+            }
             nffile_w = NULL;
 
             queue_free(workerArgs.inputQueue);
@@ -522,7 +529,11 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
     free(tids);
     printf("\rProcessed %d flow blocks across %d file(s)\n", blk_count, file_count);
 
-    return allFilesOpened;
+    // unreadable data blocks were skipped
+    uint32_t readErrors = GetTotalReadErrors();
+    if (readErrors && wfile) LogError("Read error: %u data block(s) could not be read and were skipped - %s is incomplete", readErrors, wfile);
+
+    return allFilesOpened && readErrors == 0;
 
 }  // End of process_data
 

@@ -75,6 +75,15 @@ typedef struct readerArgs_s {
     uint32_t tnum;  // threadnum
 } readerArgs_t;
 
+static bool IsReaderMetadataEntry(uint32_t type) {
+    return type == BLOCK_TYPE_STATS || type == BLOCK_TYPE_IDENT || type == BLOCK_TYPE_META;
+}  // End of IsReaderMetadataEntry
+
+static uint32_t NextReaderDataEntry(const blockDirectoryV3_t *dir, uint32_t index) {
+    while (index < dir->numEntries && IsReaderMetadataEntry(dir->entries[index].type)) index++;
+    return index;
+}  // End of NextReaderDataEntry
+
 // Decode a single data block located at entry offset/size in a mapped file.
 // Returns a newly allocated block (caller must FreeDataBlock), or NULL on error.
 dataBlockV3_t *DecodeBlockV3(const uint8_t *map, size_t mapSize, uint32_t blockSize, const directoryEntryV3_t *entry,
@@ -295,15 +304,29 @@ static void *nfreader(void *arg) {
         const directoryEntryV3_t *entry = &dir->entries[i];
 
         // skip metadata blocks — already extracted in OpenFileV3
-        if (entry->type == BLOCK_TYPE_STATS || entry->type == BLOCK_TYPE_IDENT || entry->type == BLOCK_TYPE_META) {
+        if (IsReaderMetadataEntry(entry->type)) {
             dbg_printf("Skip block type: %u\n", entry->type);
             continue;
         }
 
         dataBlockV3_t *dataBlock = DecodeBlockV3(nffile->map, nffile->mapSize, nffile->fileHeader->blockSize, entry, nffile->crypto);
         if (!dataBlock) {
-            LogError("nfreader: failed to read block %u at offset %" PRIu64, i, entry->offset);
-            break;
+            /* Skip the unreadable block, but keep its position in the publication
+             * order: wait for its turn, then pass the turn to the next block. The
+             * remaining blocks of the file are still delivered. */
+            LogError("nfreader: failed to read block %u at offset %" PRIu64 " in %s - skip block", i, entry->offset, nffile->fileName);
+            ReportReadError(nffile);
+            pthread_mutex_lock(&nffile->rlock);
+            while (i != nffile->nextReadIndex && !atomic_load_explicit(&nffile->abortRequested, memory_order_acquire))
+                pthread_cond_wait(&nffile->rcond, &nffile->rlock);
+            if (atomic_load_explicit(&nffile->abortRequested, memory_order_acquire)) {
+                pthread_mutex_unlock(&nffile->rlock);
+                break;
+            }
+            nffile->nextReadIndex = NextReaderDataEntry(dir, i + 1);
+            pthread_cond_broadcast(&nffile->rcond);
+            pthread_mutex_unlock(&nffile->rlock);
+            continue;
         }
 
         // A cancellation may arrive while DecodeBlockV3() works on this
@@ -313,11 +336,29 @@ static void *nfreader(void *arg) {
             break;
         }
 
+        /* Decoding is parallel, but publication follows directory order. This
+         * keeps consumers deterministic without serializing decompression. */
+        pthread_mutex_lock(&nffile->rlock);
+        while (i != nffile->nextReadIndex && !atomic_load_explicit(&nffile->abortRequested, memory_order_acquire))
+            pthread_cond_wait(&nffile->rcond, &nffile->rlock);
+
+        if (atomic_load_explicit(&nffile->abortRequested, memory_order_acquire)) {
+            pthread_mutex_unlock(&nffile->rlock);
+            FreeDataBlock(dataBlock);
+            break;
+        }
+
         if (queue_push(nffile->processQueue, (void *)dataBlock) == QUEUE_CLOSED) {
+            atomic_store_explicit(&nffile->abortRequested, true, memory_order_release);
+            pthread_cond_broadcast(&nffile->rcond);
+            pthread_mutex_unlock(&nffile->rlock);
             FreeDataBlock(dataBlock);
             dbg_printf("nfreader - processQueue closed\n");
             break;
         }
+        nffile->nextReadIndex = NextReaderDataEntry(dir, i + 1);
+        pthread_cond_broadcast(&nffile->rcond);
+        pthread_mutex_unlock(&nffile->rlock);
 
         dbg_printf("Blocks: %u\n", ++blockCount);
 
@@ -697,6 +738,7 @@ nffileV3_t *StartReadersV3(nffileV3_t *nffile) {
     }
 
     // kick off nfreader
+    nffile->nextReadIndex = NextReaderDataEntry(nffile->blockDirectory, 0);
     if (nffile->numWorkers > 1) {
         queue_producers(nffile->processQueue, nffile->numWorkers);
         LogVerbose("Use %u nfreaders for %s", nffile->numWorkers, nffile->fileName);
@@ -706,6 +748,7 @@ nffileV3_t *StartReadersV3(nffileV3_t *nffile) {
         readerArgs_t *readerArg = malloc(sizeof(readerArgs_t));
         if (!readerArg) {
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            AbortWorkers(nffile);
             CloseFileV3(nffile);
             return NULL;
         }
@@ -715,8 +758,10 @@ nffileV3_t *StartReadersV3(nffileV3_t *nffile) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfreader, (void *)readerArg);
         if (err) {
+            free(readerArg);
             nffile->worker[i] = 0;
             LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+            AbortWorkers(nffile);
             CloseFileV3(nffile);
             return NULL;
         }

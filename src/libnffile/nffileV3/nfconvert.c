@@ -1067,7 +1067,9 @@ static void *nfreaderV2(void *arg) {
     for (uint32_t i = 0; i < ctx->numBlocks && !atomic_load_explicit(&nffile->abortRequested, memory_order_acquire); i++) {
         dataBlockV2_t *v2block = ReadBlockV2(ctx->fd, ctx->compression, ctx->blockSize);
         if (!v2block) {
-            LogError("nfreaderV2: failed to read block %u", i);
+            // V2 files have no block directory - the next block cannot be located reliably
+            LogError("nfreaderV2: failed to read block %u in %s - skip remaining blocks", i, nffile->fileName);
+            ReportReadError(nffile);
             break;
         }
 
@@ -1086,7 +1088,8 @@ static void *nfreaderV2(void *arg) {
         free(v2block);
 
         if (!v3block) {
-            LogError("nfreaderV2: conversion failed for block %u", i);
+            LogError("nfreaderV2: conversion failed for block %u in %s", i, nffile->fileName);
+            ReportReadError(nffile);
             break;
         }
 

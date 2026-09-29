@@ -755,6 +755,10 @@ int main(int argc, char **argv) {
     }
 
     int ok = process_data(channels, numChannels, workerList, numWorkers, barrier, hasGeoDB);
+    if (GetTotalReadErrors()) {
+        LogError("Read error: %u data block(s) could not be read and were skipped - the result is incomplete", GetTotalReadErrors());
+        ok = 0;
+    }
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);

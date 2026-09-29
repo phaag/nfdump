@@ -309,6 +309,56 @@ else
     fail "nfmeta_block_filter_control_flow"
 fi
 
+# Filter workers may finish blocks out of order. Their completion stream must
+# nevertheless reproduce source order, including zero-match block tombstones
+# and early termination through -c.
+if nfdump -q -r "$f" -x threads.workers=1 -o csv 'proto tcp or src ip 10.0.0.1' >"$WORKDIR/order1.csv" \
+   && nfdump -q -r "$f" -x threads.workers=4 -o csv 'proto tcp or src ip 10.0.0.1' >"$WORKDIR/order4.csv" \
+   && cmp -s "$WORKDIR/order1.csv" "$WORKDIR/order4.csv" \
+   && nfdump -q -r "$f" -x threads.workers=1 -o csv 'src port 1424' >"$WORKDIR/tombstone1.csv" \
+   && nfdump -q -r "$f" -x threads.workers=4 -o csv 'src port 1424' >"$WORKDIR/tombstone4.csv" \
+   && cmp -s "$WORKDIR/tombstone1.csv" "$WORKDIR/tombstone4.csv" \
+   && nfdump -q -r "$f" -x threads.workers=1 -c 73 -o csv 'proto tcp' >"$WORKDIR/limit1.csv" \
+   && nfdump -q -r "$f" -x threads.workers=4 -c 73 -o csv 'proto tcp' >"$WORKDIR/limit4.csv" \
+   && cmp -s "$WORKDIR/limit1.csv" "$WORKDIR/limit4.csv"; then
+    pass "nfdump_filter_workers_preserve_order"
+else
+    fail "nfdump_filter_workers_preserve_order"
+fi
+
+# An unreadable data block is skipped: all other blocks are still delivered,
+# the failure is reported by a non-zero exit, and nfmeta does not replace the
+# original file in place. The test file is uncompressed, so the number of
+# records of a flow block is readable in its header at offset 24. The
+# encryption field at offset 14 is set to an unknown type to make the block
+# unreadable.
+"$NFGEN2" -w "$V2DIR/multi.v2" -z lz4 -n 150000 -b 5000 >/dev/null 2>&1
+nfdump -r "$V2DIR/multi.v2" -z=none -w "$V2DIR/multi.nf" >/dev/null 2>&1
+off=$(nfdump -v check-verbose -r "$V2DIR/multi.nf" </dev/null 2>/dev/null \
+        | sed -n 's/^Checkblock: type: 1, offset: \([0-9]*\).*/\1/p' | sed -n 2p)
+if [ -n "$off" ]; then
+    lost=$(od -An -tu4 -j $((off + 24)) -N4 "$V2DIR/multi.nf" | tr -d ' ')
+    cp "$V2DIR/multi.nf" "$V2DIR/badblock.nf"
+    printf '\167\167' | dd of="$V2DIR/badblock.nf" bs=1 seek=$((off + 14)) conv=notrunc 2>/dev/null
+    # data lines only: the read error message is printed as well
+    flows "$V2DIR/multi.nf" | grep '^[0-9]' >"$WORKDIR/intact.csv"
+    flows "$V2DIR/badblock.nf" -x threads.readers=4 | grep '^[0-9]' >"$WORKDIR/badblock.csv"
+    cp "$V2DIR/badblock.nf" "$V2DIR/badblock_inplace.nf"
+    if ! nfdump -q -r "$V2DIR/badblock.nf" -o csv >/dev/null 2>&1 \
+       && [ "$(wc -l <"$WORKDIR/badblock.csv")" -eq $(($(wc -l <"$WORKDIR/intact.csv") - lost)) ] \
+       && [ -z "$(comm -13 "$WORKDIR/intact.csv" "$WORKDIR/badblock.csv")" ] \
+       && ! nfmeta -r "$V2DIR/badblock_inplace.nf" >/dev/null 2>&1 \
+       && cmp -s "$V2DIR/badblock.nf" "$V2DIR/badblock_inplace.nf" \
+       && [ -z "$(ls "$V2DIR" | grep '^badblock_inplace\.nf\.')" ] \
+       && nfdump -q -r "$V2DIR/multi.nf" -o csv >/dev/null 2>&1; then
+        pass "nfdump_skips_unreadable_block"
+    else
+        fail "nfdump_skips_unreadable_block"
+    fi
+else
+    fail "nfdump_skips_unreadable_block (no multi-block test file)"
+fi
+
 # With more workers than input blocks, idle workers must not write empty
 # blocks that only hold bloom metadata.
 "$NFGEN2" -w "$V2DIR/one_block.nf" -z lz4 -n 500 -b 500 >/dev/null 2>&1

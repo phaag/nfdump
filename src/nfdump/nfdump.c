@@ -89,6 +89,7 @@ typedef struct dataHandle_s {
     char *ident;
     uint64_t blockCnt;
     uint64_t recordCnt;
+    uint64_t dispatchSeq;
 } dataHandle_t;
 
 typedef struct prepareArgs_s {
@@ -96,6 +97,7 @@ typedef struct prepareArgs_s {
     const void *engine; /* filter engine – for file/block-level pre-filter */
     uint32_t processedBlocks;
     uint32_t skippedBlocks;
+    uint64_t skippedRecords;
 } prepareArgs_t;
 
 typedef struct filterArgs_s {
@@ -110,6 +112,8 @@ typedef struct filterArgs_s {
 static uint64_t total_bytes = 0;
 static uint64_t totalRecords = 0;
 static uint64_t totalPassed = 0;
+static uint64_t evaluatedRecords = 0;
+static uint64_t skippedBlockRecords = 0;
 static uint32_t skippedBlocks = 0;
 static uint64_t t_firstMsec = 0, t_lastMsec = 0;
 static _Atomic uint32_t abortProcessing = 0;
@@ -348,10 +352,16 @@ static void ProcessArrayBlock(arrayBlockV3_t *arrayBlock) {
  * the block-level filter, before any data block of the file is read.
  */
 static int fileTimeFilter(const nffileV3_t *nffile, void *engine) {
-    const stat_record_t *stat_record = nffile->stat_record;
-    if (!stat_record) return 1;
-    return FilterBlock(engine, stat_record->msecFirstSeen, stat_record->msecLastSeen, NULL);
+    return FilterFile(engine, nffile->stat_record) == PREFILTER_MAY_MATCH;
 }  // End of fileTimeFilter
+
+static void FreeDataHandle(void *handle) {
+    dataHandle_t *dataHandle = handle;
+    if (!dataHandle || dataHandle == QUEUE_CLOSED) return;
+    if (dataHandle->dataBlock) FreeDataBlock(dataHandle->dataBlock);
+    free(dataHandle->ident);
+    free(dataHandle);
+}  // End of FreeDataHandle
 
 static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
@@ -375,14 +385,14 @@ static void *prepareThread(void *arg) {
     }
     t_firstMsec = nffile->stat_record->msecFirstSeen;
     t_lastMsec = nffile->stat_record->msecLastSeen;
-    const blockConstraint_t *bc = GetBlockConstraint(prepareArgs->engine);
-    /* hasBlockFilter: true if either a time-range or an IP bloom constraint exists */
-    int hasBlockFilter = bc && (bc->hasTimeConstraint || bc->hasIPConstraint);
+    const uint32_t filterCapabilities = FilterCapabilities(prepareArgs->engine);
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
+    uint64_t dispatchSeq = 0;
     unsigned processedBlocks = 0;
     unsigned skippedBlocks = 0;
+    uint64_t skippedRecords = 0;
 
     int done = nffile == NULL;
     while (!done) {
@@ -418,12 +428,14 @@ static void *prepareThread(void *arg) {
             case BLOCK_TYPE_FLOW: {
                 dataHandle->recordCnt = recordCnt;
                 recordCnt += (uint64_t)dataHandle->dataBlock->numRecords;
-                if (hasBlockFilter) {
+                if (filterCapabilities) {
                     bloomHandle_t bh = {0};
-                    if (bc->hasIPConstraint) scanBlockBlooms(dataHandle->dataBlock, &bh);
-                    if (!FilterBlock(prepareArgs->engine, dataHandle->dataBlock->msecFirst, dataHandle->dataBlock->msecLast, &bh)) {
+                    if (filterCapabilities & FILTER_CAP_EXACT_IP) scanBlockBlooms(dataHandle->dataBlock, &bh);
+                    if (FilterDataBlock(prepareArgs->engine, dataHandle->dataBlock->msecFirst, dataHandle->dataBlock->msecLast, &bh) ==
+                        PREFILTER_REJECT) {
                         dbg_printf("prepareThread: skip block (block constraint)\n");
                         skippedBlocks++;
+                        skippedRecords += dataHandle->dataBlock->numRecords;
                         FreeDataBlock(dataHandle->dataBlock);
                         dataHandle->dataBlock = NULL;
                         continue;
@@ -449,7 +461,12 @@ static void *prepareThread(void *arg) {
                 continue;
         }
 
-        queue_push(outQueue, (void *)dataHandle);
+        dataHandle->dispatchSeq = dispatchSeq++;
+        if (queue_push(outQueue, (void *)dataHandle) == QUEUE_CLOSED) {
+            FreeDataHandle(dataHandle);
+            dataHandle = NULL;
+            break;
+        }
         dataHandle = NULL;
         done = abortProcessing;
 #ifdef DEVEL
@@ -457,6 +474,7 @@ static void *prepareThread(void *arg) {
 #endif
     }  // while(!done)
 
+    FreeDataHandle(dataHandle);
     totalRecords = recordCnt;
     dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
     if (abortProcessing) {
@@ -469,6 +487,7 @@ static void *prepareThread(void *arg) {
 
     prepareArgs->processedBlocks = processedBlocks;
     prepareArgs->skippedBlocks = skippedBlocks;
+    prepareArgs->skippedRecords = skippedRecords;
     dbg_printf("prepareThread exit\n");
     pthread_exit(NULL);
 
@@ -505,7 +524,10 @@ static void *filterThread(void *arg) {
         if (dataHandle->dataBlock->type != BLOCK_TYPE_FLOW) {
             // skip none flow block and push them to the next stage
             dbg_printf("Filter thread skip block type: %u\n", dataHandle->dataBlock->type);
-            queue_push(outQueue, dataHandle);
+            if (queue_push(outQueue, dataHandle) == QUEUE_CLOSED) {
+                FreeDataHandle(dataHandle);
+                break;
+            }
             continue;
         }
 
@@ -535,13 +557,13 @@ static void *filterThread(void *arg) {
             }
             sumSize += record_ptr->size;
 
-            processedRecords++;
             recordCounter++;
 
             // work on our record
             switch (record_ptr->type) {
                 case V4Record: {
                     recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
+                    processedRecords++;
                     dataRecords++;
                     int match = MapV4RecordHandle(recordHandle, recordHeaderV4, recordCounter);
 
@@ -573,14 +595,20 @@ static void *filterThread(void *arg) {
             // we have matched flows
             dbg_printf("Filter thread %u: dataBlock: %" PRIu64 ", matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
                        matched, dataRecords, dataBlock->numRecords);
-            queue_push(outQueue, dataHandle);
+            if (queue_push(outQueue, dataHandle) == QUEUE_CLOSED) {
+                FreeDataHandle(dataHandle);
+                break;
+            }
         } else {
-            // no matched flows and only data records - short end
+            /* Preserve one completion for every dispatched sequence number so
+             * the consumer can restore source order across worker threads. */
             dbg_printf("Filter thread %i - no matching data records: skip block\n", self);
             FreeDataBlock(dataHandle->dataBlock);
-            free(dataHandle->ident);
-            free(dataHandle);
-            dataHandle = NULL;
+            dataHandle->dataBlock = NULL;
+            if (queue_push(outQueue, dataHandle) == QUEUE_CLOSED) {
+                FreeDataHandle(dataHandle);
+                break;
+            }
         }
     }
 
@@ -621,6 +649,70 @@ static bool LaunchFilterThreads(filterArgs_t *filterArgs, void *engine, int numW
     return true;
 
 }  // End of LaunchFilterThreads
+
+typedef struct orderedResults_s {
+    dataHandle_t **pending;
+    size_t count;
+    size_t capacity;
+    uint64_t nextSeq;
+    bool closed;
+} orderedResults_t;
+
+/* Filter workers finish blocks independently. Collect their results until the
+ * next source sequence is available. A tombstone (dataBlock == NULL) is still
+ * returned, because it completes its sequence position. */
+/* noinline: inlined into process_data() it degrades the code of the per-record
+ * processing loop (measured about 15% slower for -s statistics). It runs once
+ * per block only. */
+static __attribute__((noinline)) dataHandle_t *PopOrderedResult(queue_t *queue, orderedResults_t *ordered) {
+    while (1) {
+        for (size_t i = 0; i < ordered->count; i++) {
+            dataHandle_t *dataHandle = ordered->pending[i];
+            if (dataHandle->dispatchSeq != ordered->nextSeq) continue;
+
+            ordered->pending[i] = ordered->pending[--ordered->count];
+            ordered->nextSeq++;
+            return dataHandle;
+        }
+
+        if (ordered->closed) {
+            if (ordered->count && !abortProcessing)
+                LogError("Filter worker results ended before sequence %" PRIu64, ordered->nextSeq);
+            for (size_t i = 0; i < ordered->count; i++) FreeDataHandle(ordered->pending[i]);
+            ordered->count = 0;
+            return QUEUE_CLOSED;
+        }
+
+        dataHandle_t *dataHandle = queue_pop(queue);
+        if (dataHandle == QUEUE_CLOSED) {
+            ordered->closed = true;
+            continue;
+        }
+
+        if (dataHandle->dispatchSeq < ordered->nextSeq) {
+            LogError("Duplicate filter worker sequence %" PRIu64, dataHandle->dispatchSeq);
+            FreeDataHandle(dataHandle);
+            continue;
+        }
+        if (dataHandle->dispatchSeq == ordered->nextSeq) {
+            ordered->nextSeq++;
+            return dataHandle;
+        }
+
+        if (ordered->count == ordered->capacity) {
+            size_t capacity = ordered->capacity ? ordered->capacity * 2 : 16;
+            dataHandle_t **pending = realloc(ordered->pending, capacity * sizeof(*pending));
+            if (!pending) {
+                LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                FreeDataHandle(dataHandle);
+                exit(255);
+            }
+            ordered->pending = pending;
+            ordered->capacity = capacity;
+        }
+        ordered->pending[ordered->count++] = dataHandle;
+    }
+}  // End of PopOrderedResult
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, uint64_t limitRecords,
                                   outputParams_t *outputParams, int compressType, int compressLevel, uint32_t numWorkers,
@@ -673,11 +765,17 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
     // number of flows passed the filter
     dbg(uint32_t numBlocks = 0);
+    orderedResults_t ordered = {0};
     int done = 0;
     while (!done) {
-        dataHandle_t *dataHandle = queue_pop(sourceQueue);
+        dataHandle_t *dataHandle = PopOrderedResult(sourceQueue, &ordered);
         if (dataHandle == QUEUE_CLOSED) {  // no more blocks
             done = 1;
+            continue;
+        }
+
+        if (dataHandle->dataBlock == NULL) {
+            FreeDataHandle(dataHandle);
             continue;
         }
 
@@ -777,6 +875,8 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         dataHandle = NULL;
     }  // while
 
+    free(ordered.pending);
+
     dbg_printf("processData() done\n");
 
     free(recordHandle);
@@ -809,9 +909,18 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             dbg_printf("processData() filter thread: %d\n", i);
         }
         free(tid);
+        evaluatedRecords = atomic_load_explicit(&filterArgs.processedRecords, memory_order_relaxed);
+    }
+
+    queue_clear(prepareArgs.outQueue, FreeDataHandle);
+    queue_free(prepareArgs.outQueue);
+    if (engine) {
+        queue_clear(filterArgs.outQueue, FreeDataHandle);
+        queue_free(filterArgs.outQueue);
     }
 
     skippedBlocks = prepareArgs.skippedBlocks;
+    skippedBlockRecords = prepareArgs.skippedRecords;
     return stat_record;
 
 }  // End of process_data
@@ -848,6 +957,8 @@ int main(int argc, char **argv) {
     element_stat = 0;
     limitRecords = 0;
     skippedBlocks = 0;
+    skippedBlockRecords = 0;
+    evaluatedRecords = 0;
     limitCores = 0;
     GuessDir = 0;
     verbose = 1;
@@ -1401,8 +1512,7 @@ int main(int argc, char **argv) {
     }
 
     // skip entire files outside the time window of the filter
-    const blockConstraint_t *bc = GetBlockConstraint(engine);
-    if (bc && bc->hasTimeConstraint) SetFileFilter(fileTimeFilter, engine);
+    if (FilterCapabilities(engine) & FILTER_CAP_TIME) SetFileFilter(fileTimeFilter, engine);
 
     nfprof_start(&profile_data);
     sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.workers,
@@ -1457,8 +1567,11 @@ int main(int argc, char **argv) {
                     printf("Time window: %s, Duration: %s\n", TimeString(t_firstMsec, t_lastMsec),
                            ScaleDuration(string, sizeof(string), durationMsec, outputParams->printPlain, WIDTH_VAR));
                 }
-                printf("Total records processed: %" PRIu64 ", passed: %" PRIu64 ", Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed,
-                       skippedBlocks, (unsigned long long)total_bytes);
+                printf("Total records processed: %" PRIu64 ", passed: %" PRIu64
+                       ", Files skipped: %u, Blocks skipped: %u, Block records skipped: %" PRIu64
+                       ", Records evaluated: %" PRIu64 ", Bytes read: %llu\n",
+                       totalRecords, totalPassed, GetSkippedFiles(), skippedBlocks, skippedBlockRecords, evaluatedRecords,
+                       (unsigned long long)total_bytes);
                 nfprof_print(&profile_data, stdout);
                 break;
             case MODE_CSV:
@@ -1478,6 +1591,13 @@ int main(int argc, char **argv) {
     Dispose_StatTable();
     RegisterReadCryptoCtx(NULL);
     FreeCryptoCtx(crypto_ctx);
+
+    // unreadable data blocks were skipped - the result is incomplete
+    uint32_t readErrors = GetTotalReadErrors();
+    if (readErrors) {
+        LogError("Read error: %u data block(s) could not be read and were skipped - the result is incomplete", readErrors);
+        return EXIT_FAILURE;
+    }
 
     return 0;
 }

@@ -81,11 +81,16 @@ static bool lastOpenFailed = false;
 static fileFilter_t fileFilter = NULL;
 static void *fileFilterArg = NULL;
 static _Atomic uint32_t skippedFiles = 0;
+static _Atomic uint32_t totalReadErrors = 0;
 
 int GetNextFileFailed(void) { return lastOpenFailed; }
 
 int Init_nffile(threadConfig_t tc, queue_t *fileList) {
     fileQueue = fileList;
+    fileFilter = NULL;
+    fileFilterArg = NULL;
+    atomic_store(&skippedFiles, 0);
+    atomic_store(&totalReadErrors, 0);
 
     if (!InitCompression()) {
         LogError("Failed to initialize compression libraries");
@@ -158,6 +163,15 @@ void SetFileFilter(fileFilter_t filter, void *arg) {
 }  // End of SetFileFilter
 
 uint32_t GetSkippedFiles(void) { return atomic_load(&skippedFiles); }
+
+void ReportReadError(nffileV3_t *nffile) {
+    if (nffile) atomic_fetch_add(&nffile->readErrors, 1);
+    atomic_fetch_add(&totalReadErrors, 1);
+}  // End of ReportReadError
+
+uint32_t GetReadErrors(const nffileV3_t *nffile) { return nffile ? atomic_load(&nffile->readErrors) : 0; }
+
+uint32_t GetTotalReadErrors(void) { return atomic_load(&totalReadErrors); }
 
 int ReportBlocks(void) {
     int inUse = atomic_load(&blocksInUse);
@@ -246,6 +260,9 @@ nffileV3_t *NewFile(uint32_t num_workers, uint32_t queueSize) {
     for (int i = 0; i < (int)num_workers; i++) nffile->worker[i] = 0;
 
     atomic_init(&nffile->abortRequested, false);
+    atomic_init(&nffile->readErrors, 0);
+    pthread_mutex_init(&nffile->rlock, NULL);
+    pthread_cond_init(&nffile->rcond, NULL);
     pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
 
@@ -307,6 +324,9 @@ void AbortWorkers(nffileV3_t *nffile) {
 
     atomic_store_explicit(&nffile->abortRequested, true, memory_order_release);
     queue_abort(nffile->processQueue);
+    pthread_mutex_lock(&nffile->rlock);
+    pthread_cond_broadcast(&nffile->rcond);
+    pthread_mutex_unlock(&nffile->rlock);
 }  // End of AbortWorkers
 
 void TerminateWorkers(nffileV3_t *nffile) {
@@ -356,6 +376,8 @@ void CloseFileV3(nffileV3_t *nffile) {
     if (nffile->blockList.entries) free(nffile->blockList.entries);
     FreeFileCrypto(nffile->crypto);
 
+    pthread_mutex_destroy(&nffile->rlock);
+    pthread_cond_destroy(&nffile->rcond);
     pthread_mutex_destroy(&nffile->wlock);
 
     if (nffile->processQueue) {

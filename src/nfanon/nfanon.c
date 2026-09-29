@@ -515,7 +515,14 @@ static int process_data(char *wfile, int verbose, worker_param_t **workerList, i
         if (*dataBlockPtr == NULL) {
             /* Without -w, finish and replace each input file separately.
              * With -w, keep the writer open and append every input file. */
-            if (nffile_w && wfile == NULL) {
+            if (nffile_w && wfile == NULL && GetReadErrors(nffile_r)) {
+                // never replace the original with a file missing unreadable blocks
+                LogError("Read error: %u data block(s) of %s could not be read - file not replaced", GetReadErrors(nffile_r), cfile);
+                FlushFileV3(nffile_w);
+                DeleteFileV3(nffile_w);
+                nffile_w = NULL;
+                success = 0;
+            } else if (nffile_w && wfile == NULL) {
                 FlushFileV3(nffile_w);
                 CloseFileV3(nffile_w);
                 nffile_w = NULL;
@@ -538,6 +545,10 @@ static int process_data(char *wfile, int verbose, worker_param_t **workerList, i
                     // A real file failed to open (bad/missing passphrase,
                     // corrupt file, ...) - must not be reported as success.
                     LogError("Aborting: a subsequent input file failed to open");
+                    success = 0;
+                }
+                if (wfile && GetTotalReadErrors()) {
+                    LogError("Read error: %u data block(s) could not be read and were skipped - %s is incomplete", GetTotalReadErrors(), wfile);
                     success = 0;
                 }
                 done = 1;

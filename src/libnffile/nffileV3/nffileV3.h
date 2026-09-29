@@ -356,6 +356,10 @@ typedef struct nffileV3_s {
     nffile_crypto_t *crypto;     // per-file crypto state; NULL = not encrypted
     _Atomic off_t blockOffset;   // atomic block I/O offset (read: mmap scan pos, write: pwrite pos)
     queue_t *processQueue;       // blocks ready to be processed. Connects consumer/producer threads
+    pthread_mutex_t rlock;       // publish decoded blocks in directory order
+    pthread_cond_t rcond;
+    uint32_t nextReadIndex;
+    _Atomic uint32_t readErrors;  // data blocks which could not be read and were skipped
     pthread_mutex_t wlock;       // writer lock
     pthread_t worker[];          // nfread/nfwrite worker thread;
 } nffileV3_t;
@@ -405,6 +409,20 @@ void SetFileFilter(fileFilter_t filter, void *arg);
 
 // Number of files skipped by the file filter so far
 uint32_t GetSkippedFiles(void);
+
+/*
+ * Read error accounting. A data block which cannot be read or decoded is
+ * skipped and counted, the remaining blocks of the file are still delivered.
+ * GetReadErrors() returns the number of such blocks of one file. Check it
+ * after ReadBlockV3() returned NULL - all readers have finished by then.
+ * GetTotalReadErrors() returns the sum over all files since Init_nffile().
+ * A tool must not replace an original file, if blocks could not be read.
+ */
+void ReportReadError(nffileV3_t *nffile);
+
+uint32_t GetReadErrors(const nffileV3_t *nffile);
+
+uint32_t GetTotalReadErrors(void);
 
 // Open the next input file and load only its mapped metadata. No V3 reader
 // threads are started; intended for statistics-only operations.

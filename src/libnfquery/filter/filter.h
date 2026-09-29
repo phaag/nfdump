@@ -109,6 +109,16 @@ typedef struct blockConstraint_s {
     bool hasIPConstraint;
 } blockConstraint_t;
 
+typedef enum {
+    PREFILTER_REJECT = 0,     /* metadata proves that no record can match */
+    PREFILTER_MAY_MATCH = 1,  /* continue with the next filtering stage */
+} prefilterResult_t;
+
+enum {
+    FILTER_CAP_TIME = 1u << 0,
+    FILTER_CAP_EXACT_IP = 1u << 1,
+};
+
 /*
  * filter functions:
  * For some filter functions, netflow records need to be processed first in order to filter them
@@ -213,6 +223,19 @@ int yyparse(void);
  * Returns NULL if engine is NULL.
  */
 const blockConstraint_t *GetBlockConstraint(const void *engine);
+
+/* Metadata required by the compiled filter's prefilter instructions. These
+ * bits are work-avoidance hints only; prefilter decisions remain conservative
+ * when any advertised metadata is unavailable. */
+uint32_t FilterCapabilities(const void *engine);
+
+/* File-level prefilter. A missing stat record always returns MAY_MATCH. */
+prefilterResult_t FilterFile(const void *engine, const stat_record_t *statRecord);
+
+/* Decoded-block prefilter. Time values are the block-wide interval and bh may
+ * be NULL or contain NULL members when Bloom metadata is unavailable. */
+prefilterResult_t FilterDataBlock(const void *engine, uint64_t blockMsecFirst, uint64_t blockMsecLast,
+                                  const bloomHandle_t *bh);
 
 /*
  * Block-level pre-filter.

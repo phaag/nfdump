@@ -375,9 +375,7 @@ static int FlushBuffer(int confirm, int netflow_version) {
  * cannot match the time constraint of the filter.
  */
 static int fileTimeFilter(const nffileV3_t *nffile, void *engine) {
-    const stat_record_t *stat_record = nffile->stat_record;
-    if (!stat_record) return 1;
-    return FilterBlock(engine, stat_record->msecFirstSeen, stat_record->msecLastSeen, NULL);
+    return FilterFile(engine, nffile->stat_record) == PREFILTER_MAY_MATCH;
 }  // End of fileTimeFilter
 
 static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
@@ -391,8 +389,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
     recordHandle_t *recordHandle = NULL;
 
     twin_msecFirst = twin_msecLast = 0;
-    const blockConstraint_t *bc = GetBlockConstraint(engine);
-    int hasBlockFilter = bc && (bc->hasTimeConstraint || bc->hasIPConstraint);
+    const uint32_t filterCapabilities = FilterCapabilities(engine);
 
     // Get the first file handle
     nffile = GetNextFile();
@@ -476,10 +473,10 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
             continue;
         }
 
-        if (hasBlockFilter) {
+        if (filterCapabilities) {
             bloomHandle_t bh = {0};
-            if (bc->hasIPConstraint) scanBlockBlooms(dataBlock, &bh);
-            if (!FilterBlock(engine, dataBlock->msecFirst, dataBlock->msecLast, &bh)) {
+            if (filterCapabilities & FILTER_CAP_EXACT_IP) scanBlockBlooms(dataBlock, &bh);
+            if (FilterDataBlock(engine, dataBlock->msecFirst, dataBlock->msecLast, &bh) == PREFILTER_REJECT) {
                 dbg_printf("filter block: skip block (block constraint)\n");
                 FreeDataBlock(dataBlock);
                 continue;
@@ -900,11 +897,14 @@ int main(int argc, char **argv) {
     if (!Init_nffile(threadConfig, fileList)) exit(EXIT_FAILURE);
 
     // skip entire files outside the time window of the filter
-    const blockConstraint_t *bc = GetBlockConstraint(engine);
-    if (bc && bc->hasTimeConstraint) SetFileFilter(fileTimeFilter, engine);
+    if (FilterCapabilities(engine) & FILTER_CAP_TIME) SetFileFilter(fileTimeFilter, engine);
 
     int status = send_data(engine, count, delay, confirm, netflow_version, distribution);
     DisposeFilter(engine);
+    if (GetTotalReadErrors()) {
+        LogError("Read error: %u data block(s) could not be read and were skipped - the result is incomplete", GetTotalReadErrors());
+        status = 0;
+    }
 
 #ifdef HAVE_LIBSODIUM
     FreeUdpSessionKey(sessionKey);

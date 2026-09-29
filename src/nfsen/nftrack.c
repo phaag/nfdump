@@ -490,5 +490,9 @@ int main(int argc, char **argv) {
     CloseStat();
     unlink(pidfile);
 
+    if (GetTotalReadErrors()) {
+        LogError("Read error: %u data block(s) could not be read and were skipped - the result is incomplete", GetTotalReadErrors());
+        return EXIT_FAILURE;
+    }
     return 0;
 }
