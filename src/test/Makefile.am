@@ -1,8 +1,8 @@
 
-check_PROGRAMS = nftest nfgen4 test_append test_rotation
+check_PROGRAMS = nftest nfgen4 nfgen2 test_append test_rotation
 TESTS = nftest test_prepare.sh test_compress_lzo.sh test_compress_lz4.sh
 TESTS += test_append.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh
-TESTS += test_maxmind.sh test_nfexpire.sh
+TESTS += test_maxmind.sh test_nfexpire.sh test_nfmeta.sh
 TESTS += test_rotation
 
 if HAVE_LIBSODIUM
@@ -43,6 +43,11 @@ nfgen4_SOURCES = nfgen4.c
 nfgen4_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
 nfgen4_LDFLAGS = -L$(top_builddir)/src/libnffile
 
+nfgen2_SOURCES = nfgen2.c
+nfgen2_CFLAGS = $(AM_CFLAGS) $(LZ4_CFLAGS)
+nfgen2_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
+nfgen2_LDFLAGS = -L$(top_builddir)/src/libnffile
+
 nftest_SOURCES = nftest.c
 nftest_LDADD = -lnfquery -lnffile $(NFDUMP_TRANSITIVE_LIBS)
 nftest_LDFLAGS = -L$(top_builddir)/src/libnfquery -L$(top_builddir)/src/libnffile
@@ -61,7 +66,7 @@ sflowgen_LDFLAGS =
 
 EXTRA_DIST = testsetup.sh \
              test_prepare.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh \
-             test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh \
+             test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh test_nfmeta.sh \
              test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh test_sfcapd.sh \
              sflowgen.c
 EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt

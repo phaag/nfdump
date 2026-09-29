@@ -35,6 +35,8 @@
 .Nm
 .Fl r Ar path
 .Op Fl w Ar outfile
+.Op Fl z Ns = Ns Ar comp
+.Op Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
 .Op Fl v Ar level
 .Op Fl W Ar num
 .Op Fl x Ar key=value
@@ -58,6 +60,21 @@ file in the same directory and renamed over the original only after successful
 completion. With
 .Fl w ,
 all selected input files are written to one output file instead.
+.Pp
+Files in the legacy nfdump 1.7.x format are converted to the current file
+format while metadata is added.
+.Pp
+In-place updates preserve the compression and encryption of each input file:
+a compressed file stays compressed with the same method, and an encrypted file
+is re-encrypted with a fresh key derived from the passphrase given by
+.Fl K .
+With
+.Fl w ,
+the output file inherits the compression of the first input file unless
+.Fl z
+selects a different one, and it is encrypted if
+.Fl K
+is given.
 .Sh OPTIONS
 .Bl -tag -width Ds
 .It Fl r Ar path
@@ -67,6 +84,62 @@ Write the processed data to
 .Ar outfile .
 When multiple input files are selected they are merged into this output file.
 If omitted, update every input file in place.
+.It Fl z Ns = Ns Ar comp
+Compress the output file given by
+.Fl w
+with
+.Ar comp
+instead of inheriting the compression of the first input file.
+.Ar comp
+is one of
+.Cm lzo ,
+.Cm lz4 Ns Op : Ns Ar level ,
+.Cm bz2 ,
+.Cm zstd Ns Op : Ns Ar level
+or
+.Cm none .
+Using
+.Fl z
+without an argument is equivalent to
+.Fl z=lzo .
+See
+.Xr nfdump 1
+for details about compression methods and levels.
+This option requires
+.Fl w ;
+in-place updates always keep the compression of each input file.
+Encrypted output files are always compressed; with
+.Fl z=none
+and
+.Fl K
+a default compression is selected.
+.It Fl K Ns Oo = Ns Ar passphrase | Pf @ Ar keyfile Oc
+Decrypt encrypted input files and encrypt the output.
+Encrypted files updated in place are re-encrypted with the same passphrase.
+With
+.Fl w ,
+the output file is encrypted, even if the input files are not.
+Unencrypted files updated in place remain unencrypted.
+Requires
+.Nm
+to be compiled with libsodium support.
+.Pp
+The passphrase may be supplied as
+.Fl K Ns = Ns Ar passphrase ,
+read from the first line of a file with
+.Fl K Ns @ Ns Ar keyfile ,
+or prompted interactively with echo disabled if
+.Fl K
+is given without an argument.
+See
+.Xr nfdump 1
+for details.
+.Pp
+Without
+.Fl K ,
+.Nm
+does not prompt for a passphrase: an encrypted input file is rejected with an
+error and left unmodified, so it is never replaced by an unencrypted file.
 .It Fl v Ar level
 Set the log verbosity level from 0 through 4.
 .It Fl W Ar num
@@ -88,7 +161,8 @@ Print the short usage summary and exit.
 .El
 .Sh EXIT STATUS
 .Nm
-returns 0 on success and 255 on error.
+returns 0 on success and a non-zero value on error, including when an input
+file cannot be opened or decrypted.
 .Sh EXAMPLES
 Update one file in place:
 .Dl nfmeta -r nfcapd.202601010000
@@ -98,6 +172,12 @@ Update every flow file in a directory in place:
 .Pp
 Create one annotated output file from a directory:
 .Dl nfmeta -r /var/nfdump/edge-router -w /var/nfdump/edge-router.meta
+.Pp
+Update encrypted files in place, reading the passphrase from a key file:
+.Dl nfmeta -K@/etc/nfdump/key -r /var/nfdump/edge-router
+.Pp
+Convert a legacy nfdump 1.7.x file to a new ZSTD compressed file with metadata:
+.Dl nfmeta -r nfcapd.202001010000 -w nfcapd.202001010000.meta -z=zstd:3
 .Pp
 Limit processing to four cores and two Bloom-filter workers:
 .Dl nfmeta -W 4 -x threads.workers=2 -r /var/nfdump/edge-router

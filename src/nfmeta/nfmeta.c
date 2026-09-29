@@ -42,6 +42,7 @@
 #include <unistd.h>
 
 #include "bloom.h"
+#include "compress/nfcompress.h"
 #include "flist.h"
 #include "id.h"
 #include "logging.h"
@@ -55,7 +56,8 @@
 #include "util.h"
 
 static void usage(char *name);
-static int process_data(const char *wfile, int numWorkers, int verbose);
+static int process_data(const char *wfile, uint32_t compressType, uint32_t compressLevel, int numWorkers, int verbose,
+                        const crypto_ctx_t *crypto_ctx);
 
 typedef struct {
     queue_t *inputQueue;
@@ -71,6 +73,10 @@ static void usage(char *name) {
         "-w <file>\twrite all output to this file\n"
         "-v <num>\tverbose level\n"
         "\t\tif -w is omitted, each input file is replaced in-place\n"
+        "-z=<comp>\tCompress the -w output file with lzo, lz4[:level], bz2, zstd[:level] or none.\n"
+        "\t\tWithout -z, the compression of the first input file is inherited.\n"
+        "-K[=passphrase|@keyfile]\tDecrypt encrypted input files. In-place files are re-encrypted,\n"
+        "\t\twith -w the output file is encrypted. Passphrase from argument, key file, or interactive prompt.\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n",
         name);
@@ -78,10 +84,11 @@ static void usage(char *name) {
 
 /* bloomHandle_t is defined in bloom.h */
 
+#define NUM_BLOOM_DEFS 4
 static const struct {
     uint16_t metaType;
     size_t bpOffset;
-} kBloomDefs[4] = {
+} kBloomDefs[NUM_BLOOM_DEFS] = {
     {META_TYPE_BLOOM_SRC_IPV4, offsetof(bloomHandle_t, srcIPv4bloom)},
     {META_TYPE_BLOOM_DST_IPV4, offsetof(bloomHandle_t, dstIPv4bloom)},
     {META_TYPE_BLOOM_SRC_IPV6, offsetof(bloomHandle_t, srcIPv6bloom)},
@@ -93,7 +100,7 @@ static const struct {
  * pointer into the block so subsequent BloomAdd* calls update them in-place.
  */
 static void addBloomHandle(flowBlockV3_t *dataBlock, bloomHandle_t *bloomHandle) {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < NUM_BLOOM_DEFS; i++) {
         void *cur = GetCursor(dataBlock);
         metaRecordHeader_t *hdr = (metaRecordHeader_t *)cur;
         *hdr = (metaRecordHeader_t){
@@ -197,8 +204,13 @@ static void *workerThread(void *arg) {
         dataBlock_r = queue_pop(workerArgs->inputQueue);
     }
 
-    if (dataBlock_w->numRecords) {
+    // push the last block only if it holds flow records beyond the bloom META records
+    if (dataBlock_w->numRecords > NUM_BLOOM_DEFS) {
+        dataBlock_w->msecFirst = (firstSeen != UINT64_MAX) ? firstSeen : 0;
+        dataBlock_w->msecLast = lastSeen;
         queue_push(workerArgs->outputQueue, dataBlock_w);
+    } else {
+        FreeDataBlock(dataBlock_w);
     }
     queue_close(workerArgs->outputQueue);
 
@@ -282,7 +294,8 @@ static int flushAndClose(nffileV3_t *nffile_w, const char *wfile, const char *sr
  *   5. Joins workers and frees the per-file queues.
  *   6. Finalizes (and optionally renames) the output file.
  */
-static int process_data(const char *wfile, int numWorkers, int verbose) {
+static int process_data(const char *wfile, uint32_t compressType, uint32_t compressLevel, int numWorkers, int verbose,
+                        const crypto_ctx_t *crypto_ctx) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     int blk_count = 0;
     int file_count = 0;
@@ -309,7 +322,13 @@ static int process_data(const char *wfile, int numWorkers, int verbose) {
 
     // In single-output mode, open the output file once
     if (wfile) {
-        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
+        // use -z compression if given, otherwise inherit the compression of the first input file.
+        // Encrypt the output if -K is given
+        if (compressType == UNDEF_COMPRESSED) {
+            compressType = nffile_r->compression;
+            compressLevel = nffile_r->compressionLevel;
+        }
+        nffile_w = OpenNewFileV3(wfile, CREATOR_NFDUMP, compressType, compressLevel, crypto_ctx);
         if (!nffile_w) {
             CloseFileV3(nffile_r);
             free(tids);
@@ -345,9 +364,17 @@ static int process_data(const char *wfile, int numWorkers, int verbose) {
                 break;
             }
             strncpy(srcFile, nffile_r->fileName, sizeof(srcFile) - 1);
+            // never replace an encrypted file with a plaintext one
+            if (nffile_r->crypto && !crypto_ctx) {
+                LogError("Encrypted input file %s requires -K to be re-encrypted", srcFile);
+                CloseFileV3(nffile_r);
+                break;
+            }
             char tmpPath[MAXPATHLEN];
             snprintf(tmpPath, sizeof(tmpPath), "%s.XXXXXX", srcFile);
-            nffile_w = OpenNewFileTmpV3(tmpPath, CREATOR_NFDUMP, nffile_r->compression, 0, NULL);
+            // preserve compression and encryption state of the input file
+            const crypto_ctx_t *wcrypto = nffile_r->crypto ? crypto_ctx : NULL;
+            nffile_w = OpenNewFileTmpV3(tmpPath, CREATOR_NFDUMP, nffile_r->compression, nffile_r->compressionLevel, wcrypto);
             if (!nffile_w) {
                 LogError("Failed to open output for %s", srcFile);
                 CloseFileV3(nffile_r);
@@ -479,15 +506,31 @@ static int process_data(const char *wfile, int numWorkers, int verbose) {
 int main(int argc, char **argv) {
     flist_t flist = {0};
     char *wfile = NULL;
+    crypto_ctx_t *crypto_ctx = NULL;
+    uint32_t compressType = UNDEF_COMPRESSED;  // UNDEF: inherit compression from input
+    uint32_t compressLevel = 0;
     int limitCores = 0;
     int verbose = 1;
 
     int c;
-    while ((c = getopt(argc, argv, "hr:v:w:W:x:")) != EOF) {
+    while ((c = getopt(argc, argv, "hK::r:v:w:W:x:z::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
+            case 'K': {
+                char *pp = ParsePassphrase(optarg, "Enter passphrase: ");
+                if (!pp) exit(EXIT_FAILURE);
+                crypto_ctx = NewCryptoCtx(pp);
+                memset(pp, 0, strlen(pp));
+                free(pp);
+                if (!crypto_ctx) {
+                    LogError("Failed to initialize encryption context");
+                    exit(EXIT_FAILURE);
+                }
+                RegisterReadCryptoCtx(crypto_ctx);
+                break;
+            }
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
                 if (TestPath(optarg, S_IFREG) == PATH_OK) {
@@ -520,6 +563,17 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 16);
                 if (!ParseInt(optarg, "-v", 1, 4, &verbose)) exit(EXIT_FAILURE);
                 break;
+            case 'z':
+                if (compressType != UNDEF_COMPRESSED) {
+                    LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or -z=zstd");
+                    exit(EXIT_FAILURE);
+                }
+                if (optarg) CheckArgLen(optarg, 32);
+                if (ParseCompression(optarg, &compressType, &compressLevel) <= 0) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2, -z=zstd or -z=none");
+                    exit(EXIT_FAILURE);
+                }
+                break;
             case 'x':
                 CheckArgLen(optarg, 256);
                 if (!ConfSetOverride(optarg)) {
@@ -532,11 +586,20 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (compressType != UNDEF_COMPRESSED && !wfile) {
+        LogError("-z requires -w. In-place updates keep the compression of each input file");
+        exit(EXIT_FAILURE);
+    }
+
     if (!InitLog(NOSYSLOG, argv[0], NULL, verbose)) {
         exit(EXIT_FAILURE);
     }
 
     if (ConfOpen(NULL, "nfmeta", NULL) < 0) exit(EXIT_FAILURE);
+
+    // Without -K, encrypted input must fail instead of prompting: a prompted
+    // passphrase cannot be used to re-encrypt the output file.
+    if (!crypto_ctx) SetReadCryptoInteractive(0);
 
     queue_t *fileList = SetupInputFileSequence(&flist);
     // Budget split: readers, bloom filter workers, writers
@@ -547,9 +610,12 @@ int main(int argc, char **argv) {
         .hasWorkers = true,  // bloom filter workers
         .fixedThreads = 1,   // main processing thread - process_data()
     };
-    threadConfig_t threadConfig = GetThreadConfig(limitCores, LZ4_COMPRESSED, pipeline);
+    threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType != UNDEF_COMPRESSED ? compressType : LZ4_COMPRESSED, pipeline);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
-    int ok = process_data(wfile, threadConfig.workers, verbose);
+    int ok = process_data(wfile, compressType, compressLevel, threadConfig.workers, verbose, crypto_ctx);
+
+    RegisterReadCryptoCtx(NULL);
+    FreeCryptoCtx(crypto_ctx);
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }  // End of main

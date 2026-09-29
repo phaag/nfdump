@@ -858,7 +858,8 @@ static flowBlockV3_t *convertV2V3(convertCtx_t *ctx, dataBlockV2_t *blockV2, uin
     flowBlockV3_t *outBlock = NewFlowBlock(outBlockSize);
     if (!outBlock) return NULL;
 
-    outBlock->compression = NOT_COMPRESSED;
+    // leave compression undefined - the writer applies its file default
+    outBlock->compression = UNDEF_COMPRESSED;
     outBlock->encryption = NOT_ENCRYPTED;
 
     uint8_t *outPtr = (uint8_t *)outBlock + sizeof(flowBlockV3_t);
@@ -1122,6 +1123,24 @@ static void *nfreaderV2(void *arg) {
     pthread_exit(NULL);
 }  // End of nfreaderV2
 
+// Map V2 on-disk compression id to the V3 compression id
+static uint16_t MapCompressionV2(uint8_t compression) {
+    switch (compression) {
+        case NOT_COMPRESSED_V2:
+            return NOT_COMPRESSED;
+        case LZO_COMPRESSED_V2:
+            return LZO_COMPRESSED;
+        case BZ2_COMPRESSED_V2:
+            return BZ2_COMPRESSED;
+        case LZ4_COMPRESSED_V2:
+            return LZ4_COMPRESSED;
+        case ZSTD_COMPRESSED_V2:
+            return ZSTD_COMPRESSED;
+        default:
+            return NOT_COMPRESSED;
+    }
+}  // End of MapCompressionV2
+
 nffileV3_t *ConvertFileV2(const char *filename) {
     if (!filename) return NULL;
 
@@ -1190,6 +1209,9 @@ nffileV3_t *ConvertFileV2(const char *filename) {
     nffile->fileName = strdup(filename);
     nffile->stat_record = stat_record;
     nffile->ident = ident;
+    // expose the V2 file compression, so callers can preserve it on write
+    nffile->compression = MapCompressionV2(hdr.compression);
+    nffile->compressionLevel = 0;
 
     // Synthesize a minimal V3 file header for callers that inspect it
     fileHeaderV3_t *fakeHeader = calloc(1, sizeof(fileHeaderV3_t));
@@ -1203,6 +1225,7 @@ nffileV3_t *ConvertFileV2(const char *filename) {
     fakeHeader->nfdVersion = hdr.nfdversion;
     fakeHeader->created = (uint64_t)hdr.created;
     fakeHeader->creator = hdr.creator;
+    fakeHeader->compression = nffile->compression;
     fakeHeader->blockSize = blockSize * 2;  // V4 blocks can be larger
     nffile->fileHeader = fakeHeader;
 
