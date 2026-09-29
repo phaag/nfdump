@@ -392,7 +392,7 @@ static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, in
 
     twin_msecFirst = twin_msecLast = 0;
     const blockConstraint_t *bc = GetBlockConstraint(engine);
-    int hasBlockFilter = bc && (!bc->unknown || bc->hasIPConstraint);
+    int hasBlockFilter = bc && (bc->hasTimeConstraint || bc->hasIPConstraint);
 
     // Get the first file handle
     nffile = GetNextFile();
@@ -901,7 +901,7 @@ int main(int argc, char **argv) {
 
     // skip entire files outside the time window of the filter
     const blockConstraint_t *bc = GetBlockConstraint(engine);
-    if (bc && !bc->unknown) SetFileFilter(fileTimeFilter, engine);
+    if (bc && bc->hasTimeConstraint) SetFileFilter(fileTimeFilter, engine);
 
     int status = send_data(engine, count, delay, confirm, netflow_version, distribution);
     DisposeFilter(engine);

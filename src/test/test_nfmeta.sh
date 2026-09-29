@@ -97,6 +97,13 @@ count() {
     nfdump -q -r "$_file" "$@" -o csv "$_filter" </dev/null 2>/dev/null | grep -c '^[0-9]'
 }
 
+# blocks_skipped <file> <filter> - block-filter skips reported by nfdump
+blocks_skipped() {
+    _file="$1"; _filter="$2"
+    nfdump -r "$_file" -o null "$_filter" </dev/null 2>/dev/null \
+        | sed -n 's/.*Blocks skipped: \([0-9][0-9]*\).*/\1/p'
+}
+
 if [ ! -x "$NFMETA_BIN" ]; then
     skip "nfmeta: binary not built"
     summary
@@ -263,8 +270,13 @@ for filter in 'src ip 10.0.1.4' 'dst ip 172.16.0.7' 'ip 2001:db8::7' 'dst ip 200
               'src ip 192.0.2.1 or proto tcp' \
               'src ip 2001:db8::3 or proto tcp' \
               'first seen < 2025-01-01 and (src ip 192.0.2.1 or proto tcp)' \
+              'first seen > 2030-01-01 or proto tcp' \
+              'first seen > 2030-01-01 or src ip 10.0.0.1' \
+              '(first seen > 2030-01-01 and src ip 192.0.2.1) or proto tcp' \
+              'first seen > 2030-01-01 and src ip 10.0.0.1' \
               'src ip 10.0.0.1 or src ip 10.0.0.2' \
               'src ip 2001:db8::3 or src ip 2001:db8::7' \
+              'not src ip 10.0.0.1' 'not src ip 2001:db8::3' \
               'src ip in [192.0.2.1 10.0.0.0/24]' \
               'first seen > 2024-01-01T01:00:05' 'last seen < 2024-01-01T01:00:02'; do
     c1=$(count "$V2DIR/orig_lz4.nf" "$filter")
@@ -282,6 +294,19 @@ if [ "$ok" -eq 1 ]; then
     pass "nfmeta_bloom_filters_match_original"
 else
     fail "nfmeta_bloom_filters_match_original"
+fi
+
+# Prove that metadata pruning is active, while an accepting ordinary-filter
+# branch still keeps every block. A false time branch combined with an exact IP
+# must fall through to the Bloom decision instead of skipping the whole file.
+if [ "$(blocks_skipped "$V2DIR/orig_lz4.nf" 'src ip 192.0.2.1')" -eq 0 ] \
+   && [ "$(blocks_skipped "$f" 'src ip 192.0.2.1')" -gt 0 ] \
+   && [ "$(blocks_skipped "$f" 'src ip 192.0.2.1 or proto tcp')" -eq 0 ] \
+   && [ "$(count "$f" 'first seen > 2030-01-01 or src ip 10.0.0.1')" -eq 1 ] \
+   && [ "$(blocks_skipped "$f" 'first seen > 2030-01-01 or src ip 10.0.0.1')" -gt 0 ]; then
+    pass "nfmeta_block_filter_control_flow"
+else
+    fail "nfmeta_block_filter_control_flow"
 fi
 
 # With more workers than input blocks, idle workers must not write empty

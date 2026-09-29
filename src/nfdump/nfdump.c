@@ -377,7 +377,7 @@ static void *prepareThread(void *arg) {
     t_lastMsec = nffile->stat_record->msecLastSeen;
     const blockConstraint_t *bc = GetBlockConstraint(prepareArgs->engine);
     /* hasBlockFilter: true if either a time-range or an IP bloom constraint exists */
-    int hasBlockFilter = bc && (!bc->unknown || bc->hasIPConstraint);
+    int hasBlockFilter = bc && (bc->hasTimeConstraint || bc->hasIPConstraint);
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
@@ -1402,7 +1402,7 @@ int main(int argc, char **argv) {
 
     // skip entire files outside the time window of the filter
     const blockConstraint_t *bc = GetBlockConstraint(engine);
-    if (bc && !bc->unknown) SetFileFilter(fileTimeFilter, engine);
+    if (bc && bc->hasTimeConstraint) SetFileFilter(fileTimeFilter, engine);
 
     nfprof_start(&profile_data);
     sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.workers,

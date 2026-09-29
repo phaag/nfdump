@@ -37,10 +37,12 @@
  * It writes V3 flow records (IPv4 and IPv6) in DATA_BLOCK_TYPE_3 blocks,
  * followed by an uncompressed appendix with the ident and stat record.
  *
- * usage: nfgen2 -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock] [-t start] [-A] [-S seconds]
+ * usage: nfgen2 -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock] [-t start] [-i index] [-A] [-S seconds]
  *
  * Flows start at <start> (UNIX seconds, default 2024-01-01 00:00:00 UTC), 10ms apart.
  * -A omits the appendix, so the file has no ident and no stat record.
+ * -i <index> first flow index: addresses are derived from the flow index, so
+ *    files generated with different index ranges hold different addresses.
  * -S <seconds> shifts the time window of the stat record, so it no longer
  *    matches the flows - used to verify that readers trust the stat record.
  */
@@ -105,10 +107,10 @@ static void *addElement(uint8_t **ptr, uint16_t type, uint16_t size) {
 }  // End of addElement
 
 /*
- * Append one V3 flow record at ptr. Every 4th flow is IPv6, all others IPv4.
- * Returns the record size.
+ * Append one V3 flow record with index i, starting at msecFirst, at ptr.
+ * Every 4th flow is IPv6, all others IPv4. Returns the record size.
  */
-static uint16_t addFlow(uint8_t *ptr, uint32_t i, uint64_t msecStart, stat_record_t *stat) {
+static uint16_t addFlow(uint8_t *ptr, uint32_t i, uint64_t msecFirst, stat_record_t *stat) {
     int ipv6 = (i % 4) == 3;
     recordHeaderV3_t *recordHeader = (recordHeaderV3_t *)ptr;
     *recordHeader = (recordHeaderV3_t){
@@ -120,9 +122,9 @@ static uint16_t addFlow(uint8_t *ptr, uint32_t i, uint64_t msecStart, stat_recor
 
     EX3genericFlow_t *genericFlow = addElement(&cur, EX3genericFlowID, sizeof(EX3genericFlow_t));
     *genericFlow = (EX3genericFlow_t){
-        .msecFirst = msecStart + i * 10,
-        .msecLast = msecStart + i * 10 + 1000,
-        .msecReceived = msecStart + i * 10 + 2000,
+        .msecFirst = msecFirst,
+        .msecLast = msecFirst + 1000,
+        .msecReceived = msecFirst + 2000,
         .inPackets = 1 + (i % 10),
         .inBytes = 100 * (1 + (i % 10)),
         .srcPort = 1024 + (i % 1000),
@@ -205,7 +207,7 @@ static int writeBlock(int fd, uint8_t compression, dataBlockV2_t *block, dataBlo
 }  // End of writeBlock
 
 static void usage(const char *name) {
-    fprintf(stderr, "usage: %s -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock] [-t start] [-A] [-S seconds]\n", name);
+    fprintf(stderr, "usage: %s -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock] [-t start] [-i index] [-A] [-S seconds]\n", name);
 }  // End of usage
 
 int main(int argc, char **argv) {
@@ -216,9 +218,10 @@ int main(int argc, char **argv) {
     time_t start = 1704067200;  // 2024-01-01 00:00:00 UTC
     int appendix = 1;
     int64_t statShift = 0;  // msec
+    uint32_t firstIndex = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "w:z:n:b:t:AS:")) != EOF) {
+    while ((c = getopt(argc, argv, "w:z:n:b:t:i:AS:")) != EOF) {
         switch (c) {
             case 'w':
                 wfile = optarg;
@@ -243,6 +246,9 @@ int main(int argc, char **argv) {
                 break;
             case 't':
                 start = (time_t)strtoll(optarg, NULL, 10);
+                break;
+            case 'i':
+                firstIndex = (uint32_t)strtoul(optarg, NULL, 10);
                 break;
             case 'A':
                 appendix = 0;
@@ -303,7 +309,7 @@ int main(int argc, char **argv) {
         InitV2DataBlock(block);
         uint8_t *ptr = GetCursorV2(block);
         for (uint32_t i = 0; i < flowsPerBlock && flow < numFlows; i++, flow++) {
-            uint16_t size = addFlow(ptr, flow, msecStart, &stat);
+            uint16_t size = addFlow(ptr, firstIndex + flow, msecStart + flow * 10, &stat);
             ptr += size;
             block->size += size;
             block->NumRecords++;

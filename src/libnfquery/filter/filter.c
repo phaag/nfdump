@@ -67,85 +67,6 @@ typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
 typedef void *(*preprocess_proc_t)(uint32_t, data_t, recordHandle_t *, filterOption_t);
 
-// ── Runtime bytecode opcodes
-typedef enum {
-    /* terminals (always prog[0] and prog[1]) */
-    FOP_ACCEPT = 0,
-    FOP_REJECT,
-    /* unconditional */
-    FOP_ANY,
-    FOP_ISSET,
-    /* width-specialised equality */
-    FOP_EQ1,
-    FOP_EQ2,
-    FOP_EQ4,
-    FOP_EQ8,
-    /* relational – common widths */
-    FOP_GT1,
-    FOP_GT2,
-    FOP_GT4,
-    FOP_GT8,
-    FOP_LT1,
-    FOP_LT2,
-    FOP_LT4,
-    FOP_LT8,
-    FOP_GE1,
-    FOP_GE2,
-    FOP_GE4,
-    FOP_GE8,
-    FOP_LE1,
-    FOP_LE2,
-    FOP_LE4,
-    FOP_LE8,
-    /* bitmask */
-    FOP_FLAGS,
-    /* network/prefix: (field & dataVal) == value */
-    FOP_NET4,
-    FOP_NET8,
-    /* set membership (runtime IPSet_t / U64Set_t) */
-    FOP_IPLIST,
-    FOP_U64LIST,
-    /* string comparisons */
-    FOP_IDENT,
-    FOP_STRING,
-    FOP_SUBSTRING,
-    FOP_BINARY,
-    /* payload */
-    FOP_PAYLOAD,
-    FOP_REGEX,
-    /* geo (dataVal = direction) */
-    FOP_GEO,
-    /* DNS */
-    FOP_DNSNAME,
-    FOP_DNSIP,
-    /* function-derived value + compare (fnID selects function) */
-    FOP_FUNC_EQ,
-    FOP_FUNC_GT,
-    FOP_FUNC_LT,
-    FOP_FUNC_GE,
-    FOP_FUNC_LE,
-    /* preprocess-then-compare variants (for EXasInfoID / EXin|outPayloadHandle) */
-    FOP_PREP_ISSET,
-    FOP_PREP_EQ1,
-    FOP_PREP_EQ2,
-    FOP_PREP_EQ4,
-    FOP_PREP_EQ8,
-    FOP_PREP_GT8,
-    FOP_PREP_LT8,
-    FOP_PREP_GE8,
-    FOP_PREP_LE8,
-    FOP_PREP_FLAGS,
-    FOP_PREP_STRING,
-    FOP_PREP_SUBSTRING,
-    FOP_PREP_BINARY,
-    FOP_PREP_GEO,
-    FOP_PREP_DNSNAME,
-    FOP_PREP_DNSIP,
-    FOP_PREP_PAYLOAD,
-    FOP_PREP_REGEX,
-    FOP__COUNT
-} filterOp_t;
-
 _Static_assert(sizeof(filterInstr_t) == 32 + sizeof(void *), "filterInstr_t size mismatch");
 
 /* Module-global dispatch table for direct threading.
@@ -2151,18 +2072,14 @@ void *CompileFilter(char *FilterSyntax) {
     }
     lex_cleanup();
 
-    /*
-     * derive block-level constraint from the build-time tree before
-     * generateByteCode() frees it.
-     */
-    blockConstraint_t blockConstraint;
-    ExtractBlockFilter(StartNode, &blockConstraint);
-
     // Emit bytecode from the build-time tree
     uint16_t startNode = 0;
     uint32_t progLen = 0;
     filterInstr_t *prog = generateByteCode(StartNode, NumBlocks, &startNode, &progLen);
     if (!prog) return NULL;
+
+    blockConstraint_t blockConstraint;
+    InitBlockFilter(&blockConstraint, prog, progLen);
 
     /* Free the build-time tree (blocklists were freed by UpdateList;
      * data pointers have been transferred to prog instructions). */
@@ -2370,29 +2287,6 @@ void DumpEngine(void *arg) {
         printf("\n");
     }
 
-    if (engine->blockConstraint.unknown) {
-        printf("\nNo time block constrains.\n");
-    } else {
-        char strbuf[64];
-        printf("\nHas time block constrains:\n");
-        printf("First seen LT: %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecFirst_lt, strbuf, 64), engine->blockConstraint.msecFirst_lt);
-        printf("First seen GT: %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecFirst_gt, strbuf, 64), engine->blockConstraint.msecFirst_gt);
-        printf("Last seen LT : %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecLast_lt, strbuf, 64), engine->blockConstraint.msecLast_lt);
-        printf("Last seen GT: %s(%" PRIu64 ")\n", msec2Str(engine->blockConstraint.msecLast_gt, strbuf, 64), engine->blockConstraint.msecLast_gt);
-    }
-    if (engine->blockConstraint.hasIPConstraint) {
-        printf("Found %i IP addresses for block filter\n", engine->blockConstraint.ipCount);
-        const blockIPEntry_t *ipBlock = engine->blockConstraint.ips;
-        for (int i = 0; i < engine->blockConstraint.ipCount; i++) {
-            if (ipBlock[i].isIPv6) {
-                char ipstr[INET6_ADDRSTRLEN];
-                inet_ntop(AF_INET6, ipBlock[i].v6, ipstr, sizeof(ipstr));
-                printf("[%d] IPv6: %16s\n", i, ipstr);
-            } else {
-                char ipstr[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &ipBlock[i].v4, ipstr, sizeof(ipstr));
-                printf("[%d] IPv4: %16s\n", i, ipstr);
-            }
-        }
-    }
+    printf("\nBlock filter: time=%s, exact-IP=%s\n", engine->blockConstraint.hasTimeConstraint ? "yes" : "no",
+           engine->blockConstraint.hasIPConstraint ? "yes" : "no");
 }  // End of DumpEngine

@@ -69,6 +69,72 @@ typedef struct filterElement {
     data_t data;
 } filterElement_t;
 
+// Runtime bytecode opcodes shared by the record and block interpreters.
+typedef enum {
+    FOP_ACCEPT = 0,
+    FOP_REJECT,
+    FOP_ANY,
+    FOP_ISSET,
+    FOP_EQ1,
+    FOP_EQ2,
+    FOP_EQ4,
+    FOP_EQ8,
+    FOP_GT1,
+    FOP_GT2,
+    FOP_GT4,
+    FOP_GT8,
+    FOP_LT1,
+    FOP_LT2,
+    FOP_LT4,
+    FOP_LT8,
+    FOP_GE1,
+    FOP_GE2,
+    FOP_GE4,
+    FOP_GE8,
+    FOP_LE1,
+    FOP_LE2,
+    FOP_LE4,
+    FOP_LE8,
+    FOP_FLAGS,
+    FOP_NET4,
+    FOP_NET8,
+    FOP_IPLIST,
+    FOP_U64LIST,
+    FOP_IDENT,
+    FOP_STRING,
+    FOP_SUBSTRING,
+    FOP_BINARY,
+    FOP_PAYLOAD,
+    FOP_REGEX,
+    FOP_GEO,
+    FOP_DNSNAME,
+    FOP_DNSIP,
+    FOP_FUNC_EQ,
+    FOP_FUNC_GT,
+    FOP_FUNC_LT,
+    FOP_FUNC_GE,
+    FOP_FUNC_LE,
+    FOP_PREP_ISSET,
+    FOP_PREP_EQ1,
+    FOP_PREP_EQ2,
+    FOP_PREP_EQ4,
+    FOP_PREP_EQ8,
+    FOP_PREP_GT8,
+    FOP_PREP_LT8,
+    FOP_PREP_GE8,
+    FOP_PREP_LE8,
+    FOP_PREP_FLAGS,
+    FOP_PREP_STRING,
+    FOP_PREP_SUBSTRING,
+    FOP_PREP_BINARY,
+    FOP_PREP_GEO,
+    FOP_PREP_DNSNAME,
+    FOP_PREP_DNSIP,
+    FOP_PREP_PAYLOAD,
+    FOP_PREP_REGEX,
+    FOP__COUNT
+} filterOp_t;
+
 /* ── Runtime instruction ───────────────────────────────────────────────── */
 /*
  * 40 bytes on 64-bit, 36 bytes on 32-bit (= 32 + sizeof(void *)).
@@ -128,11 +194,6 @@ extern filterElement_t *FilterTree;
 extern uint32_t memblocks;
 
 /* ── Internal API: called by filter.c, implemented in block_filter.c ──── */
-/*
- * Derive the block-level constraint from the build-time filter tree.
- * Must be called after yyparse() and before generateByteCode().
- * Writes the result into *out; sets out->unknown = true on any error.
- */
-void ExtractBlockFilter(uint32_t root, blockConstraint_t *out);
+void InitBlockFilter(blockConstraint_t *out, const filterInstr_t *prog, uint32_t progLen);
 
 #endif /* _FILTER_INT_H */
