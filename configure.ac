@@ -49,10 +49,23 @@ AX_APPEND_FLAG([-Wmissing-noreturn],[CFLAGS])
 LT_INIT
 
 # --- LEX/YACC/BISON ---
+# The filter scanner requires flex and the filter grammar requires bison.
+# AC_PROG_LEX sets LEX=: if no lexer is found and AC_PROG_YACC falls back to
+# YACC=yacc, even if not installed. Verify the selected programs therefore by
+# their version output.
 AC_PROG_LEX(noyywrap)
+AC_MSG_CHECKING([whether $LEX is flex])
+AS_IF([test "x$LEX" != "x:" && test -n "$LEX" && $LEX --version 2>/dev/null | grep -q -i "flex"],
+      [AC_MSG_RESULT([yes])],
+      [AC_MSG_RESULT([no])
+       AC_MSG_ERROR([flex is required to build nfdump. Install flex or set LEX to the flex program])])
+
 AC_PROG_YACC
-AS_IF([test "$YACC" = ""], [AC_MSG_ERROR([YACC/Bison is required])])
-AS_IF([test "$LEX" = ""], [AC_MSG_ERROR([LEX is required])])
+AC_MSG_CHECKING([whether $YACC is bison])
+AS_IF([test -n "$YACC" && $YACC --version 2>/dev/null | grep -q -i "bison"],
+      [AC_MSG_RESULT([yes])],
+      [AC_MSG_RESULT([no])
+       AC_MSG_ERROR([bison is required to build nfdump. Install bison or set YACC to "bison -y"])])
 
 # --- Feature flags ---
 AC_ARG_ENABLE(ftconv, AS_HELP_STRING([--enable-ftconv],[Enable ft2nfdump flow-tools converter]), enable_ftconv=yes, enable_ftconv=no)
