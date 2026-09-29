@@ -679,6 +679,15 @@ nffileV3_t *OpenFileV3(const char *filename) {
         return NULL;
     }
 
+    return StartReadersV3(nffile);
+
+}  // End of OpenFileV3
+
+/*
+ * Start the nfreader threads for a file opened by mmapFileV3().
+ * Returns nffile on success. On failure the file is closed and NULL returned.
+ */
+nffileV3_t *StartReadersV3(nffileV3_t *nffile) {
     // V2 conversion already started its own single reader thread
     // numWorkers may be 0 (e.g. a file opened with no readers requested), in which
     // case worker[] has zero allocated elements - guard before indexing worker[0].
@@ -715,7 +724,7 @@ nffileV3_t *OpenFileV3(const char *filename) {
     }
     return nffile;
 
-}  // End of OpenFileV3
+}  // End of StartReadersV3
 
 const expBlockV3_t *getNextExporter(nffileV3_t *nffile, uint32_t *nextOffset) {
     blockDirectoryV3_t *blockDirectory = nffile->blockDirectory;

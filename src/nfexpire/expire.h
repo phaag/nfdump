@@ -40,7 +40,7 @@
 #ifdef HAVE_FTS_H
 #include <fts.h>
 #else
-#include "fts_compat.h"
+#include "nffts_compat.h"
 #endif
 
 #include "bookkeeper.h"

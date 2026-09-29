@@ -37,17 +37,17 @@
  *    Abstract interpretation of the boolean tree deriving conservative
  *    bounds on block.msecFirst / block.msecLast.
  *
- * 2. IP address constraint (collectIPsFromTree):
+ * 2. IP address constraint (collectIPsFromTree / requiresCollectedIP):
  *    Collects up to BLOCK_IP_MAX exact host addresses from CMP_EQ and
  *    CMP_IPLIST atoms on EXipv4FlowID / EXipv6FlowID.  At query time
  *    these are probed against the per-block src/dst bloom filters.
  *    The block is skipped only when every address is definitively absent
  *    from the appropriate bloom.
  *
- *    OR / AND boolean structure of the filter is not tracked; all IPs
- *    are collected with OR probe semantics (any hit → keep block).
- *    This is always conservative: it may keep blocks unnecessarily but
- *    never skips a block that has a matching flow.
+ *    Bloom pruning is enabled only if every accepting path through the
+ *    boolean filter requires at least one of the collected exact addresses.
+ *    The collected addresses are probed with OR semantics (any hit → keep
+ *    block), which may keep blocks unnecessarily but cannot reject a match.
  *
  *    CIDR entries (CMP_NET) and inverted atoms are not extracted.
  */
@@ -508,6 +508,75 @@ static void collectIPsFromTree(uint32_t root, blockConstraint_t *out) {
     free(visited);
 }  /* End of collectIPsFromTree */
 
+/* Return true if this node is an exact IP atom present in the collected set.
+ * CMP_IPLIST is deliberately not a proof: a list may contain CIDR entries or
+ * more exact hosts than fit in BLOCK_IP_MAX. */
+static bool isCollectedIPAtom(uint32_t idx, const blockConstraint_t *out) {
+    const filterElement_t *e = &FilterTree[idx];
+    if (e->invert || e->function != FUNC_NONE || e->comp != CMP_EQ) return false;
+
+    if (e->extID == EXipv4FlowID && e->length == SIZEsrc4Addr &&
+        (e->offset == OFFsrc4Addr || e->offset == OFFdst4Addr)) {
+        uint8_t dir = (e->offset == OFFsrc4Addr) ? BLOOM_DIR_SRC : BLOOM_DIR_DST;
+        for (int i = 0; i < out->ipCount; i++) {
+            const blockIPEntry_t *ip = &out->ips[i];
+            if (!ip->isIPv6 && (ip->dir & dir) && ip->v4 == (uint32_t)e->value) return true;
+        }
+        return false;
+    }
+
+    if (e->extID == EXipv6FlowID && e->length == sizeof(uint64_t) &&
+        (e->offset == OFFsrc6Addr || e->offset == OFFdst6Addr)) {
+        uint32_t loIdx = e->OnTrue;
+        if (loIdx == 0 || loIdx >= (uint32_t)(memblocks * MAXBLOCKS)) return false;
+        const filterElement_t *lo = &FilterTree[loIdx];
+        if (lo->invert || lo->extID != EXipv6FlowID || lo->comp != CMP_EQ ||
+            lo->length != sizeof(uint64_t) || lo->offset != e->offset + sizeof(uint64_t))
+            return false;
+
+        uint8_t dir = (e->offset == OFFsrc6Addr) ? BLOOM_DIR_SRC : BLOOM_DIR_DST;
+        uint8_t v6[16];
+        memcpy(v6, &e->value, 8);
+        memcpy(v6 + 8, &lo->value, 8);
+        for (int i = 0; i < out->ipCount; i++) {
+            const blockIPEntry_t *ip = &out->ips[i];
+            if (ip->isIPv6 && (ip->dir & dir) && memcmp(ip->v6, v6, sizeof(v6)) == 0) return true;
+        }
+    }
+
+    return false;
+}  // End of isCollectedIPAtom
+
+#define EXTRACT_MAX_DEPTH 512
+
+/*
+ * Return true only when every accepting path through this subtree requires at
+ * least one exact IP atom present in the collected bloom probe set.
+ *
+ * For AND, either mandatory side is sufficient. For OR, both alternatives
+ * must require a collected IP. A cycle, excessive depth, non-IP atom, inverted
+ * IP, IP list, or truncated/uncollected address therefore disables pruning
+ * unless another AND-connected atom is independently mandatory.
+ */
+static bool requiresCollectedIP(uint32_t idx, const blockConstraint_t *out, uint8_t *visited, int depth) {
+    if (idx == 0 || depth > EXTRACT_MAX_DEPTH || visited[idx]) return false;
+    visited[idx] = 1;
+
+    const filterElement_t *e = &FilterTree[idx];
+    bool required = isCollectedIPAtom(idx, out);
+
+    if (!e->invert) {
+        if (e->OnTrue) required = required || requiresCollectedIP(e->OnTrue, out, visited, depth + 1);   // AND
+        if (e->OnFalse) required = required && requiresCollectedIP(e->OnFalse, out, visited, depth + 1);  // OR
+    } else {
+        if (e->OnFalse) required = required || requiresCollectedIP(e->OnFalse, out, visited, depth + 1);  // AND
+        if (e->OnTrue) required = required && requiresCollectedIP(e->OnTrue, out, visited, depth + 1);    // OR
+    }
+
+    visited[idx] = 0;
+    return required;
+}  // End of requiresCollectedIP
+
 /*
  * Recursively walk the build-time filter tree rooted at node index 'idx'
  * and return the merged block constraint.
@@ -516,8 +585,6 @@ static void collectIPsFromTree(uint32_t root, blockConstraint_t *out) {
  * 'visited' is a simple bit array tracking which node indices have been
  * started.  We use a depth bound as a safety net.
  */
-#define EXTRACT_MAX_DEPTH 512
-
 static nodeConstraint_t walkTree(uint32_t idx, uint8_t *visited, int depth) {
     if (idx == 0 || depth > EXTRACT_MAX_DEPTH) return NC_UNKNOWN;
     if (visited[idx]) return NC_UNKNOWN;  // back edge / shared node: be safe
@@ -608,6 +675,14 @@ void ExtractBlockFilter(uint32_t root, blockConstraint_t *out) {
 
     /* ── IP address extraction for bloom probing ── */
     collectIPsFromTree(root, out);
+    if (out->hasIPConstraint) {
+        visited = calloc(maxNodes, sizeof(uint8_t));
+        if (!visited || !requiresCollectedIP(root, out, visited, 0)) {
+            out->hasIPConstraint = false;
+            out->ipCount = 0;
+        }
+        free(visited);
+    }
 }  // End of ExtractBlockFilter
 
 /*

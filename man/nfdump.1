@@ -1511,6 +1511,18 @@ may be specified. A string may be incomplete e.g. 2024-07-11T09 which is
 automatically extended to 2024-07-11T09:00:00.000. At least a valid year 
 is required.
 .Pp
+If a filter restricts the time window with
+.Cm first seen
+or
+.Cm last seen ,
+.Nm
+skips every input file whose time window, as recorded in the file's stat record,
+cannot contain a matching flow. Such files are not decompressed or read.
+Within the remaining files, flow blocks outside the time window are skipped as
+well. Filters combining a time window with other conditions by
+.Cm or
+select flows outside the time window and therefore skip no files.
+.Pp
 .It Cm pps Ar comp num
 True if the calculated value of in-packets/duration (packets per second)
 compares with the number

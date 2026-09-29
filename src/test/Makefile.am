@@ -2,7 +2,7 @@
 check_PROGRAMS = nftest nfgen4 nfgen2 test_append test_rotation
 TESTS = nftest test_prepare.sh test_compress_lzo.sh test_compress_lz4.sh
 TESTS += test_append.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh
-TESTS += test_maxmind.sh test_nfexpire.sh test_nfmeta.sh
+TESTS += test_maxmind.sh test_nfexpire.sh test_nfmeta.sh test_timefilter.sh
 TESTS += test_rotation
 
 if HAVE_LIBSODIUM
@@ -66,7 +66,7 @@ sflowgen_LDFLAGS =
 
 EXTRA_DIST = testsetup.sh \
              test_prepare.sh test_nfdump.sh test_collect.sh test_memck.sh test_nfanon.sh \
-             test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh test_nfmeta.sh \
+             test_append.sh test_nfcapd.sh test_crypto_nfcapd.sh test_maxmind.sh test_nfexpire.sh test_nfmeta.sh test_timefilter.sh \
              test_compress_lzo.sh test_compress_lz4.sh test_compress_bz2.sh test_compress_zstd.sh test_sfcapd.sh \
              sflowgen.c
 EXTRA_DIST += ref_raw.txt ref_tstart_sort.txt ref_descending_sort.txt ref_bytes_sort.txt

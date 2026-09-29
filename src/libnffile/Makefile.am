@@ -20,7 +20,7 @@ convert = nffileV3/nfconvert.h nffileV3/nfconvert.c
 conf = conf/nfconf.c conf/nfconf.h conf/toml.c conf/toml.h
 nflist = flist.c flist.h
 if NO_FTS
-nflist += fts_compat.c fts_compat.h
+nflist += nffts_compat.c nffts_compat.h
 endif
 
 output = userio.c userio.h output_short.c output_short.h

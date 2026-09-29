@@ -77,6 +77,11 @@ static queue_t *fileQueue = NULL;
 // open silently look like a clean, empty end of input (0 records, exit 0).
 static bool lastOpenFailed = false;
 
+// optional file-level pre-filter - see SetFileFilter()
+static fileFilter_t fileFilter = NULL;
+static void *fileFilterArg = NULL;
+static _Atomic uint32_t skippedFiles = 0;
+
 int GetNextFileFailed(void) { return lastOpenFailed; }
 
 int Init_nffile(threadConfig_t tc, queue_t *fileList) {
@@ -113,12 +118,27 @@ static nffileV3_t *GetNextFileInternal(bool startReaders) {
         }
 
         dbg_printf("Process: '%s'\n", nextFile);
-        nffileV3_t *nffile = startReaders ? OpenFileV3(nextFile) : mmapFileV3(nextFile);
+        nffileV3_t *nffile = mmapFileV3(nextFile);
         if (!nffile) {
-            // OpenFileV3() already logged the specific reason (bad
+            // mmapFileV3() already logged the specific reason (bad
             // passphrase, corrupt file, ...); record that this NULL is a
             // real failure, not a normal end of input.
             lastOpenFailed = true;
+            free(nextFile);
+            return NULL;
+        }
+
+        if (startReaders) {
+            // skip the file before any data block is read, if the filter rejects it
+            if (fileFilter && !fileFilter(nffile, fileFilterArg)) {
+                LogVerbose("Skip file %s: no flow can match the filter", nextFile);
+                atomic_fetch_add(&skippedFiles, 1);
+                CloseFileV3(nffile);
+                free(nextFile);
+                continue;
+            }
+            nffile = StartReadersV3(nffile);
+            if (!nffile) lastOpenFailed = true;
         }
         free(nextFile);
         return nffile;
@@ -131,6 +151,13 @@ static nffileV3_t *GetNextFileInternal(bool startReaders) {
 nffileV3_t *GetNextFile(void) { return GetNextFileInternal(true); }
 
 nffileV3_t *GetNextFileMetadata(void) { return GetNextFileInternal(false); }
+
+void SetFileFilter(fileFilter_t filter, void *arg) {
+    fileFilter = filter;
+    fileFilterArg = arg;
+}  // End of SetFileFilter
+
+uint32_t GetSkippedFiles(void) { return atomic_load(&skippedFiles); }
 
 int ReportBlocks(void) {
     int inUse = atomic_load(&blocksInUse);

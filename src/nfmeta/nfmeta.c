@@ -49,6 +49,7 @@
 #include "nfconf.h"
 #include "nfcommon.h"
 #include "nffileV3/nffileV3.h"
+#include "nfdump_inline.c"
 #include "nffile_inline.c"
 #include "nfthread.h"
 #include "nfxV4.h"
@@ -63,6 +64,8 @@ typedef struct {
     queue_t *inputQueue;
     queue_t *outputQueue;
     uint32_t blockSize;
+    pthread_mutex_t statLock;     // protects stat_record
+    stat_record_t *stat_record;   // stat record of the output file, summed by all workers
 } workerArgs_t;
 
 static void usage(char *name) {
@@ -149,6 +152,8 @@ static void *workerThread(void *arg) {
     workerArgs_t *workerArgs = (workerArgs_t *)arg;
 
     bloomHandle_t bloomHandle = {0};
+    // stat record of all flows written by this worker
+    stat_record_t stat_record = {.msecFirstSeen = 0x7fffffffffffffffLL};
     uint64_t firstSeen = UINT64_MAX;
     uint64_t lastSeen = 0;
     flowBlockV3_t *dataBlock_w = NewFlowBlock(workerArgs->blockSize);
@@ -189,6 +194,7 @@ static void *workerThread(void *arg) {
                 memset(&recordHandle, 0, sizeof(recordHandle));
                 MapV4RecordHandle(&recordHandle, recordPtr, 0);
                 updateMetaData(&bloomHandle, &recordHandle, &firstSeen, &lastSeen);
+                UpdateStatRecord(&stat_record, &recordHandle);
             }
 
             memcpy(GetCursor(dataBlock_w), recordPtr, recordPtr->size);
@@ -212,6 +218,11 @@ static void *workerThread(void *arg) {
     } else {
         FreeDataBlock(dataBlock_w);
     }
+
+    pthread_mutex_lock(&workerArgs->statLock);
+    SumStatRecords(workerArgs->stat_record, &stat_record);
+    pthread_mutex_unlock(&workerArgs->statLock);
+
     queue_close(workerArgs->outputQueue);
 
     pthread_exit(NULL);
@@ -237,6 +248,8 @@ static void *workerThread(void *arg) {
  * wfile != NULL (named output): just close the file.
  */
 static int flushAndClose(nffileV3_t *nffile_w, const char *wfile, const char *srcFile) {
+    // no flows written: mark the time window as unknown
+    if (nffile_w->stat_record->msecLastSeen == 0) nffile_w->stat_record->msecFirstSeen = 0;
     FlushFileV3(nffile_w);
 
     if (!wfile) {
@@ -335,7 +348,8 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
             return 0;
         }
         SetIdent(nffile_w, nffile_r->ident);
-        __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+        // the stat record is computed from the written flows by the workers
+        *nffile_w->stat_record = (stat_record_t){.msecFirstSeen = 0x7fffffffffffffffLL};
         if (verbose > 1) printf("Output: %s\n", wfile);
 
         // Launch workers for this file
@@ -343,7 +357,9 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
             .inputQueue = queue_init(16),
             .outputQueue = queue_init(16),
             .blockSize = nffile_r->fileHeader->blockSize,
+            .stat_record = nffile_w->stat_record,
         };
+        pthread_mutex_init(&workerArgs.statLock, NULL);
         queue_producers(workerArgs.outputQueue, numWorkers);
 
         for (int i = 0; i < numWorkers; i++) {
@@ -356,6 +372,10 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
     }
 
     while (nffile_r) {
+        if (wfile) {
+            file_count++;
+            if (verbose) printf("  %i Processing %s\r", file_count, nffile_r->fileName ? nffile_r->fileName : "");
+        }
         // In per-file mode, open a fresh output file for each input
         if (!wfile) {
             if (!nffile_r->fileName) {
@@ -381,7 +401,8 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
                 break;
             }
             SetIdent(nffile_w, nffile_r->ident);
-            __builtin_memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+            // the stat record is computed from the written flows by the workers
+            *nffile_w->stat_record = (stat_record_t){.msecFirstSeen = 0x7fffffffffffffffLL};
             file_count++;
             if (verbose) printf("  %i Processing %s\r", file_count, srcFile);
 
@@ -390,7 +411,9 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
                 .inputQueue = queue_init(16),
                 .outputQueue = queue_init(16),
                 .blockSize = nffile_r->fileHeader->blockSize,
+                .stat_record = nffile_w->stat_record,
             };
+            pthread_mutex_init(&workerArgs.statLock, NULL);
             queue_producers(workerArgs.outputQueue, numWorkers);
 
             for (int i = 0; i < numWorkers; i++) {
@@ -465,6 +488,7 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
 
             queue_free(workerArgs.inputQueue);
             queue_free(workerArgs.outputQueue);
+            pthread_mutex_destroy(&workerArgs.statLock);
         }
 
         CloseFileV3(nffile_r);
@@ -493,8 +517,7 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
 
         queue_free(workerArgs.inputQueue);
         queue_free(workerArgs.outputQueue);
-
-        printf("\rProcessed %d flow blocks\n", blk_count);
+        pthread_mutex_destroy(&workerArgs.statLock);
     }
     free(tids);
     printf("\rProcessed %d flow blocks across %d file(s)\n", blk_count, file_count);

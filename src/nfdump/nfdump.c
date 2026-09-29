@@ -342,6 +342,17 @@ static void ProcessArrayBlock(arrayBlockV3_t *arrayBlock) {
 
 /* scanBlockBlooms is defined in nffile_inline.c (included above) */
 
+/*
+ * File-level time filter: skip a whole file, if its stat record time window
+ * cannot match the time constraint of the filter. Applies the same check as
+ * the block-level filter, before any data block of the file is read.
+ */
+static int fileTimeFilter(const nffileV3_t *nffile, void *engine) {
+    const stat_record_t *stat_record = nffile->stat_record;
+    if (!stat_record) return 1;
+    return FilterBlock(engine, stat_record->msecFirstSeen, stat_record->msecLastSeen, NULL);
+}  // End of fileTimeFilter
+
 static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
 
@@ -1388,6 +1399,10 @@ int main(int argc, char **argv) {
     } else if (wfile) {
         processMode = WRITEFILE;
     }
+
+    // skip entire files outside the time window of the filter
+    const blockConstraint_t *bc = GetBlockConstraint(engine);
+    if (bc && !bc->unknown) SetFileFilter(fileTimeFilter, engine);
 
     nfprof_start(&profile_data);
     sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.workers,

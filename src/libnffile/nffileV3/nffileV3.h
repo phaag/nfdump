@@ -392,6 +392,20 @@ int Init_nffile(threadConfig_t tc, queue_t *fileList);
 
 nffileV3_t *GetNextFile(void);
 
+/*
+ * Optional file-level pre-filter for GetNextFile().
+ * The filter is called after a file's metadata (stat record, ident) is loaded
+ * and before its reader threads are started. Return 0 to skip the file
+ * entirely - none of its data blocks are read. Return non-zero to process it.
+ * Pass NULL to remove the filter. GetNextFileMetadata() is not filtered.
+ */
+typedef int (*fileFilter_t)(const nffileV3_t *nffile, void *arg);
+
+void SetFileFilter(fileFilter_t filter, void *arg);
+
+// Number of files skipped by the file filter so far
+uint32_t GetSkippedFiles(void);
+
 // Open the next input file and load only its mapped metadata. No V3 reader
 // threads are started; intended for statistics-only operations.
 nffileV3_t *GetNextFileMetadata(void);
@@ -443,6 +457,8 @@ void ModifyCompressFile(uint32_t compressType, uint32_t compressLevel);
 nffileV3_t *mmapFileV3(const char *filename);
 
 nffileV3_t *OpenFileV3(const char *filename);
+
+nffileV3_t *StartReadersV3(nffileV3_t *nffile);
 
 void *ReadBlockV3(nffileV3_t *nffile);
 

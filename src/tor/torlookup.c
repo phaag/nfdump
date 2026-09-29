@@ -46,7 +46,7 @@
 #ifdef HAVE_FTS_H
 #include <fts.h>
 #else
-#include "fts_compat.h"
+#include "nffts_compat.h"
 #define fts_children fts_children_compat
 #define fts_close fts_close_compat
 #define fts_open fts_open_compat

@@ -64,6 +64,11 @@ all selected input files are written to one output file instead.
 Files in the legacy nfdump 1.7.x format are converted to the current file
 format while metadata is added.
 .Pp
+The stat record of each output file, which holds the flow counters and the time
+window of all its flows, is computed from the flows written.
+.Xr nfdump 1
+uses this time window to skip files that cannot match a time filter.
+.Pp
 In-place updates preserve the compression and encryption of each input file:
 a compressed file stays compressed with the same method, and an encrypted file
 is re-encrypted with a fresh key derived from the passphrase given by

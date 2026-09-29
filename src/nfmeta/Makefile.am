@@ -3,7 +3,7 @@ bin_PROGRAMS = nfmeta
 
 nfmeta_SOURCES = nfmeta.c 
 
-nfmeta_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnffile/conf -I$(top_srcdir)/src/inline $(DEPS_CFLAGS)
+nfmeta_CPPFLAGS = -I$(top_srcdir)/src -I$(top_srcdir)/src/include -I$(top_srcdir)/src/libnffile -I$(top_srcdir)/src/libnffile/conf -I$(top_srcdir)/src/inline -I$(top_srcdir)/src/libnfquery $(DEPS_CFLAGS)
 nfmeta_CFLAGS = $(PTHREAD_CFLAGS)
 
 nfmeta_LDADD = -lnffile $(PTHREAD_LIBS)

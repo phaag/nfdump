@@ -260,6 +260,12 @@ f="$V2DIR/inplace_lz4.nf"
 ok=1
 for filter in 'src ip 10.0.1.4' 'dst ip 172.16.0.7' 'ip 2001:db8::7' 'dst ip 2001:db8:1::3e7' \
               'ip 192.0.2.1' 'ip 2001:db8:ffff::1' 'net 10.0.2.0/24' \
+              'src ip 192.0.2.1 or proto tcp' \
+              'src ip 2001:db8::3 or proto tcp' \
+              'first seen < 2025-01-01 and (src ip 192.0.2.1 or proto tcp)' \
+              'src ip 10.0.0.1 or src ip 10.0.0.2' \
+              'src ip 2001:db8::3 or src ip 2001:db8::7' \
+              'src ip in [192.0.2.1 10.0.0.0/24]' \
               'first seen > 2024-01-01T01:00:05' 'last seen < 2024-01-01T01:00:02'; do
     c1=$(count "$V2DIR/orig_lz4.nf" "$filter")
     c2=$(count "$f" "$filter")

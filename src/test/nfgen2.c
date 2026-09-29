@@ -37,7 +37,12 @@
  * It writes V3 flow records (IPv4 and IPv6) in DATA_BLOCK_TYPE_3 blocks,
  * followed by an uncompressed appendix with the ident and stat record.
  *
- * usage: nfgen2 -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock]
+ * usage: nfgen2 -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock] [-t start] [-A] [-S seconds]
+ *
+ * Flows start at <start> (UNIX seconds, default 2024-01-01 00:00:00 UTC), 10ms apart.
+ * -A omits the appendix, so the file has no ident and no stat record.
+ * -S <seconds> shifts the time window of the stat record, so it no longer
+ *    matches the flows - used to verify that readers trust the stat record.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -200,7 +205,7 @@ static int writeBlock(int fd, uint8_t compression, dataBlockV2_t *block, dataBlo
 }  // End of writeBlock
 
 static void usage(const char *name) {
-    fprintf(stderr, "usage: %s -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock]\n", name);
+    fprintf(stderr, "usage: %s -w <file> [-z none|lzo|lz4] [-n numFlows] [-b flowsPerBlock] [-t start] [-A] [-S seconds]\n", name);
 }  // End of usage
 
 int main(int argc, char **argv) {
@@ -208,9 +213,12 @@ int main(int argc, char **argv) {
     uint8_t compression = LZ4_COMPRESSED_V2;
     uint32_t numFlows = 1000;
     uint32_t flowsPerBlock = 400;
+    time_t start = 1704067200;  // 2024-01-01 00:00:00 UTC
+    int appendix = 1;
+    int64_t statShift = 0;  // msec
 
     int c;
-    while ((c = getopt(argc, argv, "w:z:n:b:")) != EOF) {
+    while ((c = getopt(argc, argv, "w:z:n:b:t:AS:")) != EOF) {
         switch (c) {
             case 'w':
                 wfile = optarg;
@@ -232,6 +240,15 @@ int main(int argc, char **argv) {
                 break;
             case 'b':
                 flowsPerBlock = (uint32_t)strtoul(optarg, NULL, 10);
+                break;
+            case 't':
+                start = (time_t)strtoll(optarg, NULL, 10);
+                break;
+            case 'A':
+                appendix = 0;
+                break;
+            case 'S':
+                statShift = strtoll(optarg, NULL, 10) * 1000;
                 break;
             default:
                 usage(argv[0]);
@@ -266,7 +283,7 @@ int main(int argc, char **argv) {
         .magic = MAGIC,
         .version = LAYOUT_VERSION_2,
         .nfdversion = 0xf1070600,
-        .created = 1704067200,  // 2024-01-01 00:00:00 UTC
+        .created = start,
         .compression = compression,
         .encryption = 0,
         .creator = 0,
@@ -299,6 +316,9 @@ int main(int argc, char **argv) {
     }
 
     // appendix: ident and stat record in one uncompressed block
+    if (!appendix) goto HEADER;
+    stat.msecFirstSeen += statShift;
+    stat.msecLastSeen += statShift;
     fileHeader.offAppendix = lseek(fd, 0, SEEK_CUR);
     InitV2DataBlock(block);
     block->type = DATA_BLOCK_TYPE_3;
@@ -326,6 +346,7 @@ int main(int argc, char **argv) {
     }
     fileHeader.appendixBlocks = 1;
 
+HEADER:
     // final header
     if (pwrite(fd, &fileHeader, sizeof(fileHeader), 0) != sizeof(fileHeader)) {
         perror("pwrite");

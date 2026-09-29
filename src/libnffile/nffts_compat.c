@@ -1,4 +1,4 @@
-/* $Id: fts_compat.c 16 2009-06-19 09:26:19Z haag $ */
+/* $Id: nffts_compat.c 16 2009-06-19 09:26:19Z haag $ */
 /* TNFTPD ORIGINAL: libnetbsd/fts_open.c */
 
 /* $TNFTPPD: fts_open.c,v 1.4 2003/12/17 01:42:45 lukem Exp $ */
@@ -65,7 +65,7 @@
 #endif
 #endif
 
-#include "fts_compat.h"
+#include "nffts_compat.h"
 
 #if !defined(MIN)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

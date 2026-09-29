@@ -370,6 +370,16 @@ static int FlushBuffer(int confirm, int netflow_version) {
     return sendto(peer.sockfd, wireBuf, (size_t)wireLen, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
+/*
+ * File-level time filter: skip a whole file, if its stat record time window
+ * cannot match the time constraint of the filter.
+ */
+static int fileTimeFilter(const nffileV3_t *nffile, void *engine) {
+    const stat_record_t *stat_record = nffile->stat_record;
+    if (!stat_record) return 1;
+    return FilterBlock(engine, stat_record->msecFirstSeen, stat_record->msecLastSeen, NULL);
+}  // End of fileTimeFilter
+
 static int send_data(void *engine, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
     nffileV3_t *nffile = NULL;
     uint64_t twin_msecFirst, twin_msecLast;
@@ -888,6 +898,10 @@ int main(int argc, char **argv) {
     threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
 
     if (!Init_nffile(threadConfig, fileList)) exit(EXIT_FAILURE);
+
+    // skip entire files outside the time window of the filter
+    const blockConstraint_t *bc = GetBlockConstraint(engine);
+    if (bc && !bc->unknown) SetFileFilter(fileTimeFilter, engine);
 
     int status = send_data(engine, count, delay, confirm, netflow_version, distribution);
     DisposeFilter(engine);
