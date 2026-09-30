@@ -360,6 +360,7 @@ typedef struct nffileV3_s {
     pthread_cond_t rcond;
     uint32_t nextReadIndex;
     _Atomic uint32_t readErrors;  // data blocks which could not be read and were skipped
+    void *convertCtx;             // legacy V2 file: conversion context until the conversion thread starts
     pthread_mutex_t wlock;       // writer lock
     pthread_t worker[];          // nfread/nfwrite worker thread;
 } nffileV3_t;
@@ -473,6 +474,11 @@ void ModifyCompressFile(uint32_t compressType, uint32_t compressLevel);
 
 // nfread.c
 nffileV3_t *mmapFileV3(const char *filename);
+
+// Like mmapFileV3(), but a legacy V2 file does not start its conversion
+// thread yet: only the metadata (stat record, ident) is loaded. The thread
+// starts with StartReadersV3(). Used to check a file before reading it.
+nffileV3_t *mmapFileMetadataV3(const char *filename);
 
 nffileV3_t *OpenFileV3(const char *filename);
 

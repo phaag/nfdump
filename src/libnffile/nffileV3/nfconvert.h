@@ -82,5 +82,15 @@ typedef struct sampler_record_s {
     uint32_t spaceInterval;   // #306 packet space
 } sampler_record_V3_t;
 
-nffileV3_t *ConvertFileV2(const char *filename);
+// Open a legacy V2 file and load its metadata. The conversion thread is not
+// started yet - call StartConvertV2() to deliver the converted blocks.
+// Takes ownership of fd, an open descriptor of filename of size fileSize.
+nffileV3_t *ConvertFileV2(const char *filename, int fd, off_t fileSize);
+
+// Start the conversion thread of a file opened by ConvertFileV2().
+// Returns nffile on success. On failure the file is closed and NULL returned.
+nffileV3_t *StartConvertV2(nffileV3_t *nffile);
+
+// Release a conversion context, whose thread was never started.
+void FreeConvertV2(nffileV3_t *nffile);
 #endif

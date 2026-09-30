@@ -398,8 +398,10 @@ void *ReadBlockV3(nffileV3_t *nffile) {
  * Maps the entire file read-only and accesses header, directory, footer,
  * Verify header, directory, footer
  * return nffileV3_t *, if file is valid, NULL otherwise
+ * A legacy V2 file is opened for conversion, but its conversion thread is not
+ * started yet - see StartReadersV3().
  */
-nffileV3_t *mmapFileV3(const char *filename) {
+nffileV3_t *mmapFileMetadataV3(const char *filename) {
     if (!filename) return NULL;
 
     int fd = open(filename, O_RDONLY);
@@ -422,6 +424,13 @@ nffileV3_t *mmapFileV3(const char *filename) {
         return NULL;
     }
 
+    // legacy V2 file: detect it from the header, before the file is mapped
+    uint16_t magicVersion[2];
+    if (pread(fd, magicVersion, sizeof(magicVersion), 0) == sizeof(magicVersion) && magicVersion[0] == HEADER_MAGIC_V3 &&
+        magicVersion[1] == LAYOUT_VERSION_2) {
+        return ConvertFileV2(filename, fd, (off_t)fileSize);
+    }
+
     // map entire file read-only
     const uint8_t *map = mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (map == MAP_FAILED) {
@@ -429,9 +438,6 @@ nffileV3_t *mmapFileV3(const char *filename) {
         close(fd);
         return NULL;
     }
-
-    // hint: sequential read pattern — enable readahead, release pages behind
-    madvise((void *)map, fileSize, MADV_SEQUENTIAL);
 
     // validate header
     fileHeaderV3_t *fileHeader = (fileHeaderV3_t *)map;
@@ -442,11 +448,6 @@ nffileV3_t *mmapFileV3(const char *filename) {
         return NULL;
     }
 
-    if (fileHeader->layoutVersion == LAYOUT_VERSION_2) {
-        munmap((void *)map, fileSize);
-        close(fd);
-        return ConvertFileV2(filename);
-    }
     if (fileHeader->layoutVersion != LAYOUT_VERSION_3) {
         LogError("Unsupported layout version %u in '%s'", fileHeader->layoutVersion, filename);
         munmap((void *)map, fileSize);
@@ -709,6 +710,19 @@ nffileV3_t *mmapFileV3(const char *filename) {
 
     return nffile;
 
+}  // End of mmapFileMetadataV3
+
+/*
+ * Like mmapFileMetadataV3(), but a legacy V2 file starts converting at once, so
+ * its blocks are delivered through ReadBlockV3().
+ */
+nffileV3_t *mmapFileV3(const char *filename) {
+    nffileV3_t *nffile = mmapFileMetadataV3(filename);
+    if (!nffile) return NULL;
+    if (nffile->convertCtx) return StartConvertV2(nffile);
+    // hint: sequential read pattern - enable readahead, release pages behind
+    if (nffile->map) madvise((void *)nffile->map, nffile->mapSize, MADV_SEQUENTIAL);
+    return nffile;
 }  // End of mmapFileV3
 
 nffileV3_t *OpenFileV3(const char *filename) {
@@ -729,6 +743,13 @@ nffileV3_t *OpenFileV3(const char *filename) {
  * Returns nffile on success. On failure the file is closed and NULL returned.
  */
 nffileV3_t *StartReadersV3(nffileV3_t *nffile) {
+    // legacy V2 file: start its conversion thread
+    if (nffile->convertCtx) return StartConvertV2(nffile);
+
+    // hint: sequential read pattern - enable readahead, release pages behind.
+    // Set here, not at open, as files skipped by a file filter are never read.
+    if (nffile->map) madvise((void *)nffile->map, nffile->mapSize, MADV_SEQUENTIAL);
+
     // V2 conversion already started its own single reader thread
     // numWorkers may be 0 (e.g. a file opened with no readers requested), in which
     // case worker[] has zero allocated elements - guard before indexing worker[0].

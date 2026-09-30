@@ -921,25 +921,23 @@ static flowBlockV3_t *convertV2V3(convertCtx_t *ctx, dataBlockV2_t *blockV2, uin
 // Read and decompress a single V2 data block from fd.
 // Returns a malloc'd dataBlockV2_t, or NULL on error/EOF.
 static dataBlockV2_t *ReadBlockV2(int fd, uint8_t compression, uint32_t blockSize) {
-    dataBlockV2_t *block = malloc(BUFFSIZE);
-    if (!block) return NULL;
-
-    ssize_t ret = read(fd, block, sizeof(dataBlockV2_t));
-    if (ret <= 0) {
-        free(block);
-        return NULL;
-    }
+    dataBlockV2_t header;
+    ssize_t ret = read(fd, &header, sizeof(dataBlockV2_t));
+    if (ret <= 0) return NULL;
     if (ret != sizeof(dataBlockV2_t)) {
         LogError("ReadBlockV2: short header read: %zd", ret);
-        free(block);
         return NULL;
     }
 
-    if (block->size == 0 || block->size > (BUFFSIZE - sizeof(dataBlockV2_t))) {
-        LogError("ReadBlockV2: invalid block size %u", block->size);
-        free(block);
+    if (header.size == 0 || header.size > (BUFFSIZE - sizeof(dataBlockV2_t))) {
+        LogError("ReadBlockV2: invalid block size %u", header.size);
         return NULL;
     }
+
+    // allocate the block size only - small blocks such as the appendix are common
+    dataBlockV2_t *block = malloc(sizeof(dataBlockV2_t) + header.size);
+    if (!block) return NULL;
+    *block = header;
 
     // Read payload
     void *payload = (uint8_t *)block + sizeof(dataBlockV2_t);
@@ -1144,12 +1142,40 @@ static uint16_t MapCompressionV2(uint8_t compression) {
     }
 }  // End of MapCompressionV2
 
-nffileV3_t *ConvertFileV2(const char *filename) {
-    if (!filename) return NULL;
+nffileV3_t *StartConvertV2(nffileV3_t *nffile) {
+    convertCtx_t *ctx = nffile->convertCtx;
+    if (!ctx) return nffile;
 
-    int fd = open(filename, O_RDONLY);
-    if (fd < 0) {
-        LogError("ConvertFileV2: open() failed for '%s': %s", filename, strerror(errno));
+    // the thread owns the context from now on
+    nffile->convertCtx = NULL;
+    int err = pthread_create(&nffile->worker[0], NULL, nfreaderV2, ctx);
+    if (err) {
+        LogError("StartConvertV2: pthread_create failed: %s", strerror(err));
+        nffile->worker[0] = 0;
+        close(ctx->fd);
+        free(ctx);
+        CloseFileV3(nffile);
+        return NULL;
+    }
+    return nffile;
+}  // End of StartConvertV2
+
+void FreeConvertV2(nffileV3_t *nffile) {
+    convertCtx_t *ctx = nffile->convertCtx;
+    if (!ctx) return;
+    nffile->convertCtx = NULL;
+    close(ctx->fd);
+    free(ctx);
+}  // End of FreeConvertV2
+
+nffileV3_t *ConvertFileV2(const char *filename, int fd, off_t fileSize) {
+    if (!filename || fd < 0) {
+        if (fd >= 0) close(fd);
+        return NULL;
+    }
+    if (lseek(fd, 0, SEEK_SET) < 0) {
+        LogError("ConvertFileV2: lseek() failed for '%s': %s", filename, strerror(errno));
+        close(fd);
         return NULL;
     }
 
@@ -1191,11 +1217,8 @@ nffileV3_t *ConvertFileV2(const char *filename) {
     stat_record->msecFirstSeen = 0x7fffffffffffffff;
 
     char *ident = NULL;
-    if (hdr.appendixBlocks) {
-        struct stat sb;
-        if (fstat(fd, &sb) == 0 && hdr.offAppendix < sb.st_size) {
-            ReadAppendixV2(fd, &hdr, stat_record, &ident);
-        }
+    if (hdr.appendixBlocks && hdr.offAppendix < fileSize) {
+        ReadAppendixV2(fd, &hdr, stat_record, &ident);
     }
 
     // Create V3 file handle (1 worker thread)
@@ -1247,15 +1270,8 @@ nffileV3_t *ConvertFileV2(const char *filename) {
         .nffile = nffile,
     };
 
-    // Spawn nfreaderV2 thread
-    int err = pthread_create(&nffile->worker[0], NULL, nfreaderV2, ctx);
-    if (err) {
-        LogError("ConvertFileV2: pthread_create failed: %s", strerror(err));
-        free(ctx);
-        close(fd);
-        CloseFileV3(nffile);
-        return NULL;
-    }
+    // The nfreaderV2 thread is started by StartConvertV2(), when the file is read
+    nffile->convertCtx = ctx;
 
     dbg_printf("ConvertFileV2: opened '%s' (%u blocks, compression %u)\n", filename, hdr.NumBlocks, hdr.compression);
     return nffile;

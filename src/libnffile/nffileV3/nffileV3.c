@@ -52,6 +52,7 @@
 #include "nfcompress.h"
 #include "nfcrypto.h"
 #include "nfcommon.h"
+#include "nfconvert.h"
 #include "nfthread.h"
 #include "nfxV4.h"
 #include "queue.h"
@@ -123,7 +124,8 @@ static nffileV3_t *GetNextFileInternal(bool startReaders) {
         }
 
         dbg_printf("Process: '%s'\n", nextFile);
-        nffileV3_t *nffile = mmapFileV3(nextFile);
+        // load metadata only - no reader or conversion thread is started yet
+        nffileV3_t *nffile = mmapFileMetadataV3(nextFile);
         if (!nffile) {
             // mmapFileV3() already logged the specific reason (bad
             // passphrase, corrupt file, ...); record that this NULL is a
@@ -360,6 +362,9 @@ void DeleteFileV3(nffileV3_t *nffile) {
 
 void CloseFileV3(nffileV3_t *nffile) {
     if (!nffile) return;
+
+    // legacy V2 file which was never read: release its conversion context
+    FreeConvertV2(nffile);
 
     TerminateWorkers(nffile);
     if (nffile->map) {
