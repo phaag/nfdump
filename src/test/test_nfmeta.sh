@@ -94,13 +94,15 @@ same_flows() {
 # count <file> <filter> [nfdump args] - number of flows matching filter
 count() {
     _file="$1"; _filter="$2"; shift 2
-    nfdump -q -r "$_file" "$@" -o csv "$_filter" </dev/null 2>/dev/null | grep -c '^[0-9]'
+    _sel=-r; [ -d "$_file" ] && _sel=-R
+    nfdump -q $_sel "$_file" "$@" -o csv "$_filter" </dev/null 2>/dev/null | grep -c '^[0-9]'
 }
 
 # blocks_skipped <file> <filter> - block-filter skips reported by nfdump
 blocks_skipped() {
     _file="$1"; _filter="$2"
-    nfdump -r "$_file" -o null "$_filter" </dev/null 2>/dev/null \
+    _sel=-r; [ -d "$_file" ] && _sel=-R
+    nfdump $_sel "$_file" -o null "$_filter" </dev/null 2>/dev/null \
         | sed -n 's/.*Blocks skipped: \([0-9][0-9]*\).*/\1/p'
 }
 
@@ -299,11 +301,21 @@ fi
 # Prove that metadata pruning is active, while an accepting ordinary-filter
 # branch still keeps every block. A false time branch combined with an exact IP
 # must fall through to the Bloom decision instead of skipping the whole file.
+# The last check needs a block without 10.0.0.1. How nfmeta splits $f into
+# blocks depends on its number of workers (CPU cores) - $f may be one block
+# holding 10.0.0.1. Add a second file with flow indexes from 1000, whose
+# addresses never include 10.0.0.1, so its block must be skipped.
+BFDIR="$V2DIR/blockfilter"
+mkdir -p "$BFDIR"
+cp "$f" "$BFDIR/nfcapd.202401010000"
+"$NFGEN2" -w "$BFDIR/nfcapd.202401010005" -z lz4 -n 1000 -b 400 -i 1000 -t 1704067500 >/dev/null 2>&1
+nfmeta -r "$BFDIR/nfcapd.202401010005" >/dev/null 2>&1
 if [ "$(blocks_skipped "$V2DIR/orig_lz4.nf" 'src ip 192.0.2.1')" -eq 0 ] \
    && [ "$(blocks_skipped "$f" 'src ip 192.0.2.1')" -gt 0 ] \
    && [ "$(blocks_skipped "$f" 'src ip 192.0.2.1 or proto tcp')" -eq 0 ] \
    && [ "$(count "$f" 'first seen > 2030-01-01 or src ip 10.0.0.1')" -eq 1 ] \
-   && [ "$(blocks_skipped "$f" 'first seen > 2030-01-01 or src ip 10.0.0.1')" -gt 0 ]; then
+   && [ "$(count "$BFDIR" 'first seen > 2030-01-01 or src ip 10.0.0.1')" -eq 1 ] \
+   && [ "$(blocks_skipped "$BFDIR" 'first seen > 2030-01-01 or src ip 10.0.0.1')" -gt 0 ]; then
     pass "nfmeta_block_filter_control_flow"
 else
     fail "nfmeta_block_filter_control_flow"

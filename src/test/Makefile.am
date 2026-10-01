@@ -36,30 +36,30 @@ AM_CFLAGS = -ggdb
 
 LDADD = $(DEPS_LIBS)
 
+# Link the libraries of this build tree by their .la files. With -L<dir> -l<lib>
+# libtool silently falls back to an installed library of the same name.
+NFFILE_LA = $(top_builddir)/src/libnffile/libnffile.la
+NFQUERY_LA = $(top_builddir)/src/libnfquery/libnfquery.la
+
 NFFILE_TRANSITIVE_LIBS = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBSODIUM_LIBS)
 NFDUMP_TRANSITIVE_LIBS = $(PCRE2_LIBS) $(NFFILE_TRANSITIVE_LIBS)
 
 nfgen4_SOURCES = nfgen4.c
-nfgen4_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
-nfgen4_LDFLAGS = -L$(top_builddir)/src/libnffile
+nfgen4_LDADD = $(NFFILE_LA) $(NFFILE_TRANSITIVE_LIBS)
 
 nfgen2_SOURCES = nfgen2.c
 nfgen2_CFLAGS = $(AM_CFLAGS) $(LZ4_CFLAGS)
-nfgen2_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
-nfgen2_LDFLAGS = -L$(top_builddir)/src/libnffile
+nfgen2_LDADD = $(NFFILE_LA) $(NFFILE_TRANSITIVE_LIBS)
 
 nftest_SOURCES = nftest.c
-nftest_LDADD = -lnfquery -lnffile $(NFDUMP_TRANSITIVE_LIBS)
-nftest_LDFLAGS = -L$(top_builddir)/src/libnfquery -L$(top_builddir)/src/libnffile
-nftest_DEPENDENCIES = nfgen4
+nftest_LDADD = $(NFQUERY_LA) $(NFFILE_LA) $(NFDUMP_TRANSITIVE_LIBS)
+nftest_DEPENDENCIES = nfgen4 $(NFQUERY_LA) $(NFFILE_LA)
 
 test_append_SOURCES = test_append.c
-test_append_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
-test_append_LDFLAGS = -L$(top_builddir)/src/libnffile
+test_append_LDADD = $(NFFILE_LA) $(NFFILE_TRANSITIVE_LIBS)
 
 test_rotation_SOURCES = test_rotation.c
-test_rotation_LDADD = -lnffile $(NFFILE_TRANSITIVE_LIBS)
-test_rotation_LDFLAGS = -L$(top_builddir)/src/libnffile
+test_rotation_LDADD = $(NFFILE_LA) $(NFFILE_TRANSITIVE_LIBS)
 
 sflowgen_SOURCES = sflowgen.c
 sflowgen_LDFLAGS =
