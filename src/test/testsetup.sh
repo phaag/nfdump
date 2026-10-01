@@ -80,6 +80,20 @@ nfexpire(){ "$NFEXPIRE_BIN" "$@"; }
 nfanon()  { "$NFANON_BIN"  "$@"; }
 geolookup(){ "$GEOLOOKUP_BIN" "$@"; }
 
+# wait_start PIDFILE [SECONDS]
+# Wait until a daemon started with -D has written its pidfile (default 10s).
+# nfcapd and sfcapd bind their listening socket before the pidfile is written,
+# so a daemon accepts data once the pidfile exists. Returns 1 on timeout.
+wait_start() {
+    _ws_max=$(( ${2:-10} * 10 ))
+    _ws_i=0
+    while [ ! -s "$1" ] && [ "$_ws_i" -lt "$_ws_max" ]; do
+        sleep 0.1
+        _ws_i=$((_ws_i + 1))
+    done
+    [ -s "$1" ]
+}
+
 # ── pass / fail / skip accounting ─────────────────────────────────────────────
 PASS=0; FAIL=0; SKIP=0
 
@@ -102,7 +116,8 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 
 # ── summary ────────────────────────────────────────────────────────────────────
-# Print the final pass/fail/skip table and exit with 1 if any tests failed.
+# Print the final pass/fail/skip table. Returns 1 if any tests failed, 77 if
+# all tests were skipped (automake reports SKIP), 0 otherwise.
 # Call as the last statement in every test script.
 summary() {
     echo ""
@@ -111,5 +126,8 @@ summary() {
            "$PASS" "$FAIL" "$SKIP"
     echo "========================================================================="
     echo ""
-    [ "$FAIL" -eq 0 ]
+    [ "$FAIL" -eq 0 ] || return 1
+    # nothing could be tested: report the whole test as skipped (automake: 77)
+    if [ "$PASS" -eq 0 ] && [ "$SKIP" -gt 0 ]; then return 77; fi
+    return 0
 }

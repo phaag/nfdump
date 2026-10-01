@@ -38,7 +38,7 @@ echo "── time window filter ────────────────
 # cannot match, before any data block is read. These tests verify that the
 # results are identical to reading all flows, and that files are skipped.
 
-NFGEN2="$SCRIPT_DIR/nfgen2"
+NFGEN2="$BINDIR/test/nfgen2"
 nfmeta() { "$NFMETA_BIN" "$@" </dev/null; }
 
 if [ ! -x "$NFGEN2" ] || [ ! -x "$NFMETA_BIN" ]; then
@@ -131,6 +131,48 @@ check "timefilter_file_without_stat_kept" \
 check "timefilter_last_seen" \
     'last seen < 2024-01-01T01:05:05' \
     '$1 < "2024-01-01 01:05:04.000"'
+
+# -t is a compatibility alias for strict first/last-seen predicates. It is
+# combined with an ordinary filter and limits the time span in the summary.
+flows -R "$TFDIR" -t '2024/01/01.01:09:59-2024/01/01.01:11:00' >"$WORKDIR/got.csv"
+expected '$1 > "2024-01-01 01:09:59.000" && $1 < "2024-01-01 01:11:00.000"' >"$WORKDIR/exp.csv"
+if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
+    pass "timefilter_legacy_t_window"
+else
+    fail "timefilter_legacy_t_window"
+fi
+
+flows -R "$TFDIR" -t '2024/01/01.01:24:59' >"$WORKDIR/got.csv"
+flows -R "$TFDIR" 'first seen > 2024-01-01T01:24:59' >"$WORKDIR/exp.csv"
+if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
+    pass "timefilter_legacy_t_open_end"
+else
+    fail "timefilter_legacy_t_open_end"
+fi
+
+flows -R "$TFDIR" -t '2024/01/01.01:09:59-2024/01/01.01:16:00' 'proto tcp' >"$WORKDIR/got.csv"
+flows -R "$TFDIR" 'first seen > 2024-01-01T01:09:59 and last seen < 2024-01-01T01:16:00 and proto tcp' >"$WORKDIR/exp.csv"
+if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
+    pass "timefilter_legacy_t_combined_filter"
+else
+    fail "timefilter_legacy_t_combined_filter"
+fi
+
+echo 'proto tcp' >"$WORKDIR/timefilter.txt"
+flows -R "$TFDIR" -t '2024/01/01.01:09:59-2024/01/01.01:16:00' -f "$WORKDIR/timefilter.txt" >"$WORKDIR/got.csv"
+if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
+    pass "timefilter_legacy_t_combined_filter_file"
+else
+    fail "timefilter_legacy_t_combined_filter_file"
+fi
+
+summary_window=$(nfdump -R "$TFDIR" -t '2024/01/01.01:10:05-2024/01/01.01:15:20' -o null 2>/dev/null |
+    sed -n 's/^Time window: \([^,]*\), Duration:.*/\1/p')
+if [ "$summary_window" = '2024-01-01 01:10:05.000 - 2024-01-01 01:15:20.000' ]; then
+    pass "timefilter_legacy_t_summary_window"
+else
+    fail "timefilter_legacy_t_summary_window: got '$summary_window'"
+fi
 
 # an OR with a non-time condition has no time constraint - no file is skipped
 check "timefilter_or_not_skipped" \

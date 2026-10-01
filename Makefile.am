@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = src/libnffile src/libnfquery src/libnfdump src/output src/netflow src/collector src/maxmind src/tor
 SUBDIRS += src/nfdump src/nfcapd  
-SUBDIRS += src/nfanon src/nfexpire src/nfreplay . src src/test src/inline src/include
+SUBDIRS += src/nfanon src/nfexpire src/nfreplay . src src/inline src/include
 
 SUBDIRS += src/sflow
 SUBDIRS += src/nfmeta
@@ -18,6 +18,10 @@ endif
 if BUILD_NFPROFILE
 SUBDIRS += src/nfsen
 endif
+
+# The tests run every program: build all programs before src/test.
+# Otherwise 'make check' on a clean tree tests programs not built yet.
+SUBDIRS += src/test
 
 SUBDIRS += man doc
 

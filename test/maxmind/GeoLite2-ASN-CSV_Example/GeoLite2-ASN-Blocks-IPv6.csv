@@ -1,0 +1,4 @@
+network,autonomous_system_number,autonomous_system_organization
+2001:218::/32,2497,"Internet Initiative Japan Inc."
+2001:220::/32,4766,"Korea Telecom"
+2a02:fec0::/29,2856,"British Telecommunications PLC"

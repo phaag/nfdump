@@ -38,7 +38,7 @@ echo "── nfmeta ────────────────────
 # an unexpected passphrase prompt fails instead of hanging the test suite.
 nfmeta() { "$NFMETA_BIN" "$@" </dev/null; }
 
-NFGEN2="$SCRIPT_DIR/nfgen2"
+NFGEN2="$BINDIR/test/nfgen2"
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 

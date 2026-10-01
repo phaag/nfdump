@@ -1,0 +1,4 @@
+Database and Contents Copyright (c) 2023 MaxMind, Inc.
+
+This database is confidential and proprietary to MaxMind, Inc., and may not be
+reproduced, published or disclosed to others without company authorization.

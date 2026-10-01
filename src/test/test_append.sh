@@ -35,11 +35,11 @@ echo ""
 echo "── RenameAppendV3 ───────────────────────────────────────────────────────"
 
 # Verify that the test_append binary exists
-if [ ! -x "$SCRIPT_DIR/test_append" ]; then
+if [ ! -x "$BINDIR/test/test_append" ]; then
     skip "rename_append_unit: test_append binary not built"
     skip "rename_append_dir:  test_append binary not built"
     summary
-    exit 0
+    exit $?
 fi
 
 # Unit test: append two flow files using test_append, verify nfdump -v check
@@ -47,7 +47,7 @@ APPEND_UNIT="$WORKDIR/append_unit"
 mkdir -p "$APPEND_UNIT"
 cp dummy_flows.nf "$APPEND_UNIT/first.nf"
 if nfdump -r dummy_flows.nf -w "$APPEND_UNIT/second.nf" >/dev/null 2>&1 \
-   && "$SCRIPT_DIR/test_append" "$APPEND_UNIT/second.nf" "$APPEND_UNIT/first.nf" \
+   && "$BINDIR/test/test_append" "$APPEND_UNIT/second.nf" "$APPEND_UNIT/first.nf" \
       >/dev/null 2>&1 \
    && nfdump -v check -r "$APPEND_UNIT/first.nf" >/dev/null 2>&1; then
     pass "rename_append_unit"
@@ -68,7 +68,7 @@ else
     # Cycle 1
     nfcapd -p "$BASE_PORT" -4 -w "$APPEND_LIVE" -D \
            -P "$APPEND_LIVE/pidfile" -I TestIdent -t 3600 -z=lz4 >/dev/null 2>&1
-    sleep 1
+    wait_start "$APPEND_LIVE/pidfile"
     nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p "$BASE_PORT" >/dev/null 2>&1
     sleep 1
     kill -TERM "$(cat "$APPEND_LIVE/pidfile" 2>/dev/null)" 2>/dev/null || true
@@ -77,7 +77,7 @@ else
     # Cycle 2
     nfcapd -p "$BASE_PORT" -4 -w "$APPEND_LIVE" -D \
            -P "$APPEND_LIVE/pidfile" -I TestIdent -t 3600 -z=lz4 >/dev/null 2>&1
-    sleep 1
+    wait_start "$APPEND_LIVE/pidfile"
     nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p "$BASE_PORT" >/dev/null 2>&1
     sleep 1
     kill -TERM "$(cat "$APPEND_LIVE/pidfile" 2>/dev/null)" 2>/dev/null || true

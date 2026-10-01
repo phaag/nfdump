@@ -41,7 +41,7 @@ if [ ! -x "$SFCAPD_BIN" ] || [ ! -x "$SFLOWGEN_BIN" ]; then
     skip "sflow_pcap_decode: sfcapd or sflowgen not available"
     skip "sflow_sigterm: sfcapd or sflowgen not available"
     summary
-    exit 0
+    exit $?
 fi
 
 PCAP="$WORKDIR/sflow-v5.pcap"
@@ -75,18 +75,12 @@ mkdir -p "$LIVE_DIR"
 PORT=$(( 49500 + $$ % 16000 ))
 
 "$SFCAPD_BIN" -4 -p "$PORT" -w "$LIVE_DIR" -D -P "$PIDFILE" -t 2 -v 0 >"$WORKDIR/sfcapd-live.log" 2>&1
-i=0
-while [ ! -s "$PIDFILE" ] && [ "$i" -lt 3 ]; do
-    sleep 1
-    i=$((i + 1))
-done
-
-if [ ! -s "$PIDFILE" ]; then
+if ! wait_start "$PIDFILE"; then
     fail "sflow_sigterm: daemon did not start"
 else
     kill -TERM "$(cat "$PIDFILE")" 2>/dev/null || true
     i=0
-    while [ -f "$PIDFILE" ] && [ "$i" -lt 3 ]; do
+    while [ -f "$PIDFILE" ] && [ "$i" -lt 10 ]; do
         sleep 1
         i=$((i + 1))
     done

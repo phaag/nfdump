@@ -69,7 +69,7 @@
 .Op Fl j
 .Op Fl y
 .Op Fl m
-.Op Fl t
+.Op Fl t Ar timewin
 .Op Fl X
 .Op Fl Z
 .Op Fl T
@@ -210,14 +210,29 @@ Sort according to end time of flows
 .It Cm duration
 Sort according to duration of flows
 .El
-.It Fl t
-Removed. Use
-.Ar filter
-primitives
-.Sq first seen
+.It Fl t Ar timewin
+Compatibility option to select a time window. The time window is specified as
+.Ar YYYY/MM/dd.hh:mm:ss Ns Op - Ns Ar YYYY/MM/dd.hh:mm:ss .
+Omitted trailing components are expanded by the time parser. With no end time,
+the window extends indefinitely.
+.Pp
+Internally,
+.Nm
+translates this option into the generic filter expression
+.Pp
+.Dl first seen > start and last seen < end
+.Pp
+and combines it with any command-line or
+.Fl f
+filter using logical
+.Cm and .
+The displayed summary time window is limited to the bounds supplied with
+.Fl t .
+New applications may use the
+.Cm first seen
 and
-.Sq last seen
-to select a time window instead.
+.Cm last seen
+filter primitives directly.
 .It Fl P Ar postfilter
 Apply
 .Ar postfilter

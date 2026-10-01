@@ -1,0 +1,58 @@
+geoname_id,locale_code,continent_code,continent_name,country_iso_code,country_name,subdivision_1_iso_code,subdivision_1_name,subdivision_2_iso_code,subdivision_2_name,city_name,metro_code,time_zone,is_in_european_union
+102358,ru,AS,Азия,SA,"Саудовская Аравия",,,,,,,Asia/Riyadh,0
+130758,ru,AS,Азия,IR,Иран,,,,,,,Asia/Tehran,0
+174982,ru,AS,Азия,AM,Армения,,,,,,,Asia/Yerevan,0
+248816,ru,AS,Азия,JO,Иордания,,,,,,,Asia/Amman,0
+272103,ru,AS,Азия,LB,Ливан,,,,,,,Asia/Beirut,0
+285570,ru,AS,Азия,KW,Кувейт,,,,,,,Asia/Kuwait,0
+290291,ru,AS,Азия,BH,Бахрейн,,,,,,,Asia/Bahrain,0
+290557,ru,AS,Азия,AE,"Объединенные Арабские Эмираты",,,,,,,Asia/Dubai,0
+294640,ru,AS,Азия,IL,Израиль,,,,,,,Asia/Jerusalem,0
+298795,ru,AS,Азия,TR,Турция,,,,,,,Europe/Istanbul,0
+587116,ru,AS,Азия,AZ,Азербайджан,,,,,,,Asia/Baku,0
+630336,ru,EU,Европа,BY,Беларусь,,,,,,,Europe/Minsk,0
+660013,ru,EU,Европа,FI,Финляндия,,,,,,,Europe/Helsinki,1
+690791,ru,EU,Европа,UA,Украина,,,,,,,,0
+719819,ru,EU,Европа,HU,Венгрия,,,,,,,Europe/Budapest,1
+732800,ru,EU,Европа,BG,Болгария,,,,,,,Europe/Sofia,1
+783754,ru,EU,Европа,AL,Албания,,,,,,,Europe/Tirane,0
+798544,ru,EU,Европа,PL,Польша,,,,,,,Europe/Warsaw,1
+798549,ru,EU,Европа,RO,Румыния,,,,,,,Europe/Bucharest,1
+1252634,ru,AS,Азия,BT,Бутан,,,,,,,Asia/Thimphu,0
+1668284,ru,AS,Азия,TW,Тайвань,,,,,,,Asia/Taipei,0
+1694008,ru,AS,Азия,PH,Филиппины,,,,,,,Asia/Manila,0
+1814991,ru,AS,Азия,CN,Китай,,,,,,,,0
+1819730,ru,AS,Азия,HK,Гонконг,,,,,,,Asia/Hong_Kong,0
+1835841,ru,AS,Азия,KR,"Южная Корея",,,,,,,Asia/Seoul,0
+1861060,ru,AS,Азия,JP,Япония,,,,,,,Asia/Tokyo,0
+1880251,ru,AS,Азия,SG,Сингапур,,,,,,,,0
+1880252,ru,AS,Азия,SG,Сингапур,,,,,Сингапур,,Asia/Singapore,0
+2017370,ru,EU,Европа,RU,Россия,,,,,,,,0
+2038180,ru,AS,Азия,CN,Китай,22,,,,Чанчунь,,Asia/Harbin,0
+2077456,ru,OC,Океания,AU,Австралия,,,,,,,,0
+2158177,ru,OC,Океания,AU,Австралия,VIC,Виктория,,,Мельбурн,,Australia/Melbourne,0
+2215636,ru,AF,Африка,LY,Ливия,,,,,,,Africa/Tripoli,0
+2411586,ru,EU,Европа,GI,Гибралтар,,,,,,,Europe/Gibraltar,0
+2510769,ru,EU,Европа,ES,Испания,,,,,,,,1
+2623032,ru,EU,Европа,DK,Дания,,,,,,,Europe/Copenhagen,1
+2635167,ru,EU,Европа,GB,Великобритания,,,,,,,Europe/London,0
+2643743,ru,EU,Европа,GB,Великобритания,ENG,,,,Лондон,,Europe/London,0
+2655045,ru,EU,Европа,GB,Великобритания,ENG,,WBK,"Западный Беркшир",,,Europe/London,0
+2658434,ru,EU,Европа,CH,Швейцария,,,,,,,Europe/Zurich,0
+2661886,ru,EU,Европа,SE,Швеция,,,,,,,Europe/Stockholm,1
+2694762,ru,EU,Европа,SE,Швеция,E,,,,,,Europe/Stockholm,1
+2750405,ru,EU,Европа,NL,Нидерланды,,,,,,,Europe/Amsterdam,1
+2782113,ru,EU,Европа,AT,Австрия,,,,,,,Europe/Vienna,1
+2802361,ru,EU,Европа,BE,Бельгия,,,,,,,Europe/Brussels,1
+2921044,ru,EU,Европа,DE,Германия,,,,,,,Europe/Berlin,1
+2963597,ru,EU,Европа,IE,Ирландия,,,,,,,Europe/Dublin,1
+3017382,ru,EU,Европа,FR,Франция,,,,,,,Europe/Paris,1
+3042225,ru,EU,Европа,IM,"Мэн, о-в",,,,,,,Europe/Isle_of_Man,0
+3077311,ru,EU,Европа,CZ,"Чешская Республика",,,,,,,Europe/Prague,1
+3144096,ru,EU,Европа,NO,Норвегия,,,,,,,Europe/Oslo,0
+3175395,ru,EU,Европа,IT,Италия,,,,,,,Europe/Rome,1
+5391811,ru,NA,"Северная Америка",US,США,CA,Калифорния,,,Сан-Диего,825,America/Los_Angeles,0
+5803556,ru,NA,"Северная Америка",US,США,WA,Вашингтон,,,Мильтон,819,America/Los_Angeles,0
+6252001,ru,NA,"Северная Америка",US,США,,,,,,,America/Chicago,0
+6255148,ru,EU,Европа,,,,,,,,,,0
+6290252,ru,EU,Европа,RS,Сербия,,,,,,,Europe/Belgrade,0

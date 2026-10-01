@@ -268,7 +268,7 @@ else
     BASE_PORT=$(( 49500 + $$ % 16000 ))
 
     nfcapd -p "$BASE_PORT" -4 -w "$D6" -D -P "$D6/pidfile" -I livetest >/dev/null 2>&1
-    sleep 1
+    wait_start "$D6/pidfile"
 
     if [ ! -f "$D6/pidfile" ]; then
         skip "nfexpire_live_collector: nfcapd did not start"

@@ -24,7 +24,8 @@ libcollector_a_SOURCES = \
 	flowsource.c flowsource.h \
 	collector.c collector.h \
 	metric.c metric.h \
-	packet_frame.c packet_frame.h
+	packet_frame.c packet_frame.h \
+	stat_record.h
 
 EXTRA_DIST = collector_run_inline.c
 

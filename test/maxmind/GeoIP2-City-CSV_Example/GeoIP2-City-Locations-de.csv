@@ -1,0 +1,58 @@
+geoname_id,locale_code,continent_code,continent_name,country_iso_code,country_name,subdivision_1_iso_code,subdivision_1_name,subdivision_2_iso_code,subdivision_2_name,city_name,metro_code,time_zone,is_in_european_union
+102358,de,AS,Asien,SA,Saudi-Arabien,,,,,,,Asia/Riyadh,0
+130758,de,AS,Asien,IR,"Iran (Islamische Republik)",,,,,,,Asia/Tehran,0
+174982,de,AS,Asien,AM,Armenien,,,,,,,Asia/Yerevan,0
+248816,de,AS,Asien,JO,Jordanien,,,,,,,Asia/Amman,0
+272103,de,AS,Asien,LB,Libanon,,,,,,,Asia/Beirut,0
+285570,de,AS,Asien,KW,Kuwait,,,,,,,Asia/Kuwait,0
+290291,de,AS,Asien,BH,Bahrain,,,,,,,Asia/Bahrain,0
+290557,de,AS,Asien,AE,"Vereinigte Arabische Emirate",,,,,,,Asia/Dubai,0
+294640,de,AS,Asien,IL,Israel,,,,,,,Asia/Jerusalem,0
+298795,de,AS,Asien,TR,Türkei,,,,,,,Europe/Istanbul,0
+587116,de,AS,Asien,AZ,Aserbaidschan,,,,,,,Asia/Baku,0
+630336,de,EU,Europa,BY,Weißrussland,,,,,,,Europe/Minsk,0
+660013,de,EU,Europa,FI,Finnland,,,,,,,Europe/Helsinki,1
+690791,de,EU,Europa,UA,Ukraine,,,,,,,,0
+719819,de,EU,Europa,HU,Ungarn,,,,,,,Europe/Budapest,1
+732800,de,EU,Europa,BG,Bulgarien,,,,,,,Europe/Sofia,1
+783754,de,EU,Europa,AL,Albanien,,,,,,,Europe/Tirane,0
+798544,de,EU,Europa,PL,Polen,,,,,,,Europe/Warsaw,1
+798549,de,EU,Europa,RO,Rumänien,,,,,,,Europe/Bucharest,1
+1252634,de,AS,Asien,BT,Bhutan,,,,,,,Asia/Thimphu,0
+1668284,de,AS,Asien,TW,Taiwan,,,,,,,Asia/Taipei,0
+1694008,de,AS,Asien,PH,Philippinen,,,,,,,Asia/Manila,0
+1814991,de,AS,Asien,CN,China,,,,,,,,0
+1819730,de,AS,Asien,HK,Hongkong,,,,,,,Asia/Hong_Kong,0
+1835841,de,AS,Asien,KR,"Republik Korea",,,,,,,Asia/Seoul,0
+1861060,de,AS,Asien,JP,Japan,,,,,,,Asia/Tokyo,0
+1880251,de,AS,Asien,SG,Singapur,,,,,,,,0
+1880252,de,AS,Asien,SG,Singapur,,,,,Singapur,,Asia/Singapore,0
+2017370,de,EU,Europa,RU,Russland,,,,,,,,0
+2038180,de,AS,Asien,CN,China,22,,,,Chángchūn,,Asia/Harbin,0
+2077456,de,OC,Ozeanien,AU,Australien,,,,,,,,0
+2158177,de,OC,Ozeanien,AU,Australien,VIC,,,,Melbourne,,Australia/Melbourne,0
+2215636,de,AF,Afrika,LY,"Libysch-Arabische Dschamahirija",,,,,,,Africa/Tripoli,0
+2411586,de,EU,Europa,GI,Gibraltar,,,,,,,Europe/Gibraltar,0
+2510769,de,EU,Europa,ES,Spanien,,,,,,,,1
+2623032,de,EU,Europa,DK,Dänemark,,,,,,,Europe/Copenhagen,1
+2635167,de,EU,Europa,GB,"Vereinigtes Königreich",,,,,,,Europe/London,0
+2643743,de,EU,Europa,GB,"Vereinigtes Königreich",ENG,,,,London,,Europe/London,0
+2655045,de,EU,Europa,GB,"Vereinigtes Königreich",ENG,,WBK,,,,Europe/London,0
+2658434,de,EU,Europa,CH,Schweiz,,,,,,,Europe/Zurich,0
+2661886,de,EU,Europa,SE,Schweden,,,,,,,Europe/Stockholm,1
+2694762,de,EU,Europa,SE,Schweden,E,,,,Linköping,,Europe/Stockholm,1
+2750405,de,EU,Europa,NL,Niederlande,,,,,,,Europe/Amsterdam,1
+2782113,de,EU,Europa,AT,Österreich,,,,,,,Europe/Vienna,1
+2802361,de,EU,Europa,BE,Belgien,,,,,,,Europe/Brussels,1
+2921044,de,EU,Europa,DE,Deutschland,,,,,,,Europe/Berlin,1
+2963597,de,EU,Europa,IE,Irland,,,,,,,Europe/Dublin,1
+3017382,de,EU,Europa,FR,Frankreich,,,,,,,Europe/Paris,1
+3042225,de,EU,Europa,IM,"Insel Man",,,,,,,Europe/Isle_of_Man,0
+3077311,de,EU,Europa,CZ,"Tschechische Republik",,,,,,,Europe/Prague,1
+3144096,de,EU,Europa,NO,Norwegen,,,,,,,Europe/Oslo,0
+3175395,de,EU,Europa,IT,Italien,,,,,,,Europe/Rome,1
+5391811,de,NA,Nordamerika,US,"Vereinigte Staaten",CA,Kalifornien,,,"San Diego",825,America/Los_Angeles,0
+5803556,de,NA,Nordamerika,US,USA,WA,,,,,819,America/Los_Angeles,0
+6252001,de,NA,Nordamerika,US,USA,,,,,,,America/Chicago,0
+6255148,de,EU,Europa,,,,,,,,,,0
+6290252,de,EU,Europa,RS,Serbien,,,,,,,Europe/Belgrade,0

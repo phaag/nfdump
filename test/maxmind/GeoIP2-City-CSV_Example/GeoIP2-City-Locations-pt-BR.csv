@@ -1,0 +1,58 @@
+geoname_id,locale_code,continent_code,continent_name,country_iso_code,country_name,subdivision_1_iso_code,subdivision_1_name,subdivision_2_iso_code,subdivision_2_name,city_name,metro_code,time_zone,is_in_european_union
+102358,pt-BR,AS,Ásia,SA,"Arábia Saudita",,,,,,,Asia/Riyadh,0
+130758,pt-BR,AS,Ásia,IR,"República Islâmica do Irã",,,,,,,Asia/Tehran,0
+174982,pt-BR,AS,Ásia,AM,Armênia,,,,,,,Asia/Yerevan,0
+248816,pt-BR,AS,Ásia,JO,Jordânia,,,,,,,Asia/Amman,0
+272103,pt-BR,AS,Ásia,LB,Líbano,,,,,,,Asia/Beirut,0
+285570,pt-BR,AS,Ásia,KW,Kuwait,,,,,,,Asia/Kuwait,0
+290291,pt-BR,AS,Ásia,BH,Bahrain,,,,,,,Asia/Bahrain,0
+290557,pt-BR,AS,Ásia,AE,"Emirados Árabes Unidos",,,,,,,Asia/Dubai,0
+294640,pt-BR,AS,Ásia,IL,Israel,,,,,,,Asia/Jerusalem,0
+298795,pt-BR,AS,Ásia,TR,Turquia,,,,,,,Europe/Istanbul,0
+587116,pt-BR,AS,Ásia,AZ,Azerbaijão,,,,,,,Asia/Baku,0
+630336,pt-BR,EU,Europa,BY,Bielo-Rússia,,,,,,,Europe/Minsk,0
+660013,pt-BR,EU,Europa,FI,Finlândia,,,,,,,Europe/Helsinki,1
+690791,pt-BR,EU,Europa,UA,Ucrânia,,,,,,,,0
+719819,pt-BR,EU,Europa,HU,Hungria,,,,,,,Europe/Budapest,1
+732800,pt-BR,EU,Europa,BG,Bulgária,,,,,,,Europe/Sofia,1
+783754,pt-BR,EU,Europa,AL,Albânia,,,,,,,Europe/Tirane,0
+798544,pt-BR,EU,Europa,PL,Polônia,,,,,,,Europe/Warsaw,1
+798549,pt-BR,EU,Europa,RO,Romênia,,,,,,,Europe/Bucharest,1
+1252634,pt-BR,AS,Ásia,BT,Butão,,,,,,,Asia/Thimphu,0
+1668284,pt-BR,AS,Ásia,TW,Taiwan,,,,,,,Asia/Taipei,0
+1694008,pt-BR,AS,Ásia,PH,Filipinas,,,,,,,Asia/Manila,0
+1814991,pt-BR,AS,Ásia,CN,China,,,,,,,,0
+1819730,pt-BR,AS,Ásia,HK,"Hong Kong",,,,,,,Asia/Hong_Kong,0
+1835841,pt-BR,AS,Ásia,KR,"Coréia, República da",,,,,,,Asia/Seoul,0
+1861060,pt-BR,AS,Ásia,JP,Japão,,,,,,,Asia/Tokyo,0
+1880251,pt-BR,AS,Ásia,SG,Singapura,,,,,,,,0
+1880252,pt-BR,AS,Ásia,SG,Singapura,,,,,Singapura,,Asia/Singapore,0
+2017370,pt-BR,EU,Europa,RU,Rússia,,,,,,,,0
+2038180,pt-BR,AS,Ásia,CN,China,22,,,,,,Asia/Harbin,0
+2077456,pt-BR,OC,Oceania,AU,Austrália,,,,,,,,0
+2158177,pt-BR,OC,Oceania,AU,Austrália,VIC,Vitória,,,Melbourne,,Australia/Melbourne,0
+2215636,pt-BR,AF,África,LY,"Líbia Árabe Jamahiriya",,,,,,,Africa/Tripoli,0
+2411586,pt-BR,EU,Europa,GI,Gibraltar,,,,,,,Europe/Gibraltar,0
+2510769,pt-BR,EU,Europa,ES,Espanha,,,,,,,,1
+2623032,pt-BR,EU,Europa,DK,Dinamarca,,,,,,,Europe/Copenhagen,1
+2635167,pt-BR,EU,Europa,GB,"Reino Unido",,,,,,,Europe/London,0
+2643743,pt-BR,EU,Europa,GB,"Reino Unido",ENG,Inglaterra,,,Londres,,Europe/London,0
+2655045,pt-BR,EU,Europa,GB,"Reino Unido",ENG,Inglaterra,WBK,,,,Europe/London,0
+2658434,pt-BR,EU,Europa,CH,Suíça,,,,,,,Europe/Zurich,0
+2661886,pt-BR,EU,Europa,SE,Suécia,,,,,,,Europe/Stockholm,1
+2694762,pt-BR,EU,Europa,SE,Suécia,E,,,,,,Europe/Stockholm,1
+2750405,pt-BR,EU,Europa,NL,"Países Baixos",,,,,,,Europe/Amsterdam,1
+2782113,pt-BR,EU,Europa,AT,Áustria,,,,,,,Europe/Vienna,1
+2802361,pt-BR,EU,Europa,BE,Bélgica,,,,,,,Europe/Brussels,1
+2921044,pt-BR,EU,Europa,DE,Alemanha,,,,,,,Europe/Berlin,1
+2963597,pt-BR,EU,Europa,IE,Irlanda,,,,,,,Europe/Dublin,1
+3017382,pt-BR,EU,Europa,FR,França,,,,,,,Europe/Paris,1
+3042225,pt-BR,EU,Europa,IM,"Ilha de Man",,,,,,,Europe/Isle_of_Man,0
+3077311,pt-BR,EU,Europa,CZ,"República Checa",,,,,,,Europe/Prague,1
+3144096,pt-BR,EU,Europa,NO,Noruega,,,,,,,Europe/Oslo,0
+3175395,pt-BR,EU,Europa,IT,Itália,,,,,,,Europe/Rome,1
+5391811,pt-BR,NA,"América do Norte",US,EUA,CA,Califórnia,,,"San Diego",825,America/Los_Angeles,0
+5803556,pt-BR,NA,"América do Norte",US,"Estados Unidos",WA,,,,,819,America/Los_Angeles,0
+6252001,pt-BR,NA,"América do Norte",US,"Estados Unidos",,,,,,,America/Chicago,0
+6255148,pt-BR,EU,Europa,,,,,,,,,,0
+6290252,pt-BR,EU,Europa,RS,Sérvia,,,,,,,Europe/Belgrade,0

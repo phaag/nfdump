@@ -95,7 +95,7 @@ echo ""
 echo "── prerequisites ────────────────────────────────────────────────────────"
 
 PREREQ_OK=1
-DUMMY_NF="$SCRIPT_DIR/dummy_flows.nf"
+DUMMY_NF="$BINDIR/test/dummy_flows.nf"
 
 if [ ! -x "$NFCAPD_BIN" ]; then
     echo "  ERROR: nfcapd not found: $NFCAPD_BIN"; PREREQ_OK=0
@@ -109,7 +109,7 @@ fi
 
 if [ "$PREREQ_OK" -eq 0 ]; then
     echo "  Skip test: missing prerequisites."
-    exit 0
+    exit 77
 fi
 
 # Detect libsodium: both nfcapd and nfreplay must report CRYPTO in their
@@ -161,7 +161,7 @@ mkdir -p "$LIVE_PLAIN"
 
 nfcapd -p "$PORT_PLAIN" -4 -w "$LIVE_PLAIN" -D \
        -P "$LIVE_PLAIN/pidfile" -I live_plain -v 0 >/dev/null 2>&1
-sleep 1
+wait_start "$LIVE_PLAIN/pidfile"
 nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_PLAIN" >/dev/null 2>&1
 sleep 1
 kill -TERM "$(cat "$LIVE_PLAIN/pidfile" 2>/dev/null)" 2>/dev/null || true
@@ -200,7 +200,7 @@ else
     nfcapd -p "$PORT_V251" -4 -w "$LIVE_V251" -D \
            -P "$LIVE_V251/pidfile" -I live_v251 \
            "-k=$PASSPHRASE" -v 0 >/dev/null 2>&1
-    sleep 1
+    wait_start "$LIVE_V251/pidfile"
     nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_V251" \
              "-k=$PASSPHRASE" >/dev/null 2>&1
     sleep 1
@@ -243,7 +243,7 @@ else
     nfcapd -p "$PORT_WRNG" -4 -w "$LIVE_WRNG" -D \
            -P "$LIVE_WRNG/pidfile" -I live_v251_wrong \
            "-k=$PASSPHRASE" -v 0 >/dev/null 2>&1
-    sleep 1
+    wait_start "$LIVE_WRNG/pidfile"
     nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_WRNG" \
              "-k=wrong-passphrase-xyz" >/dev/null 2>&1
     sleep 1
@@ -286,7 +286,7 @@ else
     nfcapd -p "$PORT_AUTHREQ" -4 -w "$LIVE_AUTHREQ" -D \
            -P "$LIVE_AUTHREQ/pidfile" -I live_authreq \
            "-k=$PASSPHRASE" -v 0 >/dev/null 2>&1
-    sleep 1
+    wait_start "$LIVE_AUTHREQ/pidfile"
     nfreplay -r "$DUMMY_NF" -v 251 -H 127.0.0.1 -p "$PORT_AUTHREQ" >/dev/null 2>&1
     sleep 1
     kill -TERM "$(cat "$LIVE_AUTHREQ/pidfile" 2>/dev/null)" 2>/dev/null || true

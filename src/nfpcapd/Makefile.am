@@ -7,6 +7,9 @@ flowdump = flowdump.c flowdump.h
 pcapdump = pcapdump.c pcapdump.h
 pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowhash.c flowhash.h ip_frag.c ip_frag.h
 
+# decode_*.c are included by pcaproc.c, not compiled separately
+EXTRA_DIST = decode_ctx.h decode_ip.c decode_link.c decode_proto.c decode_transport.c
+
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap_file.c packet_pcap.h
 nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump)
 nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE

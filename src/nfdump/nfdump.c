@@ -133,6 +133,8 @@ static int SetStat(char *str, int *element_stat, int *flow_stat);
 
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
+static char *TimeWindowFilter(const timeWindow_t *timeWindow);
+
 /* Functions */
 
 #include "nfdump_inline.c"
@@ -202,7 +204,7 @@ static void usage(char *name) {
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
-        "-t\t\tRemoved. Use 'first seen'/'last seen' filter expressions instead.\n"
+        "-t <timewin>\tCompatibility time window. Adds 'first seen'/'last seen' to the flow filter.\n"
         "-m\t\tRemoved; use -O tstart to order flows by start time.\n"
         "-T\t\tEnable legacy NfSen output tags.\n"
 #ifdef HAVE_LIBSODIUM
@@ -248,6 +250,32 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
     }
 
 }  // End of PrintSummary
+
+static char *TimeWindowFilter(const timeWindow_t *timeWindow) {
+    char first[32], last[32];
+    msec2Str(timeWindow->msecFirst, first, sizeof(first));
+    first[10] = 'T';
+
+    size_t len = strlen("first seen > ") + strlen(first) + 1;
+    if (timeWindow->msecLast) {
+        msec2Str(timeWindow->msecLast, last, sizeof(last));
+        last[10] = 'T';
+        len += strlen(" and last seen < ") + strlen(last);
+    }
+
+    char *filter = malloc(len);
+    if (!filter) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    if (timeWindow->msecLast) {
+        snprintf(filter, len, "first seen > %s and last seen < %s", first, last);
+    } else {
+        snprintf(filter, len, "first seen > %s", first);
+    }
+    return filter;
+}  // End of TimeWindowFilter
 
 static int SetStat(char *str, int *element_stat, int *flow_stat) {
     char *statType = strdup(str);
@@ -346,14 +374,25 @@ static void ProcessArrayBlock(arrayBlockV3_t *arrayBlock) {
 
 /* scanBlockBlooms is defined in nffile_inline.c (included above) */
 
-/*
- * File-level time filter: skip a whole file, if its stat record time window
- * cannot match the time constraint of the filter. Applies the same check as
- * the block-level filter, before any data block of the file is read.
- */
-static int fileTimeFilter(const nffileV3_t *nffile, void *engine) {
+// Generic file-level prefilter for first/last-seen filter expressions.
+static int fileEngineFilter(const nffileV3_t *nffile, void *engine) {
     return FilterFile(engine, nffile->stat_record) == PREFILTER_MAY_MATCH;
-}  // End of fileTimeFilter
+}  // End of fileEngineFilter
+
+// Fast file-level check for the compatibility -t window. Missing or corrupt
+// metadata is kept for the definitive block and record checks.
+static int fileTimeWindowFilter(const nffileV3_t *nffile, void *arg) {
+    const timeWindow_t *timeWindow = arg;
+    const stat_record_t *statRecord = nffile->stat_record;
+
+    if (!statRecord || (statRecord->msecFirstSeen == 0 && statRecord->msecLastSeen == 0) ||
+        statRecord->msecFirstSeen > statRecord->msecLastSeen)
+        return 1;
+
+    if (statRecord->msecLastSeen <= timeWindow->msecFirst) return 0;
+    if (timeWindow->msecLast && statRecord->msecFirstSeen >= timeWindow->msecLast) return 0;
+    return 1;
+}  // End of fileTimeWindowFilter
 
 static void FreeDataHandle(void *handle) {
     dataHandle_t *dataHandle = handle;
@@ -930,7 +969,7 @@ int main(int argc, char **argv) {
     outputParams_t *outputParams;
     RecordPrinter_t print_record;
     nfprof_t profile_data;
-    char *wfile, *ffile, *filter, *stat_type;
+    char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *print_format;
     char *print_order, *query_type, *configFile, *aggr_fmt;
     int element_stat, fdump;
@@ -941,12 +980,13 @@ int main(int argc, char **argv) {
     char Ident[IDENTLEN];
     flist_t flist = {0};
     void *postFilter = NULL;
+    timeWindow_t *timeWindow = NULL;
 
 #ifdef DEVEL
     long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
     printf("CPUs online %ld\n", nprocs);
 #endif
-    wfile = ffile = filter = stat_type = NULL;
+    wfile = ffile = filter = tstring = stat_type = NULL;
     fdump = aggregate = 0;
     aggregate_mask = 0;
     bidir = 0;
@@ -986,7 +1026,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:DE:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZtTVW:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:DE:f:G:gH:hK::l:n:i:jqyz::r:v:w:J:M:NImO:P:R:s:x:XZt:TVW:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -1120,8 +1160,8 @@ int main(int argc, char **argv) {
                 ffile = optarg;
                 break;
             case 't':
-                LogInfo("Option -t is no longer supported. Use 'first seen' and 'last seen' filter expressions.");
-                exit(EXIT_FAILURE);
+                CheckArgLen(optarg, 128);
+                tstring = optarg;
                 break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -1257,6 +1297,30 @@ int main(int argc, char **argv) {
         }
 
         FilterFilename = ffile;
+    }
+
+    if (tstring) {
+        timeWindow = ScanTimeFrame(tstring);
+        if (!timeWindow) exit(EXIT_FAILURE);
+
+        char *timeFilter = TimeWindowFilter(timeWindow);
+        if (!timeFilter) exit(EXIT_FAILURE);
+
+        if (filter && *filter) {
+            size_t len = strlen(filter) + strlen(timeFilter) + strlen("(\n\n) and ()") + 1;
+            char *combinedFilter = malloc(len);
+            if (!combinedFilter) {
+                LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+            snprintf(combinedFilter, len, "(%s) and (\n%s\n)", timeFilter, filter);
+            free(filter);
+            free(timeFilter);
+            filter = combinedFilter;
+        } else {
+            free(filter);
+            filter = timeFilter;
+        }
     }
 
     if (ConfOpen(configFile, "nfdump", nfdumpOption) < 0) exit(EXIT_FAILURE);
@@ -1511,8 +1575,12 @@ int main(int argc, char **argv) {
         processMode = WRITEFILE;
     }
 
-    // skip entire files outside the time window of the filter
-    if (FilterCapabilities(engine) & FILTER_CAP_TIME) SetFileFilter(fileTimeFilter, engine);
+    // -t has a known mandatory window and needs only two comparisons per file.
+    // Other time expressions use the conservative generic filter evaluator.
+    if (timeWindow)
+        SetFileFilter(fileTimeWindowFilter, timeWindow);
+    else if (FilterCapabilities(engine) & FILTER_CAP_TIME)
+        SetFileFilter(fileEngineFilter, engine);
 
     nfprof_start(&profile_data);
     sum_stat = process_data(engine, processMode, wfile, print_record, limitRecords, outputParams, compressType, compressLevel, threadConfig.workers,
@@ -1551,6 +1619,13 @@ int main(int argc, char **argv) {
     }
 
     nfprof_end(&profile_data, totalRecords);
+
+    // -t is a compatibility time window. Filtering is performed by the generic
+    // filter, while the requested bounds limit the displayed input time span.
+    if (timeWindow && t_lastMsec) {
+        if (timeWindow->msecFirst > t_firstMsec) t_firstMsec = timeWindow->msecFirst;
+        if (timeWindow->msecLast && timeWindow->msecLast < t_lastMsec) t_lastMsec = timeWindow->msecLast;
+    }
 
     if (!outputParams->quiet) {
         switch (outputParams->mode) {
