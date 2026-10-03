@@ -182,7 +182,7 @@ fi
 # example of the accepted syntax so users can correct the option directly.
 if nfdump -R "$TFDIR" -t '2024/01/01.01:10-2024/01/01.01:15' -q -o null >"$WORKDIR/invalid-time.out" 2>&1; then
     fail "timefilter_rejects_legacy_syntax"
-elif grep -q 'Expected for example: 2026-09-24T12:00-2026-09-24T13:00' "$WORKDIR/invalid-time.out"; then
+elif grep -q 'Expected for example: 2026-09-24T12:00:05-2026-09-24T13:00:50, 2026-09-24T12:00-, or -2026-09-24T13:00' "$WORKDIR/invalid-time.out"; then
     pass "timefilter_rejects_legacy_syntax"
 else
     fail "timefilter_rejects_legacy_syntax: missing format example"
