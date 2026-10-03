@@ -430,6 +430,8 @@ static int copyDataBlocks(const nffileV3_t *nffile, int wfd, directoryEntryV3_t 
     for (uint32_t i = 0; i < dir->numEntries; i++) {
         const directoryEntryV3_t *e = &dir->entries[i];
         if (e->type == BLOCK_TYPE_STATS || e->type == BLOCK_TYPE_IDENT) continue;
+        // the block offsets of an index are stale in the merged file
+        if (e->type == BLOCK_TYPE_INDEX) continue;
         if (e->offset + e->size > nffile->mapSize) {
             LogError("RenameAppendV3: %s entry[%u] out of bounds", tag, i);
             return -1;

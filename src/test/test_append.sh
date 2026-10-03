@@ -55,6 +55,26 @@ else
     fail "rename_append_unit"
 fi
 
+# Appending files with a reserved index block must drop the index: its block
+# offsets do not match the merged file. All flows of both files remain.
+if command -v python3 >/dev/null 2>&1; then
+    APPEND_INDEX="$WORKDIR/append_index"
+    mkdir -p "$APPEND_INDEX"
+    nfdump -q -r dummy_flows.nf -o csv >"$APPEND_INDEX/ref.csv" 2>/dev/null
+    if add_index_block dummy_flows.nf "$APPEND_INDEX/first.nf" \
+       && add_index_block dummy_flows.nf "$APPEND_INDEX/second.nf" \
+       && "$BINDIR/test/test_append" "$APPEND_INDEX/second.nf" "$APPEND_INDEX/first.nf" >/dev/null 2>&1 \
+       && nfdump -v check -r "$APPEND_INDEX/first.nf" >/dev/null 2>&1 \
+       && [ -z "$(index_blocks "$APPEND_INDEX/first.nf")" ] \
+       && [ "$(nfdump -q -r "$APPEND_INDEX/first.nf" -o csv 2>/dev/null | grep -c '^[0-9]')" -eq $(( 2 * $(grep -c '^[0-9]' "$APPEND_INDEX/ref.csv") )) ]; then
+        pass "rename_append_drops_index"
+    else
+        fail "rename_append_drops_index (index blocks: '$(index_blocks "$APPEND_INDEX/first.nf")')"
+    fi
+else
+    skip "rename_append_drops_index: python3 not available"
+fi
+
 # Live test: two consecutive nfcapd cycles into the same output directory.
 # The second cycle must AppendRename the in-progress file from cycle 1.
 # Requires nfreplay; skip gracefully if not available.

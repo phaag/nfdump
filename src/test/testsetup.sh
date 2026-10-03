@@ -131,3 +131,35 @@ summary() {
     if [ "$PASS" -eq 0 ] && [ "$SKIP" -gt 0 ]; then return 77; fi
     return 0
 }
+
+# add_index_block <in> <out> - append a reserved BLOCK_TYPE_INDEX block to an
+# unencrypted nffile V3 without directory checksum. Requires python3.
+add_index_block() {
+    python3 - "$1" "$2" <<'PYEOF'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+HDR = '<HHIQHHIIIQQ'                      # fileHeaderV3_t, 48 bytes
+hdr = list(struct.unpack_from(HDR, data, 0))
+offDir = hdr[9]
+magic, num = struct.unpack_from('<II', data, offDir)
+entries = [struct.unpack_from('<IIQ', data, offDir + 8 + 16 * i) for i in range(num)]
+ftr = struct.unpack_from('<IIQQ32s', data, len(data) - 56)
+if ftr[3] != 0 or any(ftr[4]):
+    sys.exit("file has a directory checksum or MAC - not supported")
+payload = b'NFINDEX0' * 2
+# BLOCKHEADER: type 8 = BLOCK_TYPE_INDEX, discSize, rawSize, NOT_COMPRESSED, NOT_ENCRYPTED, checksum
+block = struct.pack('<IIIHHQ', 8, 24 + len(payload), 24 + len(payload), 1, 0, 0) + payload
+out = bytearray(data[:offDir])
+entries.append((8, len(block), len(out)))
+out += block
+newOff = len(out)
+out += struct.pack('<II', magic, len(entries)) + b''.join(struct.pack('<IIQ', *e) for e in entries)
+out += struct.pack('<IIQQ32s', ftr[0], len(out) - newOff, newOff, 0, bytes(32))
+hdr[8], hdr[9] = len(out) - newOff - 56, newOff
+out[0:48] = struct.pack(HDR, *hdr)
+open(sys.argv[2], 'wb').write(out)
+PYEOF
+}
+
+# index_blocks <file> - number of index blocks reported by nfdump -v check
+index_blocks() { nfdump -v check -r "$1" 2>/dev/null | sed -n 's/^ *Index blocks *: *\([0-9]*\).*/\1/p'; }
