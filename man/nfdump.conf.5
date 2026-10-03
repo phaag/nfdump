@@ -71,6 +71,15 @@ A value here overrides the compiled-in default.
 .Fl x Ar key Ns = Ns Ar value
 argument on the command line takes precedence over both the config file and
 the program default and is effective only for the duration of the process.
+The same applies to boolean
+.Sy opt.*
+keys set with the
+.Fl o
+option list of
+.Xr nfcapd 1 ,
+.Xr sfcapd 1
+and
+.Xr nfpcapd 1 .
 .El
 .Sh FILE FORMAT
 .Nm
@@ -288,11 +297,30 @@ String.
 Define or redefine a named CSV output format, used with
 .Fl o Ar csv: Ns Ar name .
 .El
+.Ss [nfcapd] keys
+.Bl -tag -width "opt.expire"
+.It Sy opt.expire
+Boolean integer (0 or 1).
+Enable auto-expire mode: run an expire cycle at the end of every rotation
+interval.
+Equivalent to the
+.Fl e
+command-line option.
+Default: 0.
+.El
 .Ss [sfcapd] keys
-.Bl -tag -width "opt.tun"
+.Bl -tag -width "opt.expire"
 .It Sy opt.tun
 Boolean integer (0 or 1).
 Enable decoding of tunnelling protocols (GRE and 6-in-4).
+Default: 0.
+.It Sy opt.expire
+Boolean integer (0 or 1).
+Enable auto-expire mode: run an expire cycle at the end of every rotation
+interval.
+Equivalent to the
+.Fl e
+command-line option.
 Default: 0.
 .El
 .Ss [nfpcapd] keys
@@ -337,6 +365,8 @@ as a configuration override.
 The defaults for the boolean program options are:
 .Bl -tag -width "opt.payload (nfpcapd)"
 .It Sy opt.tun Pq sfcapd
+0 (disabled)
+.It Sy opt.expire Pq nfcapd, sfcapd
 0 (disabled)
 .It Sy opt.fat Pq nfpcapd
 0 (disabled)

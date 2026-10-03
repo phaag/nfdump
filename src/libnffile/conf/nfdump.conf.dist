@@ -136,6 +136,10 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # compiled default is 64; raise only for a known, sized exporter population.
 #dyn_max_sources = 64
 
+# define -o options
+# enable option expire, to run an expire cycle at each rotation - same as -e
+# opt.expire = 1
+
 [nfcapd.threads]
 #writers = 0   # 0 = auto (LZ4 cap→8, ZSTD cap→12, minus 1 for collector thread)
 
@@ -148,6 +152,8 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # define -o options
 # enable option tun, if you want to decode tunneling protocols gre and 6in4
 # opt.tun = 1
+# enable option expire, to run an expire cycle at each rotation - same as -e
+# opt.expire = 1
 
 [sfcapd.threads]
 #writers = 0   # same cap logic as [nfcapd.threads]

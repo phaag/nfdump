@@ -59,6 +59,7 @@
 .Op Fl s Ar rate
 .Op Fl i Ar metricrate
 .Op Fl m Ar metricpath
+.Op Fl o Ar optionlist
 .Op Fl e
 .Op Fl l Ar command
 .Op Fl x Ar key=value
@@ -479,12 +480,42 @@ runs an expire cycle to delete files according to the persisted lifetime and
 size limits configured with
 .Xr nfexpire 1 .
 This option requires local file output
-.Pq Fl w , Fl n , or Fl M
+.Pq Fl w , Fl n , No or Fl M
 and cannot be combined with flow forwarding
 .Pq Fl H
 or the timezone filename suffix
 .Pq Fl Z .
 Offline file readers disable auto-expire.
+Auto-expire may also be enabled with
+.Fl o Ar expire
+or with
+.Sy opt.expire
+in the
+.Xr nfdump.conf 5
+config file.
+.It Fl o Ar options
+Set
+.Nm
+options. This is a ',' separated list of options. Each option may be given
+as
+.Ar name ,
+which enables it, or as
+.Ar name Ns =0
+or
+.Ar name Ns =1 .
+Available options:
+.Pp
+.Sy expire
+Enable auto-expire mode.
+Equivalent to
+.Fl e .
+.Pp
+These options may also be defined as
+.Sy opt\&. Ns Ar name
+in the
+.Xr nfdump.conf 5
+config file.
+Options specified on the command line overwrite the value in the config file.
 .It Fl x Ar key Ns = Ns Ar value
 Override a configuration key for this invocation only. May be repeated.
 Overrides have higher priority than the configuration file and program defaults.

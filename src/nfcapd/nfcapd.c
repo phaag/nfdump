@@ -102,6 +102,7 @@ static volatile sig_atomic_t done = 0;
 
 /* nfcpad default config */
 static option_t nfcapdOption[] = {
+    {.type = CONF_BOOL, .key = "opt.expire", .valBool = false},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
     {.type = CONF_UINT64, .key = "dyn_max_sources", .valUint64 = DEFAULT_DYN_MAX_SOURCES},
     {.key = NULL},
@@ -153,6 +154,7 @@ static void usage(char *name) {
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "-B bufflen|auto\tSet UDP receive socket buffer or probe its safe maximum\n"
         "-e\t\tExpire data at each cycle.\n"
+        "-o options \tAdd nfcapd options, separated with ','. Available: 'expire'\n"
         "-D\t\tFork to background\n"
         "-v level\tSet verbose level.\n"
         "-4\t\tListen on IPv4 only.\n"
@@ -497,7 +499,7 @@ int main(int argc, char **argv) {
     char *bindhost, *launch_process;
     char *userid, *groupid, *mcastgroup;
     char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
-    char *extensionList;
+    char *extensionList, *options;
     packet_function_t receive_packet;
     unsigned bufflen, metricInterval;
     time_t twin;
@@ -548,11 +550,12 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
     extensionList = NULL;
+    options = NULL;
     limitCores = 0;
     char *filterString = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:F:g:hH:I:i:J:K::k::l:m:M:n:N:p:P:Q:R:s:S:t:u:v:VW:w:x:X:Y:z:Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:Def:F:g:hH:I:i:J:K::k::l:m:M:n:N:o:p:P:Q:R:s:S:t:u:v:VW:w:x:X:Y:z:Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -597,6 +600,10 @@ int main(int argc, char **argv) {
                 break;
             case 'e':
                 expire = 1;
+                break;
+            case 'o':
+                CheckArgLen(optarg, 64);
+                options = strdup(optarg);
                 break;
 #ifdef ENABLE_READPCAP
             case 'f': {
@@ -883,6 +890,12 @@ int main(int argc, char **argv) {
     }
     collector_ctx.dynMaxSources = (uint32_t)dynMaxSources;
 
+    if (scanOptions(nfcapdOption, options) == 0) {
+        exit(EXIT_FAILURE);
+    }
+    // -e on the command line, or opt.expire from -o or the config file
+    if (ConfGetBool("opt.expire")) expire = 1;
+
     // -w, -n and -M each select a different (mutually exclusive) flow source
     // model; silently letting one win over the others on misconfiguration is
     // a trap for operators - fail loudly instead.
@@ -893,7 +906,7 @@ int main(int argc, char **argv) {
 
     if (sendHost) {
         if (expire) {
-            LogError("-e requires local file output and cannot be combined with -H");
+            LogError("Expire (-e, opt.expire) requires local file output and cannot be combined with -H");
             exit(EXIT_FAILURE);
         }
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {
@@ -938,7 +951,7 @@ int main(int argc, char **argv) {
     if (!Init_nffile(tc, NULL)) exit(EXIT_FAILURE);
 
     if (expire && spec_time_extension) {
-        LogError("ERROR, -Z timezone extension breaks expire -e");
+        LogError("ERROR, -Z timezone extension breaks expire (-e, opt.expire)");
         exit(EXIT_FAILURE);
     }
 

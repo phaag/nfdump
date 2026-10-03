@@ -355,6 +355,7 @@ static const confTag_t confTags[] = {
     {"tordb.flatpath", CONF_STRING},
     {"dyn_max_sources", CONF_UINT64},
     {"opt.tun", CONF_BOOL},
+    {"opt.expire", CONF_BOOL},
     {"opt.fat", CONF_BOOL},
     {"opt.payload", CONF_BOOL},
     {"flowcache.expireinterval", CONF_UINT64},
@@ -770,20 +771,16 @@ void ConfInventory(const char *confFile) {
 
 }  // End of ConfInventory
 
-static int OptSetBool(option_t *optionList, char *name, bool valBool) {
-    int i = 0;
-    char optName[64] = "opt.";
-    strncat(optName, name, 59);
-    while (optionList[i].key != NULL) {
-        if (strcmp(optionList[i].key, optName) == 0) {
-            optionList[i].valBool = valBool;
-            return 1;
-        }
-        i++;
+static int OptKnown(const option_t *optionList, const char *optName) {
+    for (int i = 0; optionList[i].key != NULL; i++) {
+        if (strcmp(optionList[i].key, optName) == 0) return 1;
     }
     return 0;
-}  // End of OptSetBool
+}  // End of OptKnown
 
+// Process a ',' separated -o option list. Each option 'name' or 'name=0|1'
+// maps to the bool key 'opt.name' of optionList and is stored as a CLI
+// override, so it takes precedence over the config file like -x.
 int scanOptions(option_t *optionList, char *options) {
     if (options == NULL) return 1;
 
@@ -793,21 +790,22 @@ int scanOptions(option_t *optionList, char *options) {
         char *eq = strchr(option, '=');
         if (eq) {
             *eq++ = '\0';
-            switch (eq[0]) {
-                case '0':
-                    valBool = 0;
-                    break;
-                case '1':
-                    valBool = 1;
-                    break;
-                default:
-                    LogError("Invalid bool value: %s", eq[0] ? eq : "empty value");
+            if (strcmp(eq, "0") == 0) {
+                valBool = 0;
+            } else if (strcmp(eq, "1") != 0) {
+                LogError("Invalid bool value for option %s: %s", option, eq[0] ? eq : "empty value");
+                return 0;
             }
         }
-        if (OptSetBool(optionList, option, valBool) == 0) {
+        char optName[64];
+        snprintf(optName, sizeof(optName), "opt.%s", option);
+        if (!OptKnown(optionList, optName)) {
             LogError("Unknown option: %s", option);
             return 0;
         }
+        char override[80];
+        snprintf(override, sizeof(override), "%s=%d", optName, valBool);
+        if (!ConfSetOverride(override)) return 0;
         option = strtok(NULL, ",");
     }
     return 1;

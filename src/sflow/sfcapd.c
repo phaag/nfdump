@@ -95,6 +95,7 @@ typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, 
 
 static option_t sfcapdConfig[] = {
     {.type = CONF_BOOL, .key = "opt.tun", .valBool = false},
+    {.type = CONF_BOOL, .key = "opt.expire", .valBool = false},
     {.type = CONF_BOOL, .key = "xxhash", .valBool = false},
     {.type = CONF_UINT64, .key = "dyn_max_sources", .valUint64 = DEFAULT_DYN_MAX_SOURCES},
     {.key = NULL},
@@ -137,7 +138,7 @@ static void usage(char *name) {
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
-        "-o options \tAdd sfcapd options, separated with ','. Available: 'tun'\n"
+        "-o options \tAdd sfcapd options, separated with ','. Available: 'tun', 'expire'\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port.\n"
         "-H host[/port]\tForward collected flows to host or IP address[/port]. Default port 9995.\n"
@@ -856,10 +857,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
     parse_tun = ConfGetBool("opt.tun");
+    // -e on the command line, or opt.expire from -o or the config file
+    if (ConfGetBool("opt.expire")) expire = 1;
 
     if (sendHost) {
         if (expire) {
-            LogError("-e requires local file output and cannot be combined with -H");
+            LogError("Expire (-e, opt.expire) requires local file output and cannot be combined with -H");
             exit(EXIT_FAILURE);
         }
         if (dataDir || sourceList.num_strings > 0 || dynFlowDir) {
@@ -904,7 +907,7 @@ int main(int argc, char **argv) {
     if (!Init_nffile(tc, NULL)) exit(254);
 
     if (expire && spec_time_extension) {
-        LogError("ERROR, -Z timezone extension breaks expire -e");
+        LogError("ERROR, -Z timezone extension breaks expire (-e, opt.expire)");
         exit(EXIT_FAILURE);
     }
 
