@@ -42,6 +42,7 @@ typedef struct flist_s {
     char *multiple_files;
     char *multiple_dirs;
     queue_t *file_queue;
+    const timeWindow_t *timeWindow;
 } flist_t;
 
 int CheckSubDir(unsigned num);
@@ -49,5 +50,7 @@ int CheckSubDir(unsigned num);
 int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path);
 
 queue_t *SetupInputFileSequence(flist_t *flist);
+
+uint32_t GetTimeWindowSkippedFiles(void);
 
 #endif  //_FLIST_H

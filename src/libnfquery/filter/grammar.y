@@ -1678,8 +1678,8 @@ static int AddVRF(direction_t direction, uint16_t comp, uint64_t number) {
 static int AddTimeSting(char *firstLast, uint16_t comp, char *timeString) {
 
 	int ret = -1;
-	uint64_t number = ParseTime8601(timeString);
-	if ( number == 0 ) {
+	uint64_t number;
+	if ( !ParseTime8601(timeString, &number, NULL) ) {
 		yyprintf("Invalid ISO8601 time string: %s", timeString);
 		return ret;
 	}

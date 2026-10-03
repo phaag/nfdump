@@ -132,46 +132,126 @@ check "timefilter_last_seen" \
     'last seen < 2024-01-01T01:05:05' \
     '$1 < "2024-01-01 01:05:04.000"'
 
-# -t is a compatibility alias for strict first/last-seen predicates. It is
-# combined with an ordinary filter and limits the time span in the summary.
-flows -R "$TFDIR" -t '2024/01/01.01:09:59-2024/01/01.01:11:00' >"$WORKDIR/got.csv"
-expected '$1 > "2024-01-01 01:09:59.000" && $1 < "2024-01-01 01:11:00.000"' >"$WORKDIR/exp.csv"
+# -t selects canonical collector files by their filename timeslot. It does not
+# add first-seen/last-seen predicates to the flow filter.
+flows -R "$TFDIR" -t '2024-01-01T01:10-2024-01-01T01:15' >"$WORKDIR/got.csv"
+flows -R "$TFDIR/nfcapd.202401010110:nfcapd.202401010115" >"$WORKDIR/exp.csv"
 if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
-    pass "timefilter_legacy_t_window"
+    pass "timefilter_filename_window"
 else
-    fail "timefilter_legacy_t_window"
+    fail "timefilter_filename_window"
 fi
 
-flows -R "$TFDIR" -t '2024/01/01.01:24:59' >"$WORKDIR/got.csv"
-flows -R "$TFDIR" 'first seen > 2024-01-01T01:24:59' >"$WORKDIR/exp.csv"
-if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
-    pass "timefilter_legacy_t_open_end"
+if [ "$(flows -R "$TFDIR" -t '2024-01-01T01:20-' | wc -l)" -eq 6000 ]; then
+    pass "timefilter_filename_open_end"
 else
-    fail "timefilter_legacy_t_open_end"
+    fail "timefilter_filename_open_end"
 fi
 
-flows -R "$TFDIR" -t '2024/01/01.01:09:59-2024/01/01.01:16:00' 'proto tcp' >"$WORKDIR/got.csv"
-flows -R "$TFDIR" 'first seen > 2024-01-01T01:09:59 and last seen < 2024-01-01T01:16:00 and proto tcp' >"$WORKDIR/exp.csv"
-if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
-    pass "timefilter_legacy_t_combined_filter"
+if [ "$(flows -R "$TFDIR" -t '2024-01-01T01:20' | wc -l)" -eq 6000 ]; then
+    pass "timefilter_filename_single_start"
 else
-    fail "timefilter_legacy_t_combined_filter"
+    fail "timefilter_filename_single_start"
 fi
 
-echo 'proto tcp' >"$WORKDIR/timefilter.txt"
-flows -R "$TFDIR" -t '2024/01/01.01:09:59-2024/01/01.01:16:00' -f "$WORKDIR/timefilter.txt" >"$WORKDIR/got.csv"
-if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
-    pass "timefilter_legacy_t_combined_filter_file"
+if [ "$(flows -R "$TFDIR" -t '-2024-01-01T01:05' | wc -l)" -eq 6000 ]; then
+    pass "timefilter_filename_open_start"
 else
-    fail "timefilter_legacy_t_combined_filter_file"
+    fail "timefilter_filename_open_start"
 fi
 
-summary_window=$(nfdump -R "$TFDIR" -t '2024/01/01.01:10:05-2024/01/01.01:15:20' -o null 2>/dev/null |
+flows -R "$TFDIR" -t '2024-01-01T01:10-2024-01-01T01:15' \
+    'first seen > 2024-01-01T01:14:59' >"$WORKDIR/got.csv"
+flows -R "$TFDIR" 'first seen > 2024-01-01T01:14:59 and first seen < 2024-01-01T01:16:00' >"$WORKDIR/exp.csv"
+if same_flows "$WORKDIR/got.csv" "$WORKDIR/exp.csv"; then
+    pass "timefilter_filename_and_flow_filter"
+else
+    fail "timefilter_filename_and_flow_filter"
+fi
+
+summary_window=$(nfdump -R "$TFDIR" -t '2024-01-01T01:10:05-2024-01-01T01:15:20' -o null 2>/dev/null |
     sed -n 's/^Time window: \([^,]*\), Duration:.*/\1/p')
 if [ "$summary_window" = '2024-01-01 01:10:05.000 - 2024-01-01 01:15:20.000' ]; then
-    pass "timefilter_legacy_t_summary_window"
+    pass "timefilter_filename_summary_window"
 else
-    fail "timefilter_legacy_t_summary_window: got '$summary_window'"
+    fail "timefilter_filename_summary_window: got '$summary_window'"
+fi
+
+# Old slash/dot time syntax is intentionally rejected, making the changed -t
+# semantics visible to users upgrading from 1.7.x. The error includes an
+# example of the accepted syntax so users can correct the option directly.
+if nfdump -R "$TFDIR" -t '2024/01/01.01:10-2024/01/01.01:15' -q -o null >"$WORKDIR/invalid-time.out" 2>&1; then
+    fail "timefilter_rejects_legacy_syntax"
+elif grep -q 'Expected for example: 2026-09-24T12:00-2026-09-24T13:00' "$WORKDIR/invalid-time.out"; then
+    pass "timefilter_rejects_legacy_syntax"
+else
+    fail "timefilter_rejects_legacy_syntax: missing format example"
+fi
+
+# -t and first/last seen use the same ISO timestamp parser. Keep paired tests
+# here so neither caller can acquire a separate set of accepted formats.
+shared_parser_ok=1
+for timestamp in \
+    '2024' \
+    '2024-01' \
+    '2024-01-01' \
+    '2024-01-01T01' \
+    '2024-01-01T01:10' \
+    '2024-01-01T01:10:20' \
+    '2024-01-01T01:10:20.123'; do
+    nfdump -R "$TFDIR" -t "$timestamp" -q -o null >/dev/null 2>&1 || shared_parser_ok=0
+    for field in first last; do
+        nfdump -R "$TFDIR" -q -o null "$field seen >= $timestamp" >/dev/null 2>&1 || shared_parser_ok=0
+    done
+done
+if [ "$shared_parser_ok" -eq 1 ]; then
+    pass "timefilter_shared_parser_accepts_iso_precision"
+else
+    fail "timefilter_shared_parser_accepts_iso_precision"
+fi
+
+shared_parser_ok=1
+for timestamp in \
+    '2024/01/01.01:10' \
+    '2024-01-01X01:10' \
+    '2024-1-01T01:10' \
+    '2024-02-30T01:10'; do
+    if nfdump -R "$TFDIR" -t "$timestamp" -q -o null >/dev/null 2>&1; then
+        shared_parser_ok=0
+    fi
+    for field in first last; do
+        if nfdump -R "$TFDIR" -q -o null "$field seen >= \"$timestamp\"" >/dev/null 2>&1; then
+            shared_parser_ok=0
+        fi
+    done
+done
+if [ "$shared_parser_ok" -eq 1 ]; then
+    pass "timefilter_shared_parser_rejects_non_iso"
+else
+    fail "timefilter_shared_parser_rejects_non_iso"
+fi
+
+if nfdump -R "$TFDIR" -t '2024-01-01T02:00-2024-01-01T01:00' -q -o null >/dev/null 2>&1; then
+    fail "timefilter_rejects_reversed_window"
+else
+    pass "timefilter_rejects_reversed_window"
+fi
+
+# A renamed file has no collector timeslot extension. Recursive traversal skips
+# it, while applying -t directly to it is an error.
+SLOTDIR="$WORKDIR/timefilter_names"
+mkdir -p "$SLOTDIR"
+cp "$TFDIR/nfcapd.202401010110" "$SLOTDIR/nfcapd.202401010110"
+cp "$TFDIR/nfcapd.202401010115" "$SLOTDIR/renamed.nf"
+if [ "$(flows -R "$SLOTDIR" -t '2024-01-01T01:00-2024-01-01T02:00' | wc -l)" -eq 3000 ]; then
+    pass "timefilter_skips_non_timeslot_name"
+else
+    fail "timefilter_skips_non_timeslot_name"
+fi
+if nfdump -r "$SLOTDIR/renamed.nf" -t '2024-01-01T01:00-' -q -o null >/dev/null 2>&1; then
+    fail "timefilter_rejects_direct_non_timeslot_name"
+else
+    pass "timefilter_rejects_direct_non_timeslot_name"
 fi
 
 # an OR with a non-time condition has no time constraint - no file is skipped
@@ -185,11 +265,41 @@ check "timefilter_or_not_skipped" \
 LIEDIR="$WORKDIR/timefilter_stat"
 mkdir -p "$LIEDIR"
 "$NFGEN2" -w "$LIEDIR/nfcapd.202401010100" -z lz4 -n 3000 -t "$T0" -S 86400 >/dev/null 2>&1
+if [ "$(flows -R "$LIEDIR" -t '2024-01-01T01:00-2024-01-01T01:00' | wc -l)" -eq 3000 ]; then
+    pass "timefilter_uses_filename_not_stat_record"
+else
+    fail "timefilter_uses_filename_not_stat_record"
+fi
 if [ "$(flows -R "$LIEDIR" | wc -l)" -eq 3000 ] \
    && [ "$(flows -R "$LIEDIR" 'first seen > 2024-01-01T00:59:59 and first seen < 2024-01-01T01:01:00' | wc -l)" -eq 0 ]; then
     pass "timefilter_skips_file_by_stat_record"
 else
     fail "timefilter_skips_file_by_stat_record"
+fi
+
+# Collector filenames may carry seconds or an explicit numeric UTC offset.
+SECDIR="$WORKDIR/timefilter_seconds"
+ZONEDIR="$WORKDIR/timefilter_zone"
+DSTDIR="$WORKDIR/timefilter_dst"
+mkdir -p "$SECDIR" "$ZONEDIR" "$DSTDIR"
+cp "$TFDIR/nfcapd.202401010110" "$SECDIR/nfcapd.20240101011030"
+cp "$TFDIR/nfcapd.202401010110" "$ZONEDIR/nfcapd.202401010110+0000"
+cp "$TFDIR/nfcapd.202401010110" "$DSTDIR/nfcapd.202403310230"
+if [ "$(flows -R "$SECDIR" -t '2024-01-01T01:10:30-2024-01-01T01:10:30' | wc -l)" -eq 3000 ]; then
+    pass "timefilter_seconds_extension"
+else
+    fail "timefilter_seconds_extension"
+fi
+if [ "$(flows -R "$ZONEDIR" -t '2024-01-01T01:10-2024-01-01T01:10' | wc -l)" -eq 3000 ] \
+   && [ "$(flows -R "$ZONEDIR" -t '2024-01-01T02:10-2024-01-01T02:10' | wc -l)" -eq 0 ]; then
+    pass "timefilter_timezone_uses_wall_clock_key"
+else
+    fail "timefilter_timezone_uses_wall_clock_key"
+fi
+if [ "$(flows -R "$DSTDIR" -t '2024-03-31T02:30-2024-03-31T02:30' | wc -l)" -eq 3000 ]; then
+    pass "timefilter_dst_gap_uses_supplied_key"
+else
+    fail "timefilter_dst_gap_uses_supplied_key"
 fi
 
 # nfmeta computes the stat record from the flows it writes. A merged file must

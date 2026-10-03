@@ -480,7 +480,7 @@ static void runTest(void) {
         CheckFilter("bpp > 2", recordHandle, 0);
 
         // Test with time 2024-07-11T09:15:10.010
-        genericFlow->msecFirst = ParseTime8601("2024-07-11T09:15:10.010");
+        ParseTime8601("2024-07-11T09:15:10.010", &genericFlow->msecFirst, NULL);
         CheckFilter("first seen 2024-07-11T09:15:10.010", recordHandle, 1);
         CheckFilter("first seen > 2024-07-11T09:15:10.010", recordHandle, 0);
         CheckFilter("first seen > 2024-07-11T09:15:10.009", recordHandle, 1);
@@ -489,7 +489,7 @@ static void runTest(void) {
         CheckFilter("first seen < 2024-07-11T09:15:10.010", recordHandle, 0);
         CheckFilter("first seen < 2024-07-10T09:15:10.010", recordHandle, 0);
 
-        genericFlow->msecLast = ParseTime8601("2024-07-11T09:15:10.010");
+        ParseTime8601("2024-07-11T09:15:10.010", &genericFlow->msecLast, NULL);
         genericFlow->msecFirst = 0;
         CheckFilter("last seen 2024-07-11T09:15:10.010", recordHandle, 1);
         CheckFilter("last seen > 2024-07-11T09:15:10.010", recordHandle, 0);

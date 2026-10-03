@@ -211,28 +211,37 @@ Sort according to end time of flows
 Sort according to duration of flows
 .El
 .It Fl t Ar timewin
-Compatibility option to select a time window. The time window is specified as
-.Ar YYYY/MM/dd.hh:mm:ss Ns Op - Ns Ar YYYY/MM/dd.hh:mm:ss .
-Omitted trailing components are expanded by the time parser. With no end time,
-the window extends indefinitely.
-.Pp
-Internally,
-.Nm
-translates this option into the generic filter expression
-.Pp
-.Dl first seen > start and last seen < end
-.Pp
-and combines it with any command-line or
-.Fl f
-filter using logical
-.Cm and .
-The displayed summary time window is limited to the bounds supplied with
-.Fl t .
-New applications may use the
+Select a window of collector files by the rotation timeslot encoded in their filename.
+Timestamps use the same ISO 8601 form as the
 .Cm first seen
 and
 .Cm last seen
-filter primitives directly.
+filter elements, for example
+.Ar 2026-09-24T12:00:00 .
+Trailing components may be omitted.
+.Ar timewin
+may be
+.Ar start-end ,
+.Ar start- ,
+.Ar -end ,
+or a single
+.Ar start .
+A missing start or end leaves that side of the range unbounded.
+.Pp
+The comparison is inclusive and uses the final filename extension. Recognized
+extensions are
+.Pp
+.Dl YYYYMMDDhhmm
+.Dl YYYYMMDDhhmmss
+.Dl YYYYMMDDhhmm+HHMM
+.Dl YYYYMMDDhhmm-HHMM
+.Pp
+This option does not inspect or restrict timestamps stored in flow records.
+Use the
+.Cm first seen
+and
+.Cm last seen
+filter elements for flow-time selection. 
 .It Fl P Ar postfilter
 Apply
 .Ar postfilter

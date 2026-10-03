@@ -83,9 +83,14 @@ typedef struct stringlist_s {
     uint32_t capacity;
 } stringlist_t;
 
+#define TIMESLOT_KEY_LENGTH 17
+#define TIMESLOT_KEY_SIZE (TIMESLOT_KEY_LENGTH + 1)
+
 typedef struct timeWindow_s {
     uint64_t msecFirst;
     uint64_t msecLast;
+    char firstKey[TIMESLOT_KEY_SIZE];
+    char lastKey[TIMESLOT_KEY_SIZE];
 } timeWindow_t;
 
 double t(void);
@@ -110,7 +115,7 @@ void FreeStringList(stringlist_t *sl);
 
 void InsertString(stringlist_t *sl, const char *s);
 
-timeWindow_t *ScanTimeFrame(char *tstring);
+timeWindow_t *ScanTimeFrame(const char *tstring);
 
 char *TimeString(uint64_t msecStart, uint64_t msecEnd);
 
@@ -118,7 +123,9 @@ char *UNIX2ISO(time_t t);
 
 time_t ISO2UNIX(const char *timestring);
 
-uint64_t ParseTime8601(const char *s);
+int ParseTime8601(const char *s, uint64_t *msec, char key[TIMESLOT_KEY_SIZE]);
+
+int CompactTimeToTimeslotKey(const char *timestring, char key[TIMESLOT_KEY_SIZE]);
 
 char *msec2Str(uint64_t msec, char *output_buffer, size_t buffer_size);
 

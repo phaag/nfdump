@@ -48,9 +48,6 @@
 
 #include "logging.h"
 
-/* Function prototypes */
-static int check_number(char *s, size_t len);
-
 typedef struct scal_steps_s {
     double factor;
     const char *scale;
@@ -207,235 +204,220 @@ int CheckPath(const char *path, unsigned type) {
     return ret == 2 ? 1 : 0;
 }  // End of CheckPath
 
-static int check_number(char *s, size_t len) {
-    size_t l = strlen(s);
+typedef struct dateTime_s {
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+    int millis;
+} dateTime_t;
 
-    for (size_t i = 0; i < l; i++) {
-        if (s[i] < '0' || s[i] > '9') {
-            LogError("Time format error at '%s': unexpected character: '%c'.\n", s, s[i]);
-            return 0;
-        }
+static int ParseDecimal(const char *s, size_t offset, size_t len, int *value) {
+    int number = 0;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[offset + i];
+        if (!isdigit(c)) return 0;
+        number = 10 * number + c - '0';
     }
-
-    if (l != len) {
-        LogError("Time format error: '%s' unexpected.\n", s);
-        return 0;
-    }
+    *value = number;
     return 1;
+}  // End of ParseDecimal
 
-}  // End of check_number
+static int IsLeapYear(int year) { return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0; }
 
-// Parse ISO 8601 time string - accept legacy format
-uint64_t ParseTime8601(const char *s) {
-    char *tmpString = strdup(s);
-    /* A time string may look like:
-     * yyyy-MM-ddThh:mm:ss.s or
-     * 012345678901234567890
-     * yyyy/MM/dd.hh:mm:ss ( legacy format )
-     */
+static int DaysInMonth(int year, int month) {
+    static const uint8_t days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month < 1 || month > 12) return 0;
+    return month == 2 && IsLeapYear(year) ? 29 : days[month - 1];
+}  // End of DaysInMonth
 
-    char *eos = tmpString;
-    // convert legacy format, check len
-    for (; *eos != '\0'; eos++) {
-        if (*eos == '/') *eos = '-';
-    }
+static int ValidDateTime(const dateTime_t *dateTime) {
+    return dateTime->year >= 1970 && dateTime->year <= 2038 && dateTime->month >= 1 && dateTime->month <= 12 && dateTime->day >= 1 &&
+           dateTime->day <= DaysInMonth(dateTime->year, dateTime->month) && dateTime->hour >= 0 && dateTime->hour <= 23 && dateTime->minute >= 0 &&
+           dateTime->minute <= 59 && dateTime->second >= 0 && dateTime->second <= 59 && dateTime->millis >= 0 && dateTime->millis <= 999;
+}  // End of ValidDateTime
 
-    if ((eos - tmpString) < 4) {
-        LogError("Not a date/time string: %s", s);
+static int ParseISOTime(const char *s, dateTime_t *dateTime) {
+    size_t len = strlen(s);
+    if (len != 4 && len != 7 && len != 10 && len != 13 && len != 16 && len != 19 && len != 23) return 0;
+    if ((len >= 7 && s[4] != '-') || (len >= 10 && s[7] != '-') || (len >= 13 && s[10] != 'T') || (len >= 16 && s[13] != ':') ||
+        (len >= 19 && s[16] != ':') || (len == 23 && s[19] != '.'))
         return 0;
-    }
 
-    struct tm ts = {0};
-    ts.tm_isdst = -1;
+    *dateTime = (dateTime_t){.month = 1, .day = 1};
+    if (!ParseDecimal(s, 0, 4, &dateTime->year)) return 0;
+    if (len >= 7 && !ParseDecimal(s, 5, 2, &dateTime->month)) return 0;
+    if (len >= 10 && !ParseDecimal(s, 8, 2, &dateTime->day)) return 0;
+    if (len >= 13 && !ParseDecimal(s, 11, 2, &dateTime->hour)) return 0;
+    if (len >= 16 && !ParseDecimal(s, 14, 2, &dateTime->minute)) return 0;
+    if (len >= 19 && !ParseDecimal(s, 17, 2, &dateTime->second)) return 0;
+    if (len == 23 && !ParseDecimal(s, 20, 3, &dateTime->millis)) return 0;
+    return ValidDateTime(dateTime);
+}  // End of ParseISOTime
 
-    char *p = tmpString;
-    char *q = p;
+static int ParseCompactTime(const char *s, dateTime_t *dateTime) {
+    size_t len = strlen(s);
+    int hasSeconds = len == 14;
+    int hasZone = len == 17 && (s[12] == '+' || s[12] == '-');
+    if (len != 12 && !hasSeconds && !hasZone) return 0;
 
-    // split year and parse
-    while (*q && *q != '-') q++;
-    if (*q == '-') *q++ = '\0';
-
-    if (!check_number(p, 4)) return 0;
-    int num = atoi(p);
-    if (num > 2038 || num < 1970) {
-        LogError("Year out of range: '%i'\n", num);
-        free(tmpString);
+    *dateTime = (dateTime_t){0};
+    if (!ParseDecimal(s, 0, 4, &dateTime->year) || !ParseDecimal(s, 4, 2, &dateTime->month) || !ParseDecimal(s, 6, 2, &dateTime->day) ||
+        !ParseDecimal(s, 8, 2, &dateTime->hour) || !ParseDecimal(s, 10, 2, &dateTime->minute))
         return 0;
+    if (hasSeconds && !ParseDecimal(s, 12, 2, &dateTime->second)) return 0;
+    if (hasZone) {
+        int zoneHour, zoneMinute;
+        if (!ParseDecimal(s, 13, 2, &zoneHour) || !ParseDecimal(s, 15, 2, &zoneMinute) || zoneHour > 23 || zoneMinute > 59) return 0;
     }
-    ts.tm_year = num - 1900;
+    return ValidDateTime(dateTime);
+}  // End of ParseCompactTime
 
-    if (q >= eos) {
-        ts.tm_mday = 1;
-        time_t timeStamp = mktime(&ts);
-        free(tmpString);
-        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
-    }
+static int DateTimeToMsec(const dateTime_t *dateTime, uint64_t *msec) {
+    struct tm when = {
+        .tm_sec = dateTime->second,
+        .tm_min = dateTime->minute,
+        .tm_hour = dateTime->hour,
+        .tm_mday = dateTime->day,
+        .tm_mon = dateTime->month - 1,
+        .tm_year = dateTime->year - 1900,
+        .tm_isdst = -1,
+    };
+    time_t timestamp = mktime(&when);
+    if (timestamp < 0) return 0;
+    *msec = 1000ULL * (uint64_t)timestamp + (uint64_t)dateTime->millis;
+    return 1;
+}  // End of DateTimeToMsec
 
-    // split month and parse
-    p = q;
-    while (*q && *q != '-') q++;
-    if (*q == '-') *q++ = '\0';
+static int DateTimeToTimeslotKey(const dateTime_t *dateTime, char key[TIMESLOT_KEY_SIZE]) {
+    int len = snprintf(key, TIMESLOT_KEY_SIZE, "%04d%02d%02d%02d%02d%02d%03d", dateTime->year, dateTime->month, dateTime->day, dateTime->hour,
+                       dateTime->minute, dateTime->second, dateTime->millis);
+    return len == TIMESLOT_KEY_LENGTH;
+}  // End of DateTimeToTimeslotKey
 
-    if (!check_number(p, 2)) return 0;
-    num = atoi(p);
-    if (num < 1 || num > 12) {
-        LogError("Month out of range: '%i'\n", num);
-        free(tmpString);
-        return 0;
-    }
-    ts.tm_mon = num - 1;
-    if (q >= eos) {
-        ts.tm_mday = 1;
-        time_t timeStamp = mktime(&ts);
-        free(tmpString);
-        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
-    }
+static int MsecToDateTime(uint64_t msec, dateTime_t *dateTime) {
+    time_t seconds = (time_t)(msec / 1000);
+    struct tm when;
+    if (!localtime_r(&seconds, &when)) return 0;
+    *dateTime = (dateTime_t){
+        .year = when.tm_year + 1900,
+        .month = when.tm_mon + 1,
+        .day = when.tm_mday,
+        .hour = when.tm_hour,
+        .minute = when.tm_min,
+        .second = when.tm_sec,
+        .millis = (int)(msec % 1000),
+    };
+    return 1;
+}  // End of MsecToDateTime
 
-    // split day and parse
-    p = q;
-    while (*q && (*q >= 0x30 && *q <= 0x39)) q++;
-    *q++ = '\0';
+// Parse an ISO 8601 timestamp used by -t and the first/last seen filters.
+int ParseTime8601(const char *s, uint64_t *msec, char key[TIMESLOT_KEY_SIZE]) {
+    if (!s || !msec) return 0;
+    dateTime_t dateTime;
+    if (!ParseISOTime(s, &dateTime) || !DateTimeToMsec(&dateTime, msec)) return 0;
+    return !key || DateTimeToTimeslotKey(&dateTime, key);
+}  // End of ParseTime8601
 
-    if (!check_number(p, 2)) return 0;
-    num = atoi(p);
-    if (num < 1 || num > 31) {
-        LogError("Day out of range: '%i'\n", num);
-        free(tmpString);
-        return 0;
-    }
-
-    ts.tm_mday = num;
-    if (q >= eos) {
-        time_t timeStamp = mktime(&ts);
-        free(tmpString);
-        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
-    }
-
-    // split hour and parse
-    p = q;
-    while (*q && *q != ':') q++;
-    if (*q == ':') *q++ = '\0';
-
-    if (!check_number(p, 2)) return 0;
-    num = atoi(p);
-    if (num < 0 || num > 23) {
-        LogError("Hour out of range: '%i'\n", num);
-        free(tmpString);
-        return 0;
-    }
-    ts.tm_hour = num;
-    if (q >= eos) {
-        time_t timeStamp = mktime(&ts);
-        free(tmpString);
-        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
-    }
-
-    // split and parse minute
-    p = q;
-    while (*q && *q != ':') q++;
-    if (*q == ':') *q++ = '\0';
-
-    if (!check_number(p, 2)) return 0;
-    num = atoi(p);
-    if (num < 0 || num > 59) {
-        LogError("Minute out of range: '%i'\n", num);
-        free(tmpString);
-        return 0;
-    }
-    ts.tm_min = num;
-    if (q >= eos) {
-        time_t timeStamp = mktime(&ts);
-        free(tmpString);
-        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
-    }
-
-    // split and parse second
-    p = q;
-    while (*q && *q != '.') q++;
-    if (*q == '.') *q++ = '\0';
-
-    if (!check_number(p, 2)) return 0;
-    num = atoi(p);
-    if (num < 0 || num > 59) {
-        LogError("Seconds out of range: '%i'\n", num);
-        free(tmpString);
-        return 0;
-    }
-    ts.tm_sec = num;
-    if (q >= eos) {
-        time_t timeStamp = mktime(&ts);
-        free(tmpString);
-        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
-    }
-
-    // msec
-    p = q;
-
-    time_t timeStamp = mktime(&ts);
-    if (!check_number(p, 3)) return 0;
-    num = atoi(p);
-
-    free(tmpString);
-    return timeStamp == -1 ? 0 : 1000LL * (uint64_t)timeStamp + (uint64_t)num;
-
-}  // End of ParseTime
+// Convert a collector filename timestamp to a fixed-width local wall-clock key.
+// A trailing numeric timezone is validated but is intentionally not part of the
+// key: -t selects the timestamp text encoded in the filename.
+int CompactTimeToTimeslotKey(const char *timestring, char key[TIMESLOT_KEY_SIZE]) {
+    if (!timestring || !key) return 0;
+    dateTime_t dateTime;
+    return ParseCompactTime(timestring, &dateTime) && DateTimeToTimeslotKey(&dateTime, key);
+}  // End of CompactTimeToTimeslotKey
 
 char *msec2Str(uint64_t msec, char *output_buffer, size_t buffer_size) {
     if (msec == 0) {
         snprintf(output_buffer, buffer_size, "0000-00-00 00:00:00.000");
         return output_buffer;
     }
-    time_t seconds = (time_t)(msec / 1000);
-    uint16_t remainder_ms = (uint16_t)(msec % 1000);
-
-    struct tm time_info;
-    localtime_r(&seconds, &time_info);
-
-    char time_str[32];
-    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &time_info);
-
-    snprintf(output_buffer, buffer_size, "%s.%03u", time_str, remainder_ms);
+    dateTime_t dateTime;
+    if (!MsecToDateTime(msec, &dateTime)) {
+        snprintf(output_buffer, buffer_size, "0000-00-00 00:00:00.000");
+        return output_buffer;
+    }
+    snprintf(output_buffer, buffer_size, "%04d-%02d-%02d %02d:%02d:%02d.%03d", dateTime.year, dateTime.month, dateTime.day, dateTime.hour,
+             dateTime.minute, dateTime.second, dateTime.millis);
     return output_buffer;
 
 }  // End of msec2Str
 
-timeWindow_t *ScanTimeFrame(char *tstring) {
-    timeWindow_t *timeWindow;
-    char *p;
+static void LogTimeWindowFormatError(const char *tstring) {
+    LogError("Time window format error '%s'. Expected for example: 2026-09-24T12:00:05-2026-09-24T13:00:50, 2026-09-24T12:00-, or -2026-09-24T13:00",
+             tstring ? tstring : "NullString");
+}  // End of LogTimeWindowFormatError
 
-    if (!tstring || strlen(tstring) < 4) {
-        LogError("Time string format error '%s'", tstring ? tstring : "NullString");
+timeWindow_t *ScanTimeFrame(const char *tstring) {
+    if (!tstring || *tstring == '\0') {
+        LogTimeWindowFormatError(tstring);
         return NULL;
     }
 
-    timeWindow = calloc(1, sizeof(timeWindow_t));
+    timeWindow_t *timeWindow = calloc(1, sizeof(timeWindow_t));
     if (!timeWindow) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    if ((p = strchr(tstring, '-')) == NULL) {
-        timeWindow->msecFirst = ParseTime8601(tstring);
-        if (timeWindow->msecFirst == 0) {
+    // A single timestamp is an open-ended lower bound. For a range, try each
+    // dash as its separator; ParseTime8601() is the sole endpoint validator.
+    if (!ParseTime8601(tstring, &timeWindow->msecFirst, timeWindow->firstKey)) {
+        timeWindow->msecFirst = 0;
+        timeWindow->firstKey[0] = '\0';
+        char *window = strdup(tstring);
+        if (!window) {
+            LogError("strdup() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             free(timeWindow);
             return NULL;
         }
-    } else {
-        *p++ = 0;
-        timeWindow->msecFirst = ParseTime8601(tstring);
-        timeWindow->msecLast = ParseTime8601(p);
-        if (timeWindow->msecFirst == 0 || timeWindow->msecLast == 0) {
+
+        int validWindow = 0;
+        for (char *separator = strchr(window, '-'); separator; separator = strchr(separator + 1, '-')) {
+            *separator = '\0';
+            uint64_t first = 0, last = 0;
+            char firstKey[TIMESLOT_KEY_SIZE] = {0};
+            char lastKey[TIMESLOT_KEY_SIZE] = {0};
+            int firstOK = separator == window || ParseTime8601(window, &first, firstKey);
+            int lastOK = separator[1] == '\0' || ParseTime8601(separator + 1, &last, lastKey);
+            *separator = '-';
+            if (firstOK && lastOK && (separator != window || separator[1] != '\0')) {
+                timeWindow->msecFirst = first;
+                timeWindow->msecLast = last;
+                memcpy(timeWindow->firstKey, firstKey, sizeof(firstKey));
+                memcpy(timeWindow->lastKey, lastKey, sizeof(lastKey));
+                validWindow = 1;
+                break;
+            }
+        }
+        free(window);
+        if (!validWindow) {
+            LogTimeWindowFormatError(tstring);
             free(timeWindow);
             return NULL;
         }
     }
 
-#ifdef DEVEL
-    if (timeWindow->msecFirst) {
-        printf("TimeWindow first: %s\n", UNIX2ISO((time_t)timeWindow->msecFirst));
+    if (timeWindow->firstKey[0] == '\0' && timeWindow->lastKey[0] == '\0') {
+        LogError("Time window needs a start or end time");
+        free(timeWindow);
+        return NULL;
     }
-    if (timeWindow->msecLast) {
-        printf("TimeWindow first: %s\n", UNIX2ISO((time_t)timeWindow->msecLast));
+    if (timeWindow->firstKey[0] && timeWindow->lastKey[0] && strcmp(timeWindow->firstKey, timeWindow->lastKey) > 0) {
+        LogError("Time window start is later than end");
+        free(timeWindow);
+        return NULL;
+    }
+
+#ifdef DEVEL
+    if (timeWindow->firstKey[0]) {
+        printf("TimeWindow first: %s\n", UNIX2ISO((time_t)(timeWindow->msecFirst / 1000)));
+    }
+    if (timeWindow->lastKey[0]) {
+        printf("TimeWindow last: %s\n", UNIX2ISO((time_t)(timeWindow->msecLast / 1000)));
     }
 #endif
 
@@ -447,49 +429,32 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
     static char datestr[255];
 
     if (msecStart) {
-        time_t secs = msecStart / 1000;
-        struct tm tbuff_buf;
-        struct tm *tbuff = localtime_r(&secs, &tbuff_buf);
-        if (!tbuff) {
-            LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return "Error time convert";
-        }
-        char t1[64];
-        strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
-
-        secs = msecEnd / 1000;
-        tbuff = localtime_r(&secs, &tbuff_buf);
-        if (!tbuff) {
-            LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return "Error time convert";
-        }
-        char t2[64];
-        strftime(t2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
-
-        snprintf(datestr, 254, "%s.%03d - %s.%03d", t1, (int)(msecStart % 1000), t2, (int)(msecEnd % 1000));
+        char first[32], last[32];
+        msec2Str(msecStart, first, sizeof(first));
+        msec2Str(msecEnd, last, sizeof(last));
+        snprintf(datestr, sizeof(datestr), "%s - %s", first, last);
     } else {
-        snprintf(datestr, 254, "Time Window unknown");
+        snprintf(datestr, sizeof(datestr), "Time Window unknown");
     }
-    datestr[254] = 0;
     return datestr;
 }
 
 char *UNIX2ISO(time_t t) {
-    struct tm when_buf;
-    struct tm *when;
     static char timestring[32];
 
-    when = localtime_r(&t, &when_buf);
-    when->tm_isdst = -1;
-    snprintf(timestring, 31, "%4i%02i%02i%02i%02i%02i", when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min,
-             when->tm_sec);
-    timestring[31] = '\0';
+    dateTime_t dateTime;
+    if (t < 0 || !MsecToDateTime(1000ULL * (uint64_t)t, &dateTime)) {
+        timestring[0] = '\0';
+        return timestring;
+    }
+    snprintf(timestring, sizeof(timestring), "%04d%02d%02d%02d%02d%02d", dateTime.year, dateTime.month, dateTime.day, dateTime.hour, dateTime.minute,
+             dateTime.second);
 
     return timestring;
 
 }  // End of UNIX2ISO
 
-// yyyy-MM-ddThh:mm:ss.s
+// Convert a compact collector timestamp YYYYMMDDhhmm[ss] to local Unix time.
 time_t ISO2UNIX(const char *timestring) {
     if (!timestring) {
         LogError("NULL time string");
@@ -502,47 +467,13 @@ time_t ISO2UNIX(const char *timestring) {
         return (time_t)-1;
     }
 
-    // ensure all characters are digits
-    for (size_t i = 0; i < len; i++) {
-        if (!isdigit((unsigned char)timestring[i])) {
-            LogError("Invalid character in time string '%s'", timestring);
-            return (time_t)-1;
-        }
-    }
-
-    struct tm when = {0};
-
-    // parse manually without modifying input
-    when.tm_year = (timestring[0] - '0') * 1000 + (timestring[1] - '0') * 100 + (timestring[2] - '0') * 10 + (timestring[3] - '0') - 1900;
-    when.tm_mon = ((timestring[4] - '0') * 10 + (timestring[5] - '0')) - 1;
-    when.tm_mday = (timestring[6] - '0') * 10 + (timestring[7] - '0');
-    when.tm_hour = (timestring[8] - '0') * 10 + (timestring[9] - '0');
-    when.tm_min = (timestring[10] - '0') * 10 + (timestring[11] - '0');
-    when.tm_sec = 0;
-
-    if (len == 14) {
-        when.tm_sec = (timestring[12] - '0') * 10 + (timestring[13] - '0');
-    }
-
-    when.tm_isdst = -1;  // let mktime determine DST
-
-    // range validation
-    if (when.tm_mon < 0 || when.tm_mon > 11 || when.tm_mday < 1 || when.tm_mday > 31 || when.tm_hour < 0 || when.tm_hour > 23 || when.tm_min < 0 ||
-        when.tm_min > 59 || when.tm_sec < 0 || when.tm_sec > 60) {
-        LogError("Out-of-range values in '%s'", timestring);
+    dateTime_t dateTime;
+    uint64_t msec;
+    if (!ParseCompactTime(timestring, &dateTime) || !DateTimeToMsec(&dateTime, &msec)) {
+        LogError("Invalid compact time string '%s'", timestring);
         return (time_t)-1;
     }
-
-    // comment
-    // pthread_mutex_lock(&mktime_mutex);
-    time_t t = mktime(&when);
-    // pthread_mutex_unlock(&mktime_mutex);
-    if (t == (time_t)-1) {
-        LogError("Failed to convert string '%s'", timestring);
-        return (time_t)-1;
-    }
-
-    return t;
+    return (time_t)(msec / 1000);
 }  // End of ISO2UNIX
 
 long getTick(void) {

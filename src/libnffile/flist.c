@@ -29,12 +29,12 @@
  *
  */
 
-#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -194,6 +194,8 @@ static struct entry_filter_s {
     int list_files;
 } *dir_entry_filter = NULL;
 
+static _Atomic uint32_t timeWindowSkippedFiles = 0;
+
 /* Function prototypes */
 
 static int CreateDirListFilter(stringlist_t *source_dirs, char *first_path, char *first_file, char *last_path, char *last_file, int file_list_level);
@@ -216,6 +218,8 @@ static void *FileLister_thr(void *arg);
 
 static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flist_t *flist);
 
+static int QueueSelectedFile(flist_t *flist, const char *path);
+
 /* Functions */
 
 #if defined __FreeBSD__
@@ -223,6 +227,45 @@ static int compare(const FTSENT *const *f1, const FTSENT *const *f2) { return st
 #else
 static int compare(const FTSENT **f1, const FTSENT **f2) { return strcmp((*f1)->fts_name, (*f2)->fts_name); }  // End of compare
 #endif
+
+static int MatchTimeWindow(const char *path, const timeWindow_t *timeWindow) {
+    if (!timeWindow) return 1;
+
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+    const char *extension = strrchr(base, '.');
+    if (!extension || extension[1] == '\0') return -1;
+    extension++;
+
+    char timeslot[TIMESLOT_KEY_SIZE];
+    if (!CompactTimeToTimeslotKey(extension, timeslot)) return -1;
+    if (timeWindow->firstKey[0] && strcmp(timeslot, timeWindow->firstKey) < 0) return 0;
+    if (timeWindow->lastKey[0] && strcmp(timeslot, timeWindow->lastKey) > 0) return 0;
+    return 1;
+}  // End of MatchTimeWindow
+
+static int QueueSelectedFile(flist_t *flist, const char *path) {
+    int match = MatchTimeWindow(path, flist->timeWindow);
+    if (match <= 0) {
+        if (match < 0) LogVerbose("Skip file %s: no valid timeslot filename extension", path);
+        atomic_fetch_add(&timeWindowSkippedFiles, 1);
+        return 1;
+    }
+
+    char *queuedPath = strdup(path);
+    if (!queuedPath) {
+        LogError("strdup() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+    dbg_printf("Push file: %s\n", queuedPath);
+    if (queue_push(flist->file_queue, queuedPath) == QUEUE_CLOSED) {
+        free(queuedPath);
+        return 0;
+    }
+    return 1;
+}  // End of QueueSelectedFile
+
+uint32_t GetTimeWindowSkippedFiles(void) { return atomic_load(&timeWindowSkippedFiles); }
 
 static void CleanPath(char *entry) {
     char *p, *q;
@@ -432,7 +475,6 @@ static char *ExpandWildcard(char *path) {
 
 static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
     char *path = flist->multiple_files;
-    queue_t *file_queue = flist->file_queue;
 
     CleanPath(path);
 
@@ -809,9 +851,10 @@ static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
                      (dir_entry_filter[fts_level].last_entry && (strcmp(ftsent->fts_name, dir_entry_filter[fts_level].last_entry) > 0))))
                     continue;
 
-                char *s = strdup(ftsent->fts_path);
-                dbg_printf("Push file: %s\n", s);
-                queue_push(file_queue, s);
+                if (!QueueSelectedFile(flist, ftsent->fts_path)) {
+                    fts_close(fts);
+                    return 0;
+                }
                 break;
         }
     }
@@ -848,8 +891,16 @@ queue_t *SetupInputFileSequence(flist_t *flist) {
         }
     }
 
+    if (flist->single_file && flist->timeWindow) {
+        if (MatchTimeWindow(flist->single_file, flist->timeWindow) < 0) {
+            LogError("Cannot apply -t: '%s' has no valid timeslot filename extension", flist->single_file);
+            return NULL;
+        }
+    }
+
     queue_t *file_queue = queue_init(64);
     flist->file_queue = file_queue;
+    atomic_store(&timeWindowSkippedFiles, 0);
     pthread_t tid;
     pthread_create(&tid, NULL, FileLister_thr, (void *)flist);
     pthread_detach(tid);
@@ -935,7 +986,10 @@ static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flis
                 if (sub_dir) {  // subdir found
                     snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", source_dirs->list[i], sub_dir, single_file);
                     s[MAXPATHLEN - 1] = '\0';
-                    queue_push(flist->file_queue, strdup(s));
+                    if (!QueueSelectedFile(flist, s)) {
+                        queue_close(flist->file_queue);
+                        pthread_exit(NULL);
+                    }
                 } else {  // no subdir found
                     LogError("stat() error '%s': %s", s, "File not found!");
                 }
@@ -948,7 +1002,10 @@ static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flis
             if (!S_ISREG(stat_buf.st_mode)) {
                 LogError("Skip non file entry: '%s'", s);
             } else {
-                queue_push(flist->file_queue, strdup(s));
+                if (!QueueSelectedFile(flist, s)) {
+                    queue_close(flist->file_queue);
+                    pthread_exit(NULL);
+                }
             }
         }
     }
@@ -980,7 +1037,10 @@ static void *FileLister_thr(void *arg) {
 
         if (source_dirs.num_strings == 0) {
             // single file -r
-            queue_push(flist->file_queue, strdup(single_file));
+            if (!QueueSelectedFile(flist, single_file)) {
+                queue_close(flist->file_queue);
+                pthread_exit(NULL);
+            }
         } else {
             // single file -r in multiple dirs -M
             ExpandMultipleDir(&source_dirs, single_file, flist);

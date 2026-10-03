@@ -193,7 +193,7 @@ rows first.
 | `-v <file>` | Verified a file, given directly as the argument. | `-v <mode>` with `hash`, `check`, `check-verbose`, or `repair`, applied to the file given separately with `-r`. |
 | `-x <file>` | Verified the extension records in a file. | Repurposed; see the shared `-x` row above. nffile v1 1.6.x extension based flow records are no longer supported. |
 | `-J <0-4>` | Selected a compression codec by number. | `-J=<codec>` takes the same codec name as `-z` (`lzo`, `lz4`, `bz2`, `zstd`). |
-| `-t <time>` | Selected a time window. | Removed. Use `'first seen' >= ... and 'last seen' <= ...'` filter expressions instead. |
+| `-t <time>` | Selected a flow time window using the legacy slash/dot timestamp form. | Selects files by the collector timeslot in their filename and uses ISO timestamps; use `first seen`/`last seen` expressions to filter flow timestamps. |
 | new | — | `-l <num>` sets the log level (1-4); `-K[=passphrase\|@keyfile]` reads and writes backend-encrypted files. |
 
 **`nfcapd`, `sfcapd`:**
