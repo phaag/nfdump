@@ -353,6 +353,16 @@ is almost always sufficient.
 Use
 .Sy threads.workers
 to override the worker count directly.
+.Bl -tag -width "meta.maxrecords"
+.It Sy meta.maxrecords
+Integer.
+Maximum number of flow records per output block written by
+.Xr nfmeta 1 .
+The Bloom filters of a block saturate with too many distinct addresses, so
+blocks are not filled up to the block size of the file.
+Valid values are 0, which disables the limit, or at least 1000.
+Default: 12000.
+.El
 .Sh PROGRAM DEFAULTS
 Each program has a set of compiled-in default values for its own keys.
 These defaults are active even when no configuration file is present.

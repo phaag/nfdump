@@ -30,6 +30,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -56,14 +57,26 @@
 #include "queue.h"
 #include "util.h"
 
+// Default limit of flow records per output block. A Bloom filter of
+// BLOOM_BITS bits saturates beyond a few thousand distinct addresses, so
+// blocks are not filled up to blockSize. 0 disables the limit.
+#define META_MAXRECORDS_DEFAULT 12000
+#define META_MAXRECORDS_MIN 1000
+
+static option_t nfmetaConfig[] = {
+    {.type = CONF_UINT64, .key = "meta.maxrecords", .valUint64 = META_MAXRECORDS_DEFAULT},
+    {.key = NULL},
+};
+
 static void usage(char *name);
-static int process_data(const char *wfile, uint32_t compressType, uint32_t compressLevel, int numWorkers, int verbose,
+static int process_data(const char *wfile, uint32_t compressType, uint32_t compressLevel, int numWorkers, uint32_t maxRecords, int verbose,
                         const crypto_ctx_t *crypto_ctx);
 
 typedef struct {
     queue_t *inputQueue;
     queue_t *outputQueue;
     uint32_t blockSize;
+    uint32_t maxRecords;          // max flow records per output block, 0 = up to blockSize
     pthread_mutex_t statLock;     // protects stat_record
     stat_record_t *stat_record;   // stat record of the output file, summed by all workers
 } workerArgs_t;
@@ -81,7 +94,8 @@ static void usage(char *name) {
         "-K[=passphrase|@keyfile]\tDecrypt encrypted input files. In-place files are re-encrypted,\n"
         "\t\twith -w the output file is encrypted. Passphrase from argument, key file, or interactive prompt.\n"
         "-W <num>\tSet core limit to <num> CPU cores (0 = all online cores)\n"
-        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n",
+        "-x <key>=<value>\tOverride a config parameter at runtime (repeatable).\n"
+        "\t\te.g. -x meta.maxrecords=<num> max flow records per block (default 12000, 0 = no limit)\n",
         name);
 }  // End of usage
 
@@ -177,7 +191,10 @@ static void *workerThread(void *arg) {
 
             if (recordPtr->type == METARecord) goto NEXT_REC;
 
-            if (!IsAvailable(dataBlock_w, workerArgs->blockSize, recordPtr->size)) {
+            // start a new block, if the record does not fit or the block holds
+            // maxRecords flow records in addition to the bloom META records
+            if (!IsAvailable(dataBlock_w, workerArgs->blockSize, recordPtr->size) ||
+                (workerArgs->maxRecords && dataBlock_w->numRecords - NUM_BLOOM_DEFS >= workerArgs->maxRecords)) {
                 dataBlock_w->msecFirst = (firstSeen != UINT64_MAX) ? firstSeen : 0;
                 dataBlock_w->msecLast = lastSeen;
                 dataBlock_w->extensionBitmap |= dataBlock_r->extensionBitmap;
@@ -307,7 +324,7 @@ static int flushAndClose(nffileV3_t *nffile_w, const char *wfile, const char *sr
  *   5. Joins workers and frees the per-file queues.
  *   6. Finalizes (and optionally renames) the output file.
  */
-static int process_data(const char *wfile, uint32_t compressType, uint32_t compressLevel, int numWorkers, int verbose,
+static int process_data(const char *wfile, uint32_t compressType, uint32_t compressLevel, int numWorkers, uint32_t maxRecords, int verbose,
                         const crypto_ctx_t *crypto_ctx) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     int blk_count = 0;
@@ -357,6 +374,7 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
             .inputQueue = queue_init(16),
             .outputQueue = queue_init(16),
             .blockSize = nffile_r->fileHeader->blockSize,
+            .maxRecords = maxRecords,
             .stat_record = nffile_w->stat_record,
         };
         pthread_mutex_init(&workerArgs.statLock, NULL);
@@ -411,6 +429,7 @@ static int process_data(const char *wfile, uint32_t compressType, uint32_t compr
                 .inputQueue = queue_init(16),
                 .outputQueue = queue_init(16),
                 .blockSize = nffile_r->fileHeader->blockSize,
+                .maxRecords = maxRecords,
                 .stat_record = nffile_w->stat_record,
             };
             pthread_mutex_init(&workerArgs.statLock, NULL);
@@ -629,7 +648,13 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (ConfOpen(NULL, "nfmeta", NULL) < 0) exit(EXIT_FAILURE);
+    if (ConfOpen(NULL, "nfmeta", nfmetaConfig) < 0) exit(EXIT_FAILURE);
+
+    int64_t maxRecords = ConfGetValue("meta.maxrecords");
+    if (maxRecords != 0 && (maxRecords < META_MAXRECORDS_MIN || maxRecords > UINT32_MAX)) {
+        LogError("meta.maxrecords %" PRId64 " out of range: 0 (no limit) or [%u, %u]", maxRecords, META_MAXRECORDS_MIN, UINT32_MAX);
+        exit(EXIT_FAILURE);
+    }
 
     // Without -K, encrypted input must fail instead of prompting: a prompted
     // passphrase cannot be used to re-encrypt the output file.
@@ -647,7 +672,7 @@ int main(int argc, char **argv) {
     threadConfig_t threadConfig = GetThreadConfig(limitCores, compressType != UNDEF_COMPRESSED ? compressType : LZ4_COMPRESSED, pipeline);
     if (!fileList || !Init_nffile(threadConfig, fileList)) exit(255);
 
-    int ok = process_data(wfile, compressType, compressLevel, threadConfig.workers, verbose, crypto_ctx);
+    int ok = process_data(wfile, compressType, compressLevel, threadConfig.workers, (uint32_t)maxRecords, verbose, crypto_ctx);
 
     RegisterReadCryptoCtx(NULL);
     FreeCryptoCtx(crypto_ctx);

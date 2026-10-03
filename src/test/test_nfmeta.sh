@@ -383,6 +383,60 @@ else
     fail "nfmeta_no_empty_blocks (flow blocks: '$(flow_blocks "$V2DIR/one_block_meta.nf")')"
 fi
 
+# ── block size limit: meta.maxrecords ─────────────────────────────────────────
+
+# A single worker repacks the records in order, so the number of output blocks
+# is ceil(flows / meta.maxrecords). The input has six blocks of 5000 flows;
+# all 30000 flows fit into one 4 MB output block.
+MAXREC_IN="$WORKDIR/maxrec_in.nf"
+MAXREC_OUT="$WORKDIR/maxrec_out.nf"
+"$NFGEN2" -w "$MAXREC_IN" -z lz4 -n 30000 -b 5000 >/dev/null 2>&1
+
+# maxrec_blocks <expected blocks> [nfmeta args] - run nfmeta on MAXREC_IN and
+# check block count, bloom metadata and flow content of MAXREC_OUT
+maxrec_blocks() {
+    _expected="$1"; shift
+    rm -f "$MAXREC_OUT"
+    nfmeta -r "$MAXREC_IN" -w "$MAXREC_OUT" -x threads.workers=1 "$@" >/dev/null 2>&1 \
+        && [ "$(flow_blocks "$MAXREC_OUT")" = "$_expected" ] \
+        && has_bloom "$MAXREC_OUT" \
+        && same_flows "$MAXREC_IN" "$MAXREC_OUT"
+}
+
+if maxrec_blocks 3; then
+    pass "nfmeta_maxrecords_default_12000"
+else
+    fail "nfmeta_maxrecords_default_12000 (flow blocks: '$(flow_blocks "$MAXREC_OUT")')"
+fi
+
+if maxrec_blocks 6 -x meta.maxrecords=5000; then
+    pass "nfmeta_maxrecords_override"
+else
+    fail "nfmeta_maxrecords_override (flow blocks: '$(flow_blocks "$MAXREC_OUT")')"
+fi
+
+if maxrec_blocks 1 -x meta.maxrecords=0; then
+    pass "nfmeta_maxrecords_0_fills_blocks"
+else
+    fail "nfmeta_maxrecords_0_fills_blocks (flow blocks: '$(flow_blocks "$MAXREC_OUT")')"
+fi
+
+# The [nfmeta] section of the config file sets the limit, -x overrides it.
+printf '[nfmeta]\nmeta.maxrecords = 10000\n' >"$WORKDIR/maxrec.conf"
+if NFCONF="$WORKDIR/maxrec.conf" maxrec_blocks 3 \
+   && NFCONF="$WORKDIR/maxrec.conf" maxrec_blocks 2 -x meta.maxrecords=15000; then
+    pass "nfmeta_maxrecords_config_file"
+else
+    fail "nfmeta_maxrecords_config_file (flow blocks: '$(flow_blocks "$MAXREC_OUT")')"
+fi
+
+if ! nfmeta -r "$MAXREC_IN" -w "$MAXREC_OUT" -x meta.maxrecords=999 >/dev/null 2>&1 \
+   && ! nfmeta -r "$MAXREC_IN" -w "$MAXREC_OUT" -x meta.maxrecords=abc >/dev/null 2>&1; then
+    pass "nfmeta_maxrecords_rejects_invalid"
+else
+    fail "nfmeta_maxrecords_rejects_invalid"
+fi
+
 # ── directories ────────────────────────────────────────────────────────────────
 
 # In place over a directory with mixed legacy and current files.

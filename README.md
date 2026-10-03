@@ -102,7 +102,9 @@ backends reduce the time a collector spends blocked on file I/O and rotation.
 - `nfmeta` is a new tool that builds per-flow-block IPv4/IPv6 source and
   destination Bloom filters for existing flow files. `nfdump` uses these
   metadata filters to skip whole blocks that cannot satisfy an address query,
-  speeding up host-focused searches over large archives.
+  speeding up host-focused searches over large archives. Blocks hold at most
+  12,000 flows by default, so the filters stay effective; tune this with
+  `-x meta.maxrecords=<num>` or in `nfdump.conf`.
 - `nfanon` gains a new `-K` option to read and write backend-encrypted flow
   files; the CryptoPAn anonymization key, previously `-K`, has moved to `-A`
   so the two features cannot be confused. See the example below.

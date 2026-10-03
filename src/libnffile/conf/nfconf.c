@@ -363,6 +363,7 @@ static const confTag_t confTags[] = {
     {"flowcache.max_payload_bytes", CONF_UINT64},
     {"flowcache.max_output_nodes", CONF_UINT64},
     {"buffSize", CONF_UINT64},
+    {"meta.maxrecords", CONF_UINT64},
     {NULL, CONF_BOOL},
 };
 

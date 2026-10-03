@@ -49,9 +49,29 @@ window.
 .Pp
 .Xr nfdump 1
 uses this metadata to reject blocks that cannot match an address or time
-filter, reducing unnecessary decompression and record processing for large
-archives. Bloom filters can yield a possible match, never a false rejection;
+filter, reducing record processing for large archives.
+The metadata is stored inside each block, so a block is still read and
+decompressed before it can be rejected.
+Bloom filters can yield a possible match, never a false rejection;
 the normal filter is always applied to matching candidate blocks.
+.Pp
+.Nm
+rewrites all flow records into new blocks.
+A block holds at most
+.Sy meta.maxrecords
+flow records, 12000 by default, so blocks are usually not filled up to the
+block size of the file.
+Each Bloom filter has a fixed size of 65536 bits; with too many distinct
+addresses per block it saturates and rejects hardly any blocks.
+Smaller blocks lower the false-positive rate but add metadata and therefore
+increase the file size.
+The limit can be changed with
+.Fl x Ar meta.maxrecords Ns = Ns Ar num
+or in the
+.Em [nfmeta]
+section of
+.Xr nfdump.conf 5 .
+A value of 0 disables the limit and fills blocks up to the block size.
 .Pp
 Without
 .Fl w ,
@@ -161,6 +181,15 @@ to override individual roles for one run. See
 .Xr nfdump.conf 5 .
 .It Fl x Ar key Ns = Ns Ar value
 Override a configuration value for this invocation. The option may be repeated.
+In addition to the thread keys above,
+.Nm
+uses:
+.Bl -tag -width Ds
+.It Sy meta.maxrecords Ns = Ns Ar num
+Maximum number of flow records per output block.
+Valid values are 0, which disables the limit, or at least 1000.
+Default: 12000.
+.El
 .It Fl h
 Print the short usage summary and exit.
 .El
@@ -186,6 +215,10 @@ Convert a legacy nfdump 1.7.x file to a new ZSTD compressed file with metadata:
 .Pp
 Limit processing to four cores and two Bloom-filter workers:
 .Dl nfmeta -W 4 -x threads.workers=2 -r /var/nfdump/edge-router
+.Pp
+Use smaller blocks of at most 8192 flows for traffic with many distinct
+addresses:
+.Dl nfmeta -x meta.maxrecords=8192 -r /var/nfdump/edge-router
 .Sh SEE ALSO
 .Xr nfanon 1 ,
 .Xr nfdump 1 ,

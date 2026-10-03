@@ -202,6 +202,11 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # TC_ROLE_TRANSFORM: same budget split as nfanon (20% workers).
 # Bloom-filter updates are very fast relative to LZ4 compression.
 
+# Maximum number of flow records per output block. The Bloom filters of a
+# block saturate with too many distinct addresses, so blocks are not filled
+# up to the 4 MB block size. Valid: 0 (no limit) or >= 1000. Default 12000.
+#meta.maxrecords = 12000
+
 [nfmeta.threads]
 #readers = 0
 #writers = 0
