@@ -236,8 +236,17 @@ enum {
     BLOCK_TYPE_META,      // metadata (schema, exporter table, etc.)
     BLOCK_TYPE_MSG,       // message block
     BLOCK_TYPE_EXP,       // exporter meta data
+    BLOCK_TYPE_INDEX,     // reserved: block index (per-block time window, bloom filters)
     BLOCK_MAX_TYPES       // max + 1 block types
 };
+
+/*
+ * BLOCK_TYPE_INDEX is reserved for a future block index, which summarises
+ * the flow blocks of a file, so readers may skip blocks without decoding them.
+ * It is advisory: readers treat it as a metadata block and do not pass it
+ * to consumers. Tools which rewrite blocks drop it, as its block offsets
+ * no longer match the rewritten file.
+ */
 
 /*
  * generic data record.

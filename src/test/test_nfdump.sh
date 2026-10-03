@@ -444,4 +444,78 @@ else
     skip "regress_changeident_failure: running as root"
 fi
 
+# ── reserved index block ──────────────────────────────────────────────────────
+# BLOCK_TYPE_INDEX is reserved for a future block index. Current readers must
+# skip it silently, and tools which rewrite blocks must drop it, as its block
+# offsets would be stale. add_index_block appends such a block to an
+# unencrypted file without directory checksum.
+add_index_block() {
+    python3 - "$1" "$2" <<'PYEOF'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+HDR = '<HHIQHHIIIQQ'                      # fileHeaderV3_t, 48 bytes
+hdr = list(struct.unpack_from(HDR, data, 0))
+offDir = hdr[9]
+magic, num = struct.unpack_from('<II', data, offDir)
+entries = [struct.unpack_from('<IIQ', data, offDir + 8 + 16 * i) for i in range(num)]
+ftr = struct.unpack_from('<IIQQ32s', data, len(data) - 56)
+if ftr[3] != 0 or any(ftr[4]):
+    sys.exit("file has a directory checksum or MAC - not supported")
+payload = b'NFINDEX0' * 2
+# BLOCKHEADER: type 8 = BLOCK_TYPE_INDEX, discSize, rawSize, NOT_COMPRESSED, NOT_ENCRYPTED, checksum
+block = struct.pack('<IIIHHQ', 8, 24 + len(payload), 24 + len(payload), 1, 0, 0) + payload
+out = bytearray(data[:offDir])
+entries.append((8, len(block), len(out)))
+out += block
+newOff = len(out)
+out += struct.pack('<II', magic, len(entries)) + b''.join(struct.pack('<IIQ', *e) for e in entries)
+out += struct.pack('<IIQQ32s', ftr[0], len(out) - newOff, newOff, 0, bytes(32))
+hdr[8], hdr[9] = len(out) - newOff - 56, newOff
+out[0:48] = struct.pack(HDR, *hdr)
+open(sys.argv[2], 'wb').write(out)
+PYEOF
+}
+
+# index_blocks <file> - number of index blocks reported by nfdump -v check
+index_blocks() { nfdump -v check -r "$1" 2>/dev/null | sed -n 's/^ *Index blocks *: *\([0-9]*\).*/\1/p'; }
+
+if command -v python3 >/dev/null 2>&1 && add_index_block dummy_flows.nf "$WORKDIR/index.nf"; then
+    if nfdump -v check -r "$WORKDIR/index.nf" >/dev/null 2>&1 && [ "$(index_blocks "$WORKDIR/index.nf")" = "1" ]; then
+        pass "index_block_checked"
+    else
+        fail "index_block_checked"
+    fi
+
+    nfdump -q -r dummy_flows.nf -o csv >"$WORKDIR/index_ref.csv" 2>/dev/null
+    if nfdump -q -r "$WORKDIR/index.nf" -o csv >"$WORKDIR/index_got.csv" 2>"$WORKDIR/index_err.txt" \
+       && [ ! -s "$WORKDIR/index_err.txt" ] \
+       && [ -s "$WORKDIR/index_got.csv" ] && cmp -s "$WORKDIR/index_ref.csv" "$WORKDIR/index_got.csv"; then
+        pass "index_block_skipped_by_reader"
+    else
+        fail "index_block_skipped_by_reader"
+    fi
+
+    if nfdump -r "$WORKDIR/index.nf" -w "$WORKDIR/index_copy.nf" >/dev/null 2>&1 \
+       && [ -z "$(index_blocks "$WORKDIR/index_copy.nf")" ]; then
+        pass "index_block_dropped_by_rewrite"
+    else
+        fail "index_block_dropped_by_rewrite"
+    fi
+
+    cp "$WORKDIR/index.nf" "$WORKDIR/index_repair.nf"
+    if nfdump -r "$WORKDIR/index_repair.nf" -v repair >/dev/null 2>&1 \
+       && nfdump -v check -r "$WORKDIR/index_repair.nf" >/dev/null 2>&1 \
+       && [ -z "$(index_blocks "$WORKDIR/index_repair.nf")" ] \
+       && nfdump -q -r "$WORKDIR/index_repair.nf" -o csv 2>/dev/null | cmp -s "$WORKDIR/index_ref.csv" -; then
+        pass "index_block_dropped_by_repair"
+    else
+        fail "index_block_dropped_by_repair"
+    fi
+else
+    skip "index_block_checked: python3 not available"
+    skip "index_block_skipped_by_reader: python3 not available"
+    skip "index_block_dropped_by_rewrite: python3 not available"
+    skip "index_block_dropped_by_repair: python3 not available"
+fi
+
 summary

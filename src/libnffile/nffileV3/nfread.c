@@ -76,7 +76,7 @@ typedef struct readerArgs_s {
 } readerArgs_t;
 
 static bool IsReaderMetadataEntry(uint32_t type) {
-    return type == BLOCK_TYPE_STATS || type == BLOCK_TYPE_IDENT || type == BLOCK_TYPE_META;
+    return type == BLOCK_TYPE_STATS || type == BLOCK_TYPE_IDENT || type == BLOCK_TYPE_META || type == BLOCK_TYPE_INDEX;
 }  // End of IsReaderMetadataEntry
 
 static uint32_t NextReaderDataEntry(const blockDirectoryV3_t *dir, uint32_t index) {

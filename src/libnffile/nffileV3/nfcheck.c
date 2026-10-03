@@ -726,6 +726,10 @@ int VerifyFileV3(const char *filename, int verbose) {
                 blockStat[BLOCK_TYPE_EXP].numBlocks++;
                 blockStat[BLOCK_TYPE_EXP].compression = dataBlock->compression;
                 break;
+            case BLOCK_TYPE_INDEX:
+                blockStat[BLOCK_TYPE_INDEX].numBlocks++;
+                blockStat[BLOCK_TYPE_INDEX].compression = dataBlock->compression;
+                break;
             default:
                 printf("Block %u: unknown type %u at offset %jd\n", totalBlocks, dataBlock->type, (intmax_t)nextOffset);
                 unknownBlocks++;
@@ -808,6 +812,8 @@ int VerifyFileV3(const char *filename, int verbose) {
             printf("  Meta blocks     : %u - %s\n", blockStat[BLOCK_TYPE_META].numBlocks, CompressionType(blockStat[BLOCK_TYPE_META].compression));
         if (blockStat[BLOCK_TYPE_EXP].numBlocks)
             printf("  Exporter blocks : %u - %s\n", blockStat[BLOCK_TYPE_EXP].numBlocks, CompressionType(blockStat[BLOCK_TYPE_EXP].compression));
+        if (blockStat[BLOCK_TYPE_INDEX].numBlocks)
+            printf("  Index blocks    : %u - %s\n", blockStat[BLOCK_TYPE_INDEX].numBlocks, CompressionType(blockStat[BLOCK_TYPE_INDEX].compression));
         if (unknownBlocks) printf("  Unknown      : %u\n", unknownBlocks);
     }
     printf("  Directory       : %s\n", directoryEntriesFailed == 0 ? "OK" : "FAILED or absent");
@@ -908,13 +914,19 @@ static int ReWriteBlocks(const uint8_t *map, size_t fileSize, const fileHeaderV3
             printf("ReWriteV3: block %u extends beyond data region - stopping\n", blocksCopied);
             break;
         }
-        if (blk->type < BLOCK_TYPE_FLOW || blk->type > BLOCK_TYPE_META) {
+        if (blk->type < BLOCK_TYPE_FLOW || blk->type >= BLOCK_MAX_TYPES) {
             printf("ReWriteV3: block %u has unknown type %u - stopping\n", blocksCopied, blk->type);
             break;
         }
         if (blk->rawSize > blockSize) {
             printf("ReWriteV3: block %u rawSize %u exceeds blockSize %u - stopping\n", blocksCopied, blk->rawSize, blockSize);
             break;
+        }
+        if (blk->type == BLOCK_TYPE_INDEX) {
+            // the block offsets of an index are stale in the rewritten file
+            printf("ReWriteV3: drop index block at offset %lld\n", (long long)srcOffset);
+            srcOffset += blk->discSize;
+            continue;
         }
 
         off_t dstOffset = lseek(dstFd, 0, SEEK_CUR);

@@ -747,4 +747,37 @@ else
     fi
 fi
 
+# =============================================================================
+# 9. Repair keeps every block type
+# =============================================================================
+# Collector files hold exporter, stat and ident blocks besides the flow
+# blocks. Repairing an intact file must copy all of them.
+echo ""
+echo "── repair ───────────────────────────────────────────────────────────────"
+
+# total_blocks <file> - number of blocks reported by nfdump -v check
+total_blocks() { nfdump -v check -r "$1" 2>/dev/null | sed -n 's/^ *Total blocks *: *//p'; }
+
+if [ "$HAS_PCAP" -ne 1 ]; then
+    skip "repair_keeps_all_block_types: --enable-readpcap not compiled in"
+elif ! has_data "$TESTDATA/flows_v9_unsamp.pcap"; then
+    skip "repair_keeps_all_block_types: test data flows_v9_unsamp.pcap not available"
+else
+    REPAIR_DIR="$WORKDIR/repair_blocks"
+    mkdir -p "$REPAIR_DIR"
+    nfcapd -f "$TESTDATA/flows_v9_unsamp.pcap" -w "$REPAIR_DIR" -I repair -v 0 >/dev/null 2>&1
+    rfile=$(ls "$REPAIR_DIR"/nfcapd.* 2>/dev/null | head -1)
+    rblocks=$( [ -n "$rfile" ] && total_blocks "$rfile")
+    rflows=$( [ -n "$rfile" ] && count_records "$rfile")
+    if [ -n "$rfile" ] && nfdump -v check -r "$rfile" 2>/dev/null | grep -q 'Exporter blocks' \
+       && nfdump -r "$rfile" -v repair >/dev/null 2>&1 \
+       && [ "$(total_blocks "$rfile")" = "$rblocks" ] \
+       && nfdump -v check -r "$rfile" 2>/dev/null | grep -q 'Exporter blocks' \
+       && [ "$(count_records "$rfile")" = "$rflows" ]; then
+        pass "repair_keeps_all_block_types"
+    else
+        fail "repair_keeps_all_block_types (blocks before: '$rblocks', after: '$( [ -n "$rfile" ] && total_blocks "$rfile")')"
+    fi
+fi
+
 summary
