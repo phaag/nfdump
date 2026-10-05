@@ -787,6 +787,37 @@ static char *stringEXflowId(char *streamPtr, uint8_t *extensionRecord) {
     return streamPtr;
 }  // End of stringEXflowId
 
+static char *stringEXpacketFrame(char *streamPtr, uint8_t *extensionRecord) {
+    EXpacketFrame_t *packetFrame = (EXpacketFrame_t *)extensionRecord;
+
+    AddElementU32("frame_length", packetFrame->length);
+
+    return streamPtr;
+}  // End of stringEXpacketFrame
+
+static char *stringEXpfinfo(char *streamPtr, uint8_t *extensionRecord) {
+    EXpfinfo_t *pfinfo = (EXpfinfo_t *)extensionRecord;
+
+    // ifname is a fixed 4-byte field - copy into a bounded, terminated buffer
+    // and replace anything that would need JSON escaping
+    char ifname[sizeof(pfinfo->ifname) + 1];
+    memcpy(ifname, pfinfo->ifname, sizeof(pfinfo->ifname));
+    ifname[sizeof(pfinfo->ifname)] = '\0';
+    for (char *c = ifname; *c; c++) {
+        if (*c < 0x20 || *c > 0x7e || *c == '"' || *c == '\\') *c = '?';
+    }
+
+    AddElementString("pf_ifname", ifname);
+    AddElementString("pf_action", pfAction(pfinfo->action));
+    AddElementU32("pf_action_id", pfinfo->action);
+    AddElementString("pf_reason", pfReason(pfinfo->reason));
+    AddElementU32("pf_reason_id", pfinfo->reason);
+    AddElementString("pf_direction", pfinfo->dir ? "in" : "out");
+    AddElementU32("pf_rulenr", pfinfo->rulenr);
+
+    return streamPtr;
+}  // End of stringEXpfinfo
+
 static char *stringEXnokiaNat(char *streamPtr, uint8_t *extensionRecord) {
     EXnokiaNat_t *nokiaNat = (EXnokiaNat_t *)extensionRecord;
 
@@ -933,8 +964,14 @@ void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, outputPar
             case EXobservationID:
                 streamPtr = stringEXobservation(streamPtr, extension);
                 break;
+            case EXpacketFrameID:
+                streamPtr = stringEXpacketFrame(streamPtr, extension);
+                break;
             case EXvrfID:
                 streamPtr = stringEXvrf(streamPtr, extension);
+                break;
+            case EXpfinfoID:
+                streamPtr = stringEXpfinfo(streamPtr, extension);
                 break;
             case EXlayer2ID:
                 streamPtr = stringEXlayer2(streamPtr, extension);
