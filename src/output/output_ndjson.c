@@ -855,7 +855,7 @@ void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, outputPar
 
     // print extensions
     uint32_t slot = 0;
-    uint32_t bitMap = recordHeaderV4->extBitmap;
+    uint64_t bitMap = recordHeaderV4->extBitmap;
     while (bitMap) {
         // find lowest set bit (ctz) in bitMap
         uint32_t type = __builtin_ctzll(bitMap);
