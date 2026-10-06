@@ -486,6 +486,23 @@ else
     fail "aggr_net_mask_exported"
 fi
 
+# ── statistics in CSV ──────────────────────────────────────────────────────────
+# Every element type must be formatted in -s ... -o csv; a missing type printed
+# an uninitialised value.
+stat_csv_bad=""
+for s in flags event nat cl odid iacl mpls1 srcasn; do
+    val=$(nfdump -q -G none -r dummy_flows.nf -s "$s" -n 1 -o csv 2>/dev/null | sed -n 2p | cut -d, -f5)
+    if [ -z "$val" ] || printf '%s' "$val" | LC_ALL=C grep -q '[^[:print:]]'; then
+        stat_csv_bad="$stat_csv_bad $s"
+    fi
+done
+if [ -z "$stat_csv_bad" ] \
+   && [ "$(nfdump -q -G none -r dummy_flows.nf -s flags -n 1 -o csv 2>/dev/null | sed -n 2p | cut -d, -f5)" = "...AP.SF" ]; then
+    pass "stat_csv_element_values"
+else
+    fail "stat_csv_element_values (bad:$stat_csv_bad)"
+fi
+
 # ── legacy V2 records with merged V4 extensions ──────────────────────────────
 # A V2 IP next hop and BGP next hop are merged into one V4 EXasRouting extension,
 # NSEL and NAT common into one EXnselCommon. Both contributors must survive in

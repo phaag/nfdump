@@ -1399,6 +1399,17 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
         case IS_GEO: {
             snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
         } break;
+        case IS_FLAGS:
+            snprintf(valstr, 64, "%s", FlagsString(hashKey->v1));
+            break;
+        case IS_ASORG: {
+            const char *org = LookupASorg(hashKey->v1);
+            snprintf(valstr, 64, "%s AS%" PRIu32, org != NULL ? org : "unknown", (uint32_t)hashKey->v1);
+            // the organisation name is printed as JSON string - replace chars, which would need escaping
+            for (char *c = valstr; *c; c++) {
+                if ((unsigned char)*c < 0x20 || *c == '"' || *c == '\\') *c = '?';
+            }
+        } break;
         case IS_TZ: {
             snprintf(valstr, 64, "%s", LookupTZname((uint16_t)hashKey->v1));
         } break;
@@ -1466,8 +1477,25 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
 
 }  // End of PrintJsonStatLine
 
+// NSEL/NAT event name of a statistic element - same mapping as PrintStatLine()
+static const char *StatEventString(uint64_t event) {
+    switch (event) {
+        case 0:
+            return "ignore";
+        case 1:
+            return "CREATE";
+        case 2:
+            return "DELETE";
+        case 3:
+            return "DENIED";
+        default:
+            return "UNKNOWN";
+    }
+}  // End of StatEventString
+
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t *element, int type, int order_proto, int tag, int inout) {
-    char valstr[40];
+    char valstr[64];
+    valstr[0] = '\0';
 
     StatRecord_t *statRecord = (StatRecord_t *)element->record;
     hashkey_t *hashKey = statRecord->hashkey;
@@ -1475,8 +1503,56 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
         case IS_NULL:
             break;
         case IS_NUMBER:
-            snprintf(valstr, 40, "%" PRIu64, (uint64_t)hashKey->v1);
+            snprintf(valstr, 64, "%" PRIu64, (uint64_t)hashKey->v1);
             break;
+        case IS_HEXNUMBER:
+        case IS_HEX:
+            snprintf(valstr, 64, "0x%" PRIx64, (uint64_t)hashKey->v1);
+            break;
+        case IS_FLAGS:
+            if (printPlain)
+                snprintf(valstr, 64, "0x%" PRIx64, (uint64_t)hashKey->v1);
+            else
+                snprintf(valstr, 64, "%s", FlagsString(hashKey->v1));
+            break;
+        case IS_LATENCY:
+            snprintf(valstr, 64, "%.3f", (double)hashKey->v1 / 1000.0);
+            break;
+        case IS_EVENT:
+            snprintf(valstr, 64, "%s", StatEventString(hashKey->v1));
+            break;
+        case IS_NBAR: {
+            union {
+                uint8_t val8[4];
+                uint32_t val32;
+            } conv;
+            conv.val32 = hashKey->v1;
+            uint8_t u = conv.val8[0];
+            conv.val8[0] = 0;
+            snprintf(valstr, 64, "%u..%u", u, ntohl(conv.val32));
+        } break;
+        case IS_JA3:
+        case IS_JA4:
+        case IS_JA4S:
+            snprintf(valstr, 64, "%s", (char *)hashKey->ptr);
+            break;
+        case IS_GEO:
+            snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
+            break;
+        case IS_ASORG: {
+            // the organisation name may contain ',' or '"' - quote the field (RFC 4180)
+            const char *org = LookupASorg(hashKey->v1);
+            char asorg[64];
+            snprintf(asorg, sizeof(asorg), "%s AS%" PRIu32, org != NULL ? org : "unknown", (uint32_t)hashKey->v1);
+            size_t n = 0;
+            valstr[n++] = '"';
+            for (const char *c = asorg; *c && n < sizeof(valstr) - 3; c++) {
+                if (*c == '"') valstr[n++] = '"';
+                valstr[n++] = *c;
+            }
+            valstr[n++] = '"';
+            valstr[n] = '\0';
+        } break;
         case IS_IPADDR:
             if (hashKey->v0 != 0) {  // IPv6
                 uint64_t _key[2];
@@ -1496,19 +1572,18 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
             for (i = 0; i < 6; i++) {
                 mac[i] = ((unsigned long long)hashKey->v1 >> (i * 8)) & 0xFF;
             }
-            snprintf(valstr, 40, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+            snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         } break;
         case IS_MPLS_LBL: {
-            snprintf(valstr, 40, "%" PRIu64, (uint64_t)hashKey->v1);
-            snprintf(valstr, 40, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
+            snprintf(valstr, 64, "%llu-%llu-%llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
                      (unsigned long long)hashKey->v1 & 1);
         } break;
         case IS_TZ: {
-            snprintf(valstr, 40, "%s", LookupTZname((uint16_t)hashKey->v1));
+            snprintf(valstr, 64, "%s", LookupTZname((uint16_t)hashKey->v1));
         } break;
     }
 
-    valstr[39] = 0;
+    valstr[63] = 0;
 
     uint64_t count_flows = statRecord->flows;
     uint64_t count_packets = 0;
