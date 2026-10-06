@@ -238,4 +238,67 @@ else
     cat "$TRUNC_LOG"
 fi
 
+# ── 8. Geo post-filter on aggregated file output ─────────────────────────────
+# Country codes used as aggregation keys are virtual EXlocal data. They must be
+# restored on the final aggregate before -P is evaluated, including the -w path.
+GEO_FLOW="$WORKDIR/geo-flow-v2.nf"
+if command -v python3 >/dev/null 2>&1 && python3 - "$GEO_FLOW" <<'PYEOF'
+import ipaddress
+import struct
+import sys
+
+p = struct.pack
+msec = 1791194400000
+
+def ipv4(address):
+    return p('<I', int(ipaddress.ip_address(address)))
+
+def extension(ext_id, payload):
+    return p('<HH', ext_id, len(payload) + 4) + payload
+
+generic = p('<QQQQQHHBBBB', msec, msec + 1000, msec + 2000,
+            10, 1000, 12345, 443, 6, 18, 0, 0)
+addresses = ipv4('81.2.69.145') + ipv4('149.101.100.1')
+elements = extension(1, generic) + extension(2, addresses)
+record = p('<HHHBBHBB', 11, 12 + len(elements), 2, 0, 0, 0, 0, 10) + elements
+
+ident = b'geo-postfilter\0'
+ident_record = p('<HH', 0x8001, len(ident) + 4) + ident
+stats = p('<18Q', 1, 1000, 10, 1, 0, 0, 0, 1000, 0, 0, 0, 10, 0, 0, 0,
+          msec, msec + 1000, 0)
+appendix = p('<IIHH', 2, len(ident_record) + 148, 3, 0) + ident_record + p('<HH', 0x8002, 148) + stats
+header = p('<HHIqBBHIqII', 0xa50c, 2, 0x01070a00, msec // 1000,
+           0, 0, 1, 4, 40 + 12 + len(record), 1048576, 1)
+
+with open(sys.argv[1], 'wb') as output:
+    output.write(header + p('<IIHH', 1, len(record), 3, 0) + record + appendix)
+PYEOF
+then
+    GEO_AGGR="$WORKDIR/geo-postfilter.nf"
+    printed=$("$NFDUMP_BIN" -G "$DB" -q -r "$GEO_FLOW" -A srcgeo -P 'src geo GB' \
+              -o 'csv:%sc,%fl,%pkt,%byt' 2>/dev/null | tail -n +2)
+    rm -f "$GEO_AGGR"
+    "$NFDUMP_BIN" -G "$DB" -q -r "$GEO_FLOW" -A srcgeo -P 'src geo GB' \
+        -w "$GEO_AGGR" >/dev/null 2>&1
+    exported=$("$NFDUMP_BIN" -G none -q -r "$GEO_AGGR" \
+               -o 'csv:%fl,%pkt,%byt' 2>/dev/null | tail -n +2)
+
+    GEO_AGGR_DST="$WORKDIR/geo-postfilter-dst.nf"
+    printed_dst=$("$NFDUMP_BIN" -G "$DB" -q -r "$GEO_FLOW" -A dstgeo -P 'dst geo US' \
+                  -o 'csv:%dc,%fl,%pkt,%byt' 2>/dev/null | tail -n +2)
+    "$NFDUMP_BIN" -G "$DB" -q -r "$GEO_FLOW" -A dstgeo -P 'dst geo US' \
+        -w "$GEO_AGGR_DST" >/dev/null 2>&1
+    exported_dst=$("$NFDUMP_BIN" -G none -q -r "$GEO_AGGR_DST" \
+                   -o 'csv:%fl,%pkt,%byt' 2>/dev/null | tail -n +2)
+
+    if [ "$printed" = "GB,1,10,1000" ] && [ "$exported" = "1,10,1000" ] \
+       && [ "$printed_dst" = "US,1,10,1000" ] && [ "$exported_dst" = "1,10,1000" ]; then
+        pass "aggregate_geo_postfilter_export"
+    else
+        fail "aggregate_geo_postfilter_export: src='$printed'/'$exported' dst='$printed_dst'/'$exported_dst'"
+    fi
+else
+    skip "aggregate_geo_postfilter_export: python3 not available"
+fi
+
 summary

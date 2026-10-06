@@ -270,6 +270,26 @@ static uint32_t staticRebuildMaxSize = 0;
 static uint8_t aggregateGeo = 0;
 static uint8_t aggregateNetMask = 0;  // keep src/dst mask for srcnet/dstnet
 
+static inline void SaveAggregateGeo(FlowHashRecord_t *flowRecord, const recordHandle_t *recordHandle) {
+    memset(flowRecord->geo, 0, sizeof(flowRecord->geo));
+    if (aggregateGeo & AGGR_SRC_GEO) memcpy(flowRecord->geo, recordHandle->geo, SizeGEOloc);
+    if (aggregateGeo & AGGR_DST_GEO)
+        memcpy(flowRecord->geo + SizeGEOloc, recordHandle->geo + SizeGEOloc, SizeGEOloc);
+}  // End of SaveAggregateGeo
+
+static inline void RestoreAggregateGeo(recordHandle_t *recordHandle, const FlowHashRecord_t *flowRecord) {
+    if (aggregateGeo & AGGR_SRC_GEO) memcpy(recordHandle->geo, flowRecord->geo, SizeGEOloc);
+    if (aggregateGeo & AGGR_DST_GEO)
+        memcpy(recordHandle->geo + SizeGEOloc, flowRecord->geo + SizeGEOloc, SizeGEOloc);
+}  // End of RestoreAggregateGeo
+
+static inline void SwapAggregateGeo(recordHandle_t *recordHandle) {
+    char srcGeo[SizeGEOloc];
+    memcpy(srcGeo, recordHandle->geo, SizeGEOloc);
+    memcpy(recordHandle->geo, recordHandle->geo + SizeGEOloc, SizeGEOloc);
+    memcpy(recordHandle->geo + SizeGEOloc, srcGeo, SizeGEOloc);
+}  // End of SwapAggregateGeo
+
 static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
@@ -1882,7 +1902,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         flowHash->records[index].msecLast = genericFlow->msecLast;
         flowHash->records[index].swap = NeedSwap(keymem);
         // country codes are looked up while building the key and are not part of the record
-        if (aggregateGeo) memcpy(flowHash->records[index].geo, recordHandle->geo, sizeof(flowHash->records[index].geo));
+        if (aggregateGeo) SaveAggregateGeo(&flowHash->records[index], recordHandle);
         StoreFlowRecord(&flowHash->records[index], record);
         mem = NULL;
     }
@@ -1964,7 +1984,7 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
         recordHandle_t recordHandle = {0};
         MapV4RecordHandle(&recordHandle, V4record, i + 1);
         // restore the group's country codes before printing and post-filtering
-        if (aggregateGeo) memcpy(recordHandle.geo, flowRecord->geo, sizeof(flowRecord->geo));
+        if (aggregateGeo) RestoreAggregateGeo(&recordHandle, flowRecord);
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
@@ -1996,13 +2016,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
             EXinterface_t *interface = (EXinterface_t *)recordHandle.extensionList[EXinterfaceID];
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asInfo);
-            if (aggregateGeo) {
-                // country codes follow the swapped addresses
-                char srcGeo[SizeGEOloc];
-                memcpy(srcGeo, recordHandle.geo, SizeGEOloc);
-                memcpy(recordHandle.geo, recordHandle.geo + SizeGEOloc, SizeGEOloc);
-                memcpy(recordHandle.geo + SizeGEOloc, srcGeo, SizeGEOloc);
-            }
+            // country codes follow the swapped addresses
+            if (aggregateGeo) SwapAggregateGeo(&recordHandle);
         }
 
         if (outputParams->postFilter) {
@@ -2135,6 +2150,9 @@ static inline uint64_t ExportSortList(SortElement_t *SortList, uint64_t maxindex
         // populate recordHandle — RebuildRecord handles both cases via memcpy + MapV4RecordHandle.
         recordHandle_t recordHandle = {0};
         newSize = RebuildRecord(buffPtr, recordHeaderV4, &recordHandle);
+        // Geo is virtual and not stored in the V4 record. Restore the aggregation
+        // key so Geo post-filters see the same record as the print path.
+        if (aggregateGeo) RestoreAggregateGeo(&recordHandle, flowRecord);
 
         // remap header to written memory
         recordHeaderV4 = (recordHeaderV4_t *)buffPtr;
@@ -2163,6 +2181,7 @@ static inline uint64_t ExportSortList(SortElement_t *SortList, uint64_t maxindex
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
             EXasInfo_t *asInfo = (EXasInfo_t *)recordHandle.extensionList[EXasInfoID];
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asInfo);
+            if (aggregateGeo) SwapAggregateGeo(&recordHandle);
         }
 
         if (outputParams->postFilter && !FilterRecord(outputParams->postFilter, &recordHandle)) {
