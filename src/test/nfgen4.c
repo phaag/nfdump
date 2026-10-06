@@ -264,6 +264,10 @@ int main(int argc, char **argv) {
         .fixedThreads = 1,
     };
     threadConfig_t threadConfig = GetThreadConfig(0, UNDEF_COMPRESSED, pipeline);
+    // A single writer writes the blocks in queue order: the flow block first,
+    // then the stat and ident blocks. With more writers the block order may
+    // change between runs; the tests rely on a reproducible file layout.
+    threadConfig.writers = 1;
     if (!Init_nffile(threadConfig, NULL)) exit(EXIT_FAILURE);
 
     nffileV3_t *nffile = OpenNewFileV3("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, LEVEL_0, NULL);

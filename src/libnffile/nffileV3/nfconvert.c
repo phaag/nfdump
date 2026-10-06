@@ -139,8 +139,8 @@ static const uint8_t mapV3toV4[MAXV3EXTENSIONS] = {
     [28] = 0,                                    // unused
     [EX3inPayloadID] = EXinPayloadID,            // 29 → 26
     [EX3outPayloadID] = EXoutPayloadID,          // 30 → 27
-    [EX3tunIPv4ID] = EXtunnelV4ID,               // 31 → 28 (merged)
-    [EX3tunIPv6ID] = EXtunnelV6ID,               // 32 → 29 (merged)
+    [EX3tunIPv4ID] = EXtunnelV4ID,               // 31 → 28
+    [EX3tunIPv6ID] = EXtunnelV6ID,               // 32 → 29
     [EX3observationID] = EXobservationID,        // 33 → 30
     [EX3inmonMetaID] = EXpacketMetaID,            // 34 → 31
     [EX3inmonFrameID] = EXpacketFrameID,          // 35 → 32
@@ -410,6 +410,8 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
 
     // Pass 1: build V4 bitmap
     uint64_t bitmap = 0;
+    uint64_t mapped = 0;     // V4 extensions with a V3 contributor
+    uint32_t numMapped = 0;  // number of V3 contributors
 
     // EX3flowMiscID contains both interface + misc → add EXinterfaceID too
     while (p < end) {
@@ -417,7 +419,11 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
         uint16_t id = eh->type;
         if (id < MAXV3EXTENSIONS) {
             uint8_t v4id = mapV3toV4[id];
-            if (v4id) bitmap |= (1ULL << v4id);
+            if (v4id) {
+                bitmap |= (1ULL << v4id);
+                mapped |= (1ULL << v4id);
+                numMapped++;
+            }
             // EX3flowMisc also produces EXinterface
             if (id == EX3flowMiscID) bitmap |= (1ULL << EXinterfaceID);
             // EX3macAddr produces both in+out
@@ -447,6 +453,13 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
     uint32_t nextOffset = h->size;
 
     // Pass 2: convert extensions
+    // placed: V4 extensions already written for this record. A V4 extension is
+    // written once; only the merged V4 extensions EXasRoutingV4/V6 (IP and BGP
+    // next hop) and EXnselCommon (NSEL and NAT common) take a second V3 contributor.
+    uint64_t placed = 0;
+    // More contributors than distinct V4 extensions: merged extensions or
+    // duplicates. Rare - all other records take the plain path without checks.
+    int repeated = numMapped != (uint32_t)__builtin_popcountll(mapped);
     p = (uint8_t *)(v3 + 1);
     while (p < end) {
         elementHeader_t *eh = (elementHeader_t *)p;
@@ -457,7 +470,18 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
             uint8_t v4id = mapV3toV4[id];
             if (v4id) {
                 uint32_t slot = __builtin_popcountll(bitmap & ((1ULL << v4id) - 1));
-                offsets[slot] = nextOffset;
+                int merge = 0;
+                if (__builtin_expect(repeated, 0)) {
+                    uint64_t bit = 1ULL << v4id;
+                    merge = (placed & bit) != 0;
+                    if (merge && v4id != EXasRoutingV4ID && v4id != EXasRoutingV6ID && v4id != EXnselCommonID) {
+                        // duplicate V3 extension in one record - keep the first one
+                        p += eh->length;
+                        continue;
+                    }
+                    placed |= bit;
+                }
+                if (!merge) offsets[slot] = nextOffset;
 
                 switch (v4id) {
                     case EXgenericFlowID: {
@@ -538,8 +562,7 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                     case EXasRoutingV4ID: {
                         EXasRoutingV4_t *r = (EXasRoutingV4_t *)((uint8_t *)h + nextOffset);
                         // Merged: may be bgpNextHop or ipNextHop — fill the right field
-                        // Don't memset — second pass writes the other half
-                        if (offsets[slot] != nextOffset) {
+                        if (merge) {
                             // Already placed by first contributor — update in place
                             r = (EXasRoutingV4_t *)((uint8_t *)h + offsets[slot]);
                         } else {
@@ -553,7 +576,7 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                     }
                     case EXasRoutingV6ID: {
                         EXasRoutingV6_t *r = (EXasRoutingV6_t *)((uint8_t *)h + nextOffset);
-                        if (offsets[slot] != nextOffset) {
+                        if (merge) {
                             r = (EXasRoutingV6_t *)((uint8_t *)h + offsets[slot]);
                         } else {
                             memset(r, 0, sizeof(*r));
@@ -653,16 +676,19 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                     case EXnselCommonID: {
                         // Merged: nselCommon + natCommon → single V4 ext
                         EXnselCommon_t *n = (EXnselCommon_t *)((uint8_t *)h + nextOffset);
-                        if (offsets[slot] != nextOffset) {
+                        if (merge) {
                             n = (EXnselCommon_t *)((uint8_t *)h + offsets[slot]);
                         } else {
                             memset(n, 0, sizeof(*n));
                             nextOffset += sizeof(*n);
                             h->size += sizeof(*n);
                         }
+                        // Only one event time in V4: usually only one contributor sets it.
+                        // Take the non-zero one, the first one if both are set.
+                        // NSEL logging takes precedence over NAT for the type, independent of order.
                         if (id == EX3nselCommonID) {
                             EX3nselCommon_t *n3 = (EX3nselCommon_t *)edata;
-                            n->msecEvent = n3->msecEvent;
+                            if (n->msecEvent == 0) n->msecEvent = n3->msecEvent;
                             n->connID = n3->connID;
                             n->fwXevent = n3->fwXevent;
                             n->fwEvent = n3->fwEvent;
@@ -670,8 +696,8 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                         } else {
                             // EX3natCommonID
                             EX3natCommon_t *nc3 = (EX3natCommon_t *)edata;
-                            n->msecEvent = nc3->msecEvent;
-                            n->type = NSEL_NAT;
+                            if (n->msecEvent == 0) n->msecEvent = nc3->msecEvent;
+                            if (n->type == 0) n->type = NSEL_NAT;
                             n->natEvent = nc3->natEvent;
                             n->natPoolID = nc3->natPoolID;
                         }
@@ -723,13 +749,9 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                     }
                     case EXtunnelV4ID: {
                         EXtunnelV4_t *t = (EXtunnelV4_t *)((uint8_t *)h + nextOffset);
-                        if (offsets[slot] != nextOffset) {
-                            t = (EXtunnelV4_t *)((uint8_t *)h + offsets[slot]);
-                        } else {
-                            memset(t, 0, sizeof(*t));
-                            nextOffset += sizeof(*t);
-                            h->size += sizeof(*t);
-                        }
+                        memset(t, 0, sizeof(*t));
+                        nextOffset += sizeof(*t);
+                        h->size += sizeof(*t);
                         EX3tunIPv4_t *t3 = (EX3tunIPv4_t *)edata;
                         t->srcAddr = t3->tunSrcAddr;
                         t->dstAddr = t3->tunDstAddr;
@@ -738,13 +760,9 @@ static uint8_t *ConvertRecordV3toV4(uint8_t *out, recordHeaderV3_t *v3) {
                     }
                     case EXtunnelV6ID: {
                         EXtunnelV6_t *t = (EXtunnelV6_t *)((uint8_t *)h + nextOffset);
-                        if (offsets[slot] != nextOffset) {
-                            t = (EXtunnelV6_t *)((uint8_t *)h + offsets[slot]);
-                        } else {
-                            memset(t, 0, sizeof(*t));
-                            nextOffset += sizeof(*t);
-                            h->size += sizeof(*t);
-                        }
+                        memset(t, 0, sizeof(*t));
+                        nextOffset += sizeof(*t);
+                        h->size += sizeof(*t);
                         EX3tunIPv6_t *t3 = (EX3tunIPv6_t *)edata;
                         memcpy(t->srcAddr, t3->tunSrcAddr, 16);
                         memcpy(t->dstAddr, t3->tunDstAddr, 16);

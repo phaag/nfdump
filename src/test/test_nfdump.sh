@@ -486,6 +486,79 @@ else
     fail "aggr_net_mask_exported"
 fi
 
+# ── legacy V2 records with merged V4 extensions ──────────────────────────────
+# A V2 IP next hop and BGP next hop are merged into one V4 EXasRouting extension,
+# NSEL and NAT common into one EXnselCommon. Both contributors must survive in
+# either order; a duplicate V2 extension keeps the first one.
+make_v2_merge() {
+    python3 - "$1" <<'PYEOF'
+import struct, sys, ipaddress
+p = struct.pack
+MSEC = 1791194400000
+def v4(s): return p('<I', int(ipaddress.ip_address(s)))
+def v6(s):
+    n = int(ipaddress.ip_address(s)); return p('<QQ', n >> 64, n & ((1 << 64) - 1))
+def generic(port): return p('<QQQQQHHBBBB', MSEC, MSEC + 1000, MSEC + 2000, 10, 1000, port, 443, 6, 18, 0, 0)
+def ext(i, b): return p('<HH', i, len(b) + 4) + b
+def record(port, es):
+    data = b''.join(ext(i, generic(port) if i == 1 else b) for i, b in es)
+    return p('<HHHBBHBB', 11, 12 + len(data), len(es), 0, 0, 0, 0, 10) + data
+f4 = (2, v4('192.0.2.10') + v4('198.51.100.20'))
+f6 = (3, v6('2001:db8:1::10') + v6('2001:db8:2::20'))
+bgp4, ip4 = (8, v4('192.0.2.254')), (10, v4('198.51.100.254'))
+bgp6, ip6 = (9, v6('2001:db8:3::fe')), (11, v6('2001:db8:4::fe'))
+mac1 = (15, p('<QQQQ', 0x010203040506, 0x111213141516, 0x212223242526, 0x313233343536))
+mac2 = (15, p('<QQQQ', 0x414243444546, 0x515253545556, 0x616263646566, 0x717273747576))
+nsel = (19, p('<QIHBB', MSEC + 3333, 0x12345678, 123, 1, 0))
+nat = (25, p('<QIBBH', MSEC + 4444, 0x23456789, 1, 0, 0))
+recs = [(11000, [(1, b''), f4, bgp4, ip4]), (11001, [(1, b''), f4, ip4, bgp4]),
+        (11002, [(1, b''), f6, bgp6, ip6]), (11003, [(1, b''), f6, ip6, bgp6]),
+        (11004, [(1, b''), f4, nsel, nat]), (11005, [(1, b''), f4, nat, nsel]),
+        (11006, [(1, b''), f4, mac1, mac2])]
+body = b''.join(record(port, es) for port, es in recs)
+n = len(recs)
+# V2 file: header, one data block of V3 records, appendix with ident and stat record
+ident = b'v2-merge\0'
+identrec = p('<HH', 0x8001, len(ident) + 4) + ident
+stats = p('<18Q', n, 1000 * n, 10 * n, n, 0, 0, 0, 1000 * n, 0, 0, 0, 10 * n, 0, 0, 0, MSEC, MSEC + 1000, 0)
+appendix = p('<IIHH', 2, len(identrec) + 148, 3, 0) + identrec + p('<HH', 0x8002, 148) + stats
+header = p('<HHIqBBHIqII', 0xa50c, 2, 0x01070a00, MSEC // 1000, 0, 0, 1, 4, 40 + 12 + len(body), 1048576, 1)
+open(sys.argv[1], 'wb').write(header + p('<IIHH', n, len(body), 3, 0) + body + appendix)
+PYEOF
+}
+
+if command -v python3 >/dev/null 2>&1 && make_v2_merge "$WORKDIR/v2merge.nf"; then
+    v2csv() { nfdump -q -6 -G none -W 1 -r "$WORKDIR/v2merge.nf" -o "csv:$1" "src port $2" 2>/dev/null | tail -n +2; }
+    if [ "$(v2csv '%nh,%nhb' 11000)" = "198.51.100.254,192.0.2.254" ] \
+       && [ "$(v2csv '%nh,%nhb' 11001)" = "198.51.100.254,192.0.2.254" ] \
+       && [ "$(v2csv '%nh,%nhb' 11002)" = "2001:db8:4::fe,2001:db8:3::fe" ] \
+       && [ "$(v2csv '%nh,%nhb' 11003)" = "2001:db8:4::fe,2001:db8:3::fe" ]; then
+        pass "v2_merged_next_hops"
+    else
+        fail "v2_merged_next_hops"
+    fi
+
+    # NSEL and NAT fields both kept; event time: first non-zero contributor
+    v2json() { nfdump -q -G none -W 1 -r "$WORKDIR/v2merge.nf" -o ndjson "src port $1" 2>/dev/null; }
+    if v2json 11004 | grep -q '"connect_id":305419896' && v2json 11004 | grep -q '"nat_pool_id":591751049' \
+       && v2json 11005 | grep -q '"connect_id":305419896' && v2json 11005 | grep -q '"nat_pool_id":591751049' \
+       && v2json 11004 | grep -q '"t_event":"[^"]*:03.333"' && v2json 11005 | grep -q '"t_event":"[^"]*:04.444"'; then
+        pass "v2_merged_nsel_nat"
+    else
+        fail "v2_merged_nsel_nat"
+    fi
+
+    if [ "$(v2csv '%ismc,%odmc,%idmc,%osmc' 11006)" = "01:02:03:04:05:06,11:12:13:14:15:16,21:22:23:24:25:26,31:32:33:34:35:36" ]; then
+        pass "v2_duplicate_extension_first_wins"
+    else
+        fail "v2_duplicate_extension_first_wins"
+    fi
+else
+    skip "v2_merged_next_hops: python3 not available"
+    skip "v2_merged_nsel_nat: python3 not available"
+    skip "v2_duplicate_extension_first_wins: python3 not available"
+fi
+
 # ── reserved index block ──────────────────────────────────────────────────────
 # BLOCK_TYPE_INDEX is reserved for a future block index. Current readers must
 # skip it silently, and tools which rewrite blocks must drop it, as its block
