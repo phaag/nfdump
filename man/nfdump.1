@@ -303,9 +303,19 @@ IPv6 destination IP address. With an optional prefix, aggregate on that IPv6 sub
 .It Cm srcnet
 Apply netmask srcmask in netflow record for source IP.
 The mask is printed as prefix length.
+Overlapping prefixes with the same network address, such as
+10.0.0.0/8 and 10.0.0.0/16, are aggregated into one group.
+Use
+.Cm srcnet,srcmask
+to keep them apart.
 .It Cm dstnet
 Apply netmask dstmask in netflow record for dest IP.
 The mask is printed as prefix length.
+Overlapping prefixes are aggregated as for
+.Cm srcnet ;
+use
+.Cm dstnet,dstmask
+to keep them apart.
 .It Cm srcport
 Source port; implies
 .Cm proto
