@@ -301,13 +301,17 @@ IPv4 destination IP address. With an optional prefix, aggregate on that IPv4 sub
 .It Cm dstip6 Ns Op /prefix
 IPv6 destination IP address. With an optional prefix, aggregate on that IPv6 subnet.
 .It Cm srcnet
-Apply netmask srcmask in netflow record for source IP
+Apply netmask srcmask in netflow record for source IP.
+The mask is printed as prefix length.
 .It Cm dstnet
-Apply netmask dstmask in netflow record for dest IP
+Apply netmask dstmask in netflow record for dest IP.
+The mask is printed as prefix length.
 .It Cm srcport
-Source port
+Source port; implies
+.Cm proto
 .It Cm dstport
-Destination port
+Destination port, ICMP type and code for ICMP; implies
+.Cm proto
 .It Cm srcmask
 Source mask
 .It Cm dstmask
@@ -353,7 +357,8 @@ Destination type of Service
 .It Cm ethertype
 Layer-2 EtherType
 .It Cm flags
-TCP flags
+TCP flags; implies
+.Cm proto
 .It Cm mpls1
 MPLS label 1
 .It Cm mpls2
@@ -409,6 +414,27 @@ is given. The automatic output format is identical to
 .Dl -o 'fmt:%ts %td <fields> %pkt %byt %bps %bpp %fl'
 .Pp
 where <fields> represents the selected aggregation tags.
+.Pp
+Ports and TCP flags can only be interpreted together with the protocol:
+the same port number of TCP and UDP refers to different services, ICMP
+stores type and code in the destination port, and TCP flags exist for TCP
+only. Therefore
+.Cm srcport ,
+.Cm dstport
+and
+.Cm flags
+implicitly add
+.Cm proto
+to the aggregation, if not given explicitly. The automatic output format
+prints the protocol in front of the first port or flags field. A user
+supplied output format
+.Fl o Ar fmt: Ns Ar ...
+or
+.Fl o Ar csv: Ns Ar ...
+should contain
+.Ar %pr
+as well; otherwise flows of different protocols with the same port appear
+as separate, identical looking lines.
 .It Fl b
 Aggregate flow records as bidirectional flows. This automatically implies -a.  Aggregation
 is done on connection level by taking the 5-tuple

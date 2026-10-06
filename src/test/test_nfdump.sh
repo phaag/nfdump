@@ -444,6 +444,48 @@ else
     skip "regress_changeident_failure: running as root"
 fi
 
+# ── custom aggregation context ────────────────────────────────────────────────
+# -A keeps a compact record per group. Ports and flags imply proto in the key,
+# srcnet/dstnet keep the exporter's masks; the labels must survive aggregation.
+aggr_csv() { nfdump -G none -q -r dummy_flows.nf -O bytes -o csv -A "$@" 2>/dev/null; }
+
+if aggr_csv flags | grep -q '^[^,]*,[^,]*,6,\.\.\.A' \
+   && aggr_csv flags | head -1 | grep -q ',proto,flags,'; then
+    pass "aggr_flags_proto_label"
+else
+    fail "aggr_flags_proto_label"
+fi
+
+if aggr_csv dstport | grep -q '^[^,]*,[^,]*,1,8\.0,' \
+   && aggr_csv dstport | grep -q '^[^,]*,[^,]*,17,53,'; then
+    pass "aggr_dstport_proto_icmp"
+else
+    fail "aggr_dstport_proto_icmp"
+fi
+
+if [ "$(aggr_csv dstport,proto | head -1 | cut -d, -f3-4)" = "dstPort,proto" ] \
+   && [ "$(aggr_csv proto,dstport | head -1 | cut -d, -f3-4)" = "proto,dstPort" ]; then
+    pass "aggr_explicit_proto_not_duplicated"
+else
+    fail "aggr_explicit_proto_not_duplicated"
+fi
+
+if aggr_csv srcnet | grep -q ',172\.20\.0\.0/16,' \
+   && aggr_csv dstnet | grep -q '/24,' \
+   && aggr_csv srcnet | grep -q ',2001:db8:100::/48,'; then
+    pass "aggr_net_mask_label"
+else
+    fail "aggr_net_mask_label"
+fi
+
+rm -f "$WORKDIR/srcnet_aggr.nf"
+if nfdump -G none -q -r dummy_flows.nf -A srcnet -w "$WORKDIR/srcnet_aggr.nf" >/dev/null 2>&1 \
+   && nfdump -G none -q -r "$WORKDIR/srcnet_aggr.nf" -o "csv:%sn,%byt" 2>/dev/null | grep -q '^172\.20\.0\.0/16,'; then
+    pass "aggr_net_mask_exported"
+else
+    fail "aggr_net_mask_exported"
+fi
+
 # ── reserved index block ──────────────────────────────────────────────────────
 # BLOCK_TYPE_INDEX is reserved for a future block index. Current readers must
 # skip it silently, and tools which rewrite blocks must drop it, as its block

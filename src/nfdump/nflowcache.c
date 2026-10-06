@@ -171,7 +171,9 @@ typedef struct FlowHashRecord {
 
     uint8_t inFlags;  // tcp in flags
     uint8_t swap;     // swap flow direction, when printed
-    // 6 bytes implicit padding to align msecFirst at offset 24
+    char geo[4];      // src/dst country codes of the group for -A srcgeo/dstgeo
+                      // geo is virtual and not part of the stored V4 record
+    // 2 bytes implicit padding to align msecFirst at offset 24
 
     // time info in msec
     uint64_t msecFirst;  // overall first seen timestamp
@@ -260,6 +262,13 @@ static int aggregateInfo[MaxAggrStackSize] = {0};
 // staticRebuildMaxSize: upper-bound byte size of a pre-built record (all bitmap exts present).
 static uint64_t staticRebuildBitMap = 0;
 static uint32_t staticRebuildMaxSize = 0;
+
+// context of the custom aggregation, which is not part of the aggregation key
+// but needed to print the aggregated record
+#define AGGR_SRC_GEO 0x01  // keep src country code
+#define AGGR_DST_GEO 0x02  // keep dst country code
+static uint8_t aggregateGeo = 0;
+static uint8_t aggregateNetMask = 0;  // keep src/dst mask for srcnet/dstnet
 
 static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
@@ -1219,9 +1228,30 @@ char *ParseAggregateMask(char *print_format, char *arg) {
 
     uint32_t elementCount = 0;
     aggregateInfo[0] = -1;
+    aggregateGeo = 0;
+    aggregateNetMask = 0;
 
     maxKeyLen = 0;
     memset((void *)&aggregateInfo, 0, sizeof(aggregateInfo));
+
+    // Ports and tcp flags can only be interpreted together with the protocol:
+    // ICMP type/code is stored in the dst port and tcp flags exist for TCP only.
+    // Therefore proto is silently added to the key, unless requested explicitly.
+    int protoIndex = 0;
+    while (aggregationTable[protoIndex].aggrElement && strcmp(aggregationTable[protoIndex].aggrElement, "proto") != 0) protoIndex++;
+    int explicitProto = 0;
+    {
+        char *scanStr = strdup(arg);
+        if (!scanStr) {
+            LogError("strdup() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        char *scanPtr;
+        for (char *t = strtok_r(scanStr, ",", &scanPtr); t; t = strtok_r(NULL, ",", &scanPtr)) {
+            if (strcasecmp(t, "proto") == 0) explicitProto = 1;
+        }
+        free(scanStr);
+    }
 
     size_t fmtLen = 0;
     for (int i = 0; aggregationTable[i].aggrElement != NULL; i++) {
@@ -1323,6 +1353,17 @@ char *ParseAggregateMask(char *print_format, char *arg) {
             }
         }
 
+        if (!explicitProto && !aggregationTable[protoIndex].active &&
+            (strcasecmp(p, "srcport") == 0 || strcasecmp(p, "dstport") == 0 || strcasecmp(p, "flags") == 0)) {
+            strncat(formatStr, aggregationTable[protoIndex].fmt, fmtLen);
+            fmtLen -= strlen(aggregationTable[protoIndex].fmt);
+            strncat(formatStr, sep, fmtLen);
+            fmtLen -= 1;
+            aggregationTable[protoIndex].active = 1;
+            aggregateInfo[elementCount++] = protoIndex;
+            maxKeyLen += aggregationTable[protoIndex].param.length;
+        }
+
         if (aggregationTable[index].fmt != NULL) {
             strncat(formatStr, aggregationTable[index].fmt, fmtLen);
             fmtLen -= strlen(aggregationTable[index].fmt);
@@ -1377,7 +1418,12 @@ char *ParseAggregateMask(char *print_format, char *arg) {
     for (int i = 0; aggregateInfo[i] >= 0; i++) {
         uint16_t extID = aggregationTable[aggregateInfo[i]].param.extID;
         if (extID < MAXEXTENSIONS) BitMapSet(staticRebuildBitMap, extID);
+        if (aggregationTable[aggregateInfo[i]].preprocess == SRC_GEO) aggregateGeo |= AGGR_SRC_GEO;
+        if (aggregationTable[aggregateInfo[i]].preprocess == DST_GEO) aggregateGeo |= AGGR_DST_GEO;
+        if (aggregationTable[aggregateInfo[i]].netmaskID == 0xFF) aggregateNetMask = 1;
     }
+    // srcnet/dstnet print and export the exporter's mask - keep EXflowMisc
+    if (aggregateNetMask) BitMapSet(staticRebuildBitMap, EXflowMiscID);
     uint32_t numStaticExts = __builtin_popcountll(staticRebuildBitMap);
     staticRebuildMaxSize = sizeof(recordHeaderV4_t) + ALIGN8(numStaticExts * sizeof(uint16_t));
     {
@@ -1480,6 +1526,7 @@ static size_t BuildMinimalRecord(void *p, recordHeaderV4_t *recordHeaderV4, reco
         uint16_t extID = aggregationTable[aggregateInfo[i]].param.extID;
         if (extID < MAXEXTENSIONS && origExtPtr[extID]) BitMapSet(bitMap, extID);
     }
+    if (aggregateNetMask && origExtPtr[EXflowMiscID]) BitMapSet(bitMap, EXflowMiscID);
     newV4Record->extBitmap = bitMap;
     newV4Record->numExtensions = __builtin_popcountll(bitMap);
 
@@ -1513,6 +1560,14 @@ static size_t BuildMinimalRecord(void *p, recordHeaderV4_t *recordHeaderV4, reco
         ptrdiff_t offset = aggregationTable[tableIndex].param.offset;
         ptrdiff_t length = aggregationTable[tableIndex].param.length;
         memcpy(newExt + offset, origExtension + offset, length);
+    }
+
+    // srcnet/dstnet: keep the exporter's masks - all other EXflowMisc fields stay 0
+    if (aggregateNetMask && origExtPtr[EXflowMiscID] && newExtensionList[EXflowMiscID]) {
+        EXflowMisc_t *origMisc = (EXflowMisc_t *)origExtPtr[EXflowMiscID];
+        EXflowMisc_t *newMisc = (EXflowMisc_t *)newExtensionList[EXflowMiscID];
+        newMisc->srcMask = origMisc->srcMask;
+        newMisc->dstMask = origMisc->dstMask;
     }
 
     // Copy timestamps and counters from orig EXgenericFlow
@@ -1826,6 +1881,8 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
         flowHash->records[index].swap = NeedSwap(keymem);
+        // country codes are looked up while building the key and are not part of the record
+        if (aggregateGeo) memcpy(flowHash->records[index].geo, recordHandle->geo, sizeof(flowHash->records[index].geo));
         StoreFlowRecord(&flowHash->records[index], record);
         mem = NULL;
     }
@@ -1906,6 +1963,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
         recordHandle_t recordHandle = {0};
         MapV4RecordHandle(&recordHandle, V4record, i + 1);
+        // restore the group's country codes before printing and post-filtering
+        if (aggregateGeo) memcpy(recordHandle.geo, flowRecord->geo, sizeof(flowRecord->geo));
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
@@ -1937,6 +1996,13 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
             EXinterface_t *interface = (EXinterface_t *)recordHandle.extensionList[EXinterfaceID];
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, interface, flowMisc, cntFlow, asInfo);
+            if (aggregateGeo) {
+                // country codes follow the swapped addresses
+                char srcGeo[SizeGEOloc];
+                memcpy(srcGeo, recordHandle.geo, SizeGEOloc);
+                memcpy(recordHandle.geo, recordHandle.geo + SizeGEOloc, SizeGEOloc);
+                memcpy(recordHandle.geo + SizeGEOloc, srcGeo, SizeGEOloc);
+            }
         }
 
         if (outputParams->postFilter) {
