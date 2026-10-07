@@ -406,8 +406,13 @@ static void stringsEXasInfo(FILE *stream, recordHandle_t *recordHandle, uint8_t 
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    if (asInfo->srcAS == 0) asInfo->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
-    if (asInfo->dstAS == 0) asInfo->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
+    if (ipv4Flow) {
+        if (asInfo->srcAS == 0) asInfo->srcAS = LookupV4AS(ipv4Flow->srcAddr);
+        if (asInfo->dstAS == 0) asInfo->dstAS = LookupV4AS(ipv4Flow->dstAddr);
+    } else if (ipv6Flow) {
+        if (asInfo->srcAS == 0) asInfo->srcAS = LookupV6AS(ipv6Flow->srcAddr);
+        if (asInfo->dstAS == 0) asInfo->dstAS = LookupV6AS(ipv6Flow->dstAddr);
+    }
     fprintf(stream,
             "  src as       =             %6u\n"
             "  dst as       =             %6u\n",
@@ -1031,7 +1036,14 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
             TestFlag(recordHeaderV4->flags, V4_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV4->numExtensions, recordHandle->slackElements,
             elementString, recordHeaderV4->size, recordHeaderV4->engineType, recordHeaderV4->engineID, recordHeaderV4->exporterID);
 
-    if (recordHandle->extensionList[EXasInfoID] == NULL && outputParam->hasGeoDB) recordHandle->extensionList[EXasInfoID] = recordHandle->localStack;
+    // record without AS extension: print the AS numbers from the geoDB instead.
+    // The loop below walks the record's extension bitmap, which has no AS bit,
+    // so print the looked up AS at the position of EXasInfoID.
+    uint8_t *geoAS = NULL;
+    if ((recordHeaderV4->extBitmap & (1ULL << EXasInfoID)) == 0 && outputParam->hasGeoDB) {
+        if (recordHandle->extensionList[EXasInfoID] == NULL) recordHandle->extensionList[EXasInfoID] = recordHandle->localStack;
+        geoAS = (uint8_t *)recordHandle->extensionList[EXasInfoID];
+    }
 
     int doInputPayload = 0;
     int doOutputPayload = 0;
@@ -1045,6 +1057,11 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
 
         ptrdiff_t offset = offsetTable[slot++];
         uint8_t *extension = recordBase + offset;
+
+        if (geoAS && type > EXasInfoID) {
+            stringsEXasInfo(stream, recordHandle, geoAS);
+            geoAS = NULL;
+        }
 
         switch (type) {
             case EXnull:
@@ -1167,6 +1184,7 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
                 dbg_printf("Extension %i not decoded\n", type);
         }
     }
+    if (geoAS) stringsEXasInfo(stream, recordHandle, geoAS);
     if (doInputPayload) stringsEXinPayload(stream, recordHandle, NULL);
     if (doOutputPayload) stringsEXoutPayload(stream, recordHandle, NULL);
 

@@ -297,8 +297,19 @@ then
     else
         fail "aggregate_geo_postfilter_export: src='$printed'/'$exported' dst='$printed_dst'/'$exported_dst'"
     fi
+
+    # The record has no AS extension. With a geoDB, -o raw prints the AS
+    # numbers looked up in the geoDB; without one, no AS lines are printed.
+    raw_as=$("$NFDUMP_BIN" -G "$DB" -q -r "$GEO_FLOW" -o raw 2>/dev/null | awk '/ (src|dst) as /{print $1, $4}' | tr '\n' ' ')
+    raw_noas=$("$NFDUMP_BIN" -G none -q -r "$GEO_FLOW" -o raw 2>/dev/null | grep -c ' as  ')
+    if [ "$raw_as" = "src 29049 dst 7018 " ] && [ "$raw_noas" = "0" ]; then
+        pass "raw_output_geo_as_lookup"
+    else
+        fail "raw_output_geo_as_lookup: geoDB='$raw_as' none='$raw_noas'"
+    fi
 else
     skip "aggregate_geo_postfilter_export: python3 not available"
+    skip "raw_output_geo_as_lookup: python3 not available"
 fi
 
 summary
