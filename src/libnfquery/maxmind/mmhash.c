@@ -1207,6 +1207,11 @@ int InitFlatArrays(void) {
     return 1;
 }  // End of InitFlatArrays
 
+int FlatArraysEmpty(void) {
+    if (!mmFlat) return 1;
+    return mmFlat->ipV4Count == 0 && mmFlat->ipV6Count == 0 && mmFlat->asV4Count == 0 && mmFlat->asV6Count == 0;
+}  // End of FlatArraysEmpty
+
 void FreeMaxMind(void) {
     if (tzIndexByLocalID) {
         kh_destroy(tzIndexMap, tzIndexByLocalID);

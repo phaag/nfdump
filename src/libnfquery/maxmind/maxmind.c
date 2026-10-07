@@ -366,6 +366,12 @@ int LoadMaxMind(char *fileName) {
         LogError("LoadMaxMind: Failed to open maxmind db file");
         return 0;
     }
+    // a legacy V2 file opens through the flow converter, which drops array blocks
+    if (nffile->fileHeader->layoutVersion != LAYOUT_VERSION_3) {
+        CloseFileV3(nffile);
+        LogError("LoadMaxMind: GeoDB file %s has nfdump 1.7 format. Rebuild it with geolookup of nfdump 1.8.", fileName);
+        return 0;
+    }
     if (nffile->fileHeader->nfdVersion < NFDVERSION) {
         CloseFileV3(nffile);
         LogError("LoadMaxMind: GeoDB file %s not compatible. Rebuild geoDB file.", fileName);
@@ -454,6 +460,11 @@ int LoadMaxMind(char *fileName) {
     }
     FreeDataBlock(dataBlock);
     CloseFileV3(nffile);
+
+    if (FlatArraysEmpty()) {
+        LogError("LoadMaxMind: GeoDB file %s contains no lookup data. Rebuild geoDB file.", fileName);
+        return 0;
+    }
 
     SortFlatArrays();
     BuildTZCache();

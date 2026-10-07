@@ -54,6 +54,10 @@
 TZ=Europe/Zurich
 export TZ
 
+# Isolate the tests from the user's environment: a GeoDB/TorDB or config file
+# set there would be loaded by every nfdump call.
+unset NFGEODB NFTORDB NFCONF
+
 # ── locate binaries and test data ─────────────────────────────────────────────
 : "${BINDIR:=$SCRIPT_DIR/..}"
 # test data for nfcapd tests lives two levels up under test/nfcapd/

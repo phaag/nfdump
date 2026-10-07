@@ -510,7 +510,13 @@ int LoadTorTree(char *fileName) {
     // slow path: decompress nffileV3, build malloc'd array
     nffileV3_t *nffile = OpenFileV3(fileName);
     if (!nffile) {
-        LogError("LoadTorTree: Failed to open maxmind db file");
+        LogError("LoadTorTree: Failed to open tor db file");
+        return 0;
+    }
+    // a legacy V2 file opens through the flow converter, which drops array blocks
+    if (nffile->fileHeader->layoutVersion != LAYOUT_VERSION_3) {
+        CloseFileV3(nffile);
+        LogError("LoadTorTree: tor DB file %s has nfdump 1.7 format. Rebuild it with torlookup of nfdump 1.8.", fileName);
         return 0;
     }
 
@@ -573,7 +579,10 @@ int LoadTorTree(char *fileName) {
     }
     CloseFileV3(nffile);
 
-    if (torV4Count == 0 && torV6Count == 0) return 0;
+    if (torV4Count == 0 && torV6Count == 0) {
+        LogError("LoadTorTree: tor DB file %s contains no tor nodes. Rebuild tor DB file.", fileName);
+        return 0;
+    }
 
     if (torV4Count) qsort(torV4Array, torV4Count, sizeof(torV4Node_t), torV4NodeCmpByIP);
     if (torV6Count) qsort(torV6Array, torV6Count, sizeof(torV6Node_t), torV6NodeCmpByNet);

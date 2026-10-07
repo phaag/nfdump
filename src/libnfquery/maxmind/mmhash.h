@@ -173,6 +173,9 @@ int LoadFlatCache(const char *flatPath);
 
 int InitFlatArrays(void);
 
+// Returns 1 if no IP or AS lookup data is loaded
+int FlatArraysEmpty(void);
+
 // Build the RAM-only timeZone name <-> index cache from the currently loaded
 // locations. Must be called once after location data is fully populated -
 // i.e. at the end of LoadFlatCache() and at the end of LoadMaxMind()'s slow
