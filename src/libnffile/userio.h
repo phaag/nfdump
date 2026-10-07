@@ -121,4 +121,8 @@ int pfReasonNr(char *reason);
 
 void pfListReasons(void);
 
+const char *pfDirection(int dir);
+
+int pfDirectionNr(char *dir);
+
 #endif

@@ -746,7 +746,7 @@ static int AddIdent(char *ident) {
 	while ( *c ) {
 		if ( *c != '_' && *c != '-' && !isalnum((unsigned char)*c) ) {
 			yyprintf("Invalid char in ident string: %s: %c", ident, *c);
-			return 0;
+			return -1;
 		}
 		c++;
 	}
@@ -1056,6 +1056,17 @@ static int AddFwdStatString(char *string) {
 	return NewElement(EXgenericFlowID, OFFfwdStatus, SIZEfwdStatus, fwdStatus, CMP_EQ, FUNC_NONE, NULLPtr);
 } // End of AddFwdStatString
 
+// Convert the MPLS stack number 1..10 of 'labelN'/'expN' into the label array index 0..9
+static int MPLSstackNumber(char *s) {
+	char *end;
+	long lnum = strtol(s, &end, 10);
+	if ( *end != '\0' || lnum < 1 || lnum > 10 ) {
+		yyprintf("MPLS stack number %s out of range 1..10", s);
+		return -1;
+	}
+	return (int)lnum - 1;
+} // End of MPLSstackNumber
+
 static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 	if ( strncasecmp(type, "label", 5) == 0 ) {
 		char *s = type + 5;
@@ -1063,7 +1074,8 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 			yyprintf("Missing mpls stack number for label");
 			return -1;
 		}
-		int lnum = (int)strtol(s, (char **)NULL, 10);
+		int lnum = MPLSstackNumber(s);
+		if ( lnum < 0 ) return -1;
 		data_t labelIndex = { .dataVal = lnum};
 		return NewElement(EXmplsID, 0, 0, value, comp, FUNC_MPLS_LABEL, labelIndex);
 	} else if ( strcasecmp(type, "any") == 0 ) {
@@ -1078,7 +1090,8 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 			yyprintf("Missing mpls stack number for exp value");
 			return -1;
 		}
-		int lnum = (int)strtol(s, (char **)NULL, 10);
+		int lnum = MPLSstackNumber(s);
+		if ( lnum < 0 ) return -1;
 		data_t data = {.dataVal = lnum};
 		return NewElement(EXmplsID, 0, 0, value, comp, FUNC_MPLS_EXP, data);
 	} else {
@@ -1717,7 +1730,11 @@ static int AddPFString(char *type, char *arg) {
 				ret = NewElement(EXpfinfoID, OFFpfReason, SIZEpfReason, pfReason, CMP_EQ, FUNC_NONE, NULLPtr);
 			}
 	} else if (strcasecmp(type, "dir") == 0) {
-		int pfDir = strcasecmp(arg, "in") == 0 ? 1: 0;
+		int pfDir = pfDirectionNr(arg);
+		if ( pfDir < 0 ) {
+			yyprintf("Invalid pf direction: %s. Expected in, out, inout or fwd", arg);
+			return -1;
+		}
 		ret = NewElement(EXpfinfoID, OFFpfDir, SIZEpfDir, pfDir, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (strcasecmp(type, "interface") == 0) {
 		data_t data = {.dataPtr=strdup(arg)};

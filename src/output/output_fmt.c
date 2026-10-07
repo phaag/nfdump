@@ -569,7 +569,7 @@ static struct format_entry_s {
     {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
     {"%pfact", 0, "action", String_pfAction},     // pflog action
     {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
-    {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
+    {"%pfdir", 0, "  dir", String_pfdir},         // pflog direction
     {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
 
     // EXflowIdID
@@ -2619,7 +2619,7 @@ static void String_pfdir(FILE *stream, recordHandle_t *recordHandle) {
     EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
 
     if (pfinfo) {
-        fprintf(stream, "%3s", pfinfo->dir ? "in" : "out");
+        fprintf(stream, "%5s", pfDirection(pfinfo->dir));
     } else {
         fprintf(stream, "<no pfinfo>");
     }

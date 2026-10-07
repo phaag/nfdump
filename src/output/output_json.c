@@ -839,7 +839,7 @@ static char *stringEXpfinfo(char *streamPtr, uint8_t *extensionRecord) {
     AddElementU32("pf_action_id", pfinfo->action);
     AddElementString("pf_reason", pfReason(pfinfo->reason));
     AddElementU32("pf_reason_id", pfinfo->reason);
-    AddElementString("pf_direction", pfinfo->dir ? "in" : "out");
+    AddElementString("pf_direction", pfDirection(pfinfo->dir));
     AddElementU32("pf_rulenr", pfinfo->rulenr);
 
     return streamPtr;

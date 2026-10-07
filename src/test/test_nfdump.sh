@@ -576,6 +576,82 @@ else
     skip "v2_duplicate_extension_first_wins: python3 not available"
 fi
 
+# ── filter regressions ────────────────────────────────────────────────────────
+# MPLS labelN/expN count the stack from 1 (top), as raw output prints them.
+# dummy_flows.nf record 22 carries labels 1010, 2020, ... 9090, 100100 (EOS).
+mplscnt() { nfdump -q -G none -r dummy_flows.nf -o csv "$1" 2>/dev/null | tail -n +2 | grep -vc 'No matching'; }
+if [ "$(mplscnt 'mpls label1 = 1010')" = "1" ] && [ "$(mplscnt 'mpls label2 = 2020')" = "1" ] \
+   && [ "$(mplscnt 'mpls label10 = 100100')" = "1" ] && [ "$(mplscnt 'mpls label1 = 2020')" = "0" ] \
+   && ! nfdump -Z 'mpls label0 = 1' >/dev/null 2>&1 && ! nfdump -Z 'mpls label11 = 1' >/dev/null 2>&1 \
+   && ! nfdump -Z 'mpls exp11 = 1' >/dev/null 2>&1 && nfdump -Z 'mpls exp10 = 0' >/dev/null 2>&1; then
+    pass "filter_mpls_stack_number"
+else
+    fail "filter_mpls_stack_number"
+fi
+
+# an ident with an invalid character must fail to compile
+if ! nfdump -Z "ident 'a.b'" >/dev/null 2>&1 && nfdump -Z 'ident a-b_c' >/dev/null 2>&1; then
+    pass "filter_ident_invalid_char"
+else
+    fail "filter_ident_invalid_char"
+fi
+
+# payload content and pflog filters on legacy V2 records: one record with a
+# payload, two pflog records (out/block/memory and in/pass/match).
+make_v2_filter() {
+    python3 - "$1" <<'PYEOF'
+import struct, sys, ipaddress
+p = struct.pack
+MSEC = 1791194400000
+def v4(s): return p('<I', int(ipaddress.ip_address(s)))
+def generic(port): return p('<QQQQQHHBBBB', MSEC, MSEC + 1000, MSEC + 2000, 10, 1000, port, 443, 6, 18, 0, 0)
+def ext(i, b): return p('<HH', i, len(b) + 4) + b
+def record(port, es):
+    data = b''.join(ext(i, generic(port) if i == 1 else b) for i, b in es)
+    return p('<HHHBBHBB', 11, 12 + len(data), len(es), 0, 0, 0, 0, 10) + data
+f4 = (2, v4('192.0.2.10') + v4('198.51.100.20'))
+payload = (29, b'GET / HTTP/1.1\r\nHost: www.example.org\r\n\r\n\0\0')
+def pf(action, reason, direction, rule, ifname):
+    return (37, p('<BBBBIIII4s', action, reason, direction, 0, rule, 0, 0, 0, ifname))
+recs = [(12000, [(1, b''), f4, payload]),
+        (12001, [(1, b''), f4, pf(1, 5, 2, 7, b'em0\0')]),
+        (12002, [(1, b''), f4, pf(0, 0, 1, 8, b'em1\0')])]
+body = b''.join(record(port, es) for port, es in recs)
+n = len(recs)
+ident = b'v2-filter\0'
+identrec = p('<HH', 0x8001, len(ident) + 4) + ident
+stats = p('<18Q', n, 1000 * n, 10 * n, n, 0, 0, 0, 1000 * n, 0, 0, 0, 10 * n, 0, 0, 0, MSEC, MSEC + 1000, 0)
+appendix = p('<IIHH', 2, len(identrec) + 148, 3, 0) + identrec + p('<HH', 0x8002, 148) + stats
+header = p('<HHIqBBHIqII', 0xa50c, 2, 0x01070a00, MSEC // 1000, 0, 0, 1, 4, 40 + 12 + len(body), 1048576, 1)
+open(sys.argv[1], 'wb').write(header + p('<IIHH', n, len(body), 3, 0) + body + appendix)
+PYEOF
+}
+
+if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; then
+    v2ports() { nfdump -q -G none -W 1 -r "$WORKDIR/v2filter.nf" -o 'csv:%sp' "$1" 2>/dev/null | tail -n +2 | grep -v 'No matching' | tr '\n' ' '; }
+
+    # a partial match must not hide an overlapping match: 'ww.' within 'www.'
+    if [ "$(v2ports "payload content 'ww.'")" = "12000 " ] && [ "$(v2ports "payload content 'www.'")" = "12000 " ] \
+       && [ "$(v2ports "payload content 'org'")" = "12000 " ] && [ "$(v2ports "payload content 'WWW.'")" = "" ]; then
+        pass "filter_payload_content_overlap"
+    else
+        fail "filter_payload_content_overlap"
+    fi
+
+    # pflog direction is stored as PF_IN 1 / PF_OUT 2
+    if [ "$(v2ports 'pf dir out')" = "12001 " ] && [ "$(v2ports 'pf dir in')" = "12002 " ] \
+       && [ "$(v2ports 'pf reason memory')" = "12001 " ] \
+       && [ "$(nfdump -q -G none -r "$WORKDIR/v2filter.nf" -o 'csv:%sp,%pfdir,%pfrea' 'src port 12001' 2>/dev/null | tail -n +2)" = "12001,out,memory" ] \
+       && ! nfdump -Z 'pf dir foo' >/dev/null 2>&1; then
+        pass "filter_pflog_dir_reason"
+    else
+        fail "filter_pflog_dir_reason"
+    fi
+else
+    skip "filter_payload_content_overlap: python3 not available"
+    skip "filter_pflog_dir_reason: python3 not available"
+fi
+
 # ── reserved index block ──────────────────────────────────────────────────────
 # BLOCK_TYPE_INDEX is reserved for a future block index. Current readers must
 # skip it silently, and tools which rewrite blocks must drop it, as its block

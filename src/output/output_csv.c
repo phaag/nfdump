@@ -2362,7 +2362,7 @@ static char *String_pfdir(char *streamPtr, recordHandle_t *recordHandle) {
     EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
 
     if (pfinfo) {
-        AddString(pfinfo->dir ? "in" : "out");
+        AddString(pfDirection(pfinfo->dir));
     } else {
         AddString("no pfinfo");
     }

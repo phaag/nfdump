@@ -199,6 +199,20 @@ static uint64_t bpp_function(void *dataPtr, uint32_t length, data_t data, record
 
 }  // End of bpp_function
 
+// binary-safe substring search of needle in the payload:
+// memchr finds the next candidate first byte, memcmp verifies the rest
+static inline int PayloadContains(const char *hay, uint32_t hayLen, const char *needle) {
+    const size_t needleLen = strlen(needle);
+    if (needleLen == 0 || needleLen > hayLen) return 0;
+    const char *last = hay + hayLen - needleLen;
+    const char *p = hay;
+    while (p <= last && (p = memchr(p, needle[0], (size_t)(last - p) + 1)) != NULL) {
+        if (memcmp(p, needle, needleLen) == 0) return 1;
+        p++;
+    }
+    return 0;
+}  // End of PayloadContains
+
 static uint64_t mpls_label_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXmpls_t *mpls = (EXmpls_t *)handle->extensionList[EXmplsID];
     int64_t labelID = data.dataVal;
@@ -1708,17 +1722,7 @@ L_PAYLOAD: {
     if (__builtin_expect(!payload, 0)) NEXT(0);
     const char *needle = (const char *)(uintptr_t)inst->aux;
     if (__builtin_expect(!needle, 0)) NEXT(0);
-    const char *hay = (const char *)payload->payload;
-    const uint32_t len = payload->size;
-    int m = 0;
-    for (uint32_t i = 0; i < len; i++) {
-        if (hay[i] == needle[m]) {
-            m++;
-            if (needle[m] == '\0') NEXT(1);
-        } else
-            m = 0;
-    }
-    NEXT(0);
+    NEXT(PayloadContains((const char *)payload->payload, payload->size, needle));
 }
 
 L_REGEX: {
@@ -1950,17 +1954,7 @@ L_PREP_PAYLOAD: {
     const EXPayload_t *payload = (const EXPayload_t *)_ext;
     const char *needle = (const char *)(uintptr_t)inst->aux;
     if (!needle) NEXT(0);
-    const char *hay = (const char *)payload->payload;
-    const uint32_t len = payload->size;
-    int m = 0;
-    for (uint32_t i = 0; i < len; i++) {
-        if (hay[i] == needle[m]) {
-            m++;
-            if (needle[m] == '\0') NEXT(1);
-        } else
-            m = 0;
-    }
-    NEXT(0);
+    NEXT(PayloadContains((const char *)payload->payload, payload->size, needle));
 }
 
 L_PREP_REGEX: {

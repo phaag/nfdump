@@ -304,7 +304,7 @@ static struct natEvent_s {
 const char *pf_actions[] = {"pass",  "block",    "scrub", "noscrub", "nat",    "nonat", "binat", "nobinat", "rdr",
                             "nordr", "synblock", "defer", "match",   "divert", "rt",    "afrt",  NULL};
 
-const char *pf_reasons[] = {"match",         "bad-offset", "fragment",  "short",       "normalize",      "memory)",
+const char *pf_reasons[] = {"match",         "bad-offset", "fragment",  "short",       "normalize",      "memory",
                             "bad-timestamp", "congestion", "ip-option", "proto-cksum", "state-mismatch", "state-insert",
                             "state-limit",   "src-limit",  "synproxy",  "translate",   "no-route",       NULL};
 
@@ -497,3 +497,18 @@ void pfListReasons(void) {
     }
     printf("\n");
 }  // End of pfListReasons
+
+// pflog direction as stored by OpenBSD pf: PF_INOUT 0, PF_IN 1, PF_OUT 2, PF_FWD 3
+static const char *pf_directions[] = {"inout", "in", "out", "fwd", NULL};
+
+const char *pfDirection(int dir) {
+    const char *d = "<undef>";
+    if (dir >= 0 && dir <= 3) d = pf_directions[dir];
+    return d;
+}  // End of pfDirection
+
+int pfDirectionNr(char *dir) {
+    int i = 0;
+    while (pf_directions[i] && strcasecmp(pf_directions[i], dir) != 0) i++;
+    return pf_directions[i] != NULL ? i : -1;
+}  // End of pfDirectionNr

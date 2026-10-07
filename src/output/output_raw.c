@@ -923,7 +923,7 @@ static void stringsEXpfinfo(FILE *stream, uint8_t *extensionRecord) {
             "  pflog reason =              %5s/%u\n"
             "  pflog direct =              %5s\n"
             "  pflog rulenr =              %5u\n",
-            pfinfo->ifname, pfAction(pfinfo->action), pfinfo->action, pfReason(pfinfo->reason), pfinfo->reason, pfinfo->dir ? "in" : "out",
+            pfinfo->ifname, pfAction(pfinfo->action), pfinfo->action, pfReason(pfinfo->reason), pfinfo->reason, pfDirection(pfinfo->dir),
             pfinfo->rulenr);
 
 }  // End of stringsEXpfinfo

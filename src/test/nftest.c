@@ -922,12 +922,13 @@ static void runTest(void) {
         }
         // simulate an end of stack label
         mpls->label[4] = (34 << 4) + 1;
+        // labelN/expN count the stack from 1: label N is label[N-1]
 
-        CheckFilter("mpls label2 32", recordHandle, 1);
-        CheckFilter("mpls label2 > 31", recordHandle, 1);
-        CheckFilter("mpls label2 > 32", recordHandle, 0);
-        CheckFilter("mpls label4 > 33", recordHandle, 1);
-        CheckFilter("mpls label4 34", recordHandle, 1);
+        CheckFilter("mpls label3 32", recordHandle, 1);
+        CheckFilter("mpls label3 > 31", recordHandle, 1);
+        CheckFilter("mpls label3 > 32", recordHandle, 0);
+        CheckFilter("mpls label5 > 33", recordHandle, 1);
+        CheckFilter("mpls label5 34", recordHandle, 1);
 
         CheckFilter("mpls eos 34", recordHandle, 1);
         CheckFilter("mpls eos 33", recordHandle, 0);
@@ -936,11 +937,11 @@ static void runTest(void) {
             mpls->label[i] = mpls->label[i] | ((i & 0x7) << 1);  // init exp bits
         }
 
-        CheckFilter("mpls exp3 3", recordHandle, 1);
-        CheckFilter("mpls exp3 > 2", recordHandle, 1);
-        CheckFilter("mpls exp3 > 4", recordHandle, 0);
-        CheckFilter("mpls exp7 > 6", recordHandle, 1);
-        CheckFilter("mpls exp7 7", recordHandle, 1);
+        CheckFilter("mpls exp4 3", recordHandle, 1);
+        CheckFilter("mpls exp4 > 2", recordHandle, 1);
+        CheckFilter("mpls exp4 > 4", recordHandle, 0);
+        CheckFilter("mpls exp8 > 6", recordHandle, 1);
+        CheckFilter("mpls exp8 7", recordHandle, 1);
 
         CheckFilter("mpls any 34", recordHandle, 1);
         CheckFilter("mpls any 33", recordHandle, 1);
