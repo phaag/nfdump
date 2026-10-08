@@ -669,6 +669,21 @@ else
     fail "time_window_ignores_empty_file: ref='$ref_win' got='$(twin "$WORKDIR/emptywin")' sum='$sum_dir'"
 fi
 
+# Tools writing a file without flows must produce a valid file: no empty flow
+# block, and an empty time window.
+empty_ok() { nfdump -v check -r "$1" >/dev/null 2>&1 && [ "$(nfdump -I -r "$1" 2>/dev/null | grep -E '^(Flows|First):' | tr '\n' ' ')" = "Flows: 0 First: 0 " ]; }
+EMPTY="$WORKDIR/emptywin/nfcapd.202601010005"
+cp "$EMPTY" "$WORKDIR/meta-inplace.nf"
+if empty_ok "$EMPTY" \
+   && nfdump -r "$EMPTY" -w "$WORKDIR/empty-rw.nf" >/dev/null 2>&1 && empty_ok "$WORKDIR/empty-rw.nf" \
+   && nfanon -A 0123456789abcdef0123456789abcdef -r "$EMPTY" -w "$WORKDIR/empty-anon.nf" >/dev/null 2>&1 && empty_ok "$WORKDIR/empty-anon.nf" \
+   && "$NFMETA_BIN" -r "$EMPTY" -w "$WORKDIR/empty-meta.nf" >/dev/null 2>&1 && empty_ok "$WORKDIR/empty-meta.nf" \
+   && "$NFMETA_BIN" -r "$WORKDIR/meta-inplace.nf" >/dev/null 2>&1 && empty_ok "$WORKDIR/meta-inplace.nf"; then
+    pass "empty_file_tools_output"
+else
+    fail "empty_file_tools_output"
+fi
+
 # ── reserved index block ──────────────────────────────────────────────────────
 # BLOCK_TYPE_INDEX is reserved for a future block index. Current readers must
 # skip it silently, and tools which rewrite blocks must drop it, as its block

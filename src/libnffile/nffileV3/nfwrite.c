@@ -564,7 +564,10 @@ void PushBlockV3(queue_t *queue, void *blockHeader) {
     if (blockHeader == NULL) return;
 
     dataBlockV3_t *dataBlockV3 = (dataBlockV3_t *)blockHeader;
-    if (dataBlockV3->rawSize != 0) {
+    // a new flow block already holds its header size in rawSize - empty is numRecords 0
+    int empty = dataBlockV3->rawSize == 0 ||
+                (dataBlockV3->type == BLOCK_TYPE_FLOW && ((flowBlockV3_t *)dataBlockV3)->numRecords == 0);
+    if (!empty) {
         // empty blocks need not to be written
         dbg_printf("PushBlockV3 - push block type: %u, with size: %u\n", dataBlockV3->type, dataBlockV3->rawSize);
         if (queue_push(queue, blockHeader) == NULL) return;
