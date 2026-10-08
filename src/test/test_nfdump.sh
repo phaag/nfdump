@@ -652,6 +652,23 @@ else
     skip "filter_pflog_dir_reason: python3 not available"
 fi
 
+# ── time window with empty files ──────────────────────────────────────────────
+# A collector file without flows stores msecFirstSeen 0. It must not pull the
+# summary time window back to 1970 ("Time Window unknown" with a huge duration).
+mkdir -p "$WORKDIR/emptywin"
+cp dummy_flows.nf "$WORKDIR/emptywin/nfcapd.202601010000"
+nfdump -r dummy_flows.nf -w "$WORKDIR/emptywin/nfcapd.202601010005" 'proto 99' >/dev/null 2>&1
+twin() { nfdump -r "$1" -s ip -n 1 2>/dev/null | grep '^Time window'; }
+ref_win=$(twin dummy_flows.nf)
+sum_ref=$(nfdump -I -r dummy_flows.nf 2>/dev/null | grep -E '^(First|Last):')
+sum_dir=$(nfdump -I -r "$WORKDIR/emptywin" 2>/dev/null | grep -E '^(First|Last):')
+if [ -n "$ref_win" ] && [ "$(twin "$WORKDIR/emptywin")" = "$ref_win" ] && [ "$sum_dir" = "$sum_ref" ] \
+   && [ "$(nfdump -I -r "$WORKDIR/emptywin/nfcapd.202601010005" 2>/dev/null | grep '^First:')" = "First: 0" ]; then
+    pass "time_window_ignores_empty_file"
+else
+    fail "time_window_ignores_empty_file: ref='$ref_win' got='$(twin "$WORKDIR/emptywin")' sum='$sum_dir'"
+fi
+
 # ── reserved index block ──────────────────────────────────────────────────────
 # BLOCK_TYPE_INDEX is reserved for a future block index. Current readers must
 # skip it silently, and tools which rewrite blocks must drop it, as its block

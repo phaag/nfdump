@@ -411,7 +411,10 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
     s1->numpackets_other += s2->numpackets_other;
     s1->sequence_failure += s2->sequence_failure;
 
-    if (s2->msecFirstSeen < s1->msecFirstSeen) {
+    // a stat record without flows has no time window: msecFirstSeen is 0 for an
+    // empty collector file, or the unset sentinel of a new file
+    if (!StatHasTimeWindow(s2)) return;
+    if (!StatHasTimeWindow(s1) || s2->msecFirstSeen < s1->msecFirstSeen) {
         s1->msecFirstSeen = s2->msecFirstSeen;
     }
     if (s2->msecLastSeen > s1->msecLastSeen) {
