@@ -214,7 +214,8 @@ tz\ [a-zA-Z0-9/_-]+      {
 	                  return TZSTRING;
 								}
 \n			{ lineno++; }
-.				{ return yytext[0]; }
+.				{ /* unsigned: a byte >= 0x80 as negative token would end the parse as EOF */
+					return (unsigned char)yytext[0]; }
 			
 	 
  <incl>[ \t]*	  /* eat the whitespace */

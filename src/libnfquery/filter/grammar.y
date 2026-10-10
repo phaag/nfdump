@@ -611,6 +611,17 @@ expr:	term { $$ = $1.self; }
 static char ebuf[EBUFFSIZE];
 
 static void yyerror(char *msg) {
+	// a non-ASCII byte is mostly a pasted non-breaking space or typographic quote
+	if ( yytext && (unsigned char)yytext[0] >= 0x80 ) {
+		if ( FilterFilename ) {
+			fprintf(stderr, "File '%s' line %d: %s at non-ASCII byte 0x%02X - check for non-breaking spaces or typographic quotes\n",
+				FilterFilename, lineno, msg, (unsigned char)yytext[0]);
+		} else {
+			fprintf(stderr, "Line %d: %s at non-ASCII byte 0x%02X - check for non-breaking spaces or typographic quotes\n",
+				lineno, msg, (unsigned char)yytext[0]);
+		}
+		return;
+	}
 	if ( FilterFilename ) {
 		fprintf(stderr, "File '%s' line %d: %s at '%s'\n", FilterFilename, lineno, msg, yytext);
 	} else {

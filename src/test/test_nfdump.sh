@@ -589,6 +589,19 @@ else
     fail "filter_mpls_stack_number"
 fi
 
+# A non-ASCII byte, such as a pasted non-breaking space (0xC2 0xA0), must be a
+# syntax error. As signed char it became a negative token, which the parser
+# took as end of input: the rest of the filter was silently ignored.
+nbsp=$(printf '\302\240')
+if ! nfdump -Z "proto tcp${nbsp}and port 80" >/dev/null 2>&1 \
+   && ! nfdump -Z "proto tcp and port 80${nbsp}" >/dev/null 2>&1 \
+   && nfdump -Z "proto tcp
+and port 80" >/dev/null 2>&1; then
+    pass "filter_non_ascii_rejected"
+else
+    fail "filter_non_ascii_rejected"
+fi
+
 # an ident with an invalid character must fail to compile
 if ! nfdump -Z "ident 'a.b'" >/dev/null 2>&1 && nfdump -Z 'ident a-b_c' >/dev/null 2>&1; then
     pass "filter_ident_invalid_char"
