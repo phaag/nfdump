@@ -22,6 +22,7 @@ maxmind = maxmind/maxmind.c maxmind/maxmind.h maxmind/mmhash.c maxmind/mmhash.h
 tor = tor/tor.c tor/tor.h
 decode  = dns/codec.c dns/codec.h dns/dns.c dns/dns.h dns/mappings.c dns/mappings.h
 decode += ssl/ssl.c ssl/ssl.h ja3/ja3.c ja3/ja3.h ja4/ja4.c ja4/ja4.h
+decode += entropy/entropy.c entropy/entropy.h
 
 if ENABLE_JA4
 decode += ja4/ja4s.c
@@ -33,7 +34,7 @@ lib_LTLIBRARIES = libnfquery.la libnffilter.la
 libnfquery_la_CPPFLAGS = $(AM_CPPFLAGS) -DNFFILTER_FULL $(PCRE2_CFLAGS)
 libnfquery_la_SOURCES = $(core) $(maxmind) $(tor) $(regex) $(decode) $(digest) ../libnffile/vcs_track.h
 libnfquery_la_LDFLAGS = -release @VERSION@
-libnfquery_la_LIBADD = ../libnffile/libnffile.la $(LIBATOMIC) $(PCRE2_LIBS)
+libnfquery_la_LIBADD = ../libnffile/libnffile.la $(LIBATOMIC) $(PCRE2_LIBS) $(MATH_LIBS)
 
 # Minimal filter-only library: plain V4 field/extension comparisons only.
 # No MaxMind, Tor, DNS, SSL, JA3, JA4, or regex - those keywords are rejected

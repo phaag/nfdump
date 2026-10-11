@@ -609,8 +609,10 @@ else
     fail "filter_ident_invalid_char"
 fi
 
-# payload content and pflog filters on legacy V2 records: one record with a
-# payload, two pflog records (out/block/memory and in/pass/match).
+# payload content, entropy and pflog filters on legacy V2 records: one record
+# with a text payload, two pflog records (out/block/memory and in/pass/match),
+# and entropy records: 256 distinct bytes (8.0), 1024 zero bytes as out
+# payload (0.0), a 16 byte payload (too short), 4 x 256 distinct bytes (8.0).
 make_v2_filter() {
     python3 - "$1" <<'PYEOF'
 import struct, sys, ipaddress
@@ -628,7 +630,11 @@ def pf(action, reason, direction, rule, ifname):
     return (37, p('<BBBBIIII4s', action, reason, direction, 0, rule, 0, 0, 0, ifname))
 recs = [(12000, [(1, b''), f4, payload]),
         (12001, [(1, b''), f4, pf(1, 5, 2, 7, b'em0\0')]),
-        (12002, [(1, b''), f4, pf(0, 0, 1, 8, b'em1\0')])]
+        (12002, [(1, b''), f4, pf(0, 0, 1, 8, b'em1\0')]),
+        (12003, [(1, b''), f4, (29, bytes(range(256)))]),
+        (12004, [(1, b''), f4, (30, bytes(1024))]),
+        (12005, [(1, b''), f4, (29, bytes(range(16)))]),
+        (12006, [(1, b''), f4, (29, bytes(range(256)) * 4)])]
 body = b''.join(record(port, es) for port, es in recs)
 n = len(recs)
 ident = b'v2-filter\0'
@@ -651,6 +657,19 @@ if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; 
         fail "filter_payload_content_overlap"
     fi
 
+    # payload entropy in bits per byte; payloads < 32 bytes never match
+    if [ "$(v2ports 'payload entropy > 7.9')" = "12003 12006 " ] && [ "$(v2ports 'payload entropy < 1')" = "12004 " ] \
+       && [ "$(v2ports 'payload entropy >= 0')" = "12000 12003 12004 12006 " ] \
+       && [ "$(v2ports 'in payload entropy < 1')" = "" ] && [ "$(v2ports 'out payload entropy < 1')" = "12004 " ] \
+       && [ "$(v2ports 'payload entropy = 8')" = "12003 12006 " ] && [ "$(v2ports 'payload entropy 8')" = "12003 12006 " ] \
+       && [ "$(nfdump -q -G none -r "$WORKDIR/v2filter.nf" -o raw 'src port 12003' 2>/dev/null | grep '^Entropy:')" = "Entropy: 8.000" ] \
+       && ! nfdump -Z 'payload entropy > 9' >/dev/null 2>&1 && ! nfdump -Z 'payload entropy > x' >/dev/null 2>&1 \
+       && ! nfdump -Z 'src payload entropy > 1' >/dev/null 2>&1; then
+        pass "filter_payload_entropy"
+    else
+        fail "filter_payload_entropy"
+    fi
+
     # pflog direction is stored as PF_IN 1 / PF_OUT 2
     if [ "$(v2ports 'pf dir out')" = "12001 " ] && [ "$(v2ports 'pf dir in')" = "12002 " ] \
        && [ "$(v2ports 'pf reason memory')" = "12001 " ] \
@@ -662,6 +681,7 @@ if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; 
     fi
 else
     skip "filter_payload_content_overlap: python3 not available"
+    skip "filter_payload_entropy: python3 not available"
     skip "filter_pflog_dir_reason: python3 not available"
 fi
 

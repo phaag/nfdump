@@ -52,6 +52,7 @@
 #include "ipconv.h"
 #ifdef NFFILTER_FULL
 #include "nfregex.h"
+#include "entropy/entropy.h"
 #include "ja3/ja3.h"
 #include "dns/dns.h"
 #include "ja4/ja4.h"
@@ -153,6 +154,8 @@ static int AddACL(direction_t direction, uint16_t comp, uint64_t number);
 
 static int AddPayload(direction_t direction, char *type, char *arg, char *opt);
 
+static int AddPayloadEntropy(direction_t direction, char *type, uint16_t comp, char *value);
+
 static int AddGeo(direction_t direction, char *geo);
 
 static int AddTZ(direction_t direction, char *geo);
@@ -206,7 +209,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token <s> TZSTRING
 %token <value> NUMBER
 %type <value> expr
-%type <param> dqual minmax term comp
+%type <param> dqual minmax term comp ncomp
 %type <list> iplist u64list
 
 %left	'+' OR
@@ -448,8 +451,24 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddPayload($1.direction, $3, $4, NULL); if ( $$.self < 0 ) YYABORT;
 	}
 
+	| dqual PAYLOAD STRING NUMBER {
+		char s[32];
+		snprintf(s, sizeof(s), "%" PRIu64, $4);
+		$$.self = AddPayload($1.direction, $3, s, NULL); if ( $$.self < 0 ) YYABORT;
+	}
+
 	| dqual PAYLOAD STRING STRING STRING {
 		$$.self = AddPayload($1.direction, $3, $4, $5); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual PAYLOAD STRING ncomp STRING {
+		$$.self = AddPayloadEntropy($1.direction, $3, $4.comp, $5); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual PAYLOAD STRING ncomp NUMBER {
+		char s[32];
+		snprintf(s, sizeof(s), "%" PRIu64, $5);
+		$$.self = AddPayloadEntropy($1.direction, $3, $4.comp, s); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| dqual GEOSTRING {
@@ -555,6 +574,15 @@ u64list: NUMBER {
 	| u64list ',' NUMBER { 
 		$$ = $1; if (InsertU64list($1, $3) == 0 ) YYABORT;
 	}
+	;
+
+/* explicit comparator: unlike comp it cannot be empty, which would conflict
+ * with the 'payload <type> <string>' rules */
+ncomp:	EQ			{ $$.comp = CMP_EQ; }
+	| LT			{ $$.comp = CMP_LT; }
+	| GT			{ $$.comp = CMP_GT; }
+	| LE			{ $$.comp = CMP_LE; }
+	| GE			{ $$.comp = CMP_GE; }
 	;
 
 /* comparator qualifiers */
@@ -1510,6 +1538,13 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 		return AddPayloadJA3(type, arg, opt);
 	} else if (strcasecmp(type, "ja4") == 0) {
 		return AddPayloadJA4(type, arg, opt);
+	} else if (strcasecmp(type, "entropy") == 0) {
+		// 'payload entropy <number>' without comparator: equality, as for other elements
+		if ( opt != NULL ) {
+			yyprintf("Unexpected argument: %s", opt);
+			return -1;
+		}
+		return AddPayloadEntropy(direction, type, CMP_EQ, arg);
 	} else if (strcasecmp(type, "ja4s") == 0) {
 #ifdef BUILD_JA4
 		if ( ja4sCheck(arg) == 0 ){
@@ -1637,6 +1672,51 @@ static int AddTZ(direction_t direction, char *tz) {
 
 	return ret;
 } // End of AddTZ
+// payload entropy comp value: Shannon entropy of the payload in bits per byte (0..8),
+// compared in milli-bits. Payloads shorter than ENTROPY_MIN_LENGTH never match.
+static int AddPayloadEntropy(direction_t direction, char *type, uint16_t comp, char *value) {
+	if (strcasecmp(type, "entropy") != 0) {
+		yyprintf("Unknown 'payload' argument: %s", type);
+		return -1;
+	}
+
+	char *end;
+	double entropy = strtod(value, &end);
+	if (end == value || *end != '\0' || entropy < 0.0 || entropy > 8.0) {
+		yyprintf("Invalid payload entropy: %s. Expected a number 0..8", value);
+		return -1;
+	}
+	uint64_t milliBits = (uint64_t)(entropy * 1000.0 + 0.5);
+
+	uint32_t extension[2];
+	int numExtensions = 0;
+	switch (direction) {
+		case DIR_IN:
+			extension[numExtensions++] = EXinPayloadID;
+			break;
+		case DIR_OUT:
+			extension[numExtensions++] = EXoutPayloadID;
+			break;
+		case DIR_UNSPEC:
+			extension[numExtensions++] = EXinPayloadID;
+			extension[numExtensions++] = EXoutPayloadID;
+			break;
+		default:
+			yyprintf("Use 'in' or 'out' as direction specifier");
+			return -1;
+	}
+
+	int ret = -1;
+	for (int i = 0; i < numExtensions; i++) {
+		int id = Connect_AND(
+			NewElement(extension[i], offsetof(EXPayload_t, size), sizeof(uint32_t), ENTROPY_MIN_LENGTH, CMP_GE, FUNC_NONE, NULLPtr),
+			NewElement(extension[i], 0, 0, milliBits, comp, FUNC_ENTROPY, NULLPtr)
+		);
+		ret = ret < 0 ? id : Connect_OR(ret, id);
+	}
+	return ret;
+} // End of AddPayloadEntropy
+
 #else
 /*
  * Minimal collector filter build (NFFILTER_FULL undefined): DNS/SSL/JA3/JA4
@@ -1650,6 +1730,12 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 	yyprintf("payload matching ('%s') not available: filter engine built without payload/DNS/SSL/JA3/JA4 support", type);
 	return -1;
 } // End of AddPayload
+
+static int AddPayloadEntropy(direction_t direction, char *type, uint16_t comp, char *value) {
+	(void)direction; (void)comp; (void)value;
+	yyprintf("payload matching ('%s') not available: filter engine built without payload support", type);
+	return -1;
+} // End of AddPayloadEntropy
 
 static int AddGeo(direction_t direction, char *geo) {
 	(void)direction; (void)geo;

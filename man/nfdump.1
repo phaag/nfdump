@@ -1720,6 +1720,24 @@ operations, 512 KiB of PCRE2 heap, and a depth of 10000. JIT matching uses a
 per-worker stack that can grow from 32 KiB to 512 KiB. Reaching a limit makes
 that payload fail the regex test; it does not terminate the query.
 .Pp
+.It Oo Cm in | out Oc Cm payload entropy Ar comp Ar number
+True, if the Shannon entropy of the payload compares to
+.Ar number
+in bits per byte, 0 .. 8, such as
+.Cm payload entropy > 7.5 .
+Text payloads score around 4 .. 5, compressed or encrypted payloads close to 8.
+Without
+.Cm in
+or
+.Cm out
+either payload is tested.
+Payloads shorter than 32 bytes never match.
+A short payload cannot reach a high entropy, as n bytes have at most log2(n)
+bits per byte; random 128 bytes score about 6.6.
+The raw output format prints the payload entropy as
+.Sy Entropy:
+with the same resolution of 0.001 bits.
+.Pp
 .It Cm payload dns defined
 True, if the payload decodes to a valid dns query/answer. Implies src or dst port 53
 .Pp

@@ -47,6 +47,7 @@
 
 #ifdef NFFILTER_FULL
 #include "dns/dns.h"
+#include "entropy/entropy.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
 #include "maxmind/maxmind.h"
@@ -93,6 +94,7 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
 static uint64_t tzLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t entropy_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
 static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option);
@@ -121,6 +123,7 @@ static struct flow_procs_map_s {
                             [FUNC_JA3] = {"ja3", NULL},
                             [FUNC_TTL_EQUAL] = {"min/max TTL equal", ttlEqual_function},
                             [FUNC_TZ_LOOKUP] = {"TZ Lookup", tzLookup_function},
+                            [FUNC_ENTROPY] = {"payload entropy", entropy_function},
                             {NULL, NULL}};
 
 static struct preprocess_s {
@@ -358,6 +361,16 @@ static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, r
 
     return ipInfo->minTTL == ipInfo->maxTTL;
 }  // End of ttlEqual_function
+
+// payload entropy in milli-bits per byte; the grammar guards it by a minimum payload length
+static uint64_t entropy_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+#ifdef NFFILTER_FULL
+    const EXPayload_t *payload = (const EXPayload_t *)dataPtr;
+    return PayloadEntropy(payload->payload, payload->size);
+#else
+    return 0;
+#endif
+}  // End of entropy_function
 
 #ifdef NFFILTER_FULL
 static void *dns_preproc(const EXPayload_t *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {

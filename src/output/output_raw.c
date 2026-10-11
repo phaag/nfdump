@@ -34,7 +34,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
-#include <math.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -47,6 +46,7 @@
 #include "config.h"
 #include "dns/codec.h"
 #include "dns/dns.h"
+#include "entropy/entropy.h"
 #include "exporter.h"
 #include "ifvrf.h"
 #include "ja3/ja3.h"
@@ -750,29 +750,6 @@ static void stringsEXnbarApp(FILE *stream, uint8_t *extensionRecord) {
 
 }  // End of stringsEXnbarApp
 
-static double entropy_shannon(const uint8_t *data, size_t len) {
-    if (!data || len == 0) return 0.0;
-
-    uint32_t hist[256] = {0};
-
-    // Build histogram
-    for (size_t i = 0; i < len; i++) {
-        hist[data[i]]++;
-    }
-
-    double entropy = 0.0;
-    double inv_len = 1.0 / (double)len;
-
-    for (int i = 0; i < 256; i++) {
-        if (hist[i] == 0) continue;
-
-        double p = hist[i] * inv_len;
-        entropy -= p * log2(p);
-    }
-
-    return entropy;  // bits per byte (0–8)
-}  // End of entropy_shannon
-
 static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, const uint8_t *payload, uint32_t length,
                          char *prefix);
 
@@ -858,7 +835,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
             ssl = sslProcess(payload, payloadLength);
             payloadHandle->ssl = ssl;
             if (ssl == NULL) {
-                if (payloadLength >= 32) fprintf(stream, "Entropy: %2.1f\n", entropy_shannon(payload, payloadLength));
+                if (payloadLength >= ENTROPY_MIN_LENGTH) fprintf(stream, "Entropy: %.3f\n", PayloadEntropy(payload, payloadLength) / 1000.0);
                 DumpHex(stream, payload, payloadLength);
                 return;
             }
@@ -910,7 +887,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
         }
     }
 
-    if (payloadLength >= 32) fprintf(stream, "Entropy: %2.1f\n", entropy_shannon(payload, payloadLength));
+    if (payloadLength >= ENTROPY_MIN_LENGTH) fprintf(stream, "Entropy: %.3f\n", PayloadEntropy(payload, payloadLength) / 1000.0);
     DumpHex(stream, payload, payloadLength);
 }  // End of inoutPayload
 
