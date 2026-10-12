@@ -318,6 +318,12 @@ void PrintProlog(outputParams_t *outputParams) { print_prolog(outputParams); }  
 
 void PrintEpilog(outputParams_t *outputParams) { print_epilog(outputParams); }  // End of PrintEpilog
 
+// separate consecutive statistic tables by a blank line in the formatted text output
+void PrintStatSeparator(outputParams_t *outputParams) {
+    if (outputParams->mode == MODE_FMT && !outputParams->quiet && outputParams->statTables > 0) printf("\n");
+    outputParams->statTables++;
+}  // End of PrintStatSeparator
+
 void PrintOutputHelp(void) {
     printf("Available output formats:\n");
 

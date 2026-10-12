@@ -685,6 +685,17 @@ else
     skip "filter_pflog_dir_reason: python3 not available"
 fi
 
+# ── statistic table separator ─────────────────────────────────────────────────
+# Multiple statistic tables are separated by one blank line in text output only.
+blanks() { nfdump -r dummy_flows.nf -n 2 "$@" 2>/dev/null | grep -c '^$'; }
+if [ "$(blanks -s ip)" = "0" ] && [ "$(blanks -s ip/bytes/flows)" = "1" ] \
+   && [ "$(blanks -s record/bytes -s ip -s port)" = "2" ] \
+   && [ "$(blanks -s ip -s port -o csv)" = "0" ] && [ "$(blanks -q -s ip -s port)" = "0" ]; then
+    pass "stat_table_separator"
+else
+    fail "stat_table_separator"
+fi
+
 # ── time window with empty files ──────────────────────────────────────────────
 # A collector file without flows stores msecFirstSeen 0. It must not pull the
 # summary time window back to 1970 ("Time Window unknown" with a huge duration).

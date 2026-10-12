@@ -48,6 +48,7 @@ typedef struct outputParams_s {
     int topN;
     char *ident;
     void *postFilter;
+    int statTables;  // number of statistic tables printed so far
 } outputParams_t;
 
 typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, outputParams_t *);
@@ -59,6 +60,8 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 void PrintProlog(outputParams_t *outputParams);
 
 void PrintEpilog(outputParams_t *outputParams);
+
+void PrintStatSeparator(outputParams_t *outputParams);
 
 void PrintOutputHelp(void);
 

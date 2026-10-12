@@ -2058,6 +2058,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
 
             blocksort(SortList, maxindex);
 
+            PrintStatSeparator(outputParams);
             if (!outputParams->quiet) {
                 if (outputParams->mode == MODE_FMT) {
                     if (outputParams->topN != 0)

@@ -1663,6 +1663,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 dbg_printf("Get direction: %s\n", direction == ASCENDING ? "ASCENDING" : "DESCENDING");
                 SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index, direction);
 
+                PrintStatSeparator(outputParams);
                 // this output formatting is pretty ugly - and needs to be cleaned up - improved
                 if (outputParams->mode == MODE_FMT && !outputParams->quiet) {
                     if (outputParams->topN != 0) {
