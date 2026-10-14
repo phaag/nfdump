@@ -796,16 +796,15 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     if (genericFlow && (genericFlow->srcPort == 53 || genericFlow->dstPort == 53)) {
-        void *dnsDecoded = payloadHandle->dns;
-        if (dnsDecoded == NULL) {
+        // DNS over TCP has a 2 byte length prefix
+        if (payloadHandle->dns == NULL) {
             if (genericFlow->proto == IPPROTO_TCP) {
-                dnsDecoded = dnsPayloadDecode(payload + 2, payloadLength - 2);
+                if (payloadLength > 2) payloadHandle->dns = dnsPayloadDecode(payload + 2, payloadLength - 2);
             } else {
-                dnsDecoded = dnsPayloadDecode(payload, payloadLength);
+                payloadHandle->dns = dnsPayloadDecode(payload, payloadLength);
             }
-            payloadHandle->dns = dnsDecoded;
-            dns_print_result(stream, (dns_query_t *)dnsDecoded);
         }
+        dns_print_result(stream, (dns_query_t *)payloadHandle->dns);
         return;
     }
 

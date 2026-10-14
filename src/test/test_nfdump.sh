@@ -619,10 +619,10 @@ import struct, sys, ipaddress
 p = struct.pack
 MSEC = 1791194400000
 def v4(s): return p('<I', int(ipaddress.ip_address(s)))
-def generic(port): return p('<QQQQQHHBBBB', MSEC, MSEC + 1000, MSEC + 2000, 10, 1000, port, 443, 6, 18, 0, 0)
+def generic(port, dport=443, proto=6): return p('<QQQQQHHBBBB', MSEC, MSEC + 1000, MSEC + 2000, 10, 1000, port, dport, proto, 18, 0, 0)
 def ext(i, b): return p('<HH', i, len(b) + 4) + b
-def record(port, es):
-    data = b''.join(ext(i, generic(port) if i == 1 else b) for i, b in es)
+def record(port, es, dport=443, proto=6):
+    data = b''.join(ext(i, generic(port, dport, proto) if i == 1 else b) for i, b in es)
     return p('<HHHBBHBB', 11, 12 + len(data), len(es), 0, 0, 0, 0, 10) + data
 f4 = (2, v4('192.0.2.10') + v4('198.51.100.20'))
 payload = (29, b'GET / HTTP/1.1\r\nHost: www.example.org\r\n\r\n\0\0')
@@ -635,7 +635,12 @@ recs = [(12000, [(1, b''), f4, payload]),
         (12004, [(1, b''), f4, (30, bytes(1024))]),
         (12005, [(1, b''), f4, (29, bytes(range(16)))]),
         (12006, [(1, b''), f4, (29, bytes(range(256)) * 4)])]
-body = b''.join(record(port, es) for port, es in recs)
+# DNS query www.example.org A, over UDP and over TCP with its 2 byte length prefix
+dnsq = p('!HHHHHH', 0x1234, 0x0100, 1, 0, 0, 0) + b'\x03www\x07example\x03org\x00' + p('!HH', 1, 1)
+dnsrecs = [(12007, [(1, b''), f4, (29, dnsq)], 53, 17),
+           (12008, [(1, b''), f4, (29, p('!H', len(dnsq)) + dnsq)], 53, 6)]
+body = b''.join(record(port, es) for port, es in recs) + b''.join(record(*r) for r in dnsrecs)
+recs += dnsrecs
 n = len(recs)
 ident = b'v2-filter\0'
 identrec = p('<HH', 0x8001, len(ident) + 4) + ident
@@ -651,7 +656,7 @@ if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; 
 
     # a partial match must not hide an overlapping match: 'ww.' within 'www.'
     if [ "$(v2ports "payload content 'ww.'")" = "12000 " ] && [ "$(v2ports "payload content 'www.'")" = "12000 " ] \
-       && [ "$(v2ports "payload content 'org'")" = "12000 " ] && [ "$(v2ports "payload content 'WWW.'")" = "" ]; then
+       && [ "$(v2ports "payload content 'org'")" = "12000 12007 12008 " ] && [ "$(v2ports "payload content 'WWW.'")" = "" ]; then
         pass "filter_payload_content_overlap"
     else
         fail "filter_payload_content_overlap"
@@ -659,7 +664,7 @@ if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; 
 
     # payload entropy in bits per byte; payloads < 32 bytes never match
     if [ "$(v2ports 'payload entropy > 7.9')" = "12003 12006 " ] && [ "$(v2ports 'payload entropy < 1')" = "12004 " ] \
-       && [ "$(v2ports 'payload entropy >= 0')" = "12000 12003 12004 12006 " ] \
+       && [ "$(v2ports 'payload entropy >= 0')" = "12000 12003 12004 12006 12007 12008 " ] \
        && [ "$(v2ports 'in payload entropy < 1')" = "" ] && [ "$(v2ports 'out payload entropy < 1')" = "12004 " ] \
        && [ "$(v2ports 'payload entropy = 8')" = "12003 12006 " ] && [ "$(v2ports 'payload entropy 8')" = "12003 12006 " ] \
        && [ "$(nfdump -q -G none -r "$WORKDIR/v2filter.nf" -o raw 'src port 12003' 2>/dev/null | grep '^Entropy:')" = "Entropy: 8.000" ] \
@@ -668,6 +673,15 @@ if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; 
         pass "filter_payload_entropy"
     else
         fail "filter_payload_entropy"
+    fi
+
+    # DNS payloads decode in fmt (%ipl) and raw output, over UDP and TCP
+    dnsout() { nfdump -q -G none -r "$WORKDIR/v2filter.nf" -o "$1" "src port $2" 2>&1 | grep -c 'DNS Query  :  0: www.example.org. IN A'; }
+    if [ "$(dnsout 'fmt:%ipl' 12007)" = "1" ] && [ "$(dnsout 'fmt:%ipl' 12008)" = "1" ] \
+       && [ "$(dnsout raw 12007)" = "1" ] && [ "$(dnsout raw 12008)" = "1" ]; then
+        pass "payload_dns_decode_output"
+    else
+        fail "payload_dns_decode_output"
     fi
 
     # pflog direction is stored as PF_IN 1 / PF_OUT 2
@@ -682,6 +696,7 @@ if command -v python3 >/dev/null 2>&1 && make_v2_filter "$WORKDIR/v2filter.nf"; 
 else
     skip "filter_payload_content_overlap: python3 not available"
     skip "filter_payload_entropy: python3 not available"
+    skip "payload_dns_decode_output: python3 not available"
     skip "filter_pflog_dir_reason: python3 not available"
 fi
 

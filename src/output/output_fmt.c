@@ -1090,16 +1090,15 @@ static void String_Payload(FILE *stream, EXgenericFlow_t *genericFlow, const EXP
     const uint32_t payloadLength = payload->size;
 
     if (genericFlow && (genericFlow->srcPort == 53 || genericFlow->dstPort == 53)) {
-        void *dnsDecoded = payloadHandle->dns;
-        if (dnsDecoded == NULL) {
+        // decode the payload bytes - not the EXPayload_t header; DNS over TCP has a 2 byte length prefix
+        if (payloadHandle->dns == NULL) {
             if (genericFlow->proto == IPPROTO_TCP) {
-                dnsDecoded = dnsPayloadDecode(payload + 2, payloadLength - 2);
+                if (payloadLength > 2) payloadHandle->dns = dnsPayloadDecode(payload->payload + 2, payloadLength - 2);
             } else {
-                dnsDecoded = dnsPayloadDecode(payload, payloadLength);
+                payloadHandle->dns = dnsPayloadDecode(payload->payload, payloadLength);
             }
-            payloadHandle->dns = dnsDecoded;
-            dns_print_result(stream, (dns_query_t *)dnsDecoded);
         }
+        dns_print_result(stream, (dns_query_t *)payloadHandle->dns);
         return;
     }
 
