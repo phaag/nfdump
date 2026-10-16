@@ -4,14 +4,19 @@ dist_man_MANS += geolookup.1 torlookup.1
 dist_man_MANS += nfmeta.1 nfdump.conf.5
 dist_man_MANS += nfdump.3
 
+# Optional man pages must always be present in source distributions, but
+# should only be installed when the corresponding program is enabled.
+EXTRA_DIST = ft2nfdump.1 nfprofile.1 nfpcapd.1
+man_MANS =
+
 if BUILD_FT2NFDUMP
-dist_man_MANS += ft2nfdump.1
+man_MANS += ft2nfdump.1
 endif
 
 if BUILD_NFPROFILE
-dist_man_MANS += nfprofile.1
+man_MANS += nfprofile.1
 endif
 
 if BUILD_NFPCAPD
-dist_man_MANS += nfpcapd.1
+man_MANS += nfpcapd.1
 endif
