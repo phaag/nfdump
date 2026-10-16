@@ -30,3 +30,4 @@ pkgconfig_DATA = nfdump.pc
 
 EXTRA_DIST = LICENSE BSD-license.txt bootstrap nfdump.pc.in
 EXTRA_DIST += extra/CreateSubHierarchy.pl extra/PortTracker.pm extra/nfdump.spec 
+EXTRA_DIST += test/maxmind
