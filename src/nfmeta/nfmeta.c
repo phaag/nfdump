@@ -31,6 +31,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -47,10 +48,10 @@
 #include "flist.h"
 #include "id.h"
 #include "logging.h"
-#include "nfconf.h"
 #include "nfcommon.h"
-#include "nffileV3/nffileV3.h"
+#include "nfconf.h"
 #include "nfdump_inline.c"
+#include "nffileV3/nffileV3.h"
 #include "nffile_inline.c"
 #include "nfthread.h"
 #include "nfxV4.h"
@@ -76,9 +77,9 @@ typedef struct {
     queue_t *inputQueue;
     queue_t *outputQueue;
     uint32_t blockSize;
-    uint32_t maxRecords;          // max flow records per output block, 0 = up to blockSize
-    pthread_mutex_t statLock;     // protects stat_record
-    stat_record_t *stat_record;   // stat record of the output file, summed by all workers
+    uint32_t maxRecords;         // max flow records per output block, 0 = up to blockSize
+    pthread_mutex_t statLock;    // protects stat_record
+    stat_record_t *stat_record;  // stat record of the output file, summed by all workers
 } workerArgs_t;
 
 static void usage(char *name) {
@@ -608,8 +609,7 @@ int main(int argc, char **argv) {
                 if (limitCores > 0) {
                     long onlineCores = sysconf(_SC_NPROCESSORS_ONLN);
                     if (onlineCores > 0 && limitCores > (int)onlineCores)
-                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld",
-                                limitCores, onlineCores, onlineCores);
+                        LogInfo("-W %d exceeds %ld online cores; budget will be clamped to %ld", limitCores, onlineCores, onlineCores);
                 }
                 break;
             case 'v':
