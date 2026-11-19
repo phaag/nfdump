@@ -366,7 +366,7 @@ else
             # and look for the key-check error message instead.
             wp_err=$("$NFDUMP_BIN" -G none -r "$CRYPTO_FILE" "-K=wrongpass" \
                                    -o null 2>&1)
-            if echo "$wp_err" | grep -qi "wrong passphrase\|corrupt.*key\|corrupt.*encr"; then
+            if echo "$wp_err" | grep -qiE "wrong passphrase|corrupt.*key|corrupt.*encr"; then
                 pass "crypto_wrongpass: wrong passphrase correctly rejected"
             else
                 fail "crypto_wrongpass: expected key-check error on stderr, got: ${wp_err:-<nothing>}"

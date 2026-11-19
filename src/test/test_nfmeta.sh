@@ -349,7 +349,7 @@ nfdump -r "$V2DIR/multi.v2" -z=none -w "$V2DIR/multi.nf" >/dev/null 2>&1
 off=$(nfdump -v check-verbose -r "$V2DIR/multi.nf" </dev/null 2>/dev/null \
         | sed -n 's/^Checkblock: type: 1, offset: \([0-9]*\).*/\1/p' | sed -n 2p)
 if [ -n "$off" ]; then
-    lost=$(od -An -tu4 -j $((off + 24)) -N4 "$V2DIR/multi.nf" | tr -d ' ')
+    lost=$(od -An -tu4 -j $((off + 24)) -N4 "$V2DIR/multi.nf" | awk 'NF { print $1 + 0; exit }')
     cp "$V2DIR/multi.nf" "$V2DIR/badblock.nf"
     printf '\167\167' | dd of="$V2DIR/badblock.nf" bs=1 seek=$((off + 14)) conv=notrunc 2>/dev/null
     # data lines only: the read error message is printed as well

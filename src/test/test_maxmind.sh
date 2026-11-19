@@ -230,7 +230,7 @@ geolookup -G "$TRUNCATED" 8.8.8.8 >"$TRUNC_LOG" 2>&1
 rc=$?
 # must fail cleanly (rc 1 from exit(EXIT_FAILURE)), not die from a signal
 # (rc >= 128) such as a SIGSEGV from an out-of-bounds mmap access.
-if [ "$rc" -ge 1 ] && [ "$rc" -lt 128 ] && grep -qi "exceeds file size\|cannot load flat file" "$TRUNC_LOG"; then
+if [ "$rc" -ge 1 ] && [ "$rc" -lt 128 ] && grep -qiE "exceeds file size|cannot load flat file" "$TRUNC_LOG"; then
     pass "truncated_flat_cache_rejected"
 else
     fail "truncated_flat_cache_rejected"
