@@ -65,7 +65,7 @@
 #endif
 #endif
 
-#include "fts_compat.h"
+#include "nfts_compat.h"
 
 #if !defined(MIN)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

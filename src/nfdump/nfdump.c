@@ -113,6 +113,13 @@ static uint64_t totalRecords = 0;
 static uint64_t totalPassed = 0;
 static uint32_t skippedBlocks = 0;
 static uint64_t t_firstMsec = 0, t_lastMsec = 0;
+
+// extend the summary time window by a file's stat record; skip files without flows
+static inline void UpdateTimeWindow(const stat_record_t *stat) {
+    if (!StatHasTimeWindow(stat)) return;
+    if (t_firstMsec == 0 || stat->msecFirstSeen < t_firstMsec) t_firstMsec = stat->msecFirstSeen;
+    if (stat->msecLastSeen > t_lastMsec) t_lastMsec = stat->msecLastSeen;
+}  // End of UpdateTimeWindow
 static _Atomic uint32_t abortProcessing = 0;
 
 enum processType { FLOWSTAT = 1, ELEMENTSTAT, ELEMENTFLOWSTAT, SORTRECORDS, WRITEFILE, PRINTRECORD };
@@ -363,8 +370,8 @@ static void *prepareThread(void *arg) {
         dbg_printf("prepareThread exit\n");
         pthread_exit(NULL);
     }
-    t_firstMsec = nffile->stat_record->msecFirstSeen;
-    t_lastMsec = nffile->stat_record->msecLastSeen;
+    t_firstMsec = t_lastMsec = 0;
+    UpdateTimeWindow(nffile->stat_record);
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
@@ -388,8 +395,7 @@ static void *prepareThread(void *arg) {
             if (nffile == NULL) {
                 done = 1;
             } else {
-                if (nffile->stat_record->msecFirstSeen < t_firstMsec) t_firstMsec = nffile->stat_record->msecFirstSeen;
-                if (nffile->stat_record->msecLastSeen > t_lastMsec) t_lastMsec = nffile->stat_record->msecLastSeen;
+                UpdateTimeWindow(nffile->stat_record);
                 if (dataHandle->ident) free(dataHandle->ident);
                 dataHandle->ident = nffile->ident != NULL ? strdup(nffile->ident) : NULL;
             }
@@ -1232,8 +1238,8 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
 
+        // msecFirstSeen 0: no time window until a file with flows is summed
         memset((void *)&sum_stat, 0, sizeof(stat_record_t));
-        sum_stat.msecFirstSeen = 0x7fffffffffffffff;
         nffile_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error open file: %s\n", strerror(errno));

@@ -15,7 +15,7 @@ conf = conf/nfconf.c conf/nfconf.h conf/toml.c conf/toml.h
 nflist = flist.c flist.h
 
 if NO_FTS
-nflist += fts_compat.c fts_compat.h
+nflist += nfts_compat.c nfts_compat.h
 endif
 
 output = userio.c userio.h output_short.c output_short.h

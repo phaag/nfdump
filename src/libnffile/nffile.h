@@ -237,6 +237,12 @@ int ParseCompression(char *arg);
 
 int ReportBlocks(void);
 
+// A stat record has a time window only if it saw flows: an empty collector file
+// stores msecFirstSeen 0, a new file the unset sentinel 0x7fffffffffffffff.
+static inline int StatHasTimeWindow(const stat_record_t *stat) {
+    return stat->msecFirstSeen != 0 && stat->msecFirstSeen != 0x7fffffffffffffffLL && stat->msecLastSeen != 0;
+}
+
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(const char *filename);
