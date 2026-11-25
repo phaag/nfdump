@@ -133,25 +133,29 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
 
 }  // End of getExporter
 
-static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
-    size_t recSize = sizeof(recordHeaderV3_t);
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeader + recSize);
-    void *extension = NULL;
-    dbg_printf("Check for extension: %u\n", extensionID);
-    while (extension == NULL && recSize < recordHeader->size) {
+// Single pass over the elements of a record already checked by VerifyV3Record():
+// every element length is >= its extension size and all elements lie within the record.
+// Returns the first EXgenericFlow extension or NULL and flags an existing IP received extension.
+static inline EXgenericFlow_t *ScanExtensions(recordHeaderV3_t *recordHeader, int *hasIpReceived) {
+    EXgenericFlow_t *genericFlow = NULL;
+    *hasIpReceived = 0;
+    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeader + sizeof(recordHeaderV3_t));
+    for (int i = 0; i < recordHeader->numElements; i++) {
         dbg_printf("Next extension: %u, size: %u\n", elementHeader->type, elementHeader->length);
-        if (elementHeader->type == extensionID) {
-            extension = (void *)elementHeader + sizeof(elementHeader_t);
-        } else {
-            // prevent potential endless loop with buggy record
-            if (elementHeader->length == 0) return NULL;
-            recSize += elementHeader->length;
-            elementHeader = (elementHeader_t *)((void *)recordHeader + recSize);
+        switch (elementHeader->type) {
+            case EXgenericFlowID:
+                if (genericFlow == NULL) genericFlow = (EXgenericFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                break;
+            case EXipReceivedV4ID:
+            case EXipReceivedV6ID:
+                *hasIpReceived = 1;
+                break;
         }
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
-    return extension;
+    return genericFlow;
 
-}  // End of GetExtension
+}  // End of ScanExtensions
 
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     if (in_buff_cnt < (ssize_t)sizeof(nfd_header_t)) {
@@ -225,11 +229,16 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         void *buffPtr = GetCurrentCursor(fs->dataBlock);
         memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
 
-        // add router IP at the end of copied record
+        // work on the copied record - all changes must go into the output block
         recordHeaderV3_t *copiedV3 = buffPtr;
-        // add router IP
 
-        if (GetExtension(recordHeaderV3, EXipReceivedV4ID) == NULL && GetExtension(recordHeaderV3, EXipReceivedV6ID) == NULL) {
+        // the copied record is verified - scan its extensions in a single pass. genericFlow
+        // stays valid, as the IP received extension below is appended at the end of the record
+        int hasIpReceived;
+        EXgenericFlow_t *genericFlow = ScanExtensions(copiedV3, &hasIpReceived);
+
+        // add router IP at the end of copied record
+        if (!hasIpReceived) {
             // no ip received extension
             // push IP received
             if (fs->sa_family == PF_INET6) {
@@ -251,7 +260,6 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         dbg_printf("Record: %u elements, size: %u\n\n", copiedV3->numElements, copiedV3->size);
 
-        EXgenericFlow_t *genericFlow = GetExtension(recordHeaderV3, EXgenericFlowID);
         if (genericFlow) {
             genericFlow->msecReceived = msecReceived;
 

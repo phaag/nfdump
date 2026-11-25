@@ -520,12 +520,18 @@ int VerifyV3Record(recordHeaderV3_t *recordHeader) {
             dbg_printf("VerifyV3 - truncated element header: %d bytes left\n", rlen);
             return 0;
         }
-        if (elementHeader->length > rlen) {
+        if (elementHeader->length < sizeof(elementHeader_t) || elementHeader->length > rlen) {
             dbg_printf("VerifyV3 - element length error - left: %u, length: %u\n", rlen, elementHeader->length);
             return 0;
         }
         if (elementHeader->type >= MAXEXTENSIONS) {
             dbg_printf("VerifyV3 - element type error: %u\n", elementHeader->type);
+            return 0;
+        }
+        // element must cover the fixed size of its extension - extensionTable size includes the element header
+        if (elementHeader->length < extensionTable[elementHeader->type].size) {
+            dbg_printf("VerifyV3 - element %u too short: length: %u, expected: %u\n", elementHeader->type, elementHeader->length,
+                       extensionTable[elementHeader->type].size);
             return 0;
         }
         dbg_printf("VerifyV3 - Next element: %u, length: %u\n", elementHeader->type, elementHeader->length);

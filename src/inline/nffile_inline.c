@@ -104,11 +104,12 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     // map all extensions
     int num = 0;
     while (num < recordHeaderV3->numElements) {
-        if ((void *)elementHeader > eor) {
+        // element header and the complete element must lie within the record
+        if (((void *)elementHeader + sizeof(elementHeader_t)) > eor) {
             LogError("Mapping record: %" PRIu64 "  - Error - element %d out of bounds", flowCount, num);
             return 0;
         }
-        if (elementHeader->length == 0) {
+        if (elementHeader->length < sizeof(elementHeader_t) || ((void *)elementHeader + elementHeader->length) > eor) {
             LogInfo("Mapping record: %" PRIu64 " - Corrupt extension %d Type: %u with Length: %u", flowCount, num, elementHeader->type,
                     elementHeader->length);
             return 0;
@@ -120,7 +121,17 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
             continue;
         }
         if (elementHeader->type < MAXEXTENSIONS) {
-            handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+            if (elementHeader->length >= extensionTable[elementHeader->type].size) {
+                handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+            } else {
+                // element too short for its extension - do not map it
+                static int warned = 0;
+                if (!warned) {
+                    warned = 1;
+                    LogError("Mapping record: %" PRIu64 " - Skip short extension %d Type: %u, Length: %u < %u", flowCount, num, elementHeader->type,
+                             elementHeader->length, extensionTable[elementHeader->type].size);
+                }
+            }
         } else {
             LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension %d Type: %u, Length: %u", flowCount, num, elementHeader->type,
                     elementHeader->length);
