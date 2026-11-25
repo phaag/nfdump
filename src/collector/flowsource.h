@@ -122,7 +122,7 @@ FlowSource_t *NextFlowSource(const collector_ctx_t *ctx);
 
 exporter_entry_t *NextExporter(FlowSource_t *fs);
 
-void expand_exporter_table(exporter_table_t *tab);
+void expand_exporter_table(FlowSource_t *fs);
 
 char *GetClientIPstring(struct sockaddr_storage *ss, char *as);
 

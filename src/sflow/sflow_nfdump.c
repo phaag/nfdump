@@ -161,6 +161,13 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 
     // not found - search in hash table
     exporter_table_t *tab = &fs->exporters;
+    // Check load factor in case we need a new slot. Must be done before probing,
+    // as the expansion reallocates the table and changes the mask
+    if ((tab->count * 4) >= (tab->capacity * 3)) {
+        // expand exporter index - invalidates fs->last_exp
+        expand_exporter_table(fs);
+    }
+
     uint32_t hash = EXPORTERHASH(key);
     uint32_t mask = tab->capacity - 1;
     uint32_t i = hash & mask;
@@ -217,11 +224,6 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
             fs->last_key = key;
             fs->last_exp = e;
             return e;
-        }
-        // key not yet found and slot in use - check for exhausted hash
-        if ((tab->count * 4) >= (tab->capacity * 3)) {
-            // expand exporter index
-            expand_exporter_table(tab);
         }
         dbg_assert(tab->count < tab->capacity);
         i = (i + 1) & mask;
