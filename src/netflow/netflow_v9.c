@@ -1051,6 +1051,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
         }
 
         void *outBuff;
+        int redone = 0;
     REDO:
         // map file record to output buffer
         outBuff = GetCurrentCursor(fs->dataBlock);
@@ -1096,11 +1097,17 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
                     return;
                 }
 
-                int buffAvail = BlockAvailable(fs->dataBlock);
+                // update the outer buffAvail - SequencerRun() must see the space of the new block
+                buffAvail = BlockAvailable(fs->dataBlock);
                 if (buffAvail == 0) {
                     // this should really never happen, because the buffer got flushed
                     LogError("Process_v9: output buffer size error. Skip v9 record processing");
                     dbg_printf("Process_v9: output buffer size error. Skip v9 record processing");
+                    return;
+                }
+                redone++;
+                if (redone > 2) {
+                    LogError("Process_v9: Redone loop - output buffer size error. Skip v9 record processing");
                     return;
                 }
                 goto REDO;
