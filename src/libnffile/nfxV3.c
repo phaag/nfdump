@@ -84,6 +84,25 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
     sequencer->inLength = 0;
     sequencer->outLength = 0;
 
+    // A variable length extension holds exactly one variable length field. If a template lists
+    // such a field more than once, a later copy would not fit into the element allocated for
+    // the first one. Turn any further occurrence into a skip sequence - template setup only.
+    uint8_t varExtSeen[MAXEXTENSIONS] = {0};
+    for (uint32_t i = 0; i < numSequences; i++) {
+        sequence_t *sequence = &sequenceTable[i];
+        if (sequence->outputLength != VARLENGTH || sequence->extensionID == EXnull || sequence->extensionID >= MAXEXTENSIONS) continue;
+        if (varExtSeen[sequence->extensionID]) {
+            dbg_printf("SetupSequencer() skip duplicate variable length field type: %u\n", sequence->inputType);
+            sequence->extensionID = EXnull;
+            sequence->outputLength = 0;
+            sequence->copyMode = 0;
+            sequence->offsetRel = 0;
+            sequence->stackID = 0;  // STACK_NONE
+        } else {
+            varExtSeen[sequence->extensionID] = 1;
+        }
+    }
+
     CompactSequencer(sequencer);
 
     int hasVarInLength = 0;
@@ -199,15 +218,16 @@ static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, const void 
     inLength--;
     if (type == subTemplateMultiListType) {
         dbg_printf("Semantic multilist template: %u\n", Semantic);
-        while (inLength > 4) {
-            uint16_t subTemplateID = ntohs(*((uint16_t *)inBuff));
-            uint16_t subTemplateSize = ntohs(*((uint16_t *)(inBuff + 2)));
-            if (subTemplateSize == 0 || subTemplateSize > inLength) return SEQ_ERROR;
+        while (inLength >= 4) {
+            uint16_t subTemplateID = Get_val16(inBuff);
+            // RFC 6313: Data Records Length includes the 4 bytes of template ID and length field
+            uint16_t subTemplateSize = Get_val16(inBuff + 2);
+            if (subTemplateSize < 4 || subTemplateSize > inLength) return SEQ_ERROR;
 
             dbg_printf(" Sub template ID: %u, length: %u\n", subTemplateID, subTemplateSize);
             sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, subTemplateID);
             if (subSequencer) {
-                int ret = SequencerRun(subSequencer, inBuff + 4, subTemplateSize, outBuff, outSize, stack);
+                int ret = SequencerRun(subSequencer, inBuff + 4, subTemplateSize - 4, outBuff, outSize, stack);
                 sequencer->outLength += subSequencer->outLength;
                 dbg_printf("Sub sequencer returns: %d, processed inLength: %zu, outLength: %zu\n", ret, subSequencer->inLength,
                            subSequencer->outLength);
@@ -224,7 +244,7 @@ static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, const void 
         dbg_printf("Semantic sub template: %u\n", Semantic);
         if (inLength < 2) return SEQ_ERROR;
 
-        uint16_t subTemplateID = ntohs(*((uint16_t *)inBuff));
+        uint16_t subTemplateID = Get_val16(inBuff);
         dbg_printf(" Sub template ID: %u\n", subTemplateID);
         sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, subTemplateID);
         if (subSequencer) {
@@ -279,12 +299,23 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
         uint16_t outLength = sequencer->sequenceTable[i].outputLength;
         bool varLength = sequencer->sequenceTable[i].inputLength == VARLENGTH;
         if (varLength) {  // dyn length
+            // the length prefix itself must be within the input stream
+            if ((totalInLength + 1) > inSize) {
+                LogError("SequencerRun() ERROR - Attempt to read var length beyond input stream size");
+                nestLevel--;
+                return SEQ_ERROR;
+            }
             uint16_t len = ((uint8_t *)inBuff)[0];
             if (len < 255) {
                 inLength = len;
                 inBuff += 1;  // adjust var length field
                 totalInLength += 1;
             } else {
+                if ((totalInLength + 3) > inSize) {
+                    LogError("SequencerRun() ERROR - Attempt to read var length beyond input stream size");
+                    nestLevel--;
+                    return SEQ_ERROR;
+                }
                 inLength = Get_val16(inBuff + 1);
                 inBuff += 3;  // adjust var length fields
                 totalInLength += 3;

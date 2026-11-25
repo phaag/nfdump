@@ -196,7 +196,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // time received for this packet
     uint64_t msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
 
-    uint16_t count = ntohl(pcapd_header->numRecord);
+    uint32_t count = ntohl(pcapd_header->numRecord);
     uint32_t numRecords = 0;
     dbg_printf("Process nfd packet: %" PRIu64 ", size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
@@ -236,6 +236,10 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         // work on the copied record - all changes must go into the output block
         recordHeaderV3_t *copiedV3 = buffPtr;
+
+        // the record belongs to the exporter of this collector - do not trust the sender's
+        // exporterID, which would attribute the flows to any other exporter of this file
+        copiedV3->exporterID = exporter->info.sysid;
 
         // the copied record is verified - scan its extensions in a single pass. genericFlow
         // stays valid, as the IP received extension below is appended at the end of the record
@@ -302,7 +306,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             fs->nffile->stat_record->numpackets += genericFlow->inPackets;
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = MetricExporterID(recordHeaderV3);
+            uint32_t exporterIdent = MetricExporterID(copiedV3);
             UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
         }
 

@@ -1389,7 +1389,9 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         stack[STACK_ICMPTYPE] = UINT64_MAX;
         stack[STACK_ICMPCODE] = UINT64_MAX;
         // copy record data
-        int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, buffAvail, stack);
+        // keep space for the EXipReceived extension, which is added after the sequencer run
+        size_t outAvail = (uint32_t)buffAvail > receivedSize ? (uint32_t)buffAvail - receivedSize : 0;
+        int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, outAvail, stack);
         switch (ret) {
             case SEQ_OK:
                 break;
