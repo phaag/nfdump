@@ -144,7 +144,7 @@ typedef struct exporter_v9_s {
 #define NUMTEMPLATES 32
 // Maximum number of active NetFlow v9/IPFIX templates per exporter. The
 // backing hash table may use twice this number of slots to keep lookups fast.
-#define MAX_TEMPLATES_PER_EXPORTER 4096u
+#define MAX_TEMPLATES_PER_EXPORTER 1024u
 #define EMPTY_SLOT 0
 #define DELETED_SLOT 0xFFFFFFFF
     uint32_t templateCount;     // number of templates in list
