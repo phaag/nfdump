@@ -571,9 +571,10 @@ static void InsertSampler(exporter_entry_t *exporter_entry, sampler_record_v4_t 
 
     exporter_info_record_v4_t *info_record = exporter_entry->info;
 
-    // grow array if needed
-    if (info_record->sampler_count == info_record->sampler_capacity) {
+    // grow array if needed - up to MAX_SAMPLERS_PER_EXPORTER
+    if (info_record->sampler_count == info_record->sampler_capacity && info_record->sampler_capacity < MAX_SAMPLERS_PER_EXPORTER) {
         uint32_t numSamplers = info_record->sampler_capacity ? 2 * info_record->sampler_capacity : 4;
+        if (numSamplers > MAX_SAMPLERS_PER_EXPORTER) numSamplers = MAX_SAMPLERS_PER_EXPORTER;
         size_t newSize = sizeof(exporter_info_record_v4_t) + numSamplers * sizeof(sampler_record_v4_t);
 
         dbg_printf("Expand sampler array: %u -> %u\n", info_record->sampler_capacity, numSamplers);
@@ -623,7 +624,11 @@ static void InsertSampler(exporter_entry_t *exporter_entry, sampler_record_v4_t 
     }
 
     if (!slot) {
-        dbg_printf("No slot found - should not happen\n");
+        // new sampler, but array is full at MAX_SAMPLERS_PER_EXPORTER
+        if (exporter_entry->droppedSamplers++ == 0) {
+            LogError("Process_ipfix: [%u] sampler limit of %u reached for exporter; discarding sampler id %" PRId64 " and further new samplers",
+                     exporter_entry->info->id, MAX_SAMPLERS_PER_EXPORTER, sampler_record_v4->selectorID);
+        }
         return;
     }
 

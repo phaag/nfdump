@@ -107,6 +107,12 @@ typedef struct exporter_info_record_v4_s {
     sampler_record_v4_t samplers[];  // var length array of samplers
 } exporter_info_record_v4_t;
 
+// Maximum number of samplers per exporter. Protects against memory exhaustion by
+// network supplied sampler IDs and keeps the record size within its uint16_t size field.
+#define MAX_SAMPLERS_PER_EXPORTER 1024u
+_Static_assert(sizeof(exporter_info_record_v4_t) + MAX_SAMPLERS_PER_EXPORTER * sizeof(sampler_record_v4_t) <= UINT16_MAX,
+               "exporter_info_record_v4_t with MAX_SAMPLERS_PER_EXPORTER samplers exceeds uint16_t size field");
+
 // netflow specific exporter data
 // netflow v1
 typedef struct exporter_v1_s {
@@ -212,7 +218,8 @@ typedef struct exporter_entry_s {
     // hot-path lookup cache
 #define SAMPLER_CACHE_SIZE 4
     sampler_cache_entry_t sampler_cache[SAMPLER_CACHE_SIZE];
-    uint16_t sampler_count;  // numer of samplers in backend exporter_info_record_v4_t
+    uint16_t sampler_count;    // numer of samplers in backend exporter_info_record_v4_t
+    uint32_t droppedSamplers;  // samplers dropped due to MAX_SAMPLERS_PER_EXPORTER
 
     int16_t in_use;  // entry in use
     uint32_t sysID;  // internal sysID

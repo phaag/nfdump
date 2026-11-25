@@ -103,6 +103,20 @@ int InitExporterList(void) {
 
 }  // End of InitExporterList
 
+// verify an exporter record from file within the available block space - same rules as nfcheck
+static int VerifyExporterRecord(const exporter_info_record_v4_t *exporter, size_t available) {
+    if (available < sizeof(*exporter) || exporter->type != ExporterInfoRecordV4Type || exporter->size < sizeof(*exporter) ||
+        exporter->size > available) {
+        return 0;
+    }
+
+    if (exporter->sampler_count > exporter->sampler_capacity) return 0;
+
+    size_t expectedSize = sizeof(*exporter) + (size_t)exporter->sampler_capacity * sizeof(sampler_record_v4_t);
+    return exporter->size == expectedSize;
+
+}  // End of VerifyExporterRecord
+
 int AddExporterInfo(exporter_info_record_v4_t *exporter_record) {
     if (exporter_record->size < sizeof(exporter_info_record_v4_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
@@ -257,12 +271,25 @@ void PrintExporters(const char *fileName) {
     uint32_t nextOffset = 0;
     const expBlockV3_t *dataBlock = getNextExporter(nffile, &nextOffset);
     while (dataBlock) {
-        exporter_info_record_v4_t *record = ResetCursor(dataBlock);
-        for (int i = 0; i < (int)dataBlock->numExporter; i++) {
-            if (!AddExporterInfo(record)) {
-                LogError("Failed to add exporter record\n");
+        // exporter records have a variable size - records with samplers are larger than
+        // the base record. Walk by record size and verify each record within the block.
+        if (dataBlock->rawSize >= sizeof(expBlockV3_t)) {
+            const uint8_t *p = (const uint8_t *)ResetCursor(dataBlock);
+            size_t available = dataBlock->rawSize - sizeof(expBlockV3_t);
+            for (uint32_t i = 0; i < dataBlock->numExporter; i++) {
+                exporter_info_record_v4_t *record = (exporter_info_record_v4_t *)p;
+                if (!VerifyExporterRecord(record, available)) {
+                    LogError("Corrupt exporter record %u in exporter block - skip rest of block", i);
+                    break;
+                }
+                if (!AddExporterInfo(record)) {
+                    LogError("Failed to add exporter record\n");
+                }
+                p += record->size;
+                available -= record->size;
             }
-            record++;
+        } else {
+            LogError("Corrupt exporter block - size %u too small", dataBlock->rawSize);
         }
         dataBlock = getNextExporter(nffile, &nextOffset);
     }

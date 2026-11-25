@@ -342,9 +342,30 @@ static int AddV2SamplerRecord(sampler_record_V3_t *sampler_record) {
 
     exporter_entry_t *e = exporter_array.entries[sysID];
     if (e) {
+        // 1.7.x files contain a sampler record for each update - update an existing sampler
+        for (uint32_t i = 0; i < e->info->sampler_count; i++) {
+            if (e->info->samplers[i].selectorID == sampler_record->id) {
+                e->info->samplers[i].algorithm = sampler_record->algorithm;
+                e->info->samplers[i].packetInterval = sampler_record->packetInterval;
+                e->info->samplers[i].spaceInterval = sampler_record->spaceInterval;
+                return 1;
+            }
+        }
+
         if ((e->info->sampler_count + 1) > e->info->sampler_capacity) {
+            if (e->info->sampler_capacity >= MAX_SAMPLERS_PER_EXPORTER) {
+                // keep the record size within its uint16_t size field
+                static int warned = 0;
+                if (!warned) {
+                    warned = 1;
+                    LogError("AddV2SamplerRecord(): sampler limit of %u reached for exporter sysID %u - skip further samplers",
+                             MAX_SAMPLERS_PER_EXPORTER, sysID);
+                }
+                return 1;
+            }
             // expand info record
             uint32_t numSampler = e->info->sampler_capacity == 0 ? 8 : 2 * e->info->sampler_capacity;
+            if (numSampler > MAX_SAMPLERS_PER_EXPORTER) numSampler = MAX_SAMPLERS_PER_EXPORTER;
             size_t recordSize = sizeof(exporter_info_record_v4_t) + (numSampler * sizeof(sampler_record_v4_t));
 
             exporter_info_record_v4_t *newInfo = realloc(e->info, recordSize);

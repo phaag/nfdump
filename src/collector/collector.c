@@ -479,6 +479,7 @@ void FlushExporter(FlowSource_t *fs) {
             available = BLOCK_SIZE_V3 - expBlock->rawSize;
         }
         memcpy(p, (void *)info_record, info_record->size);
+        p += info_record->size;
         expBlock->rawSize += info_record->size;
         expBlock->numExporter++;
         available -= info_record->size;
