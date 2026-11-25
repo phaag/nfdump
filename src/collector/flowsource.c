@@ -376,7 +376,10 @@ exporter_entry_t *NextExporter(FlowSource_t *fs) {
 
 }  // End of NextExporter
 
-void expand_exporter_table(exporter_table_t *tab) {
+// expand the exporter hash table of a flow source. The old entries array is freed,
+// therefore any cached exporter pointer into it is invalidated.
+void expand_exporter_table(FlowSource_t *fs) {
+    exporter_table_t *tab = &fs->exporters;
     uint32_t old_cap = tab->capacity;
     exporter_entry_t *old_entries = tab->entries;
 
@@ -420,6 +423,8 @@ void expand_exporter_table(exporter_table_t *tab) {
     }
 
     free(old_entries);
+    // fast cache pointed into old_entries - invalidate
+    fs->last_exp = NULL;
 }  // End of expand_exporter_table
 
 static void freeFlowSource(FlowSource_t *fs) {

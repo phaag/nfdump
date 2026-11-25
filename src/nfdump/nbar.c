@@ -192,11 +192,13 @@ char *GetNbarInfo(uint8_t *id, size_t size, char *name) {
         LogError("Error nbar lookup in %s line %d: string length error", __FILE__, __LINE__);
         return NULL;
     }
+    // strings are bounded by their stored length - do not rely on '\0' termination in file data
     if (kh_key(NbarAppInfoHash, k).app_name_length) {
-        snprintf(name, 255, "%s", kh_key(NbarAppInfoHash, k).data + kh_key(NbarAppInfoHash, k).app_id_length);
+        snprintf(name, 255, "%.*s", (int)kh_key(NbarAppInfoHash, k).app_name_length,
+                 kh_key(NbarAppInfoHash, k).data + kh_key(NbarAppInfoHash, k).app_id_length);
     }
     if (kh_key(NbarAppInfoHash, k).app_desc_length) {
-        snprintf(name + strlen(name), 255 - strlen(name), "/%s",
+        snprintf(name + strlen(name), 255 - strlen(name), "/%.*s", (int)kh_key(NbarAppInfoHash, k).app_desc_length,
                  kh_key(NbarAppInfoHash, k).data + kh_key(NbarAppInfoHash, k).app_id_length + kh_key(NbarAppInfoHash, k).app_name_length);
     }
     name[254] = '\0';

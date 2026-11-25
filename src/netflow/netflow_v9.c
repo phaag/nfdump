@@ -393,7 +393,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
     // Check load factor in case we need a new slot
     if ((tab->count * 4) >= (tab->capacity * 3)) {
         // expand exporter index
-        expand_exporter_table(tab);
+        expand_exporter_table(fs);
         tab = &fs->exporters;
     }
 
@@ -1254,6 +1254,11 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
                 if (nbarOption->id.length == 0) {
                     LogError("Process_v9: [%u] nbar option missing mandatory ID field - skip", exporter_entry->info->id);
                     ClearFlag(optionTemplate->flags, NBAROPTIONS);
+                } else if (nbarOption->id.length > UINT8_MAX || nbarOption->name.length > UINT8_MAX || nbarOption->desc.length > UINT8_MAX) {
+                    // nbar array elements store each field length in a single byte
+                    LogError("Process_v9: [%u] nbar option field length exceeds %u bytes - id: %u, name: %u, desc: %u - skip", exporter_entry->info->id,
+                             UINT8_MAX, nbarOption->id.length, nbarOption->name.length, nbarOption->desc.length);
+                    ClearFlag(optionTemplate->flags, NBAROPTIONS);
                 } else {
                     dbg_printf("[%u] found nbar option\n", exporter_entry->info->id);
                     dbg_printf("[%u] id   length: %u\n", exporter_entry->info->id, optionTemplate->nbarOption.id.length);
@@ -1849,6 +1854,11 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     // element: uint32_t id + char name[name.length]
     size_t data_size = sizeof(uint32_t) + nameOption->name.length;
     size_t elementSize = ALIGN8(data_size);
+    // elementSize must fit into the uint16_t elementSize of the array block header
+    if (elementSize > UINT16_MAX) {
+        LogError("Process_ifvrf_option: element size %zu too large", elementSize);
+        return;
+    }
     // number of elements per block
     uint32_t numElements = (BLOCK_SIZE_V3 - sizeof(arrayBlockV3_t)) / elementSize;
     if (numElements == 0) {
@@ -1875,9 +1885,10 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
             uint8_t *p = outBuff;
 
             // ingress/vrf ID - variable length input -> uint32_t
+            // read exactly ingress.length bytes (network byte order)
             uint32_t val = 0;
-            memcpy(&val, inBuff + nameOption->ingress.offset, sizeof(uint32_t));
-            *((uint32_t *)p) = ntohl(val);
+            for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + inBuff[nameOption->ingress.offset + i];
+            *((uint32_t *)p) = val;
             p += sizeof(uint32_t);
 
             // name string

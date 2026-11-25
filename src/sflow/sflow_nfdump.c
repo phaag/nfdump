@@ -179,7 +179,7 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
     // Check load factor in case we need a new slot
     if ((tab->count * 4) >= (tab->capacity * 3)) {
         // expand exporter index
-        expand_exporter_table(tab);
+        expand_exporter_table(fs);
         tab = &fs->exporters;
     }
 
