@@ -1191,6 +1191,17 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
     }
     optionTemplate->optionSize = offset;
 
+    // nbar requires the app ID as lookup key and at least a name or a description
+    if (TestFlag(optionTemplate->flags, NBAROPTIONS)) {
+        if (nbarOption->id.length == 0) {
+            LogError("Process_ipfix: [%u] nbar option missing mandatory ID field - skip", exporter_entry->info.id);
+            ClearFlag(optionTemplate->flags, NBAROPTIONS);
+        } else if ((nbarOption->name.length + nbarOption->desc.length) == 0) {
+            LogError("Process_ipfix: [%u] nbar option without name and description field - skip", exporter_entry->info.id);
+            ClearFlag(optionTemplate->flags, NBAROPTIONS);
+        }
+    }
+
     dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter_entry->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
         // if it exists - remove old template on exporter with same ID
