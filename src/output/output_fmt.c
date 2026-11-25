@@ -727,23 +727,14 @@ void CondenseV6(char *s) {
 
 }  // End of CondenseV6
 
-static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits) {
-    uint32_t srcMask = 0xffffffff << (32 - maskBits);
-    return (ip &= srcMask);
-}  // End of ApplyV4NetMaskBits
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits) { return ip & NetMaskV4(maskBits); }  // End of ApplyV4NetMaskBits
 
 static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits) {
     static uint64_t net[2];
-    uint64_t mask;
-    if (maskBits > 64) {
-        mask = 0xffffffffffffffffLL << (128 - maskBits);
-        net[0] = ip[0];
-        net[1] = ip[1] & mask;
-    } else {
-        mask = 0xffffffffffffffffLL << (64 - maskBits);
-        net[0] = ip[0] & mask;
-        net[1] = 0;
-    }
+    uint64_t mask[2];
+    NetMaskV6(mask, maskBits);
+    net[0] = ip[0] & mask[0];
+    net[1] = ip[1] & mask[1];
     return net;
 
 }  // End of ApplyV6NetMaskBits

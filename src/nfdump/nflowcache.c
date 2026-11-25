@@ -923,36 +923,24 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 
     if (ipv4Flow && aggregationElement->param.extID == EXipv4FlowID) {
         if (aggregationElement->param.offset == OFFsrc4Addr) {
-            uint32_t srcmask = 0xffffffff << (32 - srcMask);
-            ipv4Flow->srcAddr &= srcmask;
+            ipv4Flow->srcAddr &= NetMaskV4(srcMask);
         }
         if (aggregationElement->param.offset == OFFdst4Addr) {
-            uint32_t dstmask = 0xffffffff << (32 - dstMask);
-            ipv4Flow->dstAddr &= dstmask;
+            ipv4Flow->dstAddr &= NetMaskV4(dstMask);
         }
 
     } else if (ipv6Flow && aggregationElement->param.extID == EXipv6FlowID) {
         if (aggregationElement->param.offset == OFFsrc6Addr) {
-            uint32_t mask_bits = srcMask;
-            if (mask_bits > 64) {
-                uint64_t mask = 0xffffffffffffffffLL << (128 - mask_bits);
-                ipv6Flow->srcAddr[1] &= mask;
-            } else {
-                uint64_t mask = 0xffffffffffffffffLL << (64 - mask_bits);
-                ipv6Flow->srcAddr[0] &= mask;
-                ipv6Flow->srcAddr[1] = 0;
-            }
+            uint64_t mask[2];
+            NetMaskV6(mask, srcMask);
+            ipv6Flow->srcAddr[0] &= mask[0];
+            ipv6Flow->srcAddr[1] &= mask[1];
         }
         if (aggregationElement->param.offset == OFFdst6Addr) {
-            uint32_t mask_bits = dstMask;
-            if (mask_bits > 64) {
-                uint64_t mask = 0xffffffffffffffffLL << (128 - mask_bits);
-                ipv6Flow->dstAddr[1] &= mask;
-            } else {
-                uint64_t mask = 0xffffffffffffffffLL << (64 - mask_bits);
-                ipv6Flow->dstAddr[0] &= mask;
-                ipv6Flow->dstAddr[1] = 0;
-            }
+            uint64_t mask[2];
+            NetMaskV6(mask, dstMask);
+            ipv6Flow->dstAddr[0] &= mask[0];
+            ipv6Flow->dstAddr[1] &= mask[1];
         }
     }
 

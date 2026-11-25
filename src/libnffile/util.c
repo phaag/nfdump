@@ -743,7 +743,7 @@ void format_number(uint64_t num, numStr s, int plain, int fixed_width) {
 
 void inet_ntop_mask(uint32_t ipv4, int mask, char *s, socklen_t sSize) {
     if (mask) {
-        ipv4 &= 0xffffffffL << (32 - mask);
+        ipv4 &= NetMaskV4((uint32_t)mask);
         ipv4 = htonl(ipv4);
         inet_ntop(AF_INET, &ipv4, s, sSize);
     } else {
@@ -758,12 +758,10 @@ void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, socklen_t sSize) {
     ip[0] = ipv6[0];
     ip[1] = ipv6[1];
     if (mask) {
-        if (mask <= 64) {
-            ip[0] = ip[0] & (0xffffffffffffffffLL << (64 - mask));
-            ip[1] = 0;
-        } else {
-            ip[1] = ip[1] & (0xffffffffffffffffLL << (128 - mask));
-        }
+        uint64_t netMask[2];
+        NetMaskV6(netMask, (uint32_t)mask);
+        ip[0] &= netMask[0];
+        ip[1] &= netMask[1];
         ip[0] = htonll(ip[0]);
         ip[1] = htonll(ip[1]);
         inet_ntop(AF_INET6, ip, s, sSize);

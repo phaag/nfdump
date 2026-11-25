@@ -87,6 +87,23 @@ typedef uint32_t pointer_addr_t;
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
+/*
+ * Netmask helpers for a prefix length in bits. Shifting by the full type width
+ * is undefined behaviour in C, therefore prefix 0 and prefixes larger than the
+ * address size are handled explicitly: 0 -> empty mask, too large -> full mask.
+ */
+// IPv4 netmask in host byte order
+static inline uint32_t NetMaskV4(uint32_t bits) { return bits >= 32 ? 0xffffffffU : (uint32_t)(0xffffffff00000000ULL >> bits); }
+
+// 64 bit netmask for one half of an IPv6 address
+static inline uint64_t NetMask64(uint32_t bits) { return bits == 0 ? 0 : (bits >= 64 ? UINT64_MAX : UINT64_MAX << (64 - bits)); }
+
+// IPv6 netmask in host byte order: mask[0] upper 64 bits, mask[1] lower 64 bits
+static inline void NetMaskV6(uint64_t mask[2], uint32_t bits) {
+    mask[0] = NetMask64(bits);
+    mask[1] = bits > 64 ? NetMask64(bits - 64) : 0;
+}
+
 #define SYSLOG_FACILITY "daemon"
 #define NOSYSLOG 0
 #define MAXVERBOSE 4
