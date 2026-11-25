@@ -30,7 +30,12 @@ echo Creating vcs_track.h
 f="vcs_track.h"
 
 if [ "x$1" != "x" ]; then
-  nfdv=$(echo 0xD${1}00 | sed -e 's/\./0/g')
+  # encode major.minor.patch as 0xD<major:1><minor:2><patch:2>00 hex digits
+  # e.g. 1.8.0 -> 0xD1080000, 1.8.10 -> 0xD1080A00
+  v_major=$(echo "$1" | cut -d. -f1)
+  v_minor=$(echo "$1" | cut -d. -f2)
+  v_patch=$(echo "$1" | cut -d. -f3 | sed -e 's/[^0-9].*//')
+  nfdv=$(printf '0xD%01X%02X%02X00' "${v_major:-0}" "${v_minor:-0}" "${v_patch:-0}")
 fi
 
 if [ -d ../../.git ]; then

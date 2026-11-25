@@ -261,52 +261,33 @@ static char *stringEXflowMisc(char *streamPtr, recordHandle_t *recordHandle, uin
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
     char snet[INET6_ADDRSTRLEN], dnet[INET6_ADDRSTRLEN];
+    snet[0] = '\0';
+    dnet[0] = '\0';
 
-    if (ipv6Flow) {
-        // IPv6
-        if (flowMisc->srcMask || flowMisc->dstMask) {
-            uint64_t src[2];
-            uint64_t dst[2];
-            if (flowMisc->srcMask >= 64) {
-                src[0] = ipv6Flow->srcAddr[0] & (0xffffffffffffffffLL << (flowMisc->srcMask - 64));
-                src[1] = 0;
-            } else {
-                src[0] = ipv6Flow->srcAddr[0];
-                src[1] = ipv6Flow->srcAddr[1] & (0xffffffffffffffffLL << flowMisc->srcMask);
-            }
-            src[0] = htonll(src[0]);
-            src[1] = htonll(src[1]);
-            inet_ntop(AF_INET6, &src, snet, sizeof(snet));
+    if (flowMisc->srcMask || flowMisc->dstMask) {
+        if (ipv6Flow) {
+            // IPv6
+            uint64_t mask[2], net[2];
+            NetMaskV6(mask, flowMisc->srcMask);
+            net[0] = ipv6Flow->srcAddr[0] & mask[0];
+            net[1] = ipv6Flow->srcAddr[1] & mask[1];
+            net[0] = htonll(net[0]);
+            net[1] = htonll(net[1]);
+            inet_ntop(AF_INET6, net, snet, sizeof(snet));
 
-            if (flowMisc->dstMask >= 64) {
-                dst[0] = ipv6Flow->dstAddr[0] & (0xffffffffffffffffLL << (flowMisc->dstMask - 64));
-                dst[1] = 0;
-            } else {
-                dst[0] = ipv6Flow->dstAddr[0];
-                dst[1] = ipv6Flow->dstAddr[1] & (0xffffffffffffffffLL << flowMisc->dstMask);
-            }
-            dst[0] = htonll(dst[0]);
-            dst[1] = htonll(dst[1]);
-            inet_ntop(AF_INET6, &dst, dnet, sizeof(dnet));
+            NetMaskV6(mask, flowMisc->dstMask);
+            net[0] = ipv6Flow->dstAddr[0] & mask[0];
+            net[1] = ipv6Flow->dstAddr[1] & mask[1];
+            net[0] = htonll(net[0]);
+            net[1] = htonll(net[1]);
+            inet_ntop(AF_INET6, net, dnet, sizeof(dnet));
+        } else if (ipv4Flow) {
+            // IPv4
+            uint32_t net = htonl(ipv4Flow->srcAddr & NetMaskV4(flowMisc->srcMask));
+            inet_ntop(AF_INET, &net, snet, sizeof(snet));
 
-        } else {
-            snet[0] = '\0';
-            dnet[0] = '\0';
-        }
-
-    } else {
-        // IPv4
-        if (flowMisc->srcMask || flowMisc->dstMask) {
-            uint32_t src = ipv4Flow->srcAddr & (0xffffffffL << (32 - flowMisc->srcMask));
-            src = htonl(src);
-            inet_ntop(AF_INET, &src, snet, sizeof(snet));
-
-            uint32_t dst = ipv4Flow->dstAddr & (0xffffffffL << (32 - flowMisc->dstMask));
-            dst = htonl(dst);
-            inet_ntop(AF_INET, &dst, dnet, sizeof(dnet));
-        } else {
-            snet[0] = '\0';
-            dnet[0] = '\0';
+            net = htonl(ipv4Flow->dstAddr & NetMaskV4(flowMisc->dstMask));
+            inet_ntop(AF_INET, &net, dnet, sizeof(dnet));
         }
     }
 

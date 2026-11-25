@@ -2029,7 +2029,8 @@ static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
 			data[0].dataVal = 0xffffffffffffffffLL;
 			data[1].dataVal = 0xffffffffffffffffLL << (128 - prefix);
 		} else {
-			data[0].dataVal = 0xffffffffffffffffLL << (64 - prefix);
+			// prefix 0 would be an undefined shift by 64
+			data[0].dataVal = NetMask64((uint32_t)prefix);
 			data[1].dataVal = 0;
 		}
 	}
