@@ -214,6 +214,32 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, transfer_record_he
 
 }  // End of getExporter
 
+/*
+ * Get a fixed size extension, which nfcapd reads or writes itself.
+ * Records of authenticated senders pass only V4RECORD_CHECK_BASIC, which validates
+ * the record framing but not the extension directory. Authentication proves the
+ * sender holds the key, not that the record is well formed. Therefore validate the
+ * offset table entry and the bounds of this extension, so a malformed record can
+ * never make nfcapd read or write outside the record.
+ */
+static inline void *GetBoundedExtension(recordHeaderV4_t *h, uint32_t extID, uint32_t extSize) {
+    uint64_t bit = 1ULL << extID;
+    if ((h->extBitmap & bit) == 0) return NULL;
+
+    // offset table entry must be within the announced offset table
+    uint32_t rank = __builtin_popcountll(h->extBitmap & (bit - 1));
+    if (rank >= h->numExtensions) return NULL;
+
+    // extension must start behind the offset table, be 8 byte aligned and fit into the record
+    uint32_t offEnd = sizeof(recordHeaderV4_t) + ALIGN8((uint32_t)h->numExtensions * (uint32_t)sizeof(uint16_t));
+    if (offEnd > h->size) return NULL;
+    uint32_t offset = V4OffsetTable(h)[rank];
+    if (offset < offEnd || (offset & 7) != 0 || offset + extSize > h->size) return NULL;
+
+    return (uint8_t *)h + offset;
+
+}  // End of GetBoundedExtension
+
 void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // Every -H/nfreplay packet arrives wrapped in the universal
     // nfd_wire_header_t envelope
@@ -346,7 +372,9 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // over the whole payload.
         // crypto=NONE has no transport-level integrity guarantee at all
         // (compressed or not) so we need a full structural check
-        int recordOK = VerifyV4Record(recordHeaderV4, (size_t)size_left, authenticated ? V4RECORD_CHECK_BASIC : V4RECORD_CHECK_EXTENSIONS);
+        // printRecord (debug) walks all extensions - always use the full check
+        v4RecordCheck_t checkLevel = (authenticated && !printRecord) ? V4RECORD_CHECK_BASIC : V4RECORD_CHECK_EXTENSIONS;
+        int recordOK = VerifyV4Record(recordHeaderV4, (size_t)size_left, checkLevel);
         if (!recordOK) {
             LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
             return;
@@ -374,11 +402,12 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         dbg_printf("Record: %u elements, size: %u\n\n", copiedV4->numExtensions, copiedV4->size);
 
-        EXgenericFlow_t *genericFlow = GetExtension(copiedV4, EXgenericFlow);
+        // bounded access - the extension directory is not validated for authenticated senders
+        EXgenericFlow_t *genericFlow = GetBoundedExtension(copiedV4, EXgenericFlowID, EXgenericFlowSize);
         if (genericFlow) {
             genericFlow->msecReceived = msecReceived;
             if (fs->isNffileBackend) {
-                UpdateRecordStat(&fs->stat_record, genericFlow, GetExtension(copiedV4, EXcntFlow));
+                UpdateRecordStat(&fs->stat_record, genericFlow, GetBoundedExtension(copiedV4, EXcntFlowID, EXcntFlowSize));
                 UpdateMetric(fs->Ident, MetricExpporterID(copiedV4), genericFlow);
             }
         }
