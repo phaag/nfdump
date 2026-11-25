@@ -229,7 +229,11 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
         i = (i + 1) & mask;
     }
 
-    LogError("Process_sflow: exporter table is full");
+    static int warnedFull = 0;
+    if (!warnedFull) {
+        warnedFull = 1;
+        LogError("Process_sflow: exporter table is full - drop data of further new exporters");
+    }
     return NULL;
 
 }  // End of GetExporter
@@ -243,7 +247,8 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 
     exporter_entry_t *exporter = GetExporter(fs, sample->agentSubId, sample->meanSkipCount);
     if (!exporter) {
-        LogError("SFLOW: Exporter NULL: Abort sflow record processing");
+        // getExporter() logs the reason (table full: once)
+        dbg_printf("SFLOW: Exporter NULL: Abort sflow record processing\n");
         return;
     }
     exporter->packets++;

@@ -128,7 +128,11 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
         i = (i + 1) & mask;
     }
 
-    LogError("Process_nfd: exporter table is full");
+    static int warnedFull = 0;
+    if (!warnedFull) {
+        warnedFull = 1;
+        LogError("Process_nfd: exporter table is full - drop data of further new exporters");
+    }
     return NULL;
 
 }  // End of getExporter
@@ -173,7 +177,8 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     exporter_entry_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {
-        LogError("Process_nfd: NULL Exporter: Skip pcapd record processing");
+        // getExporter() logs the reason (table full: once)
+        dbg_printf("Process_nfd: NULL Exporter: Skip pcapd record processing\n");
         return;
     }
     exporter->packets++;

@@ -226,6 +226,8 @@ typedef struct exporter_v9_s {
 
     // list of all templates of this exporter
     templateList_t *template;
+    uint32_t numTemplates;      // number of templates in list
+    uint32_t droppedTemplates;  // templates dropped due to MAX_TEMPLATES_PER_EXPORTER
 
 } exporter_v9_t;
 
@@ -250,6 +252,8 @@ typedef struct exporter_ipfix_s {
 
     // list of all templates of this exporter
     templateList_t *template;
+    uint32_t numTemplates;      // number of templates in list
+    uint32_t droppedTemplates;  // templates dropped due to MAX_TEMPLATES_PER_EXPORTER
 
 } exporter_ipfix_t;
 
@@ -271,7 +275,9 @@ typedef struct exporter_entry_s {
     uint32_t sequence;            // sequence counter
     // sampling information:
 
-    sampler_t *sampler;  // sampler info
+    sampler_t *sampler;        // sampler info
+    uint32_t numSamplers;      // number of samplers in list
+    uint32_t droppedSamplers;  // samplers dropped due to MAX_SAMPLERS_PER_EXPORTER
     // each flow source may have several sampler applied:
     // SAMPLER_OVERWRITE - supplied on cmd line -s -interval
     // SAMPLER_DEFAULT   - supplied on cmd line -s interval
@@ -289,6 +295,20 @@ typedef struct exporter_entry_s {
         exporter_sflow_t sflow;  // sflow specific data
     } version;                   // all exporter structs to all netflow/sflow versions
 } exporter_entry_t;
+
+/*
+ * Resource limits for network supplied data. They protect the collector against
+ * memory and CPU exhaustion by a malicious or broken sender and are far above
+ * what real exporters use. Same values as in nfdump 1.8.x.
+ */
+// max capacity of the exporter hash table of a flow source
+#define MAX_EXPORTERS_CAPACITY 4096u
+// max number of templates (data and option) per exporter - v9, ipfix
+#define MAX_TEMPLATES_PER_EXPORTER 1024u
+// max number of fields of a data template - v9, ipfix
+#define MAX_TEMPLATE_FIELDS 1024u
+// max number of samplers per exporter - v9, ipfix
+#define MAX_SAMPLERS_PER_EXPORTER 1024u
 
 // exporter table
 typedef struct exporter_table_s {

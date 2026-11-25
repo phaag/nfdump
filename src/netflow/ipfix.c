@@ -505,7 +505,11 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
         i = (i + 1) & mask;
     }
 
-    LogError("Process_ipfix: exporter table is full");
+    static int warnedFull = 0;
+    if (!warnedFull) {
+        warnedFull = 1;
+        LogError("Process_ipfix: exporter table is full - drop data of further new exporters");
+    }
     return NULL;
 
 }  // End of getExporter
@@ -526,6 +530,7 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
         sampler->record.exporter_sysid = exporter_entry->info.sysid;
         sampler->next = NULL;
         exporter_entry->sampler = sampler;
+        exporter_entry->numSamplers = 1;
 
         fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
         LogInfo("Add new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
@@ -558,12 +563,21 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
 
             // test for end of chain
             if (sampler->next == NULL) {
-                // end of sampler chain - insert new sampler
+                // end of sampler chain - insert new sampler, if limit not reached
+                if (exporter_entry->numSamplers >= MAX_SAMPLERS_PER_EXPORTER) {
+                    if (exporter_entry->droppedSamplers++ == 0) {
+                        LogError("Process_ipfix: [%u] sampler limit of %u reached for exporter; discarding sampler id %" PRId64
+                                 " and further new samplers",
+                                 exporter_entry->info.id, MAX_SAMPLERS_PER_EXPORTER, sampler_record->id);
+                    }
+                    return;
+                }
                 sampler->next = (sampler_t *)malloc(sizeof(sampler_t));
                 if (!sampler->next) {
                     LogError("Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
+                exporter_entry->numSamplers++;
                 sampler = sampler->next;
                 sampler->record = *sampler_record;
                 sampler->record.type = SamplerRecordType;
@@ -626,6 +640,13 @@ static templateList_t *getTemplate(exporter_entry_t *exporter_entry, uint16_t id
 
 static templateList_t *newTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
     exporter_ipfix_t *exporter_ipfix = &(exporter_entry->version.ipfix);
+    if (exporter_ipfix->numTemplates >= MAX_TEMPLATES_PER_EXPORTER) {
+        if (exporter_ipfix->droppedTemplates++ == 0) {
+            LogError("Process_ipfix: [%u] template limit of %u reached for exporter; discarding template %u and further new templates",
+                     exporter_entry->info.id, MAX_TEMPLATES_PER_EXPORTER, id);
+        }
+        return NULL;
+    }
 
     templateList_t *template = (templateList_t *)calloc(1, sizeof(templateList_t));
     if (!template) {
@@ -634,6 +655,7 @@ static templateList_t *newTemplate(exporter_entry_t *exporter_entry, uint16_t id
     }
 
     // init the new template
+    exporter_ipfix->numTemplates++;
     template->next = exporter_ipfix->template;
     template->updated = time(NULL);
     template->id = id;
@@ -673,6 +695,7 @@ static void removeTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
         // last temeplate removed
         exporter_ipfix->template = template->next;
     }
+    exporter_ipfix->numTemplates--;
 
     if (template->type == DATA_TEMPLATE) {
         dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
@@ -709,6 +732,7 @@ static void removeAllTemplates(exporter_entry_t *exporter_entry) {
 
     exporter_ipfix->template = NULL;
     exporter_ipfix->currentTemplate = NULL;
+    exporter_ipfix->numTemplates = 0;
 
 }  // End of removeAllTemplates
 
@@ -845,6 +869,14 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
             return;
         }
 
+        // limit the number of fields to protect memory. The template size is unknown
+        // without walking all elements (enterprise fields) - skip the rest of this set
+        if (count > MAX_TEMPLATE_FIELDS) {
+            LogError("Process_ipfix: [%u] template %u field count %u exceeds maximum %u - skip", exporter_entry->info.id, id, count,
+                     MAX_TEMPLATE_FIELDS);
+            return;
+        }
+
         sequence_t *sequenceTable = (sequence_t *)malloc((count + 4) * sizeof(sequence_t));  // + 2 for IP and time received
         if (!sequenceTable) {
             LogError("Process_ipfix: malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -893,6 +925,11 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
         }
 
         dbg_printf("Processed: %u, common found: %u\n", size_required, commonFound);
+        // data sets use IDs >= 256 - a template with a lower ID can never be used
+        if (id < IPFIX_MIN_RECORD_FLOWSET_ID) {
+            LogError("Process_ipfix: [%u] invalid template ID %u - skip", exporter_entry->info.id, id);
+            commonFound = 0;
+        }
         if (commonFound == 0) {
             size_left -= size_required;
             DataPtr = DataPtr + size_required + 4;  // +4 for header
@@ -906,7 +943,8 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
         relinkSequencerList(exporter_entry);
         templateList_t *template = newTemplate(exporter_entry, id);
         if (!template) {
-            LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
+            // newTemplate() logs the reason (template limit: once per exporter)
+            dbg_printf("Process_ipfix: abort template add: %s line %d\n", __FILE__, __LINE__);
             free(sequenceTable);
             return;
         }
@@ -1007,6 +1045,12 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
             "scopes length and %u options length",
             exporter_entry->info.id, size_left, field_count, scope_field_count);
         dbg_printf("option template length error: size left %u too small for field_count %u\n", size_left, field_count);
+        return;
+    }
+
+    // data sets use IDs >= 256 - a template with a lower ID can never be used
+    if (tableID < IPFIX_MIN_RECORD_FLOWSET_ID) {
+        LogError("Process_ipfix: [%u] invalid option template ID %u - skip", exporter_entry->info.id, tableID);
         return;
     }
 
@@ -1207,7 +1251,8 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
         // if it exists - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter_entry, tableID);
         if (!template) {
-            LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
+            // newTemplate() logs the reason (template limit: once per exporter)
+            dbg_printf("Process_ipfix: abort template add: %s line %d\n", __FILE__, __LINE__);
             free(optionTemplate);
             return;
         }
@@ -2057,7 +2102,8 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
     exporter_entry_t *exporter_entry = getExporter(fs, ObservationDomain);
     if (!exporter_entry) {
-        LogError("Process_ipfix: Exporter NULL: Abort ipfix record processing");
+        // getExporter() logs the reason (table full: once)
+        dbg_printf("Process_ipfix: Exporter NULL: Abort ipfix record processing\n");
         return;
     }
     exporter_entry->packets++;

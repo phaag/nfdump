@@ -439,7 +439,11 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
         i = (i + 1) & mask;
     }
 
-    LogError("Process_v9: exporter table is full");
+    static int warnedFull = 0;
+    if (!warnedFull) {
+        warnedFull = 1;
+        LogError("Process_v9: exporter table is full - drop data of further new exporters");
+    }
     return NULL;
 
 }  // End of getExporter
@@ -463,6 +467,7 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
         sampler->record.exporter_sysid = exporter_entry->info.sysid;
         sampler->next = NULL;
         exporter_entry->sampler = sampler;
+        exporter_entry->numSamplers = 1;
 
         fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
         LogInfo("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id, sampler_record->algorithm,
@@ -491,12 +496,20 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
 
             // test for end of chain
             if (sampler->next == NULL) {
-                // end of sampler chain - insert new sampler
+                // end of sampler chain - insert new sampler, if limit not reached
+                if (exporter_entry->numSamplers >= MAX_SAMPLERS_PER_EXPORTER) {
+                    if (exporter_entry->droppedSamplers++ == 0) {
+                        LogError("Process_v9: [%u] sampler limit of %u reached for exporter; discarding sampler id %lli and further new samplers",
+                                 exporter_entry->info.id, MAX_SAMPLERS_PER_EXPORTER, sampler_record->id);
+                    }
+                    return;
+                }
                 sampler->next = (sampler_t *)malloc(sizeof(sampler_t));
                 if (!sampler->next) {
                     LogError("Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
+                exporter_entry->numSamplers++;
                 sampler = sampler->next;
                 sampler->record = *sampler_record;
                 sampler->record.type = SamplerRecordType;
@@ -554,6 +567,15 @@ static templateList_t *getTemplate(exporter_entry_t *exporter_entry, uint16_t id
 }  // End of getTemplate
 
 static templateList_t *newTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
+    exporter_v9_t *exporter_v9 = &exporter_entry->version.v9;
+    if (exporter_v9->numTemplates >= MAX_TEMPLATES_PER_EXPORTER) {
+        if (exporter_v9->droppedTemplates++ == 0) {
+            LogError("Process_v9: [%u] template limit of %u reached for exporter; discarding template %u and further new templates",
+                     exporter_entry->info.id, MAX_TEMPLATES_PER_EXPORTER, id);
+        }
+        return NULL;
+    }
+
     templateList_t *template = (templateList_t *)calloc(1, sizeof(templateList_t));
     if (!template) {
         LogError("Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -561,7 +583,7 @@ static templateList_t *newTemplate(exporter_entry_t *exporter_entry, uint16_t id
     }
 
     // init the new template
-    exporter_v9_t *exporter_v9 = &exporter_entry->version.v9;
+    exporter_v9->numTemplates++;
     template->next = exporter_v9->template;
     template->updated = time(NULL);
     template->id = id;
@@ -601,6 +623,7 @@ static void removeTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
         // last template removed
         exporter_v9->template = template->next;
     }
+    exporter_v9->numTemplates--;
 
     if (TestFlag(template->type, DATA_TEMPLATE)) {
         dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
@@ -637,6 +660,16 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
         if (size_left < size_required) {
             LogError("Process_v9: [%u] buffer size error: expected %u available %u", exporter_entry->info.id, size_required, size_left);
             return;
+        }
+
+        // data flowsets use IDs >= 256 - a template with a lower ID can never be used
+        // limit the number of fields to protect memory
+        if (id < NF9_MIN_RECORD_FLOWSET_ID || count > MAX_TEMPLATE_FIELDS) {
+            LogError("Process_v9: [%u] template %u with field count %u: invalid ID or count exceeds maximum %u - skip", exporter_entry->info.id, id,
+                     count, MAX_TEMPLATE_FIELDS);
+            size_left -= size_required;
+            if (size_left < 4) return;  // padding
+            continue;
         }
 
         sequence_t *sequenceTable = (sequence_t *)malloc((count + 4) * sizeof(sequence_t));  // + 2 for IP and time received
@@ -707,7 +740,8 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
         removeTemplate(exporter_entry, id);
         templateList_t *template = newTemplate(exporter_entry, id);
         if (!template) {
-            LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
+            // newTemplate() logs the reason (template limit: once per exporter)
+            dbg_printf("Process_v9: abort template add: %s line %d\n", __FILE__, __LINE__);
             free(sequenceTable);
             return;
         }
@@ -777,6 +811,12 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
 
     dbg_printf("\n[%u] Option Template ID: %u\n", exporter_entry->info.id, tableID);
     dbg_printf("Scope length: %u Option length: %u\n", scope_length, option_length);
+
+    // data flowsets use IDs >= 256 - a template with a lower ID can never be used
+    if (tableID < NF9_MIN_RECORD_FLOWSET_ID) {
+        LogError("Process_v9: [%u] invalid option template ID %u - skip", exporter_entry->info.id, tableID);
+        return;
+    }
 
     removeTemplate(exporter_entry, tableID);
     optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
@@ -944,7 +984,8 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
         // if it exists - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter_entry, tableID);
         if (!template) {
-            LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
+            // newTemplate() logs the reason (template limit: once per exporter)
+            dbg_printf("Process_v9: abort template add: %s line %d\n", __FILE__, __LINE__);
             free(optionTemplate);
             return;
         }
@@ -1800,7 +1841,8 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     exporter_entry_t *exporter_entry = getExporter(fs, exporter_id);
     if (!exporter_entry) {
-        LogError("Process_v9: No exporter template: Skip v9 record processing");
+        // getExporter() logs the reason (table full: once)
+        dbg_printf("Process_v9: No exporter template: Skip v9 record processing\n");
         return;
     }
     exporter_entry->packets++;
