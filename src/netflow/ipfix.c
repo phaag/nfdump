@@ -907,11 +907,13 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
         templateList_t *template = newTemplate(exporter_entry, id);
         if (!template) {
             LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
+            free(sequenceTable);
             return;
         }
         dataTemplate_t *dataTemplate = (dataTemplate_t *)calloc(1, sizeof(dataTemplate_t));
         if (!dataTemplate) {
             LogError("Error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
+            free(sequenceTable);
             return;
         }
         template->data = dataTemplate;
@@ -1195,6 +1197,7 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
         templateList_t *template = newTemplate(exporter_entry, tableID);
         if (!template) {
             LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
+            free(optionTemplate);
             return;
         }
         template->data = optionTemplate;
@@ -1721,6 +1724,12 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
         elementSize += 4 - align;
     }
 
+    // at least one element must fit into the uint16_t sized array record
+    if (elementSize == 0 || elementSize > (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(NbarAppInfo_t))) {
+        LogError("Process_nbar_option: [%u] invalid nbar element size: %zu", exporter_entry->info.id, elementSize);
+        return;
+    }
+
     size_t maxRecords = (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(NbarAppInfo_t)) / elementSize;
     if (numRecords > maxRecords) {
         LogError("Process_nbar_option: [%u] nbar record count %u would overflow array header - truncating to %zu", exporter_entry->info.id,
@@ -1873,6 +1882,12 @@ static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSour
     size_t align = elementSize & 0x3;
     if (align) {
         elementSize += 4 - align;
+    }
+
+    // at least one element must fit into the uint16_t sized array record
+    if (elementSize > (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(uint32_t))) {
+        LogError("Process_ifvrf_option: [%u] invalid name element size: %zu", exporter_entry->info.id, elementSize);
+        return;
     }
 
     size_t maxRecords = (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(uint32_t)) / elementSize;

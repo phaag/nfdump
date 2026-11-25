@@ -708,11 +708,13 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
         templateList_t *template = newTemplate(exporter_entry, id);
         if (!template) {
             LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
+            free(sequenceTable);
             return;
         }
         dataTemplate_t *dataTemplate = (dataTemplate_t *)calloc(1, sizeof(dataTemplate_t));
         if (!dataTemplate) {
             LogError("Error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
+            free(sequenceTable);
             return;
         }
         template->data = dataTemplate;
@@ -926,12 +928,24 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
     }
     optionTemplate->optionSize = offset;
 
+    // nbar requires the app ID as lookup key and at least a name or a description
+    if (TestFlag(optionTemplate->flags, NBAROPTIONS)) {
+        if (nbarOption->id.length == 0) {
+            LogError("Process_v9: [%u] nbar option missing mandatory ID field - skip", exporter_entry->info.id);
+            ClearFlag(optionTemplate->flags, NBAROPTIONS);
+        } else if ((nbarOption->name.length + nbarOption->desc.length) == 0) {
+            LogError("Process_v9: [%u] nbar option without name and description field - skip", exporter_entry->info.id);
+            ClearFlag(optionTemplate->flags, NBAROPTIONS);
+        }
+    }
+
     dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter_entry->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
         // if it exists - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter_entry, tableID);
         if (!template) {
             LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
+            free(optionTemplate);
             return;
         }
         template->data = optionTemplate;
@@ -1473,6 +1487,12 @@ static void Process_v9_nbar_option_data(exporter_entry_t *exporter_entry, FlowSo
         elementSize += 4 - align;
     }
 
+    // at least one element must fit into the uint16_t sized array record
+    if (elementSize == 0 || elementSize > (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(NbarAppInfo_t))) {
+        LogError("Process_nbar_option: [%u] invalid nbar element size: %zu", exporter_entry->info.id, elementSize);
+        return;
+    }
+
     size_t maxRecords = (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(NbarAppInfo_t)) / elementSize;
     if ((size_t)numRecords > maxRecords) {
         LogError("Process_nbar_option: [%u] nbar record count %d would overflow array header - truncating to %zu", exporter_entry->info.id,
@@ -1615,6 +1635,12 @@ static void Process_v9_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowS
     size_t align = elementSize & 0x3;
     if (align) {
         elementSize += 4 - align;
+    }
+
+    // at least one element must fit into the uint16_t sized array record
+    if (elementSize > (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(uint32_t))) {
+        LogError("Process_ifvrf_option: [%u] invalid name element size: %zu", exporter_entry->info.id, elementSize);
+        return;
     }
 
     size_t maxRecords = (UINT16_MAX - sizeof(arrayRecordHeader_t) - sizeof(uint32_t)) / elementSize;
