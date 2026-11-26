@@ -42,6 +42,11 @@ char *biFlowString(uint8_t biFlow);
 
 char *FlowEndString(uint8_t biFlow);
 
+// max string length of NbarIDString() incl. '\0'
+#define NBARIDSTRLEN 64
+
+char *NbarIDString(char *buff, size_t buffLen, int engineWidth, const uint8_t *id, uint32_t idLen);
+
 /*
  * Advance a fixed-size format-buffer cursor by an snprintf() result, without
  * ever moving past the space that was actually available.

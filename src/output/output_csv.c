@@ -1069,45 +1069,14 @@ static char *String_ReceivedGMT(char *streamPtr, recordHandle_t *recordHandle) {
 static char *String_nbarID(char *streamPtr, recordHandle_t *recordHandle) {
     EXnbarApp_t *nbar = (EXnbarApp_t *)recordHandle->extensionList[EXnbarAppID];
 
-    union {
-        uint8_t val8[4];
-        uint32_t val32;
-    } pen;
-
     if (nbar == NULL) {
         AddString("0..0..0");
         return streamPtr;
     }
 
-    uint32_t nbarAppIDlen = nbar->length;
-    if (nbar->id[0] == 20) {  // PEN - private enterprise number
-        pen.val8[0] = nbar->id[4];
-        pen.val8[1] = nbar->id[3];
-        pen.val8[2] = nbar->id[2];
-        pen.val8[3] = nbar->id[1];
-
-        int selector = 0;
-        int index = 5;
-        while (index < (int)nbarAppIDlen) {
-            selector = (selector << 8) | nbar->id[index];
-            index++;
-        }
-        AddU32(nbar->id[0]);
-        AddString("..");
-        AddU32(pen.val32);
-        AddString("..");
-        AddU32(selector);
-    } else {
-        int selector = 0;
-        int index = 1;
-        while (index < (int)nbarAppIDlen) {
-            selector = (selector << 8) | nbar->id[index];
-            index++;
-        }
-        AddU32(nbar->id[0]);
-        AddString("..");
-        AddU32(selector);
-    }
+    char nbarID[NBARIDSTRLEN];
+    NbarIDString(nbarID, sizeof(nbarID), 0, nbar->id, nbar->length);
+    AddString(nbarID);
 
     return streamPtr;
 }  // End of String_nbarID

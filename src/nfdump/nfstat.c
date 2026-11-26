@@ -338,6 +338,40 @@ static struct StatRequest_s {
     ((a).ptrSize == 0 ? (((a).v1 == (b).v1) && ((a).v0 == (b).v0) && (a).proto == (b).proto) \
                       : ((a).ptrSize == (b).ptrSize && memcmp((a).ptr, (b).ptr, (a).ptrSize) == 0))
 
+// variable length elements ( VARLENGTH - nbar app ID ) are stored inline in the
+// 16 byte key: up to 15 data bytes in v1 ( bytes 0..7 ) and v0 ( bytes 8..14 ),
+// the element length ( capped at 255 ) in the last byte. v1 holds the leading
+// bytes, which feeds the hash function.
+#define VARKEYDATA 15
+static inline void PackVarKey(hashkey_t *key, const uint8_t *data, size_t length) {
+    uint8_t keyBytes[16] = {0};
+    memcpy(keyBytes, data, length < VARKEYDATA ? length : VARKEYDATA);
+    keyBytes[VARKEYDATA] = length > UINT8_MAX ? UINT8_MAX : (uint8_t)length;
+    memcpy(&key->v1, keyBytes, 8);
+    memcpy(&key->v0, keyBytes + 8, 8);
+}  // End of PackVarKey
+
+static inline uint32_t UnpackVarKey(const hashkey_t *key, uint8_t keyBytes[16]) {
+    memcpy(keyBytes, &key->v1, 8);
+    memcpy(keyBytes + 8, &key->v0, 8);
+    return keyBytes[VARKEYDATA] < VARKEYDATA ? keyBytes[VARKEYDATA] : VARKEYDATA;
+}  // End of UnpackVarKey
+
+// format the nbar app ID of a stat key. '+' marks an ID truncated to VARKEYDATA bytes
+static char *NbarKeyString(char *buff, size_t buffLen, int engineWidth, const hashkey_t *key) {
+    uint8_t keyBytes[16];
+    uint32_t idLen = UnpackVarKey(key, keyBytes);
+    NbarIDString(buff, buffLen, engineWidth, keyBytes, idLen);
+    if (keyBytes[VARKEYDATA] > VARKEYDATA) {
+        size_t len = strlen(buff);
+        if (len + 1 < buffLen) {
+            buff[len] = '+';
+            buff[len + 1] = '\0';
+        }
+    }
+    return buff;
+}  // End of NbarKeyString
+
 typedef struct ElementHashCell {
     hashkey_t key;
     uint32_t hash;
@@ -1034,6 +1068,13 @@ void AddElementStat(recordHandle_t *recordHandle) {
                     hashkey.v0 = ((uint64_t *)inPtr)[0];
                     hashkey.v1 = ((uint64_t *)inPtr)[1];
                 } break;
+                case VARLENGTH: {
+                    // variable length extension: uint32_t length followed by the data.
+                    // key on the element data, bounded by the element length
+                    uint32_t dataLength;
+                    memcpy(&dataLength, recordHandle->extensionList[extID], sizeof(uint32_t));
+                    PackVarKey(&hashkey, (uint8_t *)inPtr, dataLength);
+                } break;
                 default: {
                     void *p = nfmalloc(length);
                     hashkey.ptr = p;
@@ -1171,19 +1212,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
             snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
         } break;
         case IS_NBAR: {
-            union {
-                uint8_t val8[4];
-                uint32_t val32;
-            } conv;
-            conv.val32 = hashKey->v1;
-            uint8_t u = conv.val8[0];
-            conv.val8[0] = 0;
-            /*
-                                    conv.val8[1] = r->nbarAppID[1];
-                                    conv.val8[2] = r->nbarAppID[2];
-                                    conv.val8[3] = r->nbarAppID[3];
-            */
-            snprintf(valstr, 64, "%2u..%u", u, ntohl(conv.val32));
+            NbarKeyString(valstr, sizeof(valstr), 2, hashKey);
 
         } break;
         case IS_JA3:
@@ -1380,14 +1409,7 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
             snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
         } break;
         case IS_NBAR: {
-            union {
-                uint8_t val8[4];
-                uint32_t val32;
-            } conv;
-            conv.val32 = hashKey->v1;
-            uint8_t u = conv.val8[0];
-            conv.val8[0] = 0;
-            snprintf(valstr, 64, "%2u..%u", u, ntohl(conv.val32));
+            NbarKeyString(valstr, sizeof(valstr), 0, hashKey);
 
         } break;
         case IS_JA3:
@@ -1522,14 +1544,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
             snprintf(valstr, 64, "%s", StatEventString(hashKey->v1));
             break;
         case IS_NBAR: {
-            union {
-                uint8_t val8[4];
-                uint32_t val32;
-            } conv;
-            conv.val32 = hashKey->v1;
-            uint8_t u = conv.val8[0];
-            conv.val8[0] = 0;
-            snprintf(valstr, 64, "%u..%u", u, ntohl(conv.val32));
+            NbarKeyString(valstr, sizeof(valstr), 0, hashKey);
         } break;
         case IS_JA3:
         case IS_JA4:

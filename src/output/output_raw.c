@@ -714,39 +714,14 @@ static void stringsEXnbarApp(FILE *stream, uint8_t *extensionRecord) {
     EXnbarApp_t *nbar = (EXnbarApp_t *)extensionRecord;
     uint32_t nbarAppIDlen = nbar->length;
 
-    union {
-        uint8_t val8[4];
-        uint32_t val32;
-    } pen;
-
     char nameBuff[256];
     char *name = GetNbarInfo(nbar->id, nbarAppIDlen, nameBuff);
     if (name == NULL) {
         name = "<no info>";
     }
 
-    if (nbar->id[0] == 20) {  // PEN - private enterprise number
-        pen.val8[0] = nbar->id[4];
-        pen.val8[1] = nbar->id[3];
-        pen.val8[2] = nbar->id[2];
-        pen.val8[3] = nbar->id[1];
-
-        unsigned selector = 0;
-        unsigned index = 5;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar->id[index];
-            index++;
-        }
-        fprintf(stream, "  app ID       =              %2u..%u..%u: %s\n", nbar->id[0], pen.val32, selector, name);
-    } else {
-        unsigned selector = 0;
-        unsigned index = 1;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar->id[index];
-            index++;
-        }
-        fprintf(stream, "  app ID       =              %2u..%u: %s\n", nbar->id[0], selector, name);
-    }
+    char nbarID[NBARIDSTRLEN];
+    fprintf(stream, "  app ID       =              %s: %s\n", NbarIDString(nbarID, sizeof(nbarID), 2, nbar->id, nbarAppIDlen), name);
 
 }  // End of stringsEXnbarApp
 
