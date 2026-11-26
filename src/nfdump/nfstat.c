@@ -322,10 +322,20 @@ static struct StatRequest_s {
 #define key_hash_func(key) (int32_t)(((uint64_t)(key->v1) >> 33) ^ (uint64_t)(key->v1) ^ ((uint64_t)(key->v1) << 11))
 
 // up to 16 bytes (hashkey.v0, hashkey.v1) use faster compare.
-// if > 16 bytes ( ptrSize != 0 ) use memcmp for var length
+// if > 16 bytes ( ptrSize != 0 ) use memcmp for var length. v1 holds the hash of the key data
 #define key_hash_equal(a, b)                                                                 \
     ((a).ptrSize == 0 ? (((a).v1 == (b).v1) && ((a).v0 == (b).v0) && (a).proto == (b).proto) \
-                      : ((a).ptrSize == (b).ptrSize && memcmp((a).ptr, (b).ptr, (a).ptrSize) == 0))
+                      : ((a).ptrSize == (b).ptrSize && (a).v1 == (b).v1 && (a).proto == (b).proto && memcmp((a).ptr, (b).ptr, (a).ptrSize) == 0))
+
+// FNV-1a hash of key data > 16 bytes. Stored in v1 of the key, which feeds key_hash_func()
+static inline uint64_t HashKeyData(const uint8_t *data, size_t length) {
+    uint64_t hash = 14695981039346656037ULL;
+    for (size_t i = 0; i < length; i++) {
+        hash ^= data[i];
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}  // End of HashKeyData
 
 // variable length elements ( VARLENGTH - nbar app ID ) are stored inline in the
 // 16 byte key: up to 15 data bytes in v1 ( bytes 0..7 ) and v0 ( bytes 8..14 ),
@@ -360,6 +370,8 @@ static char *NbarKeyString(char *buff, size_t buffLen, int engineWidth, const ha
     }
     return buff;
 }  // End of NbarKeyString
+
+#include "memhandle.c"
 
 typedef struct ElementHashCell {
     hashkey_t key;
@@ -447,6 +459,12 @@ static StatRecord_t *elementHash_add(ElementHash_t *elementHash, hashkey_t *key,
         if (!elementHash->keys[cell].active) {
             elementHash->keys[cell].active = 1;
             elementHash->keys[cell].key = *key;
+            if (key->ptrSize) {
+                // new key > 16 bytes - copy the key data, as key->ptr points into the current record
+                void *p = nfmalloc(key->ptrSize);
+                memcpy(p, key->ptr, key->ptrSize);
+                elementHash->keys[cell].key.ptr = p;
+            }
             elementHash->keys[cell].hash = hash;
             elementHash->count++;
             *insert = 1;
@@ -477,8 +495,6 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t *element, int type, int order_proto, int tag, int inout);
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
-
-#include "memhandle.c"
 
 static uint64_t order_flows_element(StatRecord_t *record) { return record->flows; }
 
@@ -1030,10 +1046,12 @@ void AddElementStat(recordHandle_t *recordHandle) {
                     PackVarKey(&hashkey, (uint8_t *)inPtr, elementLength > offset ? elementLength - offset : 0);
                 } break;
                 default: {
-                    void *p = nfmalloc(length);
-                    hashkey.ptr = p;
-                    memcpy((void *)p, inPtr, length);
+                    // keys > 16 bytes ( ja3, ja4 strings ): lookup with a pointer to the record data.
+                    // elementHash_add() copies the key data for new keys only. v1 holds the hash of the
+                    // key data, as key_hash_func() hashes v1
+                    hashkey.ptr = inPtr;
                     hashkey.ptrSize = length;
+                    hashkey.v1 = (int64_t)HashKeyData((const uint8_t *)inPtr, length);
                 }
             }
 
