@@ -1118,39 +1118,13 @@ static void String_outPayload(FILE *stream, recordHandle_t *recordHandle) {
 static void String_nbarID(FILE *stream, recordHandle_t *recordHandle) {
     uint8_t *nbar = (uint8_t *)recordHandle->extensionList[EXnbarAppID];
 
-    union {
-        uint8_t val8[4];
-        uint32_t val32;
-    } pen;
-
     if (nbar == NULL) {
         fprintf(stream, "0..0..0");
         return;
     }
 
-    uint32_t nbarAppIDlen = ExtensionLength(nbar);
-    if (nbar[0] == 20) {  // PEN - private enterprise number
-        pen.val8[0] = nbar[4];
-        pen.val8[1] = nbar[3];
-        pen.val8[2] = nbar[2];
-        pen.val8[3] = nbar[1];
-
-        int selector = 0;
-        int index = 5;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar[index];
-            index++;
-        }
-        fprintf(stream, "%2u..%u..%u", nbar[0], pen.val32, selector);
-    } else {
-        int selector = 0;
-        int index = 1;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar[index];
-            index++;
-        }
-        fprintf(stream, "%2u..%u", nbar[0], selector);
-    }
+    char nbarID[NBARIDSTRLEN];
+    fprintf(stream, "%s", NbarIDString(nbarID, sizeof(nbarID), 2, nbar, ExtensionLength(nbar)));
 
 }  // End of String_nbarID
 

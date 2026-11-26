@@ -1014,45 +1014,14 @@ static char *String_ReceivedGMT(char *streamPtr, recordHandle_t *recordHandle) {
 static char *String_nbarID(char *streamPtr, recordHandle_t *recordHandle) {
     uint8_t *nbar = (uint8_t *)recordHandle->extensionList[EXnbarAppID];
 
-    union {
-        uint8_t val8[4];
-        uint32_t val32;
-    } pen;
-
     if (nbar == NULL) {
         AddString("0..0..0");
         return streamPtr;
     }
 
-    uint32_t nbarAppIDlen = ExtensionLength(nbar);
-    if (nbar[0] == 20) {  // PEN - private enterprise number
-        pen.val8[0] = nbar[4];
-        pen.val8[1] = nbar[3];
-        pen.val8[2] = nbar[2];
-        pen.val8[3] = nbar[1];
-
-        int selector = 0;
-        int index = 5;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar[index];
-            index++;
-        }
-        AddU32(nbar[0]);
-        AddString("..");
-        AddU32(pen.val32);
-        AddString("..");
-        AddU32(selector);
-    } else {
-        int selector = 0;
-        int index = 1;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar[index];
-            index++;
-        }
-        AddU32(nbar[0]);
-        AddString("..");
-        AddU32(selector);
-    }
+    char nbarID[NBARIDSTRLEN];
+    NbarIDString(nbarID, sizeof(nbarID), 0, nbar, ExtensionLength(nbar));
+    AddString(nbarID);
 
     return streamPtr;
 }  // End of String_nbarID

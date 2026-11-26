@@ -31,6 +31,7 @@
 #ifndef _OUTPUT_UTIL_H
 #define _OUTPUT_UTIL_H 1
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef enum { DIR_IN = 0, DIR_OUT } dirInOut_t;
@@ -40,5 +41,10 @@ char *FlagsString(uint16_t flags);
 char *biFlowString(uint8_t biFlow);
 
 char *FlowEndString(uint8_t biFlow);
+
+// max string length of NbarIDString() incl. '\0'
+#define NBARIDSTRLEN 64
+
+char *NbarIDString(char *buff, size_t buffLen, int engineWidth, const uint8_t *id, uint32_t idLen);
 
 #endif

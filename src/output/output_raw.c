@@ -679,38 +679,13 @@ static void stringsEXnbarApp(FILE *stream, void *extensionRecord) {
     uint8_t *nbar = (uint8_t *)extensionRecord;
     uint32_t nbarAppIDlen = ExtensionLength(nbar);
 
-    union {
-        uint8_t val8[4];
-        uint32_t val32;
-    } pen;
-
     char *name = GetNbarInfo(nbar, nbarAppIDlen);
     if (name == NULL) {
         name = "<no info>";
     }
 
-    if (nbar[0] == 20) {  // PEN - private enterprise number
-        pen.val8[0] = nbar[4];
-        pen.val8[1] = nbar[3];
-        pen.val8[2] = nbar[2];
-        pen.val8[3] = nbar[1];
-
-        unsigned selector = 0;
-        unsigned index = 5;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar[index];
-            index++;
-        }
-        fprintf(stream, "  app ID       =              %2u..%u..%u: %s\n", nbar[0], pen.val32, selector, name);
-    } else {
-        unsigned selector = 0;
-        unsigned index = 1;
-        while (index < nbarAppIDlen) {
-            selector = (selector << 8) | nbar[index];
-            index++;
-        }
-        fprintf(stream, "  app ID       =              %2u..%u: %s\n", nbar[0], selector, name);
-    }
+    char nbarID[NBARIDSTRLEN];
+    fprintf(stream, "  app ID       =              %s: %s\n", NbarIDString(nbarID, sizeof(nbarID), 2, nbar, nbarAppIDlen), name);
 
 }  // End of stringsEXnbarApp
 

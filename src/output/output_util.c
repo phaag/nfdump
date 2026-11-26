@@ -101,3 +101,56 @@ char *FlowEndString(uint8_t endReason) {
     return "undef";
 
 }  // End of FlowEndString
+
+/*
+ * Format an NBAR application ID as <engine>..<selector>, or for classification
+ * engine 20 (PEN - private enterprise number) as 20..<PEN>..<selector>.
+ * All reads are bounded by idLen. Selectors up to 8 bytes are printed as decimal
+ * number, longer selectors as hex string ('+' marks a truncated hex string).
+ * engineWidth is the minimum field width of the engine number.
+ */
+char *NbarIDString(char *buff, size_t buffLen, int engineWidth, const uint8_t *id, uint32_t idLen) {
+    if (buffLen == 0) return buff;
+    buff[0] = '\0';
+
+    if (id == NULL || idLen == 0) {
+        snprintf(buff, buffLen, "%*u..0", engineWidth, 0);
+        return buff;
+    }
+
+    uint32_t index = 1;
+    int len;
+    if (id[0] == 20 && idLen >= 5) {  // PEN - private enterprise number
+        uint32_t pen = ((uint32_t)id[1] << 24) | ((uint32_t)id[2] << 16) | ((uint32_t)id[3] << 8) | (uint32_t)id[4];
+        len = snprintf(buff, buffLen, "%*u..%u..", engineWidth, id[0], pen);
+        index = 5;
+    } else {
+        len = snprintf(buff, buffLen, "%*u..", engineWidth, id[0]);
+    }
+    if (len < 0 || (size_t)len >= buffLen) return buff;
+
+    char *p = buff + len;
+    size_t avail = buffLen - len;
+    if ((idLen - index) <= 8) {
+        uint64_t selector = 0;
+        for (; index < idLen; index++) selector = (selector << 8) | id[index];
+        snprintf(p, avail, "%llu", (unsigned long long)selector);
+    } else {
+        // selector does not fit into a 64bit number - print as hex string
+        static const char hex[] = "0123456789abcdef";
+        if (avail < 4) return buff;
+        *p++ = '0';
+        *p++ = 'x';
+        avail -= 2;
+        for (; index < idLen && avail > 3; index++) {
+            *p++ = hex[id[index] >> 4];
+            *p++ = hex[id[index] & 0xF];
+            avail -= 2;
+        }
+        if (index < idLen) *p++ = '+';
+        *p = '\0';
+    }
+
+    return buff;
+
+}  // End of NbarIDString
