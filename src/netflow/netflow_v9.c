@@ -815,8 +815,7 @@ static template_t *newTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
 
 }  // End of newTemplate
 
-/* Kept for future template-withdrawal support. */
-static int __attribute__((unused)) removeTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
+static int removeTemplate(exporter_v9_t *exporter_v9, uint16_t id) {
     if (exporter_v9->templateCapacity == 0) return 0;
 
     uint32_t mask = exporter_v9->templateCapacity - 1;
@@ -954,6 +953,8 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
             size_left -= size_required;
             DataPtr = DataPtr + size_required + 4;  // +4 for header
             dbg_printf("Template does not contain common elements - skip\n");
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            removeTemplate(&(exporter_entry->v9), id);
             continue;
         }
 
@@ -1013,6 +1014,8 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
                          budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
             }
             free(pipeline);
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            removeTemplate(exporter_v9, id);
             size_left -= size_required;
             if (size_left < 4) return;  // padding
             DataPtr = DataPtr + size_required + 4;  // +4 for header
@@ -1346,6 +1349,8 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
 
         } else {
             free(optionTemplate);
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            removeTemplate(&(exporter_entry->v9), tableID);
             dbg_printf("[%u] Skip option template\n", exporter_entry->info->id);
         }
 
