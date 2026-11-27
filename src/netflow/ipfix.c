@@ -906,6 +906,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
                         "left: %u",
                         exporter_entry->info.id, size_required, size_left);
                     dbg_printf("ERROR: Not enough data for template elements! required: %i, left: %u", size_required, size_left);
+                    free(sequenceTable);
                     return;
                 }
                 EnterpriseNumber = Get_val32(NextElement + 4);
@@ -1108,10 +1109,11 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
 
         Enterprise = type & 0x8000 ? 1 : 0;
         if (Enterprise) {
-            size_required += 4;
             if (size_left < 4) {
-                LogError("Process_ipfix: [%u] option template length error: size left %u too", exporter_entry->info.id, size_left);
+                LogError("Process_ipfix: [%u] option template length error: size left %u too small for enterprise number of field %u",
+                         exporter_entry->info.id, size_left, i);
                 dbg_printf("option template length error: size left %u too small\n", size_left);
+                free(optionTemplate);
                 return;
             }
             type &= 0x7FFF;
