@@ -957,6 +957,18 @@ static void Process_ipfix_templates(exporter_entry_t *exporter_entry, uint8_t *f
 
 }  // End of Process_ipfix_templates
 
+// size of the field descriptors of a template record with count fields, including the 4 byte
+// enterprise numbers of enterprise elements. Used to skip a rejected template record.
+// returns 0, if the descriptors exceed size_left
+static uint32_t templateRecordSize(const uint8_t *fields, uint32_t count, uint32_t size_left) {
+    uint32_t size = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        if (size + 4 > size_left) return 0;
+        size += (Get_val16(fields + size) & 0x8000) ? 8 : 4;
+    }
+    return size <= size_left ? size : 0;
+}  // End of templateRecordSize
+
 static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const uint8_t *DataPtr, uint32_t size_left, FlowSource_t *fs) {
     // a template flowset can contain multiple records ( templates )
     while (size_left) {
@@ -984,11 +996,18 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
             return;
         }
 
-        if (count > MAX_TEMPLATE_FIELDS) {
-            LogError("Process_ipfix: [%u] template %u field count %u exceeds maximum %u - skip", exporter_entry->info->id, id, count,
-                     MAX_TEMPLATE_FIELDS);
+        // data sets use IDs >= 256 - a template with a lower ID can never be used. ID 0 is also the
+        // EMPTY_SLOT marker of the template table and must never be stored.
+        // limit the number of fields to protect memory
+        if (id < IPFIX_MIN_RECORD_FLOWSET_ID || count > MAX_TEMPLATE_FIELDS) {
+            LogError("Process_ipfix: [%u] template %u with field count %u: invalid ID or count exceeds maximum %u - skip", exporter_entry->info->id,
+                     id, count, MAX_TEMPLATE_FIELDS);
+            // skip this template record - its field descriptors may contain enterprise numbers
+            size_required = templateRecordSize(DataPtr + 4, count, size_left);
+            if (size_required == 0) return;  // truncated template record - skip rest of set
             size_left -= size_required;
-            DataPtr = DataPtr + size_required + 4;
+            DataPtr = DataPtr + size_required + 4;  // +4 for header
+            if (size_left < 4) size_left = 0;       // padding
             continue;
         }
 
@@ -1256,6 +1275,13 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
 
     if (scope_field_count == 0) {
         LogError("Process_ipfxi: [%u] scope field count error: length must not be zero", exporter_entry->info->id);
+        return;
+    }
+
+    // data sets use IDs >= 256 - an option template with a lower ID can never be used. ID 0 is also
+    // the EMPTY_SLOT marker of the template table and must never be stored.
+    if (tableID < IPFIX_MIN_RECORD_FLOWSET_ID) {
+        LogError("Process_ipfix: [%u] invalid option template ID %u - skip", exporter_entry->info->id, tableID);
         return;
     }
 

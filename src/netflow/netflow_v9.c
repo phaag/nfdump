@@ -885,10 +885,14 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
             return;
         }
 
-        if (count > MAX_TEMPLATE_FIELDS) {
-            LogError("Process_v9: [%u] template %u field count %u exceeds maximum %u - skip", exporter_entry->info->id, id, count,
-                     MAX_TEMPLATE_FIELDS);
+        // data flowsets use IDs >= 256 - a template with a lower ID can never be used. ID 0 is also the
+        // EMPTY_SLOT marker of the template table and must never be stored.
+        // limit the number of fields to protect memory
+        if (id < NF9_MIN_RECORD_FLOWSET_ID || count > MAX_TEMPLATE_FIELDS) {
+            LogError("Process_v9: [%u] template %u with field count %u: invalid ID or count exceeds maximum %u - skip", exporter_entry->info->id, id,
+                     count, MAX_TEMPLATE_FIELDS);
             size_left -= size_required;
+            if (size_left < 4) return;  // padding
             continue;
         }
 
@@ -1087,6 +1091,15 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
 
         dbg_printf("\n[%u] Option Template ID: %u\n", exporter_entry->info->id, tableID);
         dbg_printf("Scope length: %u Option length: %u\n", scope_length, option_length);
+
+        // data flowsets use IDs >= 256 - an option template with a lower ID can never be used. ID 0 is
+        // also the EMPTY_SLOT marker of the template table and must never be stored.
+        if (tableID < NF9_MIN_RECORD_FLOWSET_ID) {
+            LogError("Process_v9: [%u] invalid option template ID %u - skip", exporter_entry->info->id, tableID);
+            size_left -= template_size;
+            option_template += template_size;
+            continue;
+        }
 
         optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
         if (!optionTemplate) {
