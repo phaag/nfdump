@@ -1118,6 +1118,21 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, voi
         option_template += 2;
         size_left -= 4;
 
+        // option records are decoded with fixed field offsets and a fixed record size. A variable
+        // length field makes the record layout record dependent - such an option template is not
+        // supported. The old template with the same ID is already removed. Log once, as an exporter
+        // repeats its option templates.
+        if (length == VARLENGTH) {
+            static int varLengthLogged = 0;
+            if (varLengthLogged == 0) {
+                varLengthLogged = 1;
+                LogInfo("Process_ipfix: [%u] option template %u: variable length field type %u not supported - skip template. Further messages suppressed",
+                        exporter_entry->info.id, tableID, type & 0x7FFF);
+            }
+            free(optionTemplate);
+            return;
+        }
+
         if (length > (UINT16_MAX - offset)) {
             LogError("Process_ipfix: [%u] option template field length exceeds uint16 range", exporter_entry->info.id);
             free(optionTemplate);
