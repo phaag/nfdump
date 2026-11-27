@@ -87,10 +87,24 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
     // A variable length extension holds exactly one variable length field. If a template lists
     // such a field more than once, a later copy would not fit into the element allocated for
     // the first one. Turn any further occurrence into a skip sequence - template setup only.
+    // A stack only element ( EXnull with a stack slot ) is stacked as number. With a var length,
+    // byte copy or more than 16 bytes input, SequencerRun() would take the copy path without an
+    // output extension. Turn such an element into a skip sequence - template setup only.
     uint8_t varExtSeen[MAXEXTENSIONS] = {0};
     for (uint32_t i = 0; i < numSequences; i++) {
         sequence_t *sequence = &sequenceTable[i];
-        if (sequence->outputLength != VARLENGTH || sequence->extensionID == EXnull || sequence->extensionID >= MAXEXTENSIONS) continue;
+        if (sequence->extensionID == EXnull) {
+            if (sequence->stackID &&
+                (sequence->inputLength == VARLENGTH || sequence->copyMode == ByteCopy || sequence->inputLength > 16)) {
+                dbg_printf("SetupSequencer() skip stack only field type: %u, length: %u\n", sequence->inputType, sequence->inputLength);
+                sequence->outputLength = 0;
+                sequence->copyMode = 0;
+                sequence->offsetRel = 0;
+                sequence->stackID = 0;  // STACK_NONE
+            }
+            continue;
+        }
+        if (sequence->outputLength != VARLENGTH || sequence->extensionID >= MAXEXTENSIONS) continue;
         if (varExtSeen[sequence->extensionID]) {
             dbg_printf("SetupSequencer() skip duplicate variable length field type: %u\n", sequence->inputType);
             sequence->extensionID = EXnull;
