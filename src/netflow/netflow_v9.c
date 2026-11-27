@@ -732,6 +732,8 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
             dbg_printf("Template does not contain common elements - skip\n");
             free(sequenceTable);
             sequenceTable = NULL;
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            removeTemplate(exporter_entry, id);
             continue;
         }
 
@@ -756,6 +758,8 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
                          budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
             }
             free(sequenceTable);
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            removeTemplate(exporter_entry, id);
             size_left -= size_required;
             if (size_left < 4) return;  // padding
             continue;

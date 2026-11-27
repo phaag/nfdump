@@ -948,6 +948,11 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
             dbg_printf("Template does not contain common elements - skip\n");
             free(sequenceTable);
             sequenceTable = NULL;
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            if (id >= IPFIX_MIN_RECORD_FLOWSET_ID) {
+                removeTemplate(exporter_entry, id);
+                relinkSequencerList(exporter_entry);
+            }
             continue;
         }
 
@@ -961,6 +966,9 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
                          budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
             }
             free(sequenceTable);
+            // the template ID is redefined - an existing template with this ID must not be used any more
+            removeTemplate(exporter_entry, id);
+            relinkSequencerList(exporter_entry);
             size_left -= size_required;
             DataPtr = DataPtr + size_required + 4;  // +4 for header
             if (size_left < 4) size_left = 0;       // padding
