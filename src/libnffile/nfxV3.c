@@ -285,6 +285,10 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
     recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)outBuff;
     dbg_printf("[%u] v3 header size: %u\n", nestLevel, recordHeaderV3->size);
 
+    // the record must fit into the output buffer and into its uint16_t size field. Merge both
+    // limits, so the per element check does not need an extra compare
+    const size_t outLimit = outSize < MAXSEQUENCERRECORDSIZE ? outSize : MAXSEQUENCERRECORDSIZE;
+
     // clear cache
     memset((void *)sequencer->offsetCache, 0, MAXEXTENSIONS * sizeof(void *));
 
@@ -368,10 +372,12 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
                 elementSize = sequencer->ExtSize[ExtID];
             }
 
-            if ((recordHeaderV3->size + elementSize) > outSize) {
+            if ((recordHeaderV3->size + elementSize) > outLimit) {
                 dbg_printf("Size error add output element: header size: %u, element size: %zu, output size: %zu\n", recordHeaderV3->size, elementSize,
                            outSize);
                 nestLevel--;
+                // record too large for the uint16_t size field - a new output buffer does not help
+                if ((recordHeaderV3->size + elementSize) > MAXSEQUENCERRECORDSIZE) return SEQ_ERROR;
                 return SEQ_MEM_ERR;
             } else {
                 dbg_printf("Add output element at: header size: %u, element size: %zu, output size: %zu\n", recordHeaderV3->size, elementSize,

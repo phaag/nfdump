@@ -328,6 +328,10 @@ typedef struct EXipReceivedV6_s {
 } EXipReceivedV6_t;
 #define EXipReceivedV6Size (sizeof(EXipReceivedV6_t) + sizeof(elementHeader_t))
 
+// max size of a V3 record built by the sequencer. A record must fit into its uint16_t size
+// field, including the EXipReceived extension, which is added after the sequencer run
+#define MAXSEQUENCERRECORDSIZE (UINT16_MAX - EXipReceivedV6Size)
+
 typedef struct EXmplsLabel_s {
 #define EXmplsLabelID 14
     uint32_t mplsLabel[10];
