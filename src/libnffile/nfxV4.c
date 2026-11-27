@@ -453,6 +453,8 @@ pipeline_t *PipelineCompile(const pipelineInstr_t *instruction, uint32_t templat
     };
 
     pipeline->recordSize = hasVarLength ? VARLENGTH : recordSize;
+    // var length data must leave room for the fixed size part of the record within UINT16_MAX
+    pipeline->varLimit = recordSize < UINT16_MAX ? UINT16_MAX - recordSize : 0;
     pipeline->templateID = templateID;
     pipeline->numInstructions = instr - pipeline->instruction;
     pipeline->extBitmap = bitMap;
@@ -681,7 +683,13 @@ L_COPY_VAR: {
         // make it 8 byte boundary aligned
         nextOffset = (nextOffset + 7) & ~7ULL;
 
-        if (unlikely(nextOffset > outSize)) return PIP_ERR_SHORT_OUTPUT;
+        // only var length data can grow a record beyond its uint16_t size field and offset table.
+        // varLimit keeps room for all fixed size extensions of this pipeline
+        if (unlikely(nextOffset > outSize || nextOffset > pipeline->varLimit)) {
+            // record too large - a new output buffer does not help
+            if (nextOffset > pipeline->varLimit) return PIP_ERR_RUNTIME_ERROR;
+            return PIP_ERR_SHORT_OUTPUT;
+        }
     } else {
         // A template that lists the same variable-length IE more than once would
         // otherwise re-enter this handler with the space already reserved for the

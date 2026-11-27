@@ -1665,9 +1665,9 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             processed = PipelineRun(pipeline, inBuff, size_left, outBuff, buffAvail, &runtime);
             switch (processed) {
                 case PIP_ERR_SHORT_INPUT:
+                    // the record is incomplete - skip the rest of the flowset without committing the record
                     LogError("Process ipfix: PipelineRun() short input. Skip record processing");
-                    processed = size_left;
-                    break;
+                    return;
                 case PIP_ERR_SHORT_OUTPUT:
                     if (buffAvail == BLOCK_SIZE_V3) {
                         LogError("Process ipfix: PipelineRun() short output. Skip record processing");
@@ -1695,12 +1695,11 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     LogError("Process_ipfix: runtime buffer error. Skip ipfix record processing");
                     return;
                 case PIP_ERR_RUNTIME_ERROR:
-                    // Unrecoverable for this record (e.g. malformed template); retrying would
-                    // just reproduce the same error against the same input and spin forever,
-                    // since neither `processed` nor `redone` change. Skip like short input does.
+                    // Unrecoverable for this record (e.g. malformed template or record too large);
+                    // retrying would just reproduce the same error. Skip the rest of the flowset
+                    // without committing the invalid record.
                     LogError("Process_ipfix: pipeline runtime error. Skip record processing");
-                    processed = size_left;
-                    break;
+                    return;
                 default:
                     dbg_printf("New record added with %u elements and size: %u, processed inLength: %zu\n", recordHeaderV4->numExtensions,
                                recordHeaderV4->size, processed);

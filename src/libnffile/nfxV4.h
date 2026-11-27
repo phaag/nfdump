@@ -884,6 +884,7 @@ typedef struct pipeline_s {
     uint32_t numFixup;                  // number of fixup instructions
 
     uint32_t recordSize;            // expected output record size
+    uint32_t varLimit;              // max record offset after var length data - record must fit its uint16_t size. uses padding
     pipelineInstr_t instruction[];  // instruction array
 } pipeline_t;
 

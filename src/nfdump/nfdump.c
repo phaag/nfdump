@@ -821,11 +821,12 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     recordHeaderV4_t *recordHeaderV4 = (recordHeaderV4_t *)record_ptr;
                     // check if filter matched
                     if (engine && TestFlag(recordHeaderV4->flags, V4_FLAG_PASSED) == 0) goto NEXT;
-                    totalPassed++;
 
                     // clear filter flag after use
                     ClearFlag(recordHeaderV4->flags, V4_FLAG_PASSED);
-                    MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, recordCounter);
+                    // skip a corrupt record - without a filter the filter stage does not skip it
+                    if (!MapV4RecordHandle(recordHandle, (recordHeaderV4_t *)record_ptr, recordCounter)) goto NEXT;
+                    totalPassed++;
 
                     // check if we are done, if -c option was set
                     if (limitRecords) abortProcessing = totalPassed >= limitRecords;
