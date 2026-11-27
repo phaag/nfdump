@@ -739,3 +739,34 @@ void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args) {
         fs->dataBlock = NULL;
     }
 }  // End of CleanupCollector
+
+/*
+ * Template field budget for v9/ipfix data templates.
+ * The memory of a data template grows with its number of fields. Limit the sum of
+ * fields of all data templates of an exporter and of all exporters, to protect the
+ * collector against memory exhaustion by a malicious sender. Templates are processed
+ * by the single packet processing thread - no locking required.
+ */
+static uint32_t templateFieldsTotal = 0;
+
+// check, if a data template with newFields fields can be installed. oldFields are the
+// fields of an existing template with the same ID, which gets replaced
+int TemplateFieldsAvailable(uint32_t exporterFields, uint32_t oldFields, uint32_t newFields) {
+    uint64_t exporterNew = (uint64_t)exporterFields - oldFields + newFields;
+    if (exporterNew > MAX_TEMPLATE_FIELDS_PER_EXPORTER) return TEMPLATE_BUDGET_EXPORTER;
+
+    uint64_t totalNew = (uint64_t)templateFieldsTotal - oldFields + newFields;
+    if (totalNew > MAX_TEMPLATE_FIELDS_TOTAL) return TEMPLATE_BUDGET_TOTAL;
+
+    return TEMPLATE_BUDGET_OK;
+}  // End of TemplateFieldsAvailable
+
+void TemplateFieldsAdd(uint32_t *exporterFields, uint32_t fields) {
+    *exporterFields += fields;
+    templateFieldsTotal += fields;
+}  // End of TemplateFieldsAdd
+
+void TemplateFieldsRelease(uint32_t *exporterFields, uint32_t fields) {
+    *exporterFields = *exporterFields >= fields ? *exporterFields - fields : 0;
+    templateFieldsTotal = templateFieldsTotal >= fields ? templateFieldsTotal - fields : 0;
+}  // End of TemplateFieldsRelease

@@ -596,6 +596,15 @@ static templateList_t *newTemplate(exporter_entry_t *exporter_entry, uint16_t id
 
 }  // End of newTemplate
 
+// number of sequences of an installed data template with this id - 0 if none.
+// The template field budget accounts the sequencer size of a data template
+static uint32_t templateFieldCount(const exporter_v9_t *exporter_v9, uint16_t id) {
+    for (const templateList_t *template = exporter_v9->template; template; template = template->next) {
+        if (template->id == id) return TestFlag(template->type, DATA_TEMPLATE) ? ((dataTemplate_t *)template->data)->sequencer.numSequences : 0;
+    }
+    return 0;
+}  // End of templateFieldCount
+
 static void removeTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
     exporter_v9_t *exporter_v9 = &exporter_entry->version.v9;
 
@@ -627,6 +636,7 @@ static void removeTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
 
     if (TestFlag(template->type, DATA_TEMPLATE)) {
         dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
+        TemplateFieldsRelease(&exporter_v9->templateFields, dataTemplate->sequencer.numSequences);
         ClearSequencer(&(dataTemplate->sequencer));
         if (dataTemplate->extensionList) free(dataTemplate->extensionList);
     }
@@ -736,6 +746,21 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
         dbg_printf("Map type: %u, length: %u to Extension %u - '%s' - output length: %u\n", LOCAL_msecTimeReceived, 8,
                    v9TranslationMap[index].extensionID, v9TranslationMap[index].name, v9TranslationMap[index].outputLength);
 
+        // template field budget - an existing template with the same ID gets replaced
+        exporter_v9_t *exporter_v9 = &(exporter_entry->version.v9);
+        int budget = TemplateFieldsAvailable(exporter_v9->templateFields, templateFieldCount(exporter_v9, id), numSequences);
+        if (budget != TEMPLATE_BUDGET_OK) {
+            if (exporter_v9->droppedFields++ == 0) {
+                LogError("Process_v9: [%u] template field limit of %u reached for %s; discarding template %u and further new templates",
+                         exporter_entry->info.id, budget == TEMPLATE_BUDGET_EXPORTER ? MAX_TEMPLATE_FIELDS_PER_EXPORTER : MAX_TEMPLATE_FIELDS_TOTAL,
+                         budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
+            }
+            free(sequenceTable);
+            size_left -= size_required;
+            if (size_left < 4) return;  // padding
+            continue;
+        }
+
         // if it exists - remove old template on exporter with same ID
         removeTemplate(exporter_entry, id);
         templateList_t *template = newTemplate(exporter_entry, id);
@@ -754,6 +779,7 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, void *
         template->data = dataTemplate;
         dataTemplate->extensionList = SetupSequencer(&(dataTemplate->sequencer), sequenceTable, numSequences);
         dataTemplate->sequencer.templateID = id;
+        TemplateFieldsAdd(&exporter_v9->templateFields, dataTemplate->sequencer.numSequences);
         SetFlag(template->type, DATA_TEMPLATE);
 
 #ifdef DEVEL

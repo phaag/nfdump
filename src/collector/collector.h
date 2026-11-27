@@ -119,4 +119,14 @@ int Launch_postprocessor(post_args_t *post_args);
 
 void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args);
 
+// template field budget for v9/ipfix data templates
+#define TEMPLATE_BUDGET_OK 0
+#define TEMPLATE_BUDGET_EXPORTER 1
+#define TEMPLATE_BUDGET_TOTAL 2
+int TemplateFieldsAvailable(uint32_t exporterFields, uint32_t oldFields, uint32_t newFields);
+
+void TemplateFieldsAdd(uint32_t *exporterFields, uint32_t fields);
+
+void TemplateFieldsRelease(uint32_t *exporterFields, uint32_t fields);
+
 #endif  //_COLLECTOR_H

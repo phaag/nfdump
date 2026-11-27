@@ -638,6 +638,15 @@ static templateList_t *getTemplate(exporter_entry_t *exporter_entry, uint16_t id
 
 }  // End of getTemplate
 
+// number of sequences of an installed data template with this id - 0 if none.
+// The template field budget accounts the sequencer size of a data template
+static uint32_t templateFieldCount(const exporter_ipfix_t *exporter_ipfix, uint16_t id) {
+    for (const templateList_t *template = exporter_ipfix->template; template; template = template->next) {
+        if (template->id == id) return template->type == DATA_TEMPLATE ? ((dataTemplate_t *)template->data)->sequencer.numSequences : 0;
+    }
+    return 0;
+}  // End of templateFieldCount
+
 static templateList_t *newTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
     exporter_ipfix_t *exporter_ipfix = &(exporter_entry->version.ipfix);
     if (exporter_ipfix->numTemplates >= MAX_TEMPLATES_PER_EXPORTER) {
@@ -699,6 +708,7 @@ static void removeTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
 
     if (template->type == DATA_TEMPLATE) {
         dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
+        TemplateFieldsRelease(&exporter_ipfix->templateFields, dataTemplate->sequencer.numSequences);
         ClearSequencer(&(dataTemplate->sequencer));
         if (dataTemplate->extensionList) free(dataTemplate->extensionList);
     }
@@ -721,6 +731,7 @@ static void removeAllTemplates(exporter_entry_t *exporter_entry) {
 
         if (template->type == DATA_TEMPLATE) {
             dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
+            TemplateFieldsRelease(&exporter_ipfix->templateFields, dataTemplate->sequencer.numSequences);
             ClearSequencer(&(dataTemplate->sequencer));
             if (dataTemplate->extensionList) free(dataTemplate->extensionList);
         }
@@ -940,6 +951,22 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
             continue;
         }
 
+        // template field budget - an existing template with the same ID gets replaced
+        exporter_ipfix_t *exporter_ipfix = &(exporter_entry->version.ipfix);
+        int budget = TemplateFieldsAvailable(exporter_ipfix->templateFields, templateFieldCount(exporter_ipfix, id), numSequences);
+        if (budget != TEMPLATE_BUDGET_OK) {
+            if (exporter_ipfix->droppedFields++ == 0) {
+                LogError("Process_ipfix: [%u] template field limit of %u reached for %s; discarding template %u and further new templates",
+                         exporter_entry->info.id, budget == TEMPLATE_BUDGET_EXPORTER ? MAX_TEMPLATE_FIELDS_PER_EXPORTER : MAX_TEMPLATE_FIELDS_TOTAL,
+                         budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
+            }
+            free(sequenceTable);
+            size_left -= size_required;
+            DataPtr = DataPtr + size_required + 4;  // +4 for header
+            if (size_left < 4) size_left = 0;       // padding
+            continue;
+        }
+
         removeTemplate(exporter_entry, id);
         relinkSequencerList(exporter_entry);
         templateList_t *template = newTemplate(exporter_entry, id);
@@ -958,6 +985,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
         template->data = dataTemplate;
         dataTemplate->extensionList = SetupSequencer(&(dataTemplate->sequencer), sequenceTable, numSequences);
         dataTemplate->sequencer.templateID = id;
+        TemplateFieldsAdd(&exporter_ipfix->templateFields, dataTemplate->sequencer.numSequences);
 
         SetFlag(template->type, DATA_TEMPLATE);
 

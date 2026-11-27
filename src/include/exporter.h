@@ -228,6 +228,8 @@ typedef struct exporter_v9_s {
     templateList_t *template;
     uint32_t numTemplates;      // number of templates in list
     uint32_t droppedTemplates;  // templates dropped due to MAX_TEMPLATES_PER_EXPORTER
+    uint32_t templateFields;    // sum of fields of all data templates - template field budget
+    uint32_t droppedFields;     // data templates dropped due to the template field budget
 
 } exporter_v9_t;
 
@@ -254,6 +256,8 @@ typedef struct exporter_ipfix_s {
     templateList_t *template;
     uint32_t numTemplates;      // number of templates in list
     uint32_t droppedTemplates;  // templates dropped due to MAX_TEMPLATES_PER_EXPORTER
+    uint32_t templateFields;    // sum of fields of all data templates - template field budget
+    uint32_t droppedFields;     // data templates dropped due to the template field budget
 
 } exporter_ipfix_t;
 
@@ -309,6 +313,11 @@ typedef struct exporter_entry_s {
 #define MAX_TEMPLATE_FIELDS 1024u
 // max number of samplers per exporter - v9, ipfix
 #define MAX_SAMPLERS_PER_EXPORTER 1024u
+// template field budget - v9, ipfix data templates. The memory of a data template
+// grows with its number of fields ( ~30 bytes per field ). Limit the sum of fields of
+// all data templates per exporter and of all exporters of the collector.
+#define MAX_TEMPLATE_FIELDS_PER_EXPORTER 65536u
+#define MAX_TEMPLATE_FIELDS_TOTAL (8u * 1024u * 1024u)
 
 // exporter table
 typedef struct exporter_table_s {
