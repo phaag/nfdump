@@ -139,6 +139,8 @@ typedef struct exporter_v9_s {
     uint64_t DataRecords;      // stat counter
     uint32_t TemplateRecords;  // stat counter
     uint32_t droppedTemplates; // templates rejected after reaching the per-exporter limit
+    uint32_t templateFields;   // sum of fields of all data templates - template field budget
+    uint32_t droppedFields;    // data templates dropped due to the template field budget
 
     // often, many data records in sequence are sent for the
     // same template. Cache last template to speed up access
@@ -151,6 +153,11 @@ typedef struct exporter_v9_s {
 // Maximum number of active NetFlow v9/IPFIX templates per exporter. The
 // backing hash table may use twice this number of slots to keep lookups fast.
 #define MAX_TEMPLATES_PER_EXPORTER 1024u
+// template field budget - v9, ipfix data templates. The memory of a data template
+// grows with its number of fields ( ~22 bytes per field ). Limit the sum of fields of
+// all data templates per exporter and of all exporters of the collector.
+#define MAX_TEMPLATE_FIELDS_PER_EXPORTER 65536u
+#define MAX_TEMPLATE_FIELDS_TOTAL (8u * 1024u * 1024u)
 #define EMPTY_SLOT 0
 #define DELETED_SLOT 0xFFFFFFFF
     uint32_t templateCount;     // number of templates in list
@@ -174,6 +181,8 @@ typedef struct exporter_ipfix_s {
     uint64_t DataRecords;      // stat counter
     uint32_t TemplateRecords;  // stat counter
     uint32_t droppedTemplates; // templates rejected after reaching the per-exporter limit
+    uint32_t templateFields;   // sum of fields of all data templates - template field budget
+    uint32_t droppedFields;    // data templates dropped due to the template field budget
 
     // often, many data records in sequence are sent for the
     // same template. Cache last template to speed up access

@@ -66,6 +66,7 @@
 
 // Maximum number of fields per template; prevents network-controlled VLA stack overflow
 #define MAX_TEMPLATE_FIELDS 1024
+_Static_assert(MAX_TEMPLATE_FIELDS <= UINT16_MAX, "template_t numFields is uint16_t");
 
 // Get_valxx, a  macros
 #include "inline.c"
@@ -834,6 +835,8 @@ static int __attribute__((unused)) removeTemplate(exporter_v9_t *exporter_v9, ui
                 free(table[idx].data);
                 table[idx].data = NULL;
             }
+            TemplateFieldsRelease(&exporter_v9->templateFields, table[idx].numFields);
+            table[idx].numFields = 0;
 
             // mark as deleted
             table[idx].id = DELETED_SLOT;
@@ -994,14 +997,34 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
         dbg(PrintPipeline(pipeline));
 
         // if it exists - remove old template on exporter with same ID
+        exporter_v9_t *exporter_v9 = &(exporter_entry->v9);
         template_t *template = getTemplate(exporter_entry, id);
+
+        // template field budget - an existing template with the same ID gets replaced
+        int budget = TemplateFieldsAvailable(exporter_v9->templateFields, template ? template->numFields : 0, count);
+        if (budget != TEMPLATE_BUDGET_OK) {
+            if (exporter_v9->droppedFields++ == 0) {
+                LogError("Process_v9: [%u] template field limit of %u reached for %s; discarding template %u and further new templates",
+                         exporter_entry->info->id, budget == TEMPLATE_BUDGET_EXPORTER ? MAX_TEMPLATE_FIELDS_PER_EXPORTER : MAX_TEMPLATE_FIELDS_TOTAL,
+                         budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
+            }
+            free(pipeline);
+            size_left -= size_required;
+            if (size_left < 4) return;  // padding
+            DataPtr = DataPtr + size_required + 4;  // +4 for header
+            continue;
+        }
+
         if (template) {
             // clean existing template
             if (template->data) free(template->data);
+            template->data = NULL;
+            TemplateFieldsRelease(&exporter_v9->templateFields, template->numFields);
+            template->numFields = 0;
             template->updated = time(NULL);
             dbg_printf("Update/refresh template ID: %u\n", id);
         } else {
-            template = newTemplate(&(exporter_entry->v9), id);
+            template = newTemplate(exporter_v9, id);
             dbg_printf("New template ID: %u\n", id);
         }
 
@@ -1011,6 +1034,8 @@ static inline void Process_v9_templates(exporter_entry_t *exporter_entry, const 
         }
         template->type = DATA_TEMPLATE;
         template->data = pipeline;
+        template->numFields = (uint16_t)count;  // count <= MAX_TEMPLATE_FIELDS
+        TemplateFieldsAdd(&exporter_v9->templateFields, count);
         SetFlag(template->type, DATA_TEMPLATE);
 
         // update size left of this flowset
@@ -1221,8 +1246,11 @@ static inline void Process_v9_option_templates(exporter_entry_t *exporter_entry,
         if (optionTemplate->flags) {
             template_t *template = getTemplate(exporter_entry, tableID);
             if (template) {
-                // clean existing template
+                // clean existing template - an option template does not use the template field budget
                 if (template->data) free(template->data);
+                template->data = NULL;
+                TemplateFieldsRelease(&exporter_entry->v9.templateFields, template->numFields);
+                template->numFields = 0;
                 dbg_printf("Update/refresh option template ID: %u\n", tableID);
             } else {
                 template = newTemplate(&(exporter_entry->v9), tableID);

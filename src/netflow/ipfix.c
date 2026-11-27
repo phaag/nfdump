@@ -66,6 +66,7 @@
 
 // Maximum number of fields per template; prevents network-controlled VLA stack overflow
 #define MAX_TEMPLATE_FIELDS 1024
+_Static_assert(MAX_TEMPLATE_FIELDS <= UINT16_MAX, "template_t numFields is uint16_t");
 
 // Get_valxx, a  macros
 #include "inline.c"
@@ -891,6 +892,8 @@ static int removeTemplate(exporter_entry_t *exporter_entry, uint16_t id) {
                 free(table[idx].data);
                 table[idx].data = NULL;
             }
+            TemplateFieldsRelease(&exporter_ipfix->templateFields, table[idx].numFields);
+            table[idx].numFields = 0;
 
             // mark as deleted
             table[idx].id = DELETED_SLOT;
@@ -920,6 +923,7 @@ static void removeAllTemplates(exporter_entry_t *exporter_entry) {
     template_t *template = exporter_ipfix->template;
     for (int i = 0; i < (int)exporter_ipfix->templateCapacity; i++) {
         if (template->data) free(template->data);
+        TemplateFieldsRelease(&exporter_ipfix->templateFields, template->numFields);
         *template = (template_t){0};
         template++;
     }
@@ -1133,14 +1137,34 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
         dbg(PrintPipeline(pipeline));
 
         // if it exists - remove old template on exporter with same ID
+        exporter_ipfix_t *exporter_ipfix = &(exporter_entry->ipfix);
         template_t *template = getTemplate(exporter_entry, id);
+
+        // template field budget - an existing template with the same ID gets replaced
+        int budget = TemplateFieldsAvailable(exporter_ipfix->templateFields, template ? template->numFields : 0, count);
+        if (budget != TEMPLATE_BUDGET_OK) {
+            if (exporter_ipfix->droppedFields++ == 0) {
+                LogError("Process_ipfix: [%u] template field limit of %u reached for %s; discarding template %u and further new templates",
+                         exporter_entry->info->id, budget == TEMPLATE_BUDGET_EXPORTER ? MAX_TEMPLATE_FIELDS_PER_EXPORTER : MAX_TEMPLATE_FIELDS_TOTAL,
+                         budget == TEMPLATE_BUDGET_EXPORTER ? "exporter" : "all exporters", id);
+            }
+            free(pipeline);
+            size_left -= size_required;
+            DataPtr = DataPtr + size_required + 4;  // +4 for header
+            if (size_left < 4) size_left = 0;       // padding
+            continue;
+        }
+
         if (template) {
             // clean existing template
             if (template->data) free(template->data);
+            template->data = NULL;
+            TemplateFieldsRelease(&exporter_ipfix->templateFields, template->numFields);
+            template->numFields = 0;
             template->updated = time(NULL);
             dbg_printf("Update/refresh template ID: %u\n", id);
         } else {
-            template = newTemplate(&(exporter_entry->ipfix), id);
+            template = newTemplate(exporter_ipfix, id);
             dbg_printf("New template ID: %u\n", id);
         }
 
@@ -1151,6 +1175,8 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, const u
 
         template->type = DATA_TEMPLATE;
         template->data = pipeline;
+        template->numFields = (uint16_t)count;  // count <= MAX_TEMPLATE_FIELDS
+        TemplateFieldsAdd(&exporter_ipfix->templateFields, count);
         SetFlag(template->type, DATA_TEMPLATE);
 
         // update size left of this flowset
@@ -1448,8 +1474,11 @@ static void Process_ipfix_option_templates(exporter_entry_t *exporter_entry, con
         // if it exists - remove old template on exporter with same ID
         template_t *template = getTemplate(exporter_entry, tableID);
         if (template) {
-            // clean existing template
+            // clean existing template - an option template does not use the template field budget
             if (template->data) free(template->data);
+            template->data = NULL;
+            TemplateFieldsRelease(&exporter_entry->ipfix.templateFields, template->numFields);
+            template->numFields = 0;
             dbg_printf("Update/refresh option template ID: %u\n", tableID);
         } else {
             template = newTemplate(&(exporter_entry->ipfix), tableID);
